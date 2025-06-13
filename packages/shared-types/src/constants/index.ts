@@ -98,6 +98,38 @@ export const MEMORY_CONFIG = {
 } as const;
 
 /**
+ * Gmail OAuth configuration
+ */
+export const GMAIL_CONFIG = {
+  // OAuth configuration
+  REDIRECT_URI: "http://localhost:3000/oauth2callback",
+  CALLBACK_PORT: 3000,
+  CALLBACK_HOST: "127.0.0.1",
+
+  // Scopes
+  SCOPES: {
+    MODIFY: "https://www.googleapis.com/auth/gmail.modify",
+    READONLY: "https://www.googleapis.com/auth/gmail.readonly",
+    SEND: "https://www.googleapis.com/auth/gmail.send",
+  },
+
+  // File paths
+  CONFIG_DIR: ".gmail-mcp",
+  OAUTH_KEYS_FILE: "gcp-oauth.keys.json",
+  CREDENTIALS_FILE: "credentials.json",
+
+  // Security settings
+  FILE_PERMISSIONS: {
+    CONFIG_DIR: 0o700,
+    CREDENTIALS_FILE: 0o600,
+  },
+
+  // Timeouts and retries
+  AUTH_TIMEOUT_MS: 5 * 60 * 1000, // 5 minutes
+  TOKEN_REFRESH_BUFFER_MS: 5 * 60 * 1000, // Refresh 5 minutes before expiry
+} as const;
+
+/**
  * Main process specific configuration
  */
 export const MAIN_PROCESS_CONFIG = {

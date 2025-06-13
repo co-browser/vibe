@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { LoadingOutlined } from "@ant-design/icons";
 import { IconWithStatus } from "@/components/ui/icon-with-status";
 
-// Gmail SVG icon component
+/** Gmail SVG icon component */
 const GmailIcon: React.FC<{ className?: string }> = ({ className }) => (
   <svg
     className={className}
@@ -21,6 +21,7 @@ interface AuthStatus {
   error?: string;
 }
 
+/** Gmail OAuth authentication button component */
 export const GmailAuthButton: React.FC = () => {
   const [authStatus, setAuthStatus] = useState<AuthStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -77,6 +78,9 @@ export const GmailAuthButton: React.FC = () => {
 
   useEffect(() => {
     checkAuthStatus();
+
+    // OAuth completion handled via promise resolution
+    return () => {};
   }, []);
 
   const getTooltipText = (): string => {
