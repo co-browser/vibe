@@ -81,26 +81,45 @@ export class ProcessManager extends EventEmitter<McpServiceEvents> {
         MCP_SERVER_PORT: this.config.port.toString(),
         PYTHONUNBUFFERED: "1", // Ensure immediate output
       };
-      const execBundledPy = "mcp-server-backend";
-      let pathToBundledPy =
-        "/Applications/vibe.app/Contents/Resources/app.asar.unpacked/dist-py/";
 
-      if (existsSync(`${pathToBundledPy}${execBundledPy}`)) {
-        console.info("[mcp-service] init inside dmg");
-      } else {
-        console.info("[mcp-service] development init");
-        pathToBundledPy = path.join(
-          __dirname,
-          "../../../apps/electron-app/dist-py/",
+      // Check if we're in development (source code available) or production (binary available)
+      const isDevelopment = existsSync(
+        path.join(this.config.projectPath, "pyproject.toml"),
+      );
+
+      if (isDevelopment) {
+        console.info(
+          "[mcp-service] development init - using uv to run Python project",
         );
+        console.info(`starting mcp-service @ ${this.config.projectPath}`);
+
+        // Use uv to run the Python project directly
+        this.process = spawn(
+          this.config.pythonPath || "uv",
+          ["run", "python", "src/main.py"],
+          {
+            cwd: this.config.projectPath,
+            env,
+            stdio: ["pipe", "pipe", "pipe"],
+            detached: false,
+          },
+        );
+      } else {
+        console.info("[mcp-service] production init - using bundled binary");
+        const execBundledPy = "mcp-server-backend";
+        const pathToBundledPy =
+          "/Applications/vibe.app/Contents/Resources/app.asar.unpacked/dist-py/";
+        console.info(
+          `starting mcp-service @ ${pathToBundledPy}${execBundledPy}`,
+        );
+
+        // Spawn the precompiled binary
+        this.process = spawn(`${pathToBundledPy}${execBundledPy}`, [], {
+          env,
+          stdio: ["pipe", "pipe", "pipe"],
+          detached: false,
+        });
       }
-      console.info(`starting mcp-service @ ${pathToBundledPy}${execBundledPy}`);
-      // Spawn the Packaged python process
-      this.process = spawn(`${pathToBundledPy}${execBundledPy}`, [], {
-        env,
-        stdio: ["pipe", "pipe", "pipe"],
-        detached: false,
-      });
 
       // Set up process event handlers
       this.setupProcessHandlers();
