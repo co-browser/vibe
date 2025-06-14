@@ -53,7 +53,38 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-
+        
+      - name: Build Python Backend
+        run: |
+          export release_date=20250610
+          export filename=cpython-3.13.4+20250610-aarch64-apple-darwin-install_only_stripped.tar.gz
+          standalone_python="python/"
+          if [ ! -d "$standalone_python" ]; then
+            wget https://github.com/indygreg/python-build-standalone/releases/download/${release_date}/${filename}
+            tar -xzvf ${filename}
+            rm -rf ${filename}
+            ./python/bin/python3.13 -m venv .venv
+            source .venv/bin/activate
+            python3.13 -m pip --isolated --require-virtualenv --no-input install pyinstaller python-dotenv dotenv
+            python3.13 -m pip --isolated --require-virtualenv --no-input install apps/mcp-server/vibe-memory-rag/.
+          fi
+      - name: Sign and Notarize DMG
+        env:
+          VIBE_VERSION: ${{ env.RELEASE_VERSION }}
+          #the password for cert.p12
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          #csc_link is    CSC_LINK=$(openssl base64 -in cert.p12 
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          #dev email
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          #mandatory app password, not reg password
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          #apple dev team id
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          echo "Building version: $VIBE_VERSION"
+          pnpm run build:mac
+        # add upload artifact
       - name: Semantic Release
         id: semantic-release
         uses: cycjimmy/semantic-release-action@v4
