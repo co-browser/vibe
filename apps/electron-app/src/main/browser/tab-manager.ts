@@ -9,6 +9,10 @@ import { WebContentsView } from "electron";
 import { EventEmitter } from "events";
 import type { CDPManager } from "../services/cdp-service";
 import { fetchFaviconAsDataUrl } from "@/utils/favicon";
+import { buildChromeContextMenu } from 'electron-chrome-context-menu';
+import { ViewManager } from "./view-manager";
+import { Browser } from "./browser";
+import { ApplicationWindow } from "./application-window";
 
 const logger = createLogger("TabManager");
 
@@ -114,6 +118,32 @@ export class TabManager extends EventEmitter {
       });
     });
 
+
+    webContents.setWindowOpenHandler((details) => {
+      switch (details.disposition) {
+        case 'foreground-tab':
+        case 'background-tab':
+        case 'new-window': {
+          return {
+            action: 'allow',
+            outlivesOpener: true,
+            createWindow: () => {
+              const newApp = this._browser.createApplicationWindow();
+              newApp.window.loadURL(details.url);
+              this.updateTab(newApp.tabManager.generateTabKey(), {
+                title: details.url || "New Tab",
+                url: newApp.window.webContents.getTitle()? details.url : "New Tab",
+              });
+              return newApp.window.webContents
+            },
+          }
+        }
+        default:
+          return { action: 'allow' }
+      }
+    })
+
+
     // Favicon update handler
     webContents.on("page-favicon-updated", async (_event, favicons) => {
       if (favicons.length > 0) {
@@ -131,6 +161,23 @@ export class TabManager extends EventEmitter {
         }
       }
     });
+
+    webContents.on('context-menu', (event, params) => {
+      const menu = buildChromeContextMenu({
+        params,
+        webContents,
+        openLink: (url, disposition) => {
+          switch (disposition) {
+            case 'new-window':
+              this._browser.createApplicationWindow().window.loadURL(url);
+              break
+            default:
+              this.createTab(url);
+          }
+        },
+      })
+      menu.popup()
+    })
 
     // CDP event handler setup if CDP manager is available
     if (this.cdpManager) {
