@@ -9,10 +9,8 @@ import { WebContentsView } from "electron";
 import { EventEmitter } from "events";
 import type { CDPManager } from "../services/cdp-service";
 import { fetchFaviconAsDataUrl } from "@/utils/favicon";
-import { buildChromeContextMenu } from 'electron-chrome-context-menu';
 import { ViewManager } from "./view-manager";
 import { Browser } from "./browser";
-import { ApplicationWindow } from "./application-window";
 
 const logger = createLogger("TabManager");
 
@@ -20,8 +18,8 @@ const logger = createLogger("TabManager");
  * Manages browser tabs with position-based ordering and sleep functionality
  */
 export class TabManager extends EventEmitter {
-  private _browser: any;
-  private viewManager: any;
+  private _browser: Browser;
+  private viewManager: ViewManager;
   private cdpManager?: CDPManager;
   private tabs: Map<string, TabState> = new Map();
   private activeTabKey: string | null = null;
@@ -33,7 +31,11 @@ export class TabManager extends EventEmitter {
   private saveQueue: string[] = []; // Queue for saves when at max concurrency
   private readonly maxConcurrentSaves = 3; // Limit concurrent saves
 
-  constructor(browser: any, viewManager: any, cdpManager?: CDPManager) {
+  constructor(
+    browser: Browser,
+    viewManager: ViewManager,
+    cdpManager?: CDPManager,
+  ) {
     super();
     this._browser = browser;
     this.viewManager = viewManager;
@@ -118,31 +120,30 @@ export class TabManager extends EventEmitter {
       });
     });
 
-
-    webContents.setWindowOpenHandler((details) => {
+    webContents.setWindowOpenHandler(details => {
       switch (details.disposition) {
-        case 'foreground-tab':
-        case 'background-tab':
-        case 'new-window': {
+        case "foreground-tab":
+        case "background-tab":
+        case "new-window": {
           return {
-            action: 'allow',
+            action: "allow",
             outlivesOpener: true,
-            createWindow: () => {
-              const newApp = this._browser.createApplicationWindow();
-              newApp.window.loadURL(details.url);
-              this.updateTab(newApp.tabManager.generateTabKey(), {
-                title: details.url || "New Tab",
-                url: newApp.window.webContents.getTitle()? details.url : "New Tab",
-              });
-              return newApp.window.webContents
+            createWindow: (
+              options: Electron.BrowserWindowConstructorOptions,
+            ) => {
+              const newApp = this._browser.createApplicationWindow(options);
+              newApp.tabManager.createTab(details.url || "about:blank");
+              newApp.window.setTitle(
+                newApp.tabManager.getActiveTab()?.title ?? "New Tab",
+              );
+              return newApp.window.webContents;
             },
-          }
+          };
         }
         default:
-          return { action: 'allow' }
+          return { action: "allow" };
       }
-    })
-
+    });
 
     // Favicon update handler
     webContents.on("page-favicon-updated", async (_event, favicons) => {
@@ -161,23 +162,6 @@ export class TabManager extends EventEmitter {
         }
       }
     });
-
-    webContents.on('context-menu', (event, params) => {
-      const menu = buildChromeContextMenu({
-        params,
-        webContents,
-        openLink: (url, disposition) => {
-          switch (disposition) {
-            case 'new-window':
-              this._browser.createApplicationWindow().window.loadURL(url);
-              break
-            default:
-              this.createTab(url);
-          }
-        },
-      })
-      menu.popup()
-    })
 
     // CDP event handler setup if CDP manager is available
     if (this.cdpManager) {
