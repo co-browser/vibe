@@ -54,9 +54,7 @@ module.exports = {
     artifactName: "vibe-${version}.${ext}",
     binaries: [
       "dist/mac-arm64/vibe.app/Contents/MacOS/vibe",
-      "dist-py/mcp-server-backend",
-      "dist/mac-arm64/vibe.app/Contents/Resources/app.asar.unpacked/node_modules/sqlite3/build/Release/node_sqlite3.node",
-    ],
+    ]
   },
   dmg: {
     icon: "resources/icon.icns",

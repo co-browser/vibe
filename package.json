@@ -21,7 +21,7 @@
   ],
   "packageManager": "pnpm@9.1.4",
   "scripts": {
-    "postinstall": "husky && turbo run build --filter=@vibe/tab-extraction-core && turbo run build --filter=@vibe/mcp-service",
+    "postinstall": "husky && turbo run build --filter=@vibe/tab-extraction-core",
     "prepare": "husky",
     "dev": "node scripts/dev.js",
     "build": "turbo run build",
