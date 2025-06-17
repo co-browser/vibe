@@ -43,6 +43,7 @@ export class GmailOAuthService {
   private viewManagerRef: ViewManagerState | null = null;
   private isOAuthInProgress: boolean = false;
   private oauthTimeout: NodeJS.Timeout | null = null;
+  private previousActiveViewKey: string | null = null;
 
   constructor() {
     this.ensureConfigDir();
@@ -259,14 +260,26 @@ export class GmailOAuthService {
       this.authView.setBackgroundColor("#00000000");
       this.authView.webContents.loadURL(authUrl);
 
-      // Set view visible for OAuth flow
-      this.viewManagerRef.mainWindow.webContents.send("update-tab-state", {
-        authUrl,
-        isLoading: true,
+      // Store the current active view to restore later
+      this.previousActiveViewKey = this.viewManagerRef.activeViewKey;
+      
+      // Make OAuth view visible and active
+      this.viewManagerRef.browserViews.set("oauth-gmail", this.authView);
+      this.viewManagerRef.activeViewKey = "oauth-gmail";
+      
+      // Hide all other views and show only OAuth view
+      for (const [key, view] of this.viewManagerRef.browserViews) {
+        if (key !== "oauth-gmail") {
+          view.setVisible(false);
+        }
+      }
+      this.authView.setVisible(true);
+      
+      // Update tab bar to show OAuth state
+      this.viewManagerRef.mainWindow.webContents.send("oauth-tab-started", {
+        tabKey: "oauth-gmail",
         url: authUrl,
-        canGoBack: false,
-        canGoForward: false,
-        isAgentActive: false,
+        title: "Gmail Authentication",
       });
 
       // Handle window opens during OAuth (allow OAuth redirects)
@@ -277,11 +290,8 @@ export class GmailOAuthService {
             url.includes("accounts.google.com") ||
             url.includes("oauth2callback")
           ) {
-            logger.debug("[GmailAuth] Allowing OAuth redirect:", url);
             return { action: "allow" };
           }
-
-          logger.debug("[GmailAuth] Blocking non-OAuth popup:", url);
           return { action: "deny" };
         },
       );
@@ -291,11 +301,7 @@ export class GmailOAuthService {
         "did-fail-load",
         (_event, errorCode, errorDescription, validatedURL) => {
           // CSP errors (-30) are common with Google OAuth and usually don't prevent the flow
-          if (errorCode === -30) {
-            logger.debug(
-              `[GmailAuth] CSP warning (expected): ${errorDescription} for ${validatedURL}`,
-            );
-          } else {
+          if (errorCode !== -30) {
             logger.warn(
               `[GmailAuth] Navigation failed: ${errorDescription} (${errorCode}) for ${validatedURL}`,
             );
@@ -317,7 +323,6 @@ export class GmailOAuthService {
         },
       );
 
-      logger.debug("[GmailAuth] OAuth browser view created successfully");
     } catch (error) {
       logger.error("[GmailAuth] Failed to create OAuth view:", error);
       throw error;
@@ -330,7 +335,6 @@ export class GmailOAuthService {
   ): Promise<void> {
     // Check if server is already running
     if (this.server && this.server.listening) {
-      logger.debug("[GmailAuth] Callback server already running");
       return Promise.resolve();
     }
 
@@ -342,9 +346,6 @@ export class GmailOAuthService {
         GMAIL_CONFIG.CALLBACK_PORT,
         GMAIL_CONFIG.CALLBACK_HOST,
         () => {
-          logger.debug(
-            `[GmailAuth] Secure callback server started on ${GMAIL_CONFIG.CALLBACK_HOST}:${GMAIL_CONFIG.CALLBACK_PORT}`,
-          );
           resolve();
         },
       );
@@ -420,8 +421,6 @@ export class GmailOAuthService {
         throw new Error("OAuth client not initialized");
       }
 
-      logger.debug("[GmailAuth] Exchanging authorization code for tokens");
-
       // Exchange code for tokens
       const { tokens } = await this.oauth2Client.getToken(code);
 
@@ -442,16 +441,14 @@ export class GmailOAuthService {
         expiry_date: tokens.expiry_date || undefined,
       });
 
-      // Send success response
-      this.sendSuccessResponse(res);
+      // Send simple success response
+      res.writeHead(200, { "Content-Type": "text/plain" });
+      res.end("Authentication successful. You can close this window.");
 
-      // Notify renderer of successful authentication
+      // Notify renderer and cleanup immediately
       if (currentWindow && !currentWindow.isDestroyed()) {
-        currentWindow.webContents.send("gmail-auth-success");
         currentWindow.webContents.send("oauth-tab-completed", "oauth-gmail");
       }
-
-      // Clean up OAuth flow
       this.cleanupOAuthFlow();
 
       logger.info("[GmailAuth] Authentication completed successfully");
@@ -480,73 +477,16 @@ export class GmailOAuthService {
         mode: GMAIL_CONFIG.FILE_PERMISSIONS.CREDENTIALS_FILE,
       });
 
-      logger.debug("[GmailAuth] Credentials saved securely");
     } catch (error) {
       logger.error("[GmailAuth] Failed to save credentials:", error);
       throw error;
     }
   }
 
-  /** Send success response with security headers */
-  private sendSuccessResponse(res: http.ServerResponse): void {
-    res.writeHead(200, {
-      "Content-Type": "text/html",
-      "X-Content-Type-Options": "nosniff",
-      "X-Frame-Options": "DENY",
-      "Content-Security-Policy":
-        "default-src 'none'; script-src 'unsafe-inline'",
-    });
-
-    res.end(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8">
-          <title>Authentication Successful</title>
-        </head>
-        <body style="font-family: system-ui; text-align: center; padding: 50px; background: #f0f0f0;">
-          <h2 style="color: #00a000;">✅ Authentication Successful!</h2>
-          <p>Gmail OAuth authentication completed successfully.</p>
-          <p>You can now close this window and return to the app.</p>
-          <script>
-            setTimeout(() => {
-              if (window.close) window.close();
-            }, 2000);
-          </script>
-        </body>
-      </html>
-    `);
-  }
-
-  /** Send error response with security headers */
+  /** Send error response */
   private sendErrorResponse(res: http.ServerResponse, message: string): void {
-    res.writeHead(400, {
-      "Content-Type": "text/html",
-      "X-Content-Type-Options": "nosniff",
-      "X-Frame-Options": "DENY",
-      "Content-Security-Policy":
-        "default-src 'none'; script-src 'unsafe-inline'",
-    });
-
-    res.end(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8">
-          <title>Authentication Failed</title>
-        </head>
-        <body style="font-family: system-ui; text-align: center; padding: 50px; background: #f0f0f0;">
-          <h2 style="color: #d00000;">❌ Authentication Failed</h2>
-          <p>${message}</p>
-          <p>Please try again or contact support if the issue persists.</p>
-          <script>
-            setTimeout(() => {
-              if (window.close) window.close();
-            }, 3000);
-          </script>
-        </body>
-      </html>
-    `);
+    res.writeHead(400, { "Content-Type": "text/plain" });
+    res.end(`Authentication failed: ${message}`);
   }
 
   /** Clean up OAuth flow resources */
@@ -569,15 +509,25 @@ export class GmailOAuthService {
             this.authView.webContents.close();
           }
 
-          this.viewManagerRef.mainWindow.removeBrowserView(this.authView);
+          this.viewManagerRef.mainWindow.contentView.removeChildView(this.authView);
           this.viewManagerRef.browserViews.delete("oauth-gmail");
 
-          // Update active view if needed
+          // Restore previous active view
           if (this.viewManagerRef.activeViewKey === "oauth-gmail") {
-            this.viewManagerRef.activeViewKey = null;
+            this.viewManagerRef.activeViewKey = this.previousActiveViewKey;
+            
+            // Show the previous active view if it exists
+            if (this.previousActiveViewKey) {
+              const previousView = this.viewManagerRef.browserViews.get(this.previousActiveViewKey);
+              if (previousView) {
+                previousView.setVisible(true);
+                this.viewManagerRef.updateBounds();
+              }
+            }
           }
-
-          logger.debug("[GmailAuth] OAuth browser view cleaned up");
+          
+          // Reset stored previous view
+          this.previousActiveViewKey = null;
         } catch (error) {
           logger.error("[GmailAuth] Error cleaning up OAuth view:", error);
         } finally {
@@ -598,7 +548,6 @@ export class GmailOAuthService {
       try {
         this.server.close();
         this.server = null;
-        logger.debug("[GmailAuth] Callback server stopped");
       } catch (error) {
         logger.error("[GmailAuth] Error stopping callback server:", error);
       }
