@@ -127,6 +127,9 @@ export const GMAIL_CONFIG = {
   // Timeouts and retries
   AUTH_TIMEOUT_MS: 5 * 60 * 1000, // 5 minutes
   TOKEN_REFRESH_BUFFER_MS: 5 * 60 * 1000, // Refresh 5 minutes before expiry
+
+  // UI assets
+  FAVICON_URL: "https://ssl.gstatic.com/ui/v1/icons/mail/rfr/gmail.ico",
 } as const;
 
 /**

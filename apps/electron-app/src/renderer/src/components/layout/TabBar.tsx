@@ -6,6 +6,7 @@ import React, { useMemo, useEffect } from "react";
 import { Tabs } from "@sinm/react-chrome-tabs";
 import "@sinm/react-chrome-tabs/css/chrome-tabs.css";
 import type { TabState } from "@vibe/shared-types";
+import { GMAIL_CONFIG } from "@vibe/shared-types";
 import "../styles/TabBar.css";
 
 // Default favicon for tabs that don't have one
@@ -13,11 +14,24 @@ const DEFAULT_FAVICON =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='7' fill='%23f0f0f0' stroke='%23cccccc' stroke-width='1'/%3E%3C/svg%3E";
 
 /**
- * Gets a favicon URL
+ * Gets a favicon URL with special handling for OAuth tabs
  */
-const getFaviconUrl = (_url: string, providedFavicon?: string): string => {
+const getFaviconUrl = (_url: string, providedFavicon?: string, tabKey?: string): string => {
+  // Special handling for OAuth tabs
+  if (tabKey?.startsWith('oauth-')) {
+    if (tabKey === 'oauth-gmail') {
+      return GMAIL_CONFIG.FAVICON_URL;
+    }
+    return DEFAULT_FAVICON;
+  }
+  
   if (providedFavicon && providedFavicon.trim() !== "") {
-    return providedFavicon;
+    // Check if it's already a data URL or proper URL
+    if (providedFavicon.startsWith('data:') || providedFavicon.startsWith('http')) {
+      return providedFavicon;
+    }
+    // For other strings (like emojis), fall back to default
+    return DEFAULT_FAVICON;
   }
   return DEFAULT_FAVICON;
 };
@@ -107,11 +121,44 @@ export const ChromeTabBar: React.FC = () => {
       setTabs(prevTabs => prevTabs.filter(tab => tab.key !== closedTabKey));
     });
 
+    // Handle OAuth tab events
+    const cleanupOAuthStarted = window.vibe?.tabs?.onOAuthTabStarted?.((data) => {
+      const oauthTab: TabState = {
+        key: data.tabKey,
+        title: data.title,
+        url: data.url,
+        favicon: "",
+        isLoading: false,
+        canGoBack: false,
+        canGoForward: false,
+        position: 999,
+      };
+      
+      setTabs(prevTabs => [...prevTabs, oauthTab]);
+      setActiveTabKey(data.tabKey);
+    });
+
+    const cleanupOAuthCompleted = window.vibe?.tabs?.onOAuthTabCompleted?.((tabKey) => {
+      setTabs(prevTabs => {
+        const remainingTabs = prevTabs.filter(tab => tab.key !== tabKey);
+        
+        const firstRegularTab = remainingTabs.find(tab => !tab.key.startsWith("oauth-"));
+        if (firstRegularTab) {
+          setActiveTabKey(firstRegularTab.key);
+          window.vibe.tabs.switchToTab(firstRegularTab.key).catch(console.error);
+        }
+        
+        return remainingTabs;
+      });
+    });
+
     return () => {
       cleanupCreated();
       cleanupUpdated();
       cleanupSwitched();
       cleanupClosed();
+      cleanupOAuthStarted?.();
+      cleanupOAuthCompleted?.();
     };
   }, []);
 
@@ -120,18 +167,26 @@ export const ChromeTabBar: React.FC = () => {
     if (!Array.isArray(tabs)) {
       return [];
     }
+    
+    
     return tabs.map(tab => ({
       id: tab.key,
       title: tab.title || tab.url || "New Tab",
-      favicon: getFaviconUrl(tab.url || "", tab.favicon),
+      favicon: getFaviconUrl(tab.url || "", tab.favicon, tab.key),
       url: tab.url,
-      closable: true,
+      closable: tab.key !== "oauth-gmail", // OAuth tabs are not closable
       active: tab.key === activeTabKey,
     }));
   }, [tabs, activeTabKey]);
 
   // Event handlers
   const handleTabActive = async (tabId: string): Promise<void> => {
+    // OAuth tabs are handled by the OAuth service, not the tab manager
+    if (tabId === "oauth-gmail") {
+      setActiveTabKey(tabId);
+      return;
+    }
+    
     try {
       await window.vibe.tabs.switchToTab(tabId);
     } catch (error) {
@@ -140,6 +195,11 @@ export const ChromeTabBar: React.FC = () => {
   };
 
   const handleTabClose = async (tabId: string): Promise<void> => {
+    // Prevent closing OAuth tabs - they close automatically
+    if (tabId === "oauth-gmail") {
+      return;
+    }
+    
     try {
       await window.vibe.tabs.closeTab(tabId);
     } catch (error) {

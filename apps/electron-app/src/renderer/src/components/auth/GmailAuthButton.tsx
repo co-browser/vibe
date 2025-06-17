@@ -49,7 +49,7 @@ export const GmailAuthButton: React.FC = () => {
     try {
       setIsAuthenticating(true);
       await window.vibe.app.gmail.startAuth();
-      await checkAuthStatus(); // Refresh status after auth
+      // Auth status will be refreshed via IPC event listener
     } catch (error) {
       console.error("Error during Gmail authentication:", error);
       setAuthStatus(prev => ({
@@ -79,8 +79,19 @@ export const GmailAuthButton: React.FC = () => {
   useEffect(() => {
     checkAuthStatus();
 
-    // OAuth completion handled via promise resolution
-    return () => {};
+    // Listen for OAuth completion events from main process  
+    const handleOAuthCompleted = (tabKey: string) => {
+      if (tabKey === "oauth-gmail") {
+        checkAuthStatus();
+      }
+    };
+
+    // Use the proper vibe tabs API for OAuth events
+    const unsubscribe = window.vibe?.tabs?.onOAuthTabCompleted?.(handleOAuthCompleted);
+
+    return () => {
+      unsubscribe?.();
+    };
   }, []);
 
   const getTooltipText = (): string => {
