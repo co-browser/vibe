@@ -344,11 +344,16 @@ const tabsAPI: VibeTabsAPI = {
   },
 
   // OAuth events
-  onOAuthTabStarted: (callback: (data: { tabKey: string; url: string; title: string }) => void) => {
+  onOAuthTabStarted: (
+    callback: (data: { tabKey: string; url: string; title: string }) => void,
+  ) => {
     if (typeof callback !== "function") {
       throw new Error("Invalid callback provided to onOAuthTabStarted");
     }
-    const listener = (_event: IpcRendererEvent, data: { tabKey: string; url: string; title: string }): void => {
+    const listener = (
+      _event: IpcRendererEvent,
+      data: { tabKey: string; url: string; title: string },
+    ): void => {
       if (data && typeof data === "object" && isValidKey(data.tabKey)) {
         callback(data);
       }
@@ -614,7 +619,6 @@ const legacyListeners = {
   onSendTabAgent: (callback: (key: string) => void): (() => void) => {
     return createEventListener("tab-send-agent", callback);
   },
-
 };
 
 /**
