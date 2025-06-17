@@ -262,11 +262,11 @@ export class GmailOAuthService {
 
       // Store the current active view to restore later
       this.previousActiveViewKey = this.viewManagerRef.activeViewKey;
-      
+
       // Make OAuth view visible and active
       this.viewManagerRef.browserViews.set("oauth-gmail", this.authView);
       this.viewManagerRef.activeViewKey = "oauth-gmail";
-      
+
       // Hide all other views and show only OAuth view
       for (const [key, view] of this.viewManagerRef.browserViews) {
         if (key !== "oauth-gmail") {
@@ -274,7 +274,7 @@ export class GmailOAuthService {
         }
       }
       this.authView.setVisible(true);
-      
+
       // Update tab bar to show OAuth state
       this.viewManagerRef.mainWindow.webContents.send("oauth-tab-started", {
         tabKey: "oauth-gmail",
@@ -322,7 +322,6 @@ export class GmailOAuthService {
           }
         },
       );
-
     } catch (error) {
       logger.error("[GmailAuth] Failed to create OAuth view:", error);
       throw error;
@@ -476,7 +475,6 @@ export class GmailOAuthService {
       fs.writeFileSync(CREDENTIALS_PATH, credentialsJson, {
         mode: GMAIL_CONFIG.FILE_PERMISSIONS.CREDENTIALS_FILE,
       });
-
     } catch (error) {
       logger.error("[GmailAuth] Failed to save credentials:", error);
       throw error;
@@ -509,23 +507,27 @@ export class GmailOAuthService {
             this.authView.webContents.close();
           }
 
-          this.viewManagerRef.mainWindow.contentView.removeChildView(this.authView);
+          this.viewManagerRef.mainWindow.contentView.removeChildView(
+            this.authView,
+          );
           this.viewManagerRef.browserViews.delete("oauth-gmail");
 
           // Restore previous active view
           if (this.viewManagerRef.activeViewKey === "oauth-gmail") {
             this.viewManagerRef.activeViewKey = this.previousActiveViewKey;
-            
+
             // Show the previous active view if it exists
             if (this.previousActiveViewKey) {
-              const previousView = this.viewManagerRef.browserViews.get(this.previousActiveViewKey);
+              const previousView = this.viewManagerRef.browserViews.get(
+                this.previousActiveViewKey,
+              );
               if (previousView) {
                 previousView.setVisible(true);
                 this.viewManagerRef.updateBounds();
               }
             }
           }
-          
+
           // Reset stored previous view
           this.previousActiveViewKey = null;
         } catch (error) {

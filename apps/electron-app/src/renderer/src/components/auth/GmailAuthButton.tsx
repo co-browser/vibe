@@ -79,7 +79,7 @@ export const GmailAuthButton: React.FC = () => {
   useEffect(() => {
     checkAuthStatus();
 
-    // Listen for OAuth completion events from main process  
+    // Listen for OAuth completion events from main process
     const handleOAuthCompleted = (tabKey: string) => {
       if (tabKey === "oauth-gmail") {
         checkAuthStatus();
@@ -87,7 +87,8 @@ export const GmailAuthButton: React.FC = () => {
     };
 
     // Use the proper vibe tabs API for OAuth events
-    const unsubscribe = window.vibe?.tabs?.onOAuthTabCompleted?.(handleOAuthCompleted);
+    const unsubscribe =
+      window.vibe?.tabs?.onOAuthTabCompleted?.(handleOAuthCompleted);
 
     return () => {
       unsubscribe?.();

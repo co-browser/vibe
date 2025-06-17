@@ -16,18 +16,25 @@ const DEFAULT_FAVICON =
 /**
  * Gets a favicon URL with special handling for OAuth tabs
  */
-const getFaviconUrl = (_url: string, providedFavicon?: string, tabKey?: string): string => {
+const getFaviconUrl = (
+  _url: string,
+  providedFavicon?: string,
+  tabKey?: string,
+): string => {
   // Special handling for OAuth tabs
-  if (tabKey?.startsWith('oauth-')) {
-    if (tabKey === 'oauth-gmail') {
+  if (tabKey?.startsWith("oauth-")) {
+    if (tabKey === "oauth-gmail") {
       return GMAIL_CONFIG.FAVICON_URL;
     }
     return DEFAULT_FAVICON;
   }
-  
+
   if (providedFavicon && providedFavicon.trim() !== "") {
     // Check if it's already a data URL or proper URL
-    if (providedFavicon.startsWith('data:') || providedFavicon.startsWith('http')) {
+    if (
+      providedFavicon.startsWith("data:") ||
+      providedFavicon.startsWith("http")
+    ) {
       return providedFavicon;
     }
     // For other strings (like emojis), fall back to default
@@ -122,7 +129,7 @@ export const ChromeTabBar: React.FC = () => {
     });
 
     // Handle OAuth tab events
-    const cleanupOAuthStarted = window.vibe?.tabs?.onOAuthTabStarted?.((data) => {
+    const cleanupOAuthStarted = window.vibe?.tabs?.onOAuthTabStarted?.(data => {
       const oauthTab: TabState = {
         key: data.tabKey,
         title: data.title,
@@ -133,24 +140,30 @@ export const ChromeTabBar: React.FC = () => {
         canGoForward: false,
         position: 999,
       };
-      
+
       setTabs(prevTabs => [...prevTabs, oauthTab]);
       setActiveTabKey(data.tabKey);
     });
 
-    const cleanupOAuthCompleted = window.vibe?.tabs?.onOAuthTabCompleted?.((tabKey) => {
-      setTabs(prevTabs => {
-        const remainingTabs = prevTabs.filter(tab => tab.key !== tabKey);
-        
-        const firstRegularTab = remainingTabs.find(tab => !tab.key.startsWith("oauth-"));
-        if (firstRegularTab) {
-          setActiveTabKey(firstRegularTab.key);
-          window.vibe.tabs.switchToTab(firstRegularTab.key).catch(console.error);
-        }
-        
-        return remainingTabs;
-      });
-    });
+    const cleanupOAuthCompleted = window.vibe?.tabs?.onOAuthTabCompleted?.(
+      tabKey => {
+        setTabs(prevTabs => {
+          const remainingTabs = prevTabs.filter(tab => tab.key !== tabKey);
+
+          const firstRegularTab = remainingTabs.find(
+            tab => !tab.key.startsWith("oauth-"),
+          );
+          if (firstRegularTab) {
+            setActiveTabKey(firstRegularTab.key);
+            window.vibe.tabs
+              .switchToTab(firstRegularTab.key)
+              .catch(console.error);
+          }
+
+          return remainingTabs;
+        });
+      },
+    );
 
     return () => {
       cleanupCreated();
@@ -167,8 +180,7 @@ export const ChromeTabBar: React.FC = () => {
     if (!Array.isArray(tabs)) {
       return [];
     }
-    
-    
+
     return tabs.map(tab => ({
       id: tab.key,
       title: tab.title || tab.url || "New Tab",
@@ -186,7 +198,7 @@ export const ChromeTabBar: React.FC = () => {
       setActiveTabKey(tabId);
       return;
     }
-    
+
     try {
       await window.vibe.tabs.switchToTab(tabId);
     } catch (error) {
@@ -199,7 +211,7 @@ export const ChromeTabBar: React.FC = () => {
     if (tabId === "oauth-gmail") {
       return;
     }
-    
+
     try {
       await window.vibe.tabs.closeTab(tabId);
     } catch (error) {
