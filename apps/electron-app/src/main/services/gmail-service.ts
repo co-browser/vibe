@@ -341,83 +341,80 @@ export class GmailOAuthService {
   ): Promise<void> {
     // Check if server is already running
     if (this.server && this.server.listening) {
-      return Promise.resolve();
+      return;
     }
 
-    return new Promise((resolve, reject) => {
-      this.server = http.createServer();
+    this.server = http.createServer();
 
-      // Bind to localhost only for security
-      this.server.listen(
+    // Set up request handler before starting the server
+    this.server.on("request", async (req, res) => {
+      // Security: Only accept OAuth callback requests
+      if (!req.url?.startsWith("/oauth2callback")) {
+        res.writeHead(404, { "Content-Type": "text/plain" });
+        res.end("Not found");
+        return;
+      }
+
+      try {
+        const url = new URL(req.url, GMAIL_CONFIG.REDIRECT_URI);
+        const code = url.searchParams.get("code");
+        const error = url.searchParams.get("error");
+
+        // Handle OAuth errors
+        if (error) {
+          logger.error("[GmailAuth] OAuth error:", error);
+          this.sendErrorResponse(res, `Authentication error: ${error}`);
+          this.cleanupOAuthFlow(viewManager);
+          return;
+        }
+
+        // Validate authorization code
+        if (!code) {
+          logger.error("[GmailAuth] No authorization code received");
+          this.sendErrorResponse(res, "No authorization code provided");
+          this.cleanupOAuthFlow(viewManager);
+          return;
+        }
+
+        // Exchange code for tokens with proper error handling
+        await this.exchangeCodeForTokens(code, res, viewManager, currentWindow);
+      } catch (error) {
+        logger.error("[GmailAuth] Request processing failed:", error);
+        this.sendErrorResponse(res, "Authentication failed");
+        this.cleanupOAuthFlow(viewManager);
+      }
+    });
+
+    // Handle server errors
+    this.server.on("error", (error: NodeJS.ErrnoException) => {
+      if (error.code === "EADDRINUSE") {
+        logger.error(
+          `[GmailAuth] Port ${GMAIL_CONFIG.CALLBACK_PORT} is already in use`,
+        );
+        throw new Error(
+          `Port ${GMAIL_CONFIG.CALLBACK_PORT} is already in use. Please free the port and try again.`,
+        );
+      } else {
+        logger.error("[GmailAuth] Server error:", error);
+        throw error;
+      }
+    });
+
+    // Start listening and wait for the server to be ready
+    await new Promise<void>((resolve, reject) => {
+      this.server!.listen(
         GMAIL_CONFIG.CALLBACK_PORT,
         GMAIL_CONFIG.CALLBACK_HOST,
         () => {
+          logger.info(
+            `[GmailAuth] OAuth callback server listening on ${GMAIL_CONFIG.CALLBACK_HOST}:${GMAIL_CONFIG.CALLBACK_PORT}`,
+          );
           resolve();
         },
       );
 
-      this.server.on("request", async (req, res) => {
-        // Security: Only accept OAuth callback requests
-        if (!req.url?.startsWith("/oauth2callback")) {
-          res.writeHead(404, { "Content-Type": "text/plain" });
-          res.end("Not found");
-          return;
-        }
-
-        try {
-          const url = new URL(req.url, GMAIL_CONFIG.REDIRECT_URI);
-          const code = url.searchParams.get("code");
-          const error = url.searchParams.get("error");
-
-          // Handle OAuth errors
-          if (error) {
-            logger.error("[GmailAuth] OAuth error:", error);
-            this.sendErrorResponse(res, `Authentication error: ${error}`);
-            this.cleanupOAuthFlow(viewManager);
-            reject(new Error(`OAuth error: ${error}`));
-            return;
-          }
-
-          // Validate authorization code
-          if (!code) {
-            logger.error("[GmailAuth] No authorization code received");
-            this.sendErrorResponse(res, "No authorization code provided");
-            this.cleanupOAuthFlow(viewManager);
-            reject(new Error("No authorization code provided"));
-            return;
-          }
-
-          // Exchange code for tokens with proper error handling
-          await this.exchangeCodeForTokens(
-            code,
-            res,
-            viewManager,
-            currentWindow,
-          );
-        } catch (error) {
-          logger.error("[GmailAuth] Request processing failed:", error);
-          this.sendErrorResponse(res, "Authentication failed");
-          this.cleanupOAuthFlow(viewManager);
-          reject(error);
-        }
-      });
-
-      // Handle server errors
-      this.server.on("error", (error: NodeJS.ErrnoException) => {
-        if (error.code === "EADDRINUSE") {
-          logger.error(
-            `[GmailAuth] Port ${GMAIL_CONFIG.CALLBACK_PORT} is already in use`,
-          );
-          reject(
-            new Error(
-              `Port ${GMAIL_CONFIG.CALLBACK_PORT} is already in use. Please free the port and try again.`,
-            ),
-          );
-        } else {
-          logger.error("[GmailAuth] Server error:", error);
-          reject(error);
-        }
-      });
+      // Reject the promise if server encounters an error during startup
+      this.server!.once("error", reject);
     });
   }
 
