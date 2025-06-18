@@ -25,13 +25,11 @@ ipcMain.handle("gmail-start-auth", async event => {
       };
     }
 
-    // Initialize ViewManager for OAuth flow
-    gmailOAuthService.setViewManager(
+    // Start OAuth flow with the current window and viewManager
+    return await gmailOAuthService.startAuth(
       appWindow.viewManager.getViewManagerState(),
+      appWindow.window,
     );
-
-    // Start OAuth flow with the current window
-    return await gmailOAuthService.startAuth(appWindow.window);
   } catch (error) {
     logger.error("Failed to start Gmail OAuth:", error);
     return {

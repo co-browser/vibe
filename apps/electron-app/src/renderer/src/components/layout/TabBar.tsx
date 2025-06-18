@@ -23,7 +23,7 @@ const getFaviconUrl = (
 ): string => {
   // Special handling for OAuth tabs
   if (tabKey?.startsWith("oauth-")) {
-    if (tabKey === "oauth-gmail") {
+    if (tabKey === GMAIL_CONFIG.OAUTH_TAB_KEY) {
       return GMAIL_CONFIG.FAVICON_URL;
     }
     return DEFAULT_FAVICON;
@@ -186,7 +186,7 @@ export const ChromeTabBar: React.FC = () => {
       title: tab.title || tab.url || "New Tab",
       favicon: getFaviconUrl(tab.url || "", tab.favicon, tab.key),
       url: tab.url,
-      closable: tab.key !== "oauth-gmail", // OAuth tabs are not closable
+      closable: tab.key !== GMAIL_CONFIG.OAUTH_TAB_KEY, // OAuth tabs are not closable
       active: tab.key === activeTabKey,
     }));
   }, [tabs, activeTabKey]);
@@ -194,7 +194,7 @@ export const ChromeTabBar: React.FC = () => {
   // Event handlers
   const handleTabActive = async (tabId: string): Promise<void> => {
     // OAuth tabs are handled by the OAuth service, not the tab manager
-    if (tabId === "oauth-gmail") {
+    if (tabId === GMAIL_CONFIG.OAUTH_TAB_KEY) {
       setActiveTabKey(tabId);
       return;
     }
@@ -208,7 +208,7 @@ export const ChromeTabBar: React.FC = () => {
 
   const handleTabClose = async (tabId: string): Promise<void> => {
     // Prevent closing OAuth tabs - they close automatically
-    if (tabId === "oauth-gmail") {
+    if (tabId === GMAIL_CONFIG.OAUTH_TAB_KEY) {
       return;
     }
 

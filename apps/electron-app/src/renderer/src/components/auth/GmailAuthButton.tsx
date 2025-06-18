@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { LoadingOutlined } from "@ant-design/icons";
 import { IconWithStatus } from "@/components/ui/icon-with-status";
+import { GMAIL_CONFIG } from "@vibe/shared-types";
 
 /** Gmail SVG icon component */
 const GmailIcon: React.FC<{ className?: string }> = ({ className }) => (
@@ -81,8 +82,11 @@ export const GmailAuthButton: React.FC = () => {
 
     // Listen for OAuth completion events from main process
     const handleOAuthCompleted = (tabKey: string) => {
-      if (tabKey === "oauth-gmail") {
-        checkAuthStatus();
+      if (tabKey === GMAIL_CONFIG.OAUTH_TAB_KEY) {
+        // Delay check to ensure credentials are saved
+        setTimeout(() => {
+          checkAuthStatus();
+        }, 1000);
       }
     };
 

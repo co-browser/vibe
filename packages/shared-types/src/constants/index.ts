@@ -102,7 +102,7 @@ export const MEMORY_CONFIG = {
  */
 export const GMAIL_CONFIG = {
   // OAuth configuration
-  REDIRECT_URI: "http://localhost:3000/oauth2callback",
+  REDIRECT_URI: "http://127.0.0.1:3000/oauth2callback",
   CALLBACK_PORT: 3000,
   CALLBACK_HOST: "127.0.0.1",
 
@@ -114,7 +114,9 @@ export const GMAIL_CONFIG = {
   },
 
   // File paths
-  CONFIG_DIR: ".gmail-mcp",
+  // Note: CONFIG_DIR_NAME is a relative path that should be joined with the user's home directory
+  // Example usage: path.join(os.homedir(), GMAIL_CONFIG.CONFIG_DIR_NAME)
+  CONFIG_DIR_NAME: ".gmail-mcp",
   OAUTH_KEYS_FILE: "gcp-oauth.keys.json",
   CREDENTIALS_FILE: "credentials.json",
 
@@ -130,6 +132,9 @@ export const GMAIL_CONFIG = {
 
   // UI assets
   FAVICON_URL: "https://ssl.gstatic.com/ui/v1/icons/mail/rfr/gmail.ico",
+
+  // Tab key for OAuth flow
+  OAUTH_TAB_KEY: "oauth-gmail",
 } as const;
 
 /**
