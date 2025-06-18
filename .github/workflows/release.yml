@@ -1,4 +1,3 @@
-
 name: Release
 
 on:
@@ -30,9 +29,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: validate
     outputs:
-      new-release-published: ${{ steps.semantic-release.outputs.new-release-published }}
-      new-release-version: ${{ steps.semantic-release.outputs.new-release-version }}
-      new-release-git-tag: ${{ steps.semantic-release.outputs.new-release-git-tag }}
+      new_release_published: ${{ steps.semantic-release.outputs.new_release_published }}
+      new_release_version: ${{ steps.semantic-release.outputs.new_release_version }}
+      new_release_git_tag: ${{ steps.semantic-release.outputs.new_release_git_tag }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -48,8 +47,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'pnpm'
+          node-version: "20"
+          cache: "pnpm"
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -71,9 +70,9 @@ jobs:
     name: Build Application
     runs-on: macos-latest
     needs: version-check
-    if: needs.version-check.outputs.new-release-published == 'true'
+    if: needs.version-check.outputs.new_release_published == 'true'
     env:
-      RELEASE_VERSION: ${{ needs.version-check.outputs.new-release-version }}
+      RELEASE_VERSION: ${{ needs.version-check.outputs.new_release_version }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -89,19 +88,18 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'pnpm'
+          node-version: "20"
+          cache: "pnpm"
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-  
-      - name:  build, sign, notarize, staple DMG
+      - name: build, sign, notarize, staple DMG
         env:
           VIBE_VERSION: ${{ env.RELEASE_VERSION }}
           #the password for cert.p12
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-          #csc_link is    CSC_LINK=$(openssl base64 -in cert.p12 
+          #csc_link is    CSC_LINK=$(openssl base64 -in cert.p12
           CSC_LINK: ${{ secrets.CSC_LINK }}
           #dev email
           APPLE_ID: ${{ secrets.APPLE_ID }}
@@ -144,8 +142,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'pnpm'
+          node-version: "20"
+          cache: "pnpm"
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -172,8 +170,8 @@ jobs:
         with:
           args: |
             🚀 **New Release: v${{ needs.release.outputs.version }}**
-            
+
             Repository: **${{ github.repository }}**
             Release Notes: ${{ github.server_url }}/${{ github.repository }}/releases/tag/v${{ needs.release.outputs.version }}
-            
+
             ${{ needs.release.outputs.notes }}
