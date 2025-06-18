@@ -240,7 +240,10 @@ export class GmailOAuthService {
       x: GLASSMORPHISM_CONFIG.PADDING,
       y: BROWSER_CHROME.TOTAL_CHROME_HEIGHT + GLASSMORPHISM_CONFIG.PADDING,
       width: width - GLASSMORPHISM_CONFIG.PADDING * 2,
-      height: height - BROWSER_CHROME.TOTAL_CHROME_HEIGHT - GLASSMORPHISM_CONFIG.PADDING * 2,
+      height:
+        height -
+        BROWSER_CHROME.TOTAL_CHROME_HEIGHT -
+        GLASSMORPHISM_CONFIG.PADDING * 2,
     };
 
     if (bounds.width > 0 && bounds.height > 0) {
