@@ -14,11 +14,7 @@ import { AgentService } from "@/services/agent-service";
 import { setAgentServiceInstance as setAgentStatusInstance } from "@/ipc/chat/agent-status";
 import { setAgentServiceInstance as setChatMessagingInstance } from "@/ipc/chat/chat-messaging";
 import { setAgentServiceInstance as setTabAgentInstance } from "@/utils/tab-agent";
-import {
-  createLogger,
-  MAIN_PROCESS_CONFIG,
-  MEMORY_CONFIG,
-} from "@vibe/shared-types";
+import { createLogger, MAIN_PROCESS_CONFIG } from "@vibe/shared-types";
 import {
   init,
   browserWindowSessionIntegration,
@@ -315,8 +311,6 @@ async function initializeServices(): Promise<void> {
               openaiApiKey: process.env.OPENAI_API_KEY!,
               model: "gpt-4o-mini",
               processorType: "react",
-              mcpServerUrl:
-                process.env.MCP_SERVER_URL || MEMORY_CONFIG.MCP_SERVER_URL,
             });
 
             // Inject agent service into IPC handlers
