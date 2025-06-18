@@ -28,7 +28,7 @@ const logger = createLogger("GmailService");
  */
 
 // Configuration paths
-const CONFIG_DIR = path.join(os.homedir(), GMAIL_CONFIG.CONFIG_DIR);
+const CONFIG_DIR = path.join(os.homedir(), GMAIL_CONFIG.CONFIG_DIR_NAME);
 const OAUTH_PATH =
   process.env.GMAIL_OAUTH_PATH ||
   path.join(CONFIG_DIR, GMAIL_CONFIG.OAUTH_KEYS_FILE);
@@ -40,18 +40,19 @@ export class GmailOAuthService {
   private oauth2Client: OAuth2Client | null = null;
   private server: http.Server | null = null;
   private authView: any = null;
-  private viewManagerRef: ViewManagerState | null = null;
   private isOAuthInProgress: boolean = false;
   private oauthTimeout: NodeJS.Timeout | null = null;
-  private previousActiveViewKey: string | null = null;
+  // Store per-window OAuth state to prevent race conditions
+  private activeOAuthFlows: Map<
+    string,
+    {
+      viewManager: ViewManagerState;
+      previousActiveViewKey: string | null;
+    }
+  > = new Map();
 
   constructor() {
     this.ensureConfigDir();
-  }
-
-  /** Set ViewManager reference for OAuth browser view management */
-  setViewManager(viewManager: ViewManagerState): void {
-    this.viewManagerRef = viewManager;
   }
 
   /** Ensure config directory exists */
@@ -144,7 +145,10 @@ export class GmailOAuthService {
   }
 
   /** Start OAuth authentication flow */
-  async startAuth(currentWindow?: BrowserWindow): Promise<GmailAuthResult> {
+  async startAuth(
+    viewManager: ViewManagerState,
+    currentWindow?: BrowserWindow,
+  ): Promise<GmailAuthResult> {
     try {
       // Prevent concurrent OAuth flows
       if (this.isOAuthInProgress) {
@@ -156,7 +160,7 @@ export class GmailOAuthService {
         };
       }
 
-      if (!this.viewManagerRef) {
+      if (!viewManager) {
         logger.error(
           "[GmailAuth] ViewManager not available - ensure service is properly initialized",
         );
@@ -184,15 +188,15 @@ export class GmailOAuthService {
       });
 
       // Start secure callback server
-      await this.startSecureCallbackServer(currentWindow);
+      await this.startSecureCallbackServer(viewManager, currentWindow);
 
       // Create secure OAuth browser view
-      this.createOAuthView(authUrl);
+      this.createOAuthView(authUrl, viewManager);
 
       // Set OAuth timeout
       this.oauthTimeout = setTimeout(() => {
         logger.warn("[GmailAuth] OAuth flow timed out");
-        this.cleanupOAuthFlow();
+        this.cleanupOAuthFlow(viewManager);
       }, GMAIL_CONFIG.AUTH_TIMEOUT_MS);
 
       logger.info("[GmailAuth] OAuth flow initiated successfully");
@@ -202,7 +206,7 @@ export class GmailOAuthService {
       };
     } catch (error) {
       logger.error("[GmailAuth] Auth start failed:", error);
-      this.cleanupOAuthFlow();
+      this.cleanupOAuthFlow(viewManager);
       return {
         success: false,
         error: error instanceof Error ? error.message : "Unknown error",
@@ -211,11 +215,7 @@ export class GmailOAuthService {
   }
 
   /** Create secure OAuth browser view with Google-compatible settings */
-  private createSecureOAuthView(): any {
-    if (!this.viewManagerRef) {
-      throw new Error("ViewManager not available");
-    }
-
+  private createSecureOAuthView(viewManager: ViewManagerState): any {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { WebContentsView } = require("electron");
     const view = new WebContentsView({
@@ -229,11 +229,11 @@ export class GmailOAuthService {
     });
 
     // Add to ViewManager
-    this.viewManagerRef.browserViews.set("oauth-gmail", view);
-    this.viewManagerRef.mainWindow.contentView.addChildView(view);
+    viewManager.browserViews.set(GMAIL_CONFIG.OAUTH_TAB_KEY, view);
+    viewManager.mainWindow.contentView.addChildView(view);
 
     // Set initial bounds
-    const [width, height] = this.viewManagerRef.mainWindow.getContentSize();
+    const [width, height] = viewManager.mainWindow.getContentSize();
     const bounds = {
       x: 8, // GLASSMORPHISM_CONFIG.PADDING
       y: 89 + 8, // BROWSER_CHROME.TOTAL_CHROME_HEIGHT + GLASSMORPHISM_CONFIG.PADDING
@@ -249,35 +249,41 @@ export class GmailOAuthService {
   }
 
   /** Create OAuth browser view and handle navigation events */
-  private createOAuthView(authUrl: string): void {
-    if (!this.viewManagerRef) {
-      throw new Error("ViewManager not available");
-    }
-
+  private createOAuthView(
+    authUrl: string,
+    viewManager: ViewManagerState,
+  ): void {
     try {
       // Create OAuth browser view with permissive settings for Google OAuth
-      this.authView = this.createSecureOAuthView();
+      this.authView = this.createSecureOAuthView(viewManager);
       this.authView.setBackgroundColor("#00000000");
       this.authView.webContents.loadURL(authUrl);
 
       // Store the current active view to restore later
-      this.previousActiveViewKey = this.viewManagerRef.activeViewKey;
+      const previousActiveViewKey = viewManager.activeViewKey;
+
+      // Store per-window state
+      const windowId = viewManager.mainWindow.id.toString();
+      this.activeOAuthFlows.set(windowId, {
+        viewManager,
+        previousActiveViewKey,
+      });
 
       // Make OAuth view visible and active
-      this.viewManagerRef.browserViews.set("oauth-gmail", this.authView);
-      this.viewManagerRef.activeViewKey = "oauth-gmail";
+      viewManager.browserViews.set(GMAIL_CONFIG.OAUTH_TAB_KEY, this.authView);
+      viewManager.activeViewKey = GMAIL_CONFIG.OAUTH_TAB_KEY;
 
       // Hide all other views and show only OAuth view
-      for (const [key, view] of this.viewManagerRef.browserViews) {
-        if (key !== "oauth-gmail") {
+      for (const [key, view] of viewManager.browserViews) {
+        if (key !== GMAIL_CONFIG.OAUTH_TAB_KEY) {
           view.setVisible(false);
         }
       }
       this.authView.setVisible(true);
 
       // Update tab bar to show OAuth state
-      this.viewManagerRef.mainWindow.webContents.send("oauth-tab-started", {
-        tabKey: "oauth-gmail",
+      viewManager.mainWindow.webContents.send("oauth-tab-started", {
+        tabKey: GMAIL_CONFIG.OAUTH_TAB_KEY,
         url: authUrl,
         title: "Gmail Authentication",
       });
@@ -330,6 +336,7 @@ export class GmailOAuthService {
 
   /** Start callback server for OAuth flow */
   private async startSecureCallbackServer(
+    viewManager: ViewManagerState,
     currentWindow?: BrowserWindow,
   ): Promise<void> {
     // Check if server is already running
@@ -366,7 +373,7 @@ export class GmailOAuthService {
           if (error) {
             logger.error("[GmailAuth] OAuth error:", error);
             this.sendErrorResponse(res, `Authentication error: ${error}`);
-            this.cleanupOAuthFlow();
+            this.cleanupOAuthFlow(viewManager);
             reject(new Error(`OAuth error: ${error}`));
             return;
           }
@@ -375,17 +382,22 @@ export class GmailOAuthService {
           if (!code) {
             logger.error("[GmailAuth] No authorization code received");
             this.sendErrorResponse(res, "No authorization code provided");
-            this.cleanupOAuthFlow();
+            this.cleanupOAuthFlow(viewManager);
             reject(new Error("No authorization code provided"));
             return;
           }
 
           // Exchange code for tokens with proper error handling
-          await this.exchangeCodeForTokens(code, res, currentWindow);
+          await this.exchangeCodeForTokens(
+            code,
+            res,
+            viewManager,
+            currentWindow,
+          );
         } catch (error) {
           logger.error("[GmailAuth] Request processing failed:", error);
           this.sendErrorResponse(res, "Authentication failed");
-          this.cleanupOAuthFlow();
+          this.cleanupOAuthFlow(viewManager);
           reject(error);
         }
       });
@@ -413,6 +425,7 @@ export class GmailOAuthService {
   private async exchangeCodeForTokens(
     code: string,
     res: http.ServerResponse,
+    viewManager: ViewManagerState,
     currentWindow?: BrowserWindow,
   ): Promise<void> {
     try {
@@ -446,15 +459,18 @@ export class GmailOAuthService {
 
       // Notify renderer and cleanup immediately
       if (currentWindow && !currentWindow.isDestroyed()) {
-        currentWindow.webContents.send("oauth-tab-completed", "oauth-gmail");
+        currentWindow.webContents.send(
+          "oauth-tab-completed",
+          GMAIL_CONFIG.OAUTH_TAB_KEY,
+        );
       }
-      this.cleanupOAuthFlow();
+      this.cleanupOAuthFlow(viewManager);
 
       logger.info("[GmailAuth] Authentication completed successfully");
     } catch (error) {
       logger.error("[GmailAuth] Token exchange failed:", error);
       this.sendErrorResponse(res, "Token exchange failed");
-      this.cleanupOAuthFlow();
+      this.cleanupOAuthFlow(viewManager);
       throw error;
     }
   }
@@ -488,7 +504,7 @@ export class GmailOAuthService {
   }
 
   /** Clean up OAuth flow resources */
-  private cleanupOAuthFlow(): void {
+  private cleanupOAuthFlow(viewManager?: ViewManagerState): void {
     try {
       // Reset OAuth state
       this.isOAuthInProgress = false;
@@ -500,36 +516,40 @@ export class GmailOAuthService {
       }
 
       // Clean up OAuth browser view
-      if (this.authView && this.viewManagerRef) {
+      if (this.authView && viewManager) {
         try {
           if (!this.authView.webContents.isDestroyed()) {
             this.authView.webContents.removeAllListeners();
-            this.authView.webContents.close();
+            this.authView.webContents.destroy();
           }
 
-          this.viewManagerRef.mainWindow.contentView.removeChildView(
-            this.authView,
-          );
-          this.viewManagerRef.browserViews.delete("oauth-gmail");
+          viewManager.mainWindow.contentView.removeChildView(this.authView);
+          viewManager.browserViews.delete(GMAIL_CONFIG.OAUTH_TAB_KEY);
 
-          // Restore previous active view
-          if (this.viewManagerRef.activeViewKey === "oauth-gmail") {
-            this.viewManagerRef.activeViewKey = this.previousActiveViewKey;
+          // Restore previous active view using stored state
+          const windowId = viewManager.mainWindow.id.toString();
+          const oauthState = this.activeOAuthFlows.get(windowId);
+
+          if (
+            viewManager.activeViewKey === GMAIL_CONFIG.OAUTH_TAB_KEY &&
+            oauthState
+          ) {
+            viewManager.activeViewKey = oauthState.previousActiveViewKey;
 
             // Show the previous active view if it exists
-            if (this.previousActiveViewKey) {
-              const previousView = this.viewManagerRef.browserViews.get(
-                this.previousActiveViewKey,
+            if (oauthState.previousActiveViewKey) {
+              const previousView = viewManager.browserViews.get(
+                oauthState.previousActiveViewKey,
               );
               if (previousView) {
                 previousView.setVisible(true);
-                this.viewManagerRef.updateBounds();
+                viewManager.updateBounds();
               }
             }
           }
 
-          // Reset stored previous view
-          this.previousActiveViewKey = null;
+          // Clean up stored state
+          this.activeOAuthFlows.delete(windowId);
         } catch (error) {
           logger.error("[GmailAuth] Error cleaning up OAuth view:", error);
         } finally {
