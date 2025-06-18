@@ -659,6 +659,12 @@ export class GmailOAuthService {
   getOAuth2Client(): OAuth2Client | null {
     return this.oauth2Client;
   }
+
+  /** Public cleanup method for external use (e.g., process handlers) */
+  cleanup(): void {
+    // Call private cleanup without viewManager for graceful shutdown
+    this.cleanupOAuthFlow();
+  }
 }
 
 // Export singleton instance
@@ -666,9 +672,9 @@ export const gmailOAuthService = new GmailOAuthService();
 
 // Clean up OAuth flow on app quit for security
 process.on("before-quit", () => {
-  gmailOAuthService["cleanupOAuthFlow"]();
+  gmailOAuthService.cleanup();
 });
 
 process.on("window-all-closed", () => {
-  gmailOAuthService["cleanupOAuthFlow"]();
+  gmailOAuthService.cleanup();
 });
