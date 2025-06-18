@@ -10,7 +10,11 @@ require("dotenv").config({ path: path.resolve(__dirname, "../.env") });
 let turboProcess;
 const childProcesses = [];
 
-// Function to cleanup processes
+/**
+ * Terminates all spawned child processes and the turbo process, then exits the current process.
+ *
+ * Ensures that any running development environment processes are properly cleaned up on exit or interruption.
+ */
 function cleanup() {
   console.log("\n🧹 Cleaning up processes...");
 
@@ -49,7 +53,9 @@ process.on("uncaughtException", (err) => {
   cleanup();
 });
 
-// Wait for a port to be available
+/**
+ * Builds required dependencies and starts the turbo development environment, managing process lifecycle and cleanup on errors or termination.
+ */
 
 async function main() {
   try {
