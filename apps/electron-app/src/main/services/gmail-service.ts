@@ -8,6 +8,8 @@ import { BrowserWindow } from "electron";
 import {
   createLogger,
   GMAIL_CONFIG,
+  GLASSMORPHISM_CONFIG,
+  BROWSER_CHROME,
   type GmailAuthStatus,
   type GmailAuthResult,
   type GmailClearResult,
@@ -235,10 +237,10 @@ export class GmailOAuthService {
     // Set initial bounds
     const [width, height] = viewManager.mainWindow.getContentSize();
     const bounds = {
-      x: 8, // GLASSMORPHISM_CONFIG.PADDING
-      y: 89 + 8, // BROWSER_CHROME.TOTAL_CHROME_HEIGHT + GLASSMORPHISM_CONFIG.PADDING
-      width: width - 16, // width - GLASSMORPHISM_CONFIG.PADDING * 2
-      height: height - 89 - 16, // height - BROWSER_CHROME.TOTAL_CHROME_HEIGHT - GLASSMORPHISM_CONFIG.PADDING * 2
+      x: GLASSMORPHISM_CONFIG.PADDING,
+      y: BROWSER_CHROME.TOTAL_CHROME_HEIGHT + GLASSMORPHISM_CONFIG.PADDING,
+      width: width - GLASSMORPHISM_CONFIG.PADDING * 2,
+      height: height - BROWSER_CHROME.TOTAL_CHROME_HEIGHT - GLASSMORPHISM_CONFIG.PADDING * 2,
     };
 
     if (bounds.width > 0 && bounds.height > 0) {
