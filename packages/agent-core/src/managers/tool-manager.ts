@@ -11,8 +11,6 @@ const LOG_PREFIX = "[AgentCore]";
 export class ToolManager implements IToolManager {
   private conversationHistory: CoreMessage[] = [];
 
-  constructor() {}
-
   async getTools(): Promise<any> {
     // No tools available without MCP
     return [];
