@@ -14,8 +14,3 @@ export class AgentFactory {
     return new Agent(toolManager, streamProcessor, config);
   }
 }
-
-// Backward-compatible createAgent function
-export function createAgent(config: AgentConfig): Agent {
-  return AgentFactory.create(config);
-}
