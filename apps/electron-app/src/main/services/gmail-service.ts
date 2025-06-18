@@ -513,46 +513,49 @@ export class GmailOAuthService {
       }
 
       // Clean up OAuth browser view
-      if (this.authView && viewManager) {
+      if (this.authView) {
         try {
           if (!this.authView.webContents.isDestroyed()) {
             this.authView.webContents.removeAllListeners();
             this.authView.webContents.destroy();
           }
 
-          viewManager.mainWindow.contentView.removeChildView(this.authView);
-          viewManager.browserViews.delete(GMAIL_CONFIG.OAUTH_TAB_KEY);
+          // Only perform viewManager-dependent operations if viewManager is available
+          if (viewManager) {
+            viewManager.mainWindow.contentView.removeChildView(this.authView);
+            viewManager.browserViews.delete(GMAIL_CONFIG.OAUTH_TAB_KEY);
 
-          // Restore previous active view using stored state
-          const windowId = viewManager.mainWindow.id.toString();
-          const oauthState = this.activeOAuthFlows.get(windowId);
+            // Restore previous active view using stored state
+            const windowId = viewManager.mainWindow.id.toString();
+            const oauthState = this.activeOAuthFlows.get(windowId);
 
-          if (
-            viewManager.activeViewKey === GMAIL_CONFIG.OAUTH_TAB_KEY &&
-            oauthState
-          ) {
-            viewManager.activeViewKey = oauthState.previousActiveViewKey;
+            if (
+              viewManager.activeViewKey === GMAIL_CONFIG.OAUTH_TAB_KEY &&
+              oauthState
+            ) {
+              viewManager.activeViewKey = oauthState.previousActiveViewKey;
 
-            // Show the previous active view if it exists
-            if (oauthState.previousActiveViewKey) {
-              const previousView = viewManager.browserViews.get(
-                oauthState.previousActiveViewKey,
-              );
-              if (previousView) {
-                previousView.setVisible(true);
-                viewManager.updateBounds();
+              // Show the previous active view if it exists
+              if (oauthState.previousActiveViewKey) {
+                const previousView = viewManager.browserViews.get(
+                  oauthState.previousActiveViewKey,
+                );
+                if (previousView) {
+                  previousView.setVisible(true);
+                  viewManager.updateBounds();
+                }
               }
             }
           }
-
-          // Clean up stored state
-          this.activeOAuthFlows.delete(windowId);
         } catch (error) {
           logger.error("[GmailAuth] Error cleaning up OAuth view:", error);
         } finally {
           this.authView = null;
         }
       }
+
+      // Always clear all stored OAuth flow states
+      this.activeOAuthFlows.clear();
 
       // Clean up callback server
       this.stopCallbackServer();
