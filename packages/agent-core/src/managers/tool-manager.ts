@@ -15,7 +15,7 @@ export class ToolManager implements IToolManager {
 
   async getTools(): Promise<any> {
     // No tools available without MCP
-    return undefined;
+    return [];
   }
 
   async executeTools(
