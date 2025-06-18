@@ -44,7 +44,6 @@ vibe/
 │   └── mcp-server/            # MCP server implementations
 ├── packages/
 │   ├── agent-core/            # Core agent functionality
-│   ├── mcp-service/           # MCP service utilities
 │   ├── shared-types/          # Shared TypeScript types
 │   └── tab-extraction-core/   # Tab content extraction
 ├── scripts/                   # Development scripts

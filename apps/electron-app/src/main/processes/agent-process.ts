@@ -3,8 +3,7 @@
  * Runs the agent in complete isolation from the main browser process
  */
 
-import { createAgent, Agent } from "@vibe/agent-core";
-import { MEMORY_CONFIG } from "@vibe/shared-types";
+import { AgentFactory, Agent } from "@vibe/agent-core";
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -21,7 +20,6 @@ interface InitializeData {
     openaiApiKey: string;
     model?: string;
     processorType?: string;
-    mcpServerUrl?: string;
   };
 }
 
@@ -161,13 +159,12 @@ class MessageHandlers {
 
     MessageValidator.validateConfig(config);
 
-    agent = createAgent({
+    agent = AgentFactory.create({
       openaiApiKey: config.openaiApiKey.trim(),
       model: config.model || "gpt-4o-mini",
       processorType: MessageValidator.validateProcessorType(
         config.processorType,
       ),
-      mcpServerUrl: config.mcpServerUrl || MEMORY_CONFIG.MCP_SERVER_URL,
     });
 
     console.log(

@@ -375,10 +375,6 @@ export class AgentService extends EventEmitter implements IAgentService {
         'Invalid config: processorType must be "react" or "coact"',
       );
     }
-
-    if (config.mcpServerUrl && typeof config.mcpServerUrl !== "string") {
-      throw new Error("Invalid config: mcpServerUrl must be a string");
-    }
   }
 
   /**
@@ -438,7 +434,6 @@ export class AgentService extends EventEmitter implements IAgentService {
       model: config.model,
       temperature: config.temperature,
       processorType: config.processorType,
-      mcpServerUrl: config.mcpServerUrl,
       // Exclude openaiApiKey for security
     };
   }

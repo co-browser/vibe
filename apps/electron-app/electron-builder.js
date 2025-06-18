@@ -10,13 +10,11 @@ module.exports = {
     "!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}",
     "!{.env,.env.*,.npmrc,pnpm-lock.yaml}",
     "!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}",
-    "dist-py/**/*",
     "out/**/*",
   ],
   afterSign: "scripts/notarize.js",
   afterAllArtifactBuild: "scripts/notarizedmg.js",
   asarUnpack: [
-    "dist-py/**/*",
     "dist/mac-arm64/vibe.app/Contents/Resources/app.asar.unpacked/node_modules/sqlite3/build/Release/node_sqlite3.node",
   ],
   win: {
@@ -52,11 +50,7 @@ module.exports = {
     additionalArguments: ["--timestamp"],
     target: ["dmg", "zip"],
     artifactName: "vibe-${version}.${ext}",
-    binaries: [
-      "dist/mac-arm64/vibe.app/Contents/MacOS/vibe",
-      "dist-py/mcp-server-backend",
-      "dist/mac-arm64/vibe.app/Contents/Resources/app.asar.unpacked/node_modules/sqlite3/build/Release/node_sqlite3.node",
-    ],
+    binaries: ["dist/mac-arm64/vibe.app/Contents/MacOS/vibe"],
   },
   dmg: {
     icon: "resources/icon.icns",
