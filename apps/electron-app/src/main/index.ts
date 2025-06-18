@@ -111,7 +111,13 @@ process.on("unhandledRejection", reason => {
   }
 });
 
-// Graceful shutdown handling
+/**
+ * Performs a graceful shutdown of the application, cleaning up services, resources, and windows before exiting.
+ *
+ * Initiates termination of the agent service, unsubscribes event listeners, destroys the browser instance, and closes all open windows. Ensures shutdown is only performed once per signal. Forces process exit if cleanup fails or after a timeout.
+ *
+ * @param signal - The signal or reason that triggered the shutdown
+ */
 async function gracefulShutdown(signal: string): Promise<void> {
   if (isShuttingDown) return;
 
@@ -266,7 +272,11 @@ function initializeApp(): boolean {
 }
 
 /**
- * Initialize all services in the correct order
+ * Initializes application services, including analytics and the AgentService if an OpenAI API key is present.
+ *
+ * If the `OPENAI_API_KEY` environment variable is set, this function creates and configures the AgentService, sets up event listeners, and injects the service into relevant IPC handlers. If the key is missing, service initialization is skipped and a warning is logged.
+ *
+ * @throws If service initialization fails unexpectedly.
  */
 async function initializeServices(): Promise<void> {
   try {
