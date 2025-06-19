@@ -29,3 +29,6 @@ export * from "./utils";
 
 // Logging utilities
 export * from "./logger";
+
+// Gmail types
+export * from "./gmail";

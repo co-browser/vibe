@@ -200,7 +200,7 @@ export class GmailOAuthService {
         logger.warn("[GmailAuth] OAuth flow timed out");
         this.cleanupOAuthFlow(viewManager);
       }, GMAIL_CONFIG.AUTH_TIMEOUT_MS);
-
+      
       logger.info("[GmailAuth] OAuth flow initiated successfully");
       return {
         success: true,
@@ -408,7 +408,6 @@ export class GmailOAuthService {
         res.end("Not found");
         return;
       }
-
       try {
         const url = new URL(req.url, GMAIL_CONFIG.REDIRECT_URI);
         const code = url.searchParams.get("code");
@@ -570,6 +569,7 @@ export class GmailOAuthService {
       if (this.authView) {
         try {
           if (!this.authView.webContents.isDestroyed()) {
+
             try {
               this.authView.webContents.removeAllListeners();
               this.authView.webContents.destroy();
