@@ -346,7 +346,7 @@ class RAGTestRunner {
 }
 
 async function main() {
-  const serverUrl = process.env.RAG_SERVER_URL || 'http://localhost:3000';
+  const serverUrl = process.env.RAG_SERVER_URL || 'http://localhost:3000/mcp';
   const runner = new RAGTestRunner(serverUrl);
   await runner.run();
 }

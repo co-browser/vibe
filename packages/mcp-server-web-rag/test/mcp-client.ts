@@ -13,7 +13,7 @@ export class RAGTestClient {
   private transport: StreamableHTTPClientTransport;
   private isConnected = false;
 
-  constructor(serverUrl: string = 'http://localhost:3000') {
+  constructor(serverUrl: string = 'http://localhost:3000/mcp') {
     this.client = new Client({
       name: 'rag-test-client',
       version: '1.0.0',

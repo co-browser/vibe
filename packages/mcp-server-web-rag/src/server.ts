@@ -41,12 +41,16 @@ export class StreamableHTTPServer {
     const app = express();
     app.use(express.json({ limit: '10mb' }));
 
-    app.get('*', (req, res) => this.handleGetRequest(req, res));
-    app.post('*', (req, res) => this.handlePostRequest(req, res));
+    app.post('/mcp', (req, res) => this.handlePostRequest(req, res));
+    
+    app.all('*', (req, res) => {
+      res.status(404).json(this.createRPCErrorResponse('Endpoint not found. Use POST /mcp'));
+      log.info(`Responded to ${req.method} ${req.path} with 404 Not Found`);
+    });
 
     this.httpServer = app.listen(port, () => {
       log.success(`RAG MCP server listening on port ${port}`);
-      log.info(`Server URL: http://localhost:${port}`);
+      log.info(`Server URL: http://localhost:${port}/mcp`);
     });
 
     return this.httpServer;

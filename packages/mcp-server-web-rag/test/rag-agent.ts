@@ -16,7 +16,7 @@ export class RAGAgent {
   private mcpClient: RAGTestClient;
   private tools: MCPTool[] = [];
 
-  constructor(mcpServerUrl: string = 'http://localhost:3000') {
+  constructor(mcpServerUrl: string = 'http://localhost:3000/mcp') {
     if (!process.env.OPENAI_API_KEY) {
       throw new Error('OPENAI_API_KEY environment variable is required');
     }
