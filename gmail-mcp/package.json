@@ -16,12 +16,11 @@
     "email"
   ],
   "author": "",
-  "license": "MIT",
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.0.8",
+    "@modelcontextprotocol/sdk": "^1.13.0",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
-    "google-auth-library": "^9.16.0",
+    "google-auth-library": "^9.15.1",
     "googleapis": "^144.0.0",
     "zod": "^3.24.1",
     "zod-to-json-schema": "^3.24.1"
