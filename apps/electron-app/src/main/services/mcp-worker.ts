@@ -73,15 +73,10 @@ export class MCPWorker extends EventEmitter {
 
     // Verify file exists before creating process
     if (!fs.existsSync(workerPath)) {
-      // In development, the file might not exist yet, so we'll create a placeholder
-      console.warn(`[MCPWorker] Worker process file not found: ${workerPath}`);
-      console.warn("[MCPWorker] Creating placeholder for development");
-
-      // For now, we'll skip actual process creation in development
-      // This will be replaced when we create the actual process file
-      this.isConnected = true;
-      this.emit("connected", { development: true });
-      return;
+      console.error(`[MCPWorker] Worker process file not found: ${workerPath}`);
+      throw new Error(
+        `MCP worker process file not found at ${workerPath}. Please ensure the build process has completed successfully.`,
+      );
     }
 
     if (process.env.LOG_LEVEL === "debug") {
