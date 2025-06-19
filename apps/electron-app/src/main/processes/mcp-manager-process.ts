@@ -166,7 +166,11 @@ class MCPManager {
         PORT: config.port.toString(),
         ...(config.env || {}),
         // Ensure PATH is available for finding executables
-        PATH: process.env.PATH || "/usr/local/bin:/usr/bin:/bin",
+        PATH:
+          process.env.PATH ||
+          (process.platform === "win32"
+            ? "C:\\Windows\\System32;C:\\Windows"
+            : "/usr/local/bin:/usr/bin:/bin"),
       },
       cwd: path.dirname(mcpPath),
     });
