@@ -6,6 +6,7 @@
 import { spawn, type ChildProcess } from "child_process";
 import path from "path";
 import fs from "fs";
+import http from "http";
 import {
   getAllMCPServerConfigs,
   type MCPServerConfig,
@@ -184,20 +185,9 @@ class MCPManager {
     serverProcess.stdout?.on("data", data => {
       const output = data.toString();
 
-      // Only log important messages or if debug level
-      if (
-        output.includes("MCP endpoint") ||
-        output.includes("listening") ||
-        output.includes("ERROR") ||
-        process.env.LOG_LEVEL === "debug"
-      ) {
+      // Log output if debug level or contains errors
+      if (output.includes("ERROR") || process.env.LOG_LEVEL === "debug") {
         console.log(`[MCP-${config.name}]:`, output);
-      }
-
-      // Check if server is ready
-      if (output.includes("MCP endpoint") || output.includes("listening")) {
-        server.status = "ready";
-        this.notifyServerStatus(config.name, "ready");
       }
     });
 
@@ -228,6 +218,34 @@ class MCPManager {
     await this.waitForServerReady(config.name, 10000);
   }
 
+  private async healthCheck(_name: string, port: number): Promise<boolean> {
+    return new Promise(resolve => {
+      const req = http.request(
+        {
+          hostname: "localhost",
+          port: port,
+          path: "/health",
+          method: "GET",
+          timeout: 2000,
+        },
+        res => {
+          resolve(res.statusCode === 200);
+        },
+      );
+
+      req.on("error", () => {
+        resolve(false);
+      });
+
+      req.on("timeout", () => {
+        req.destroy();
+        resolve(false);
+      });
+
+      req.end();
+    });
+  }
+
   private async waitForServerReady(
     name: string,
     timeout: number,
@@ -236,15 +254,36 @@ class MCPManager {
     if (!server) return;
 
     const startTime = Date.now();
+    const checkInterval = 500; // Check every 500ms
+    let lastHealthCheck = 0;
 
     while (server.status === "starting" && Date.now() - startTime < timeout) {
+      const now = Date.now();
+
+      // Perform health check every checkInterval ms
+      if (now - lastHealthCheck >= checkInterval) {
+        const isHealthy = await this.healthCheck(server.name, server.port);
+        lastHealthCheck = now;
+
+        if (isHealthy) {
+          console.log(
+            `[MCPManager] Server ${name} health check passed - marking as ready`,
+          );
+          server.status = "ready";
+          this.notifyServerStatus(name, "ready");
+          return;
+        }
+      }
+
       await new Promise(resolve => setTimeout(resolve, 100));
     }
 
     if (server.status !== "ready") {
       console.warn(
-        `[MCPManager] Server ${name} did not become ready within timeout`,
+        `[MCPManager] Server ${name} did not become ready within timeout - health checks failed`,
       );
+      server.status = "error";
+      this.notifyServerStatus(name, "error");
     }
   }
 
