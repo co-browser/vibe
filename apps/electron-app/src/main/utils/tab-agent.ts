@@ -3,7 +3,11 @@
  * Handles sending tab content to the agent service
  */
 
-import { CDPConnector, getCurrentPageContent } from "@vibe/tab-extraction-core";
+import {
+  CDPConnector,
+  getCurrentPageContent,
+  extractTextFromPageContent,
+} from "@vibe/tab-extraction-core";
 import { Browser } from "@/browser/browser";
 import { BrowserWindow } from "electron";
 import { createLogger } from "@vibe/shared-types";
@@ -82,8 +86,8 @@ export async function sendTabToAgent(browser: Browser): Promise<void> {
 
   // Extract content FIRST while tab still exists
   const cdpConnector = new CDPConnector("localhost", 9223);
-  let extractedText = "No content extracted";
   let extractionSucceeded = false;
+  let extractedPageContent: any = null; // Store the full ExtractedPage
 
   try {
     // Extract page content while tab is still active
@@ -98,13 +102,17 @@ export async function sendTabToAgent(browser: Browser): Promise<void> {
       cdpConnector,
     );
 
-    extractedText = pageContent.content?.[0]?.text || "No content extracted";
+    // Check if extraction was successful
+    if ("isError" in pageContent && pageContent.isError) {
+      throw new Error(pageContent.message);
+    }
+
+    extractedPageContent = pageContent; // Store the full page content
     extractionSucceeded = true;
   } catch (error) {
     logger.error(
       `Content extraction failed: ${error instanceof Error ? error.message : String(error)}`,
     );
-    extractedText = `Failed to extract content from ${tabTitle}: ${error}`;
   } finally {
     // Always clean up CDP connections
     try {
@@ -251,8 +259,7 @@ export async function sendTabToAgent(browser: Browser): Promise<void> {
 
   // Process content in background (summarization and storage)
   processTabContentInBackground(
-    extractedText,
-    tabUrl,
+    extractedPageContent,
     tabTitle,
     checkKey,
     extractionSucceeded,
@@ -380,8 +387,7 @@ async function updateTabContextToCompleted(
 
 // Background processing function (non-blocking)
 async function processTabContentInBackground(
-  extractedText: string,
-  tabUrl: string,
+  pageContent: any, // ExtractedPage or error
   tabTitle: string,
   checkKey: string,
   extractionSucceeded: boolean,
@@ -407,15 +413,11 @@ async function processTabContentInBackground(
     // Use LLM to create actionable summary instead of basic framing
     try {
       // Only proceed with summarization if extraction succeeded
-      if (extractionSucceeded && extractedText !== "No content extracted") {
+      if (extractionSucceeded && pageContent && !("isError" in pageContent)) {
         // 🔄 Replace Zustand storage with direct MCP call
         try {
           // 🎯 Direct MCP tool call - saves both memory note + content chunks
-          await currentAgentService.saveTabMemory(
-            tabUrl,
-            tabTitle,
-            extractedText,
-          );
+          await currentAgentService.saveTabMemory(pageContent);
           logger.info(`Saved to memory via MCP: ${tabTitle}`);
         } catch (mcpError) {
           logger.error(`MCP save failed, falling back to Zustand:`, mcpError);
@@ -522,8 +524,13 @@ export async function autoSaveTabToMemory(
       cdpConnector,
     );
 
+    // Check if extraction was successful
+    if ("isError" in pageContent && pageContent.isError) {
+      throw new Error(pageContent.message);
+    }
+
     const extractedText =
-      pageContent.content?.[0]?.text || "No content extracted";
+      extractTextFromPageContent(pageContent) || "No content extracted";
 
     if (
       extractedText !== "No content extracted" &&
@@ -544,14 +551,19 @@ export async function autoSaveTabToMemory(
         }
 
         // Fire and forget - don't block other saves
-        currentAgentService
-          .saveTabMemory(tabUrl, tabTitle, extractedText)
-          .then(() => {
-            logger.info(`Async save completed: ${tabTitle}`);
-          })
-          .catch(error => {
-            logger.error(`Async save failed for ${tabTitle}:`, error);
-          });
+        // Only save if we have a valid ExtractedPage (not an error)
+        if (pageContent && !("isError" in pageContent)) {
+          currentAgentService
+            .saveTabMemory(pageContent)
+            .then(() => {
+              logger.info(`Async save completed: ${tabTitle}`);
+            })
+            .catch(error => {
+              logger.error(`Async save failed for ${tabTitle}:`, error);
+            });
+        } else {
+          logger.warn(`Cannot save invalid page content for: ${tabTitle}`);
+        }
       } else {
         logger.warn("Agent service not available for auto-save");
       }

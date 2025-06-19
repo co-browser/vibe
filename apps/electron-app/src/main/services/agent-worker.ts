@@ -56,7 +56,7 @@ export class AgentWorker extends EventEmitter {
       this.stopHealthMonitoring();
 
       // Clear pending messages
-      for (const [, pending] of this.messageQueue) {
+      for (const pending of Array.from(this.messageQueue.values())) {
         clearTimeout(pending.timeout);
         pending.reject(new Error("Worker stopped"));
       }
@@ -328,7 +328,7 @@ export class AgentWorker extends EventEmitter {
     this.stopHealthMonitoring();
 
     // Reject all pending messages
-    for (const [, pending] of this.messageQueue) {
+    for (const pending of Array.from(this.messageQueue.values())) {
       clearTimeout(pending.timeout);
       pending.reject(new Error("Worker process crashed"));
     }

@@ -9,6 +9,7 @@ import type {
   AgentConfig,
   AgentStatus,
   IAgentService,
+  ExtractedPage,
 } from "@vibe/shared-types";
 
 export class AgentService extends EventEmitter implements IAgentService {
@@ -537,11 +538,7 @@ export class AgentService extends EventEmitter implements IAgentService {
   /**
    * Save tab memory (for compatibility with tab-agent integration)
    */
-  async saveTabMemory(
-    url: string,
-    title: string,
-    content: string,
-  ): Promise<void> {
+  async saveTabMemory(extractedPage: ExtractedPage): Promise<void> {
     if (!this.worker) {
       throw new Error("Agent service not initialized");
     }
@@ -551,25 +548,22 @@ export class AgentService extends EventEmitter implements IAgentService {
     }
 
     // Validate inputs
-    if (!url || typeof url !== "string") {
-      throw new Error("Valid URL is required");
+    if (!extractedPage || typeof extractedPage !== "object") {
+      throw new Error("Valid ExtractedPage is required");
     }
-    if (!title || typeof title !== "string") {
-      throw new Error("Valid title is required");
+    if (!extractedPage.url || typeof extractedPage.url !== "string") {
+      throw new Error("ExtractedPage must have a valid URL");
     }
-    if (!content || typeof content !== "string") {
-      throw new Error("Valid content is required");
+    if (!extractedPage.title || typeof extractedPage.title !== "string") {
+      throw new Error("ExtractedPage must have a valid title");
     }
 
     try {
-      console.log("[AgentService] Saving tab memory:", title);
+      console.log("[AgentService] Saving tab memory:", extractedPage.title);
 
-      // This will use the agent's saveTabMemory method in the utility process
-      // agent-core already has this functionality built-in
+      // Send the full ExtractedPage to the worker process
       await this.worker.sendMessage("save-tab-memory", {
-        url: url.trim(),
-        title: title.trim(),
-        content: content.trim(),
+        extractedPage,
       });
 
       this.lastActivityTime = Date.now();

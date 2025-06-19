@@ -2,6 +2,8 @@
  * Agent-related shared types
  */
 
+import type { ExtractedPage } from "../browser/index.js";
+
 export interface AgentConfig {
   openaiApiKey: string;
   model?: string;
@@ -35,7 +37,7 @@ export interface IAgentProvider {
   sendMessage(message: string): Promise<void>;
   getStatus(): AgentStatus;
   reset(): Promise<void>;
-  saveTabMemory(url: string, title: string, content: string): Promise<void>;
+  saveTabMemory(extractedPage: ExtractedPage): Promise<void>;
 
   // Event handling
   on(event: "message-stream", listener: (data: any) => void): void;
