@@ -33,6 +33,7 @@ app.use(express.json());
 
 const router = express.Router();
 const MCP_ENDPOINT = '/mcp';
+const PORT = process.env.PORT || 3001;
 
 router.post(MCP_ENDPOINT, async (req: Request, res: Response) => {
   await server.handlePostRequest(req, res);
@@ -65,7 +66,6 @@ httpServer.on('connection', (socket: Socket) => {
   });
 });
 
-const PORT = process.env.PORT || 3001;
 httpServer.listen(PORT, () => {
   log.success(`MCP endpoint: http://${hostname()}:${PORT}${MCP_ENDPOINT}`);
   log.success(`Press Ctrl+C to stop the server`);
