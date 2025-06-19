@@ -1,6 +1,6 @@
 import { Readability } from "@mozilla/readability";
 import { JSDOM } from "jsdom";
-import { createLogger } from "../utils/logger.js";
+import { createLogger } from "@vibe/shared-types";
 import { extractionConfig } from "../config/extraction.js";
 import type { PageContent } from "../types/index.js";
 import type { CDPConnection } from "../cdp/connector.js";

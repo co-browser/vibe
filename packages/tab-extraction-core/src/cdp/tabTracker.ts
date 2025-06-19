@@ -1,4 +1,4 @@
-import { createLogger } from "../utils/logger.js";
+import { createLogger } from "@vibe/shared-types";
 import type { TabInfo } from "../types/index.js";
 
 const logger = createLogger("active-tab-tracker");

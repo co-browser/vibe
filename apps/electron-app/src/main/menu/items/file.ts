@@ -5,6 +5,7 @@
 import type { MenuItemConstructorOptions } from "electron";
 import { Browser } from "@/browser/browser";
 import { BrowserWindow } from "electron";
+import { sendTabToAgent } from "@/utils/tab-agent";
 
 export function createFileMenu(browser: Browser): MenuItemConstructorOptions {
   const isMac = process.platform === "darwin";
@@ -39,8 +40,6 @@ export function createFileMenu(browser: Browser): MenuItemConstructorOptions {
         label: "Send Tab to Agent Memory",
         accelerator: isMac ? "Option+Command+M" : "Control+Alt+M",
         click: async () => {
-          // Import sendTabToAgent function from utils/tab-agent
-          const { sendTabToAgent } = await import("@/utils/tab-agent");
           await sendTabToAgent(browser);
         },
       },

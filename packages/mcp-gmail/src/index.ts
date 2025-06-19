@@ -1,13 +1,18 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import express, { type Request, type Response } from 'express';
 import { StreamableHTTPServer } from './server.js';
-import { logger } from './helpers/logs.js';
+// Simple console logger for MCP Gmail
 import { hostname } from 'node:os';
 import { createServer } from 'node:http';
 import { Socket } from 'node:net';
 import { GmailTools } from './tools.js';
 
-const log = logger('index');
+const log = {
+  info: (msg: string, ...args: any[]) => console.log(`[INFO] [mcp-gmail] ${msg}`, ...args),
+  success: (msg: string, ...args: any[]) => console.log(`[SUCCESS] [mcp-gmail] ${msg}`, ...args),
+  warn: (msg: string, ...args: any[]) => console.warn(`[WARN] [mcp-gmail] ${msg}`, ...args),
+  error: (msg: string, ...args: any[]) => console.error(`[ERROR] [mcp-gmail] ${msg}`, ...args),
+};
 
 const server = new StreamableHTTPServer(
   new Server(
@@ -37,6 +42,16 @@ router.get(MCP_ENDPOINT, async (req: Request, res: Response) => {
   await server.handleGetRequest(req, res);
 });
 
+// Health check endpoint
+router.get('/health', (req: Request, res: Response) => {
+  res.json({
+    status: 'healthy',
+    service: 'gmail-mcp',
+    timestamp: new Date().toISOString(),
+    port: PORT
+  });
+});
+
 app.use('/', router);
 
 // Create HTTP server and track active connections for graceful shutdown
@@ -50,7 +65,7 @@ httpServer.on('connection', (socket: Socket) => {
   });
 });
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 httpServer.listen(PORT, () => {
   log.success(`MCP endpoint: http://${hostname()}:${PORT}${MCP_ENDPOINT}`);
   log.success(`Press Ctrl+C to stop the server`);

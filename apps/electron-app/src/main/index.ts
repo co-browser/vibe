@@ -11,6 +11,8 @@ import { Browser } from "@/browser/browser";
 import { registerAllIpcHandlers } from "@/ipc";
 import { setupMemoryMonitoring } from "@/utils/helpers";
 import { AgentService } from "@/services/agent-service";
+import { MCPService } from "@/services/mcp-service";
+import { setMCPServiceInstance } from "@/ipc/mcp/mcp-status";
 import { setAgentServiceInstance as setAgentStatusInstance } from "@/ipc/chat/agent-status";
 import { setAgentServiceInstance as setChatMessagingInstance } from "@/ipc/chat/chat-messaging";
 import { setAgentServiceInstance as setTabAgentInstance } from "@/utils/tab-agent";
@@ -21,6 +23,18 @@ import {
   childProcessIntegration,
 } from "@sentry/electron/main";
 import AppUpdater from "./services/update-service";
+
+// Set consistent log level for all processes
+if (!process.env.LOG_LEVEL) {
+  process.env.LOG_LEVEL =
+    process.env.NODE_ENV === "development" ? "info" : "error";
+}
+
+// Reduce Sentry noise in development
+if (process.env.NODE_ENV === "development") {
+  // Silence verbose Sentry logs
+  process.env.SENTRY_LOG_LEVEL = "error";
+}
 
 const logger = createLogger("main-process");
 
@@ -46,6 +60,9 @@ export let browser: Browser | null = null;
 
 // Global agent service instance
 let agentService: AgentService | null = null;
+
+// Global MCP service instance
+let mcpService: MCPService | null = null;
 
 // Track shutdown state
 let isShuttingDown = false;
@@ -128,6 +145,17 @@ async function gracefulShutdown(signal: string): Promise<void> {
     // Clean up resources
     if (memoryMonitor) {
       memoryMonitor.triggerGarbageCollection();
+    }
+
+    // Cleanup MCP service first (before agent)
+    if (mcpService) {
+      try {
+        await mcpService.terminate();
+        logger.info("MCP service terminated successfully");
+      } catch (error) {
+        logger.error("Error during MCP service termination:", error);
+      }
+      mcpService = null;
     }
 
     // Cleanup agent service
@@ -290,6 +318,33 @@ async function initializeServices(): Promise<void> {
       environment: process.env.NODE_ENV || "development",
       has_openai_key: !!process.env.OPENAI_API_KEY,
     });
+
+    // Initialize MCP service first (before agent)
+    try {
+      logger.info("Initializing MCP service");
+
+      mcpService = new MCPService();
+
+      // Set up error handling for MCP service
+      mcpService.on("error", error => {
+        logger.error("MCPService error:", error);
+      });
+
+      mcpService.on("ready", () => {
+        logger.info("MCPService ready");
+      });
+
+      // Initialize MCP service
+      await mcpService.initialize();
+
+      // Inject MCP service into IPC handlers
+      setMCPServiceInstance(mcpService);
+
+      logger.info("MCP service initialized successfully");
+    } catch (error) {
+      logger.error("MCP service initialization failed:", error);
+      // Continue without MCP - it's not critical for basic functionality
+    }
 
     if (process.env.OPENAI_API_KEY) {
       // Initialize agent service after MCP is ready

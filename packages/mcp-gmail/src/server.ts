@@ -12,10 +12,15 @@ import type {
 } from '@modelcontextprotocol/sdk/types.js';
 import { type Request, type Response } from 'express';
 import { randomUUID } from 'node:crypto';
-import { logger } from './helpers/logs.js';
 import { GmailTools } from './tools.js';
 
-const log = logger('server');
+// Simple console logger - MCP Gmail runs as child process
+const log = {
+  info: (msg: string, ...args: any[]) => console.log(`[INFO] [mcp-gmail] ${msg}`, ...args),
+  success: (msg: string, ...args: any[]) => console.log(`[SUCCESS] [mcp-gmail] ${msg}`, ...args),
+  warn: (msg: string, ...args: any[]) => console.warn(`[WARN] [mcp-gmail] ${msg}`, ...args),
+  error: (msg: string, ...args: any[]) => console.error(`[ERROR] [mcp-gmail] ${msg}`, ...args),
+};
 const JSON_RPC = '2.0';
 const JSON_RPC_ERROR = -32603;
 
