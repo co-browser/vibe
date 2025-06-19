@@ -9,6 +9,15 @@ import os from 'os';
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 
+// Tool type definition
+interface GmailTool {
+  name: string;
+  description: string;
+  inputSchema: any;
+  zodSchema: z.ZodSchema<any>;
+  execute: (args: any) => Promise<string>;
+}
+
 // Configuration
 const CONFIG_DIR = path.join(os.homedir(), '.gmail-mcp');
 const OAUTH_PATH = process.env.GMAIL_OAUTH_PATH || path.join(CONFIG_DIR, 'gcp-oauth.keys.json');
@@ -95,11 +104,12 @@ const DeleteEmailSchema = z.object({
 });
 
 // Tools
-export const GmailTools = [
+export const GmailTools: GmailTool[] = [
   {
     name: "send_email",
     description: "Send an email via Gmail",
     inputSchema: zodToJsonSchema(SendEmailSchema),
+    zodSchema: SendEmailSchema,
     execute: async (args: z.infer<typeof SendEmailSchema>) => {
       try {
         // Validate required fields
@@ -126,6 +136,7 @@ export const GmailTools = [
     name: "draft_email",
     description: "Draft a new email",
     inputSchema: zodToJsonSchema(SendEmailSchema),
+    zodSchema: SendEmailSchema,
     execute: async (args: z.infer<typeof SendEmailSchema>) => {
       try {
         // Validate required fields
@@ -154,6 +165,7 @@ export const GmailTools = [
     name: "search_emails",
     description: "Search emails using Gmail query syntax",
     inputSchema: zodToJsonSchema(SearchEmailsSchema),
+    zodSchema: SearchEmailsSchema,
     execute: async (args: z.infer<typeof SearchEmailsSchema>) => {
       try {
         const gmail = await getGmailClient();
@@ -193,6 +205,7 @@ export const GmailTools = [
     name: "read_email",
     description: "Read the content of an email",
     inputSchema: zodToJsonSchema(ReadEmailSchema),
+    zodSchema: ReadEmailSchema,
     execute: async (args: z.infer<typeof ReadEmailSchema>) => {
       try {
         const gmail = await getGmailClient();
@@ -249,6 +262,7 @@ export const GmailTools = [
     name: "delete_email",
     description: "Permanently delete an email",
     inputSchema: zodToJsonSchema(DeleteEmailSchema),
+    zodSchema: DeleteEmailSchema,
     execute: async (args: z.infer<typeof DeleteEmailSchema>) => {
       try {
         const gmail = await getGmailClient();

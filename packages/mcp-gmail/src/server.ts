@@ -14,6 +14,15 @@ import { type Request, type Response } from 'express';
 import { randomUUID } from 'node:crypto';
 import { GmailTools } from './tools.js';
 
+// Tool type definition (should match the one in tools.ts)
+interface GmailTool {
+  name: string;
+  description: string;
+  inputSchema: any;
+  zodSchema: { safeParse: (args: any) => { success: boolean; data?: any; error?: { message: string } } };
+  execute: (args: any) => Promise<string>;
+}
+
 // Simple console logger - MCP Gmail runs as child process
 const log = {
   info: (msg: string, ...args: any[]) => console.log(`[INFO] [mcp-gmail] ${msg}`, ...args),
@@ -90,7 +99,7 @@ export class StreamableHTTPServer {
       async (request, _extra) => {
         const args = request.params.arguments;
         const toolName = request.params.name;
-        const tool = GmailTools.find((tool) => tool.name === toolName);
+        const tool: GmailTool | undefined = GmailTools.find((tool) => tool.name === toolName);
 
         log.info(`Handling CallToolRequest for tool: ${toolName}`);
 
@@ -105,9 +114,12 @@ export class StreamableHTTPServer {
         }
 
         try {
-          // Type assertion needed because each tool has its own argument schema
-          // and TypeScript cannot determine the correct type at compile time
-          const result = await tool.execute(args as any);
+          // Validate args against tool's Zod schema before execution
+          const parseResult = tool.zodSchema.safeParse(args);
+          if (!parseResult.success) {
+            throw new Error(`Invalid arguments for tool ${toolName}: ${parseResult.error.message}`);
+          }
+          const result = await tool.execute(parseResult.data);
           log.success(`Tool ${toolName} executed. Result:`, result);
           return {
             content: [
