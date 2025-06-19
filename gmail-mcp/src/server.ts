@@ -10,7 +10,7 @@ import type {
   LoggingMessageNotification,
   Notification,
 } from '@modelcontextprotocol/sdk/types.js';
-import express, { type Request, type Response } from 'express';
+import { type Request, type Response } from 'express';
 import { randomUUID } from 'node:crypto';
 import { logger } from './helpers/logs.js';
 import { GmailTools } from './tools.js';
@@ -21,7 +21,6 @@ const JSON_RPC_ERROR = -32603;
 
 export class StreamableHTTPServer {
   server: Server;
-  private httpServer: any;
 
   constructor(server: Server) {
     this.server = server;
@@ -30,26 +29,8 @@ export class StreamableHTTPServer {
 
   async close() {
     log.info('Shutting down server...');
-    if (this.httpServer) {
-      this.httpServer.close();
-    }
     await this.server.close();
     log.info('Server shutdown complete.');
-  }
-
-  startHTTPServer(port: number = 3000) {
-    const app = express();
-    app.use(express.json());
-
-    app.get('*', (req, res) => this.handleGetRequest(req, res));
-    app.post('*', (req, res) => this.handlePostRequest(req, res));
-
-    this.httpServer = app.listen(port, () => {
-      log.success(`Gmail MCP server listening on port ${port}`);
-      log.info(`Server URL: http://localhost:${port}`);
-    });
-
-    return this.httpServer;
   }
 
   async handleGetRequest(req: Request, res: Response) {
@@ -66,14 +47,14 @@ export class StreamableHTTPServer {
 
       log.info('Connecting transport to server...');
 
-      await this.server.connect(transport as any);
+      await this.server.connect(transport);
       log.success('Transport connected. Handling request...');
 
       await transport.handleRequest(req, res, req.body);
       res.on('close', () => {
         log.success('Request closed by client');
         transport.close();
-        this.server.close();
+        // Don't close the server for individual requests
       });
 
       await this.sendMessages(transport);
@@ -113,7 +94,14 @@ export class StreamableHTTPServer {
           throw new Error(`Tool ${toolName} not found.`);
         }
 
+        if (!args) {
+          log.error(`No arguments provided for tool ${toolName}`);
+          throw new Error(`No arguments provided for tool ${toolName}`);
+        }
+
         try {
+          // Type assertion needed because each tool has its own argument schema
+          // and TypeScript cannot determine the correct type at compile time
           const result = await tool.execute(args as any);
           log.success(`Tool ${toolName} executed. Result:`, result);
           return {
@@ -174,47 +162,4 @@ export class StreamableHTTPServer {
       id: randomUUID(),
     };
   }
-}
-
-async function startServer() {
-  log.info('Starting Gmail MCP server...');
-
-  const server = new Server({
-    name: 'gmail-mcp',
-    version: '1.0.0',
-  }, {
-    capabilities: {
-      tools: {},
-    },
-  });
-
-  const streamableServer = new StreamableHTTPServer(server);
-
-  const port = parseInt(process.env.PORT || '3000', 10);
-  streamableServer.startHTTPServer(port);
-
-  log.info('Gmail MCP server ready – tools available for use');
-  log.info('Available tools:');
-  log.info('- send_email: Send emails via Gmail');
-  log.info('- draft_email: Create email drafts');
-  log.info('- search_emails: Search emails with Gmail query syntax');
-  log.info('- read_email: Read email content');
-  log.info('- delete_email: Delete emails');
-
-  process.on('SIGINT', async () => {
-    log.info('\nShutting down Gmail MCP server...');
-    await streamableServer.close();
-    process.exit(0);
-  });
-
-  process.on('SIGTERM', async () => {
-    log.info('\nShutting down Gmail MCP server...');
-    await streamableServer.close();
-    process.exit(0);
-  });
-}
-
-startServer().catch(error => {
-  log.error('Failed to start server:', error);
-  process.exit(1);
-}); 
+} 

@@ -1,7 +1,7 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
-import { google } from 'googleapis';
+import { google, gmail_v1 } from 'googleapis';
 import { OAuth2Client } from 'google-auth-library';
 import fs from 'fs';
 import path from 'path';
@@ -13,28 +13,30 @@ import { zodToJsonSchema } from 'zod-to-json-schema';
 const CONFIG_DIR = path.join(os.homedir(), '.gmail-mcp');
 const OAUTH_PATH = process.env.GMAIL_OAUTH_PATH || path.join(CONFIG_DIR, 'gcp-oauth.keys.json');
 const CREDENTIALS_PATH = process.env.GMAIL_CREDENTIALS_PATH || path.join(CONFIG_DIR, 'credentials.json');
+const OAUTH_REDIRECT_URI = process.env.OAUTH_REDIRECT_URI || 'http://localhost:3000/oauth2callback';
 
 // Initialize Gmail API
-let gmailClient: any = null;
+let gmailClient: gmail_v1.Gmail | null = null;
 
 async function getGmailClient() {
   if (gmailClient) return gmailClient;
 
   // Load OAuth keys
-  const keysContent = JSON.parse(fs.readFileSync(OAUTH_PATH, 'utf8'));
+  const keysContent = JSON.parse(await fs.promises.readFile(OAUTH_PATH, 'utf8'));
   const keys = keysContent.installed || keysContent.web;
 
   const oauth2Client = new OAuth2Client(
     keys.client_id,
     keys.client_secret,
-    'http://localhost:3000/oauth2callback'
+    OAUTH_REDIRECT_URI
   );
 
   // Load existing credentials - these should already exist from your Electron app
-  if (fs.existsSync(CREDENTIALS_PATH)) {
-    const credentials = JSON.parse(fs.readFileSync(CREDENTIALS_PATH, 'utf8'));
+  try {
+    await fs.promises.access(CREDENTIALS_PATH);
+    const credentials = JSON.parse(await fs.promises.readFile(CREDENTIALS_PATH, 'utf8'));
     oauth2Client.setCredentials(credentials);
-  } else {
+  } catch {
     throw new Error('No credentials found. Please authenticate through the Electron app first.');
   }
 
@@ -42,7 +44,7 @@ async function getGmailClient() {
   return gmailClient;
 }
 
-// Email helper
+// Email helpers
 function createEmailMessage(args: any): string {
   const headers = [
     'From: me',
@@ -55,6 +57,20 @@ function createEmailMessage(args: any): string {
   ].filter(Boolean);
 
   return [...headers, args.body].join('\r\n');
+}
+
+function encodeBase64Url(data: string): string {
+  return Buffer.from(data).toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+}
+
+function handleGmailError(error: any, _context: string): never {
+  if (error.response?.data?.error?.message) {
+    throw new Error(error.response.data.error.message);
+  }
+  throw error;
 }
 
 // Schemas
@@ -93,10 +109,7 @@ export const GmailTools = [
 
         const gmail = await getGmailClient();
         const message = createEmailMessage(args);
-        const encodedMessage = Buffer.from(message).toString('base64')
-          .replace(/\+/g, '-')
-          .replace(/\//g, '_')
-          .replace(/=+$/, '');
+        const encodedMessage = encodeBase64Url(message);
 
         const response = await gmail.users.messages.send({
           userId: 'me',
@@ -105,11 +118,7 @@ export const GmailTools = [
 
         return `Email sent successfully with ID: ${response.data.id}`;
       } catch (error: any) {
-        // Re-throw with a cleaner message
-        if (error.response?.data?.error?.message) {
-          throw new Error(error.response.data.error.message);
-        }
-        throw error;
+        handleGmailError(error, 'send_email');
       }
     },
   },
@@ -126,10 +135,7 @@ export const GmailTools = [
 
         const gmail = await getGmailClient();
         const message = createEmailMessage(args);
-        const encodedMessage = Buffer.from(message).toString('base64')
-          .replace(/\+/g, '-')
-          .replace(/\//g, '_')
-          .replace(/=+$/, '');
+        const encodedMessage = encodeBase64Url(message);
 
         const response = await gmail.users.drafts.create({
           userId: 'me',
@@ -140,11 +146,7 @@ export const GmailTools = [
 
         return `Email draft created successfully with ID: ${response.data.id}`;
       } catch (error: any) {
-        // Re-throw with a cleaner message
-        if (error.response?.data?.error?.message) {
-          throw new Error(error.response.data.error.message);
-        }
-        throw error;
+        handleGmailError(error, 'draft_email');
       }
     },
   },
@@ -183,10 +185,7 @@ export const GmailTools = [
 
         return JSON.stringify(results, null, 2);
       } catch (error: any) {
-        if (error.response?.data?.error?.message) {
-          throw new Error(error.response.data.error.message);
-        }
-        throw error;
+        handleGmailError(error, 'search_emails');
       }
     },
   },
@@ -242,10 +241,7 @@ export const GmailTools = [
           body,
         }, null, 2);
       } catch (error: any) {
-        if (error.response?.data?.error?.message) {
-          throw new Error(error.response.data.error.message);
-        }
-        throw error;
+        handleGmailError(error, 'read_email');
       }
     },
   },
@@ -263,10 +259,7 @@ export const GmailTools = [
 
         return `Email ${args.messageId} deleted successfully`;
       } catch (error: any) {
-        if (error.response?.data?.error?.message) {
-          throw new Error(error.response.data.error.message);
-        }
-        throw error;
+        handleGmailError(error, 'delete_email');
       }
     },
   },
