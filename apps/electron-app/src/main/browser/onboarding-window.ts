@@ -8,6 +8,13 @@ import path from "path";
 
 const logger = createLogger("OnboardingWindow");
 
+// Define interface for browser data
+interface DetectedBrowser {
+  name: string;
+  path: string;
+  default?: boolean;
+}
+
 /**
  * Checks if this is the first time the app has been run
  * Uses a simple flag file in the user data directory
@@ -65,7 +72,7 @@ export function isFirstRun(): boolean {
  * Opens the onboarding window for first-time users
  * This function should be called from the main process after the browser is ready
  */
-export async function openOnboardingForFirstRun(browser: any): Promise<void> {
+export async function openOnboardingForFirstRun(browser: any, detectedBrowsers?: DetectedBrowser[]): Promise<void> {
   if (!browser) {
     logger.error("Cannot open onboarding: browser instance not available");
     return;
@@ -87,8 +94,8 @@ export async function openOnboardingForFirstRun(browser: any): Promise<void> {
       return;
     }
 
-    // Open the onboarding window
-    applicationWindow.openOnboardingWindow();
+    // Open the onboarding window with detected browsers
+    applicationWindow.openOnboardingWindow(detectedBrowsers);
     logger.info("Onboarding window opened for first-time user");
 
     // Track first run onboarding
@@ -126,11 +133,13 @@ export class OnboardingWindow extends EventEmitter {
   public readonly id: number;
   public readonly window: BrowserWindow;
   private parentWindow: BrowserWindow;
+  private detectedBrowsers: DetectedBrowser[];
 
-  constructor(parentWindow: BrowserWindow) {
+  constructor(parentWindow: BrowserWindow, detectedBrowsers: DetectedBrowser[] = []) {
     super();
-
+    
     this.parentWindow = parentWindow;
+    this.detectedBrowsers = detectedBrowsers;
 
     // Create popup window as child of parent
     this.window = new BrowserWindow(this.getWindowOptions());
@@ -177,7 +186,10 @@ export class OnboardingWindow extends EventEmitter {
         contextIsolation: true,
         webSecurity: true,
         allowRunningInsecureContent: false,
-        additionalArguments: ["--window-type=onboarding"],
+        additionalArguments: [
+          '--window-type=onboarding',
+          `--detected-browsers=${JSON.stringify(this.detectedBrowsers)}`
+        ]
       },
     };
   }
@@ -188,7 +200,10 @@ export class OnboardingWindow extends EventEmitter {
       this.window.focus();
       // Center the onboarding window on screen
       this.window.center();
-
+      
+      // Send detected browsers to renderer after window is ready
+      this.window.webContents.send('detected-browsers', this.detectedBrowsers);
+      
       // Emit window opened event
       this.emit("opened", this.id);
     });
@@ -268,4 +283,17 @@ export class OnboardingWindow extends EventEmitter {
       this.window.hide();
     }
   }
+
+  public getDetectedBrowsers(): DetectedBrowser[] {
+    return this.detectedBrowsers;
+  }
 }
+
+
+
+
+
+
+
+// Export the interface for use in other files
+export type { DetectedBrowser };

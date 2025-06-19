@@ -6,7 +6,7 @@ import { app, BrowserWindow, dialog, shell } from "electron";
 import { optimizer } from "@electron-toolkit/utils";
 import { config } from "dotenv";
 import { resolve } from "path";
-
+import { detect } from "node-mac-detect-browsers";
 import { Browser } from "@/browser/browser";
 import { registerAllIpcHandlers } from "@/ipc";
 import { setupMemoryMonitoring } from "@/utils/helpers";
@@ -51,6 +51,7 @@ let agentService: AgentService | null = null;
 
 // Track shutdown state
 let isShuttingDown = false;
+let detectedBrowsers: any[] = []; // Store detected browsers globally
 
 // Cleanup functions
 let unsubscribeVibe: (() => void) | null = null;
@@ -228,7 +229,7 @@ async function createInitialWindow(): Promise<void> {
 
     // Wait a bit for the main window to be fully ready
     setTimeout(() => {
-      openOnboardingForFirstRun(browser);
+      openOnboardingForFirstRun(browser, detectedBrowsers);
     }, 2000); // 2 second delay to ensure everything is loaded
   }
 }
@@ -295,7 +296,17 @@ async function initializeServices(): Promise<void> {
   try {
     // Initialize simple analytics instead of complex telemetry system
     logger.info("Using simplified analytics system");
-
+    
+    // Detect browsers and store globally
+    detect((err, results) => {
+      if (err) {
+        logger.error(err.message || String(err));
+        detectedBrowsers = []; // Set empty array on error
+      } else {
+        detectedBrowsers = results || [];
+        logger.info(`Detected ${detectedBrowsers.length} browsers:`, detectedBrowsers.map(b => b.name));
+      }
+    });
     // Log app startup
     logger.info("App startup complete", {
       version: app.getVersion(),

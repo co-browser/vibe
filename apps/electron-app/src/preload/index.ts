@@ -49,6 +49,27 @@ function getWindowType(): string | null {
 }
 
 /**
+ * Gets the detected browsers from command line arguments
+ * Used in onboarding window to show only available browsers
+ */
+function getDetectedBrowsers(): any[] {
+  try {
+    // Check process.argv for --detected-browsers=<json>
+    const args = process.argv || [];
+    for (const arg of args) {
+      if (arg.startsWith("--detected-browsers=")) {
+        const browsersJson = arg.split("=")[1];
+        return JSON.parse(browsersJson);
+      }
+    }
+    return [];
+  } catch (error) {
+    logger.error("Error getting detected browsers:", error);
+    return [];
+  }
+}
+
+/**
  * Validates if a key is a non-empty string
  * @param key The key to validate
  * @returns True if the key is a valid string, false otherwise
@@ -785,6 +806,18 @@ if (process.contextIsolated) {
       ...electronAPI,
       platform: process.platform,
       getWindowType: getWindowType, // Add window type detection
+      getDetectedBrowsers: getDetectedBrowsers, // Add detected browsers
+      ipcRenderer: {
+        on: (channel: string, callback: (event: any, ...args: any[]) => void) => {
+          ipcRenderer.on(channel, callback);
+        },
+        removeListener: (channel: string, callback: any) => {
+          ipcRenderer.removeListener(channel, callback);
+        },
+        invoke: (channel: string, ...args: any[]) => {
+          return ipcRenderer.invoke(channel, ...args);
+        },
+      },
       // Legacy methods for backward compatibility
       ...legacyListeners,
       // Legacy individual methods - deprecated, functionality removed
@@ -815,6 +848,7 @@ if (process.contextIsolated) {
       ...electronAPI,
       platform: process.platform,
       getWindowType: getWindowType, // Also expose on legacy electron object
+      getDetectedBrowsers: getDetectedBrowsers, // Also expose on legacy electron object
       // Legacy methods for backward compatibility
       ...legacyListeners,
     });

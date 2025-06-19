@@ -10,6 +10,7 @@ import { OnboardingWindow } from "./onboarding-window";
 import { SettingsWindow } from "./settings-window";
 import { AboutWindow } from "./about-window";
 import { createLogger } from "@vibe/shared-types";
+import type { DetectedBrowser } from "./onboarding-window";
 
 const logger = createLogger("ApplicationWindow");
 import type { CDPManager } from "../services/cdp-service";
@@ -58,13 +59,13 @@ export class ApplicationWindow extends EventEmitter {
   /**
    * Opens the onboarding window
    */
-  public openOnboardingWindow(): OnboardingWindow {
+  public openOnboardingWindow(detectedBrowsers?: DetectedBrowser[]): OnboardingWindow {
     if (this.onboardingWindow && !this.onboardingWindow.window.isDestroyed()) {
       this.onboardingWindow.show();
       return this.onboardingWindow;
     }
 
-    this.onboardingWindow = new OnboardingWindow(this.window);
+    this.onboardingWindow = new OnboardingWindow(this.window, detectedBrowsers);
 
     this.onboardingWindow.on("destroy", () => {
       this.onboardingWindow = null;

@@ -29,10 +29,49 @@ module.exports = {
   mac: {
     appId: "xyz.cobrowser.vibe",
     extendInfo: {
+      NSDockTilePlugIn: "DockTile.docktileplugin",
       NSBluetoothAlwaysUsageDescription: "passkey access",
       NSBluetoothPeripheralUsageDescription: "passkey access",
       NSCameraUsageDescription: "webrtc access",
       NSMicrophoneUsageDescription: "webrtc access",
+      NSServices: [
+                {
+                    NSSendTypes: ["NSStringPboardType"],
+                    NSMessage: "handleTextDropOnDock",
+                    NSMenuItem: {
+                        default: "Open with CoBrowser",
+                    },
+                },
+            ],
+      packagerConfig: {
+      afterComplete: [
+        (buildPath, electronVersion, platform, arch, callback) => {
+          if (platform == "darwin") {
+            // Copy the plugin to the app bundle
+            const fs = require("fs");
+            const path = require("path");
+            const pluginPath = path.join(
+              __dirname,
+              "node_modules",
+              "electron-mac-dock-icon-switcher",
+              "build",
+              "Release",
+              "DockTile.docktileplugin"
+            );
+            const pluginDest = path.join(
+              buildPath,
+              "vibe.app",
+              "Contents",
+              "PlugIns",
+              "DockTile.docktileplugin"
+            );
+            fs.mkdirSync(pluginDest, { recursive: true });
+            fs.cpSync(pluginPath, pluginDest, { recursive: true, overwrite: true });
+          }
+          callback();
+        },
+      ],
+    }
     },
     category: "public.app-category.developer-tools",
     entitlements: "resources/entitlements.mac.plist",

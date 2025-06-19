@@ -15,15 +15,28 @@ interface PasswordImportResult {
   error?: string;
 }
 
+// Define interface for detected browser
+interface DetectedBrowser {
+  name: string;
+  path: string;
+  default?: boolean;
+}
+
+// Define interface for component props
+interface OnboardingPageProps {
+  detectedBrowsers?: DetectedBrowser[];
+}
+
 /**
  * OnboardingPage - Enhanced component with password import functionality
  */
-export function OnboardingPage() {
+export function OnboardingPage({ detectedBrowsers: propDetectedBrowsers }: OnboardingPageProps = {}) {
   const [currentStep, setCurrentStep] = useState<"welcome" | "password-import">(
     "welcome",
   );
   const [consoleOutput, setConsoleOutput] = useState<string[]>([]);
   const [isImporting, setIsImporting] = useState(false);
+  const [detectedBrowsers, setDetectedBrowsers] = useState<DetectedBrowser[]>(propDetectedBrowsers || []);
   const consoleRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll console to bottom when new output is added
@@ -32,6 +45,33 @@ export function OnboardingPage() {
       consoleRef.current.scrollTop = consoleRef.current.scrollHeight;
     }
   }, [consoleOutput]);
+
+  // Get detected browsers on component mount
+  useEffect(() => {
+    // If browsers were passed as props, use them; otherwise try to get them via IPC
+    if (!propDetectedBrowsers || propDetectedBrowsers.length === 0) {
+      // Try to get detected browsers from command line arguments first
+      if (window.electronAPI?.getDetectedBrowsers) {
+        const browsers = window.electronAPI.getDetectedBrowsers();
+        setDetectedBrowsers(browsers);
+      }
+
+      // Also listen for detected browsers via IPC as fallback
+      const handleDetectedBrowsers = (browsers: DetectedBrowser[]) => {
+        setDetectedBrowsers(browsers);
+      };
+
+      window.electronAPI?.ipcRenderer?.on('detected-browsers', (_, browsers) => {
+        handleDetectedBrowsers(browsers);
+      });
+
+      return () => {
+        window.electronAPI?.ipcRenderer?.removeListener('detected-browsers', handleDetectedBrowsers);
+      };
+    }
+    // No cleanup needed when browsers are passed as props
+    return undefined;
+  }, [propDetectedBrowsers]);
 
   // Set up IPC listeners for password import events
   useEffect(() => {
@@ -125,15 +165,41 @@ export function OnboardingPage() {
     }
   };
 
-  const getBrowserIcon = (browser: string) => {
+  const getBrowserIcon = (browserName: string) => {
     const iconMap: Record<string, string> = {
-      Safari: "🧭",
-      Chrome: "🌐",
-      Firefox: "🦊",
-      Brave: "🦁",
-      Arc: "🌙",
+      Safari: '🧭',
+      'Google Chrome': '🌐',
+      'Google Chrome Canary': '🌐',
+      'Google Chrome for Testing': '🌐',
+      Chrome: '🌐',
+      Firefox: '🦊',
+      Brave: '🦁',
+      'Microsoft Edge': '🌐',
+      Edge: '🌐',
+      Opera: '🎭',
+      Arc: '🌙',
+      'Pale Moon': '🌙'
     };
-    return iconMap[browser] || "🌐";
+    return iconMap[browserName] || '🌐';
+  };
+
+  // Filter detected browsers to only show supported ones for password import
+  const getSupportedBrowsers = () => {
+    const supportedBrowserNames = ['Safari', 'Google Chrome', 'Chrome', 'Firefox', 'Brave', 'Microsoft Edge', 'Edge', 'Opera', 'Arc'];
+    
+    if (detectedBrowsers.length === 0) {
+      // Fallback to default list if no browsers detected
+      return supportedBrowserNames.map(name => ({ name, path: '', detected: false, default: false }));
+    }
+
+    return detectedBrowsers
+      .filter(browser => 
+        supportedBrowserNames.some(supported => 
+          browser.name.toLowerCase().includes(supported.toLowerCase()) ||
+          supported.toLowerCase().includes(browser.name.toLowerCase())
+        )
+      )
+      .map(browser => ({ ...browser, detected: true, default: browser.default || false }));
   };
 
   if (currentStep === "welcome") {
@@ -272,6 +338,8 @@ export function OnboardingPage() {
     );
   }
 
+  const supportedBrowsers = getSupportedBrowsers();
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-8">
       <div className="max-w-4xl w-full bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8">
@@ -287,7 +355,7 @@ export function OnboardingPage() {
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 strokeWidth={2}
-                d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"
+                d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1721 9z"
               />
             </svg>
           </div>
@@ -297,30 +365,52 @@ export function OnboardingPage() {
           <p className="text-gray-600 dark:text-gray-300 text-lg">
             Seamlessly transfer your saved passwords from other browsers
           </p>
+          {detectedBrowsers.length > 0 && (
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
+              Found {detectedBrowsers.length} browser(s) on your system
+            </p>
+          )}
         </div>
 
         {/* Browser Import Buttons */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-          {["Safari", "Chrome", "Firefox", "Brave", "Arc"].map(browser => (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
+          {supportedBrowsers.map((browser) => (
             <button
-              key={browser}
-              onClick={() => handlePasswordImport(browser)}
-              disabled={isImporting}
-              className="group relative flex flex-col items-center justify-center p-6 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl hover:border-blue-300 dark:hover:border-blue-500 hover:shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{
-                background:
-                  "linear-gradient(135deg, var(--glass-background-start), var(--glass-background-end))",
-                backdropFilter: "blur(10px)",
-                border: "1px solid rgba(255, 255, 255, 0.2)",
-              }}
+              key={browser.name}
+              onClick={() => handlePasswordImport(browser.name)}
+              disabled={isImporting || !browser.detected}
+              className={`group relative flex flex-col items-center justify-center p-6 border rounded-xl transition-all duration-200 ${
+                browser.detected 
+                  ? 'bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 hover:border-blue-300 dark:hover:border-blue-500 hover:shadow-lg' 
+                  : 'bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-700 opacity-50 cursor-not-allowed'
+              } ${isImporting ? 'opacity-50 cursor-not-allowed' : ''}`}
+              style={browser.detected ? {
+                background: 'linear-gradient(135deg, var(--glass-background-start), var(--glass-background-end))',
+                backdropFilter: 'blur(10px)',
+                border: '1px solid rgba(255, 255, 255, 0.2)',
+              } : {}}
             >
-              <div className="text-3xl mb-2 group-hover:scale-110 transition-transform duration-200">
-                {getBrowserIcon(browser)}
+              <div className={`text-3xl mb-2 transition-transform duration-200 ${browser.detected ? 'group-hover:scale-110' : ''}`}>
+                {getBrowserIcon(browser.name)}
               </div>
-              <span className="text-sm font-medium text-gray-700 dark:text-gray-300 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                {browser}
+              <span className={`text-sm font-medium transition-colors ${
+                browser.detected 
+                  ? 'text-gray-700 dark:text-gray-300 group-hover:text-blue-600 dark:group-hover:text-blue-400' 
+                  : 'text-gray-500 dark:text-gray-600'
+              }`}>
+                {browser.name}
               </span>
-              {isImporting && (
+              {!browser.detected && (
+                <span className="text-xs text-gray-400 dark:text-gray-600 mt-1">
+                  Not installed
+                </span>
+              )}
+              {browser.default && (
+                <span className="text-xs text-blue-500 dark:text-blue-400 mt-1">
+                  Default
+                </span>
+              )}
+              {isImporting && browser.detected && (
                 <div className="absolute inset-0 bg-blue-500 bg-opacity-10 rounded-xl flex items-center justify-center">
                   <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
                 </div>
@@ -328,6 +418,14 @@ export function OnboardingPage() {
             </button>
           ))}
         </div>
+
+        {supportedBrowsers.filter(b => b.detected).length === 0 && (
+          <div className="text-center py-8">
+            <p className="text-gray-500 dark:text-gray-400">
+              No supported browsers detected on your system.
+            </p>
+          </div>
+        )}
 
         {/* Terminal Console */}
         <div
@@ -395,3 +493,6 @@ export function OnboardingPage() {
 }
 
 export default OnboardingPage;
+
+// Also export the DetectedBrowser interface for use in other files
+export type { DetectedBrowser };
