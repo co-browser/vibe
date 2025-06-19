@@ -98,6 +98,46 @@ export const MEMORY_CONFIG = {
 } as const;
 
 /**
+ * Gmail OAuth configuration
+ */
+export const GMAIL_CONFIG = {
+  // OAuth configuration
+  REDIRECT_URI: "http://127.0.0.1:3000/oauth2callback",
+  CALLBACK_PORT: 3000,
+  CALLBACK_HOST: "127.0.0.1",
+
+  // Scopes
+  SCOPES: {
+    MODIFY: "https://www.googleapis.com/auth/gmail.modify",
+    READONLY: "https://www.googleapis.com/auth/gmail.readonly",
+    SEND: "https://www.googleapis.com/auth/gmail.send",
+  },
+
+  // File paths
+  // Note: CONFIG_DIR_NAME is a relative path that should be joined with the user's home directory
+  // Example usage: path.join(os.homedir(), GMAIL_CONFIG.CONFIG_DIR_NAME)
+  CONFIG_DIR_NAME: ".gmail-mcp",
+  OAUTH_KEYS_FILE: "gcp-oauth.keys.json",
+  CREDENTIALS_FILE: "credentials.json",
+
+  // Security settings
+  FILE_PERMISSIONS: {
+    CONFIG_DIR: 0o700,
+    CREDENTIALS_FILE: 0o600,
+  },
+
+  // Timeouts and retries
+  AUTH_TIMEOUT_MS: 5 * 60 * 1000, // 5 minutes
+  TOKEN_REFRESH_BUFFER_MS: 5 * 60 * 1000, // Refresh 5 minutes before expiry
+
+  // UI assets
+  FAVICON_URL: "https://ssl.gstatic.com/ui/v1/icons/mail/rfr/gmail.ico",
+
+  // Tab key for OAuth flow
+  OAUTH_TAB_KEY: "oauth-gmail",
+} as const;
+
+/**
  * Main process specific configuration
  */
 export const MAIN_PROCESS_CONFIG = {
