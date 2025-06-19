@@ -60,6 +60,27 @@ async function getGmailClient() {
     OAUTH_REDIRECT_URI
   );
 
+  // Set up automatic token refresh
+  oauth2Client.on('tokens', (tokens) => {
+    if (tokens.access_token) {
+      try {
+        // Update stored credentials with new tokens
+        const credentials = JSON.parse(fs.readFileSync(CREDENTIALS_PATH, 'utf8'));
+        credentials.access_token = tokens.access_token;
+        if (tokens.refresh_token) {
+          credentials.refresh_token = tokens.refresh_token;
+        }
+        if (tokens.expiry_date) {
+          credentials.expiry_date = tokens.expiry_date;
+        }
+        fs.writeFileSync(CREDENTIALS_PATH, JSON.stringify(credentials, null, 2));
+        console.log('OAuth tokens refreshed and saved');
+      } catch (error) {
+        console.error('Failed to save refreshed tokens:', error);
+      }
+    }
+  });
+
   // Load existing credentials - these should already exist from your Electron app
   try {
     await fs.promises.access(CREDENTIALS_PATH);
