@@ -343,7 +343,8 @@ async function initializeServices(): Promise<void> {
       logger.info("MCP service initialized successfully");
     } catch (error) {
       logger.error("MCP service initialization failed:", error);
-      // Continue without MCP - it's not critical for basic functionality
+      // MCP service failed to initialize - this may impact functionality
+      logger.warn("Application will continue without MCP service");
     }
 
     if (process.env.OPENAI_API_KEY) {
