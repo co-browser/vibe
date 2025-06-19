@@ -1,4 +1,5 @@
 import { createLogger } from "@vibe/shared-types";
+import type { ExtractedPage } from "@vibe/shared-types";
 
 const logger = createLogger("ToolManager");
 import type { IToolManager } from "../interfaces/index.js";
@@ -37,13 +38,9 @@ export class ToolManager implements IToolManager {
     return "No tools available";
   }
 
-  async saveTabMemory(
-    _url: string,
-    title: string,
-    _content: string,
-  ): Promise<void> {
+  async saveTabMemory(extractedPage: ExtractedPage): Promise<void> {
     logger.debug(
-      `${LOG_PREFIX} Tab memory save requested for: ${title} (no MCP available)`,
+      `${LOG_PREFIX} Tab memory save requested for: ${extractedPage.title} (no MCP available)`,
     );
     // No-op without MCP
   }

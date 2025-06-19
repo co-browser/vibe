@@ -16,6 +16,9 @@ export {
   extractSpecificContentSchema,
   getPageActions,
   getPageActionsSchema,
+  extractTextFromPageContent,
+  type PageExtractionResult,
+  type PageExtractionError,
 } from "./tools/pageExtractor.js";
 
 // You might want to be more explicit about what you export

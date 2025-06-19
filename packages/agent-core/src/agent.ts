@@ -8,7 +8,7 @@ import type {
   IStreamProcessor,
   IAgentConfig,
 } from "./interfaces/index.js";
-import type { StreamResponse } from "@vibe/shared-types";
+import type { StreamResponse, ExtractedPage } from "@vibe/shared-types";
 import { createLogger } from "@vibe/shared-types";
 
 const logger = createLogger("Agent");
@@ -82,13 +82,9 @@ export class Agent {
     this._processor = undefined;
   }
 
-  async saveTabMemory(
-    url: string,
-    title: string,
-    content: string,
-  ): Promise<void> {
+  async saveTabMemory(extractedPage: ExtractedPage): Promise<void> {
     const startTime = performance.now();
-    const result = await this.toolManager.saveTabMemory(url, title, content);
+    const result = await this.toolManager.saveTabMemory(extractedPage);
     const endTime = performance.now();
     logger.debug(`Tab memory saved in ${(endTime - startTime).toFixed(2)}ms`);
     return result;
