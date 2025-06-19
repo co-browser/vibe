@@ -17,7 +17,7 @@ const server = new StreamableHTTPServer(
     },
     {
       capabilities: {
-        tools: GmailTools.reduce((acc, tool) => ({ ...acc, [tool.name]: tool }), {}),
+        tools: Object.fromEntries(GmailTools.map(tool => [tool.name, tool])),
       },
     }
   )
