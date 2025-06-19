@@ -3,9 +3,9 @@
   "version": "1.0.0",
   "description": "Gmail MCP Server - Streamable HTTP version",
   "type": "module",
-  "main": "dist/server.js",
+  "main": "dist/index.js",
   "scripts": {
-    "dev": "tsx watch src/server.ts",
+    "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
     "test": "tsx test/test-runner.ts"

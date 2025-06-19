@@ -200,7 +200,7 @@ export class GmailOAuthService {
         logger.warn("[GmailAuth] OAuth flow timed out");
         this.cleanupOAuthFlow(viewManager);
       }, GMAIL_CONFIG.AUTH_TIMEOUT_MS);
-      
+
       logger.info("[GmailAuth] OAuth flow initiated successfully");
       return {
         success: true,
@@ -260,25 +260,57 @@ export class GmailOAuthService {
     // Configure session permissions specifically for OAuth
     const session = view.webContents.session;
 
-    // Allow Google OAuth domains to bypass CORS restrictions
+    // Define allowed OAuth origins for security
+    const allowedOAuthOrigins = [
+      "https://accounts.google.com",
+      "https://oauth2.googleapis.com",
+      "https://www.googleapis.com",
+    ];
+
+    // Allow Google OAuth domains with controlled CORS handling
     session.webRequest.onBeforeSendHeaders(
       { urls: ["https://*.google.com/*", "https://*.googleapis.com/*"] },
       (details, callback) => {
-        // Remove restrictive headers that might block OAuth
-        delete details.requestHeaders["Origin"];
+        // Only modify Origin for OAuth-specific URLs
+        if (
+          details.url.includes("oauth2callback") ||
+          details.url.includes("accounts.google.com/oauth") ||
+          details.url.includes("accounts.google.com/o/oauth2") ||
+          details.url.includes("oauth2.googleapis.com/token")
+        ) {
+          // Preserve Origin for security auditing but mark as OAuth request
+          details.requestHeaders["X-OAuth-Flow"] = "gmail-mcp";
+        }
         callback({ requestHeaders: details.requestHeaders });
       },
     );
 
-    // Handle CORS preflight requests for OAuth
+    // Handle CORS preflight requests for OAuth with restrictive headers
     session.webRequest.onHeadersReceived(
       { urls: ["https://*.google.com/*", "https://*.googleapis.com/*"] },
       (details, callback) => {
+        // Extract the origin from request headers
+        const requestOrigin =
+          details.requestHeaders?.["Origin"] ||
+          details.requestHeaders?.["origin"] ||
+          "https://accounts.google.com";
+
+        // Only allow specific origins
+        const allowedOrigin = allowedOAuthOrigins.includes(requestOrigin)
+          ? requestOrigin
+          : allowedOAuthOrigins[0];
+
         const responseHeaders = {
           ...details.responseHeaders,
-          "Access-Control-Allow-Origin": ["*"],
+          "Access-Control-Allow-Origin": [allowedOrigin],
           "Access-Control-Allow-Methods": ["GET, POST, OPTIONS"],
-          "Access-Control-Allow-Headers": ["*"],
+          "Access-Control-Allow-Headers": [
+            "Content-Type",
+            "Authorization",
+            "X-Requested-With",
+          ],
+          "Access-Control-Allow-Credentials": ["true"],
+          "Access-Control-Max-Age": ["86400"], // 24 hours
         };
         callback({ responseHeaders });
       },
@@ -569,7 +601,6 @@ export class GmailOAuthService {
       if (this.authView) {
         try {
           if (!this.authView.webContents.isDestroyed()) {
-
             try {
               this.authView.webContents.removeAllListeners();
               this.authView.webContents.destroy();
