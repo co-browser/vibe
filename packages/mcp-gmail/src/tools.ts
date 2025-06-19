@@ -243,20 +243,25 @@ export const GmailTools: GmailTool[] = [
 
         // Extract body
         let body = '';
-        const extractBody = (payload: any): string => {
+        const extractBody = (payload: any, depth = 0): string => {
+          if (depth > 10) {
+            console.warn('Maximum MIME parsing depth reached');
+            return '';
+          }
+
           if (payload.body?.data) {
             return Buffer.from(payload.body.data, 'base64').toString('utf8');
           }
           if (payload.parts) {
             for (const part of payload.parts) {
               if (part.mimeType === 'text/plain') {
-                return extractBody(part);
+                return extractBody(part, depth + 1);
               }
             }
             // If no plain text, try HTML
             for (const part of payload.parts) {
               if (part.mimeType === 'text/html') {
-                return extractBody(part);
+                return extractBody(part, depth + 1);
               }
             }
           }
