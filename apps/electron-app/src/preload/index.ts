@@ -342,6 +342,42 @@ const tabsAPI: VibeTabsAPI = {
       ipcRenderer.removeListener("tab-closed", listener);
     };
   },
+
+  // OAuth events
+  onOAuthTabStarted: (
+    callback: (data: { tabKey: string; url: string; title: string }) => void,
+  ) => {
+    if (typeof callback !== "function") {
+      throw new Error("Invalid callback provided to onOAuthTabStarted");
+    }
+    const listener = (
+      _event: IpcRendererEvent,
+      data: { tabKey: string; url: string; title: string },
+    ): void => {
+      if (data && typeof data === "object" && isValidKey(data.tabKey)) {
+        callback(data);
+      }
+    };
+    ipcRenderer.on("oauth-tab-started", listener);
+    return () => {
+      ipcRenderer.removeListener("oauth-tab-started", listener);
+    };
+  },
+
+  onOAuthTabCompleted: (callback: (tabKey: string) => void) => {
+    if (typeof callback !== "function") {
+      throw new Error("Invalid callback provided to onOAuthTabCompleted");
+    }
+    const listener = (_event: IpcRendererEvent, tabKey: string): void => {
+      if (isValidKey(tabKey)) {
+        callback(tabKey);
+      }
+    };
+    ipcRenderer.on("oauth-tab-completed", listener);
+    return () => {
+      ipcRenderer.removeListener("oauth-tab-completed", listener);
+    };
+  },
 };
 
 // PAGE API IMPLEMENTATION
@@ -582,10 +618,6 @@ const legacyListeners = {
 
   onSendTabAgent: (callback: (key: string) => void): (() => void) => {
     return createEventListener("tab-send-agent", callback);
-  },
-
-  onOAuthTabCompleted: (callback: (key: string) => void): (() => void) => {
-    return createEventListener("oauth-tab-completed", callback);
   },
 };
 
