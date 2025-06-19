@@ -109,7 +109,10 @@ export function setupMemoryMonitoring(): {
     const heapUsedMB = Math.round(memoryUsage.heapUsed / 1024 / 1024);
     const rssUsedMB = Math.round(memoryUsage.rss / 1024 / 1024);
 
-    logger.info(`Memory usage: ${heapUsedMB} MB heap, ${rssUsedMB} MB total`);
+    // Only log memory usage in debug mode unless there's an issue
+    if (process.env.LOG_LEVEL === "debug") {
+      logger.info(`Memory usage: ${heapUsedMB} MB heap, ${rssUsedMB} MB total`);
+    }
 
     const isHighMemory = memoryUsage.heapUsed > MEMORY_THRESHOLDS.HIGH;
 
@@ -160,7 +163,10 @@ export function setupMemoryMonitoring(): {
         );
       }
     } else if (memoryUsage.heapUsed > MEMORY_THRESHOLDS.MODERATE) {
-      logger.info(`Moderate memory usage: ${heapUsedMB} MB`);
+      // Only log moderate memory usage in debug mode
+      if (process.env.LOG_LEVEL === "debug") {
+        logger.info(`Moderate memory usage: ${heapUsedMB} MB`);
+      }
       // Standard GC
       runGarbageCollection(false);
       // Reset counter as we're below critical threshold

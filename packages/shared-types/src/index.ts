@@ -32,3 +32,6 @@ export * from "./logger";
 
 // Gmail types
 export * from "./gmail";
+
+// MCP types
+export * from "./mcp";

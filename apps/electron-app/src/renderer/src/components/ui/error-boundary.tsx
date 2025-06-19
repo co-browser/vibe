@@ -27,7 +27,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
     this.props.onError?.(error, errorInfo);
 
-    if (process.env.NODE_ENV === "development") {
+    if (import.meta.env.DEV) {
       console.group("[ErrorBoundary] Development details");
       console.error("Full error:", error);
       console.error("Error info:", errorInfo);
@@ -73,7 +73,7 @@ export class ErrorBoundary extends Component<Props, State> {
             An error occurred while rendering this component. Please try
             refreshing the page.
           </p>
-          {process.env.NODE_ENV === "development" && this.state.error && (
+          {import.meta.env.DEV && this.state.error && (
             <details
               style={{
                 textAlign: "left",

@@ -385,7 +385,9 @@ export class AgentService extends EventEmitter implements IAgentService {
 
     // Handle worker connection events
     this.worker.on("connected", data => {
-      console.log("[AgentService] Worker connected:", data);
+      if (process.env.LOG_LEVEL === "debug") {
+        console.log("[AgentService] Worker connected:", data);
+      }
       this.lastActivityTime = Date.now();
       this.emit("connected", data);
     });
@@ -405,7 +407,9 @@ export class AgentService extends EventEmitter implements IAgentService {
     });
 
     this.worker.on("restarted", data => {
-      console.log("[AgentService] Worker restarted:", data);
+      if (process.env.LOG_LEVEL === "debug") {
+        console.log("[AgentService] Worker restarted:", data);
+      }
       this.status = "ready";
       this.lastActivityTime = Date.now();
       this.emit("restarted", data);
@@ -420,7 +424,13 @@ export class AgentService extends EventEmitter implements IAgentService {
 
     // Handle streaming data from worker
     this.worker.on("stream", (messageId, data) => {
-      console.log("[AgentService] Stream data received:", messageId, data.type);
+      if (process.env.LOG_LEVEL === "debug") {
+        console.log(
+          "[AgentService] Stream data received:",
+          messageId,
+          data.type,
+        );
+      }
       this.lastActivityTime = Date.now();
       this.emit("stream", messageId, data);
     });
