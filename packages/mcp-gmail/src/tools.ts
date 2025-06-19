@@ -20,9 +20,29 @@ interface GmailTool {
 
 // Configuration
 const CONFIG_DIR = path.join(os.homedir(), '.gmail-mcp');
-const OAUTH_PATH = process.env.GMAIL_OAUTH_PATH || path.join(CONFIG_DIR, 'gcp-oauth.keys.json');
-const CREDENTIALS_PATH = process.env.GMAIL_CREDENTIALS_PATH || path.join(CONFIG_DIR, 'credentials.json');
-const OAUTH_REDIRECT_URI = process.env.OAUTH_REDIRECT_URI || 'http://localhost:3000/oauth2callback';
+
+function validatePath(envPath: string | undefined, defaultPath: string): string {
+  if (envPath) {
+    // Ensure the path is within allowed directories
+    const resolved = path.resolve(envPath);
+    if (!resolved.startsWith(os.homedir()) && !resolved.startsWith(CONFIG_DIR)) {
+      throw new Error(`Invalid path: ${envPath}`);
+    }
+    return resolved;
+  }
+  return defaultPath;
+}
+
+const OAUTH_PATH = validatePath(
+  process.env.GMAIL_OAUTH_PATH,
+  path.join(CONFIG_DIR, 'gcp-oauth.keys.json'),
+);
+const CREDENTIALS_PATH = validatePath(
+  process.env.GMAIL_CREDENTIALS_PATH,
+  path.join(CONFIG_DIR, 'credentials.json'),
+);
+const OAUTH_REDIRECT_URI =
+  process.env.OAUTH_REDIRECT_URI || 'http://localhost:3000/oauth2callback';
 
 // Initialize Gmail API
 let gmailClient: gmail_v1.Gmail | null = null;
