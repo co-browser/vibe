@@ -10,7 +10,7 @@ async function runAgentTest() {
     throw new Error('OPENAI_API_KEY environment variable is required');
   }
 
-  const serverUrl = process.env.RAG_SERVER_URL || 'http://localhost:3000';
+  const serverUrl = process.env.RAG_SERVER_URL || 'http://localhost:3000/mcp';
   const agent = new RAGAgent(serverUrl);
 
   try {

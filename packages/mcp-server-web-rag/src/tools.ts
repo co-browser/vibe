@@ -11,9 +11,19 @@ import type { ExtractedPage } from "@vibe/tab-extraction-core";
 
 const REGION = "gcp-europe-west3";
 const NAMESPACE = "kb-main";
-const TOKEN_CAP = 400;
+const TOKEN_CAP = 300;
 const OVERLAP_TOKENS = 25;
+const MAX_EMBEDDING_TOKENS = 8000;
+const PPL_THRESHOLD = 0.5;
+const MIN_CHUNK_SIZE = 50;
+const MAX_CHUNK_SIZE = 800;
 
+/**
+ * Logs messages with timestamp and level formatting
+ * @param level - Log level (info, warn, error, etc.)
+ * @param message - Main log message
+ * @param args - Additional arguments to log
+ */
 function log(level: string, message: string, ...args: any[]) {
   const timestamp = new Date().toISOString();
   console.log(`[${timestamp}] [${level.toUpperCase()}] ${message}`, ...args);
@@ -59,6 +69,26 @@ interface EnhancedChunk extends Chunk {
   contentLength: number;
 }
 
+interface PPLChunkOptions {
+  threshold?: number;
+  minChunkSize?: number;
+  maxChunkSize?: number;
+  useDynamicMerging?: boolean;
+}
+
+interface SentenceWithPPL {
+  text: string;
+  ppl?: number;
+  isMinima?: boolean;
+}
+
+/**
+ * Fetches a webpage URL and parses it into a structured document using Mozilla Readability
+ * Extracts clean content, metadata, and creates a unique document ID
+ * @param url - The URL to fetch and parse
+ * @returns Promise resolving to a ParsedDoc with extracted content and metadata
+ * @throws Error if the URL cannot be fetched or Readability extraction fails
+ */
 async function fetchAndParse(url: string): Promise<ParsedDoc> {
   const res = await fetch(url, { redirect: "follow" });
   const html = await res.text();
@@ -86,10 +116,273 @@ async function fetchAndParse(url: string): Promise<ParsedDoc> {
   };
 }
 
+/**
+ * Estimates the token length of a text string using heuristic calculations
+ * Uses both character-based and word-based estimates to approximate OpenAI tokenization
+ * @param str - The text string to analyze
+ * @returns Estimated number of tokens (takes the maximum of char-based and word-based estimates)
+ */
 function tokenLength(str: string): number {
-  return Math.ceil(str.split(/\s+/).length * 0.75);
+  const words = str.trim().split(/\s+/);
+  const chars = str.length;
+  
+  const charBasedEstimate = Math.ceil(chars / 3.5);
+  const wordBasedEstimate = Math.ceil(words.length * 1.3);
+  
+  return Math.max(charBasedEstimate, wordBasedEstimate);
 }
 
+/**
+ * Truncates text to fit within a specified token limit using binary search
+ * Attempts to break at sentence boundaries when possible, then word boundaries as fallback
+ * @param text - The text to truncate
+ * @param maxTokens - Maximum number of tokens allowed
+ * @returns Truncated text that fits within the token limit
+ */
+function truncateTextToTokenLimit(text: string, maxTokens: number): string {
+  if (tokenLength(text) <= maxTokens) {
+    return text;
+  }
+  
+  let left = 0;
+  let right = text.length;
+  let result = text;
+  
+  while (left < right) {
+    const mid = Math.floor((left + right) / 2);
+    const truncated = text.substring(0, mid);
+    
+    if (tokenLength(truncated) <= maxTokens) {
+      result = truncated;
+      left = mid + 1;
+    } else {
+      right = mid;
+    }
+  }
+  
+  const sentences = result.split(/[.!?]+/);
+  if (sentences.length > 1) {
+    sentences.pop();
+    result = sentences.join('.') + '.';
+  } else {
+    const words = result.trim().split(/\s+/);
+    if (words.length > 1) {
+      words.pop();
+      result = words.join(' ');
+    }
+  }
+  
+  return result.trim();
+}
+
+/**
+ * Splits text into individual sentences based on punctuation marks
+ * @param text - The text to split into sentences
+ * @returns Array of sentences, each ending with appropriate punctuation
+ */
+function splitIntoSentences(text: string): string[] {
+  return text
+    .split(/[.!?]+/)
+    .map(s => s.trim())
+    .filter(s => s.length > 0)
+    .map(s => s + '.');
+}
+
+/**
+ * Calculates the perplexity score for a sentence using GPT-3.5-turbo
+ * Perplexity measures how "surprising" a sentence is given the context
+ * Lower perplexity = more predictable, higher perplexity = more surprising
+ * @param sentence - The sentence to analyze
+ * @param context - The preceding context to condition the perplexity calculation
+ * @returns Promise resolving to perplexity score (1.0 if calculation fails)
+ */
+async function calculateSentencePerplexity(sentence: string, context: string): Promise<number> {
+  const prompt = context + " " + sentence;
+  
+  try {
+    const response = await openai.chat.completions.create({
+      model: "gpt-3.5-turbo",
+      messages: [{ role: "user", content: prompt }],
+      max_tokens: 1,
+      temperature: 0,
+      logprobs: true,
+      top_logprobs: 1
+    });
+
+    if (!response || !response.choices || response.choices.length === 0) {
+      return 1.0;
+    }
+
+    const choice = response.choices[0];
+    if (!choice || !choice.logprobs || !choice.logprobs.content) {
+      return 1.0;
+    }
+
+    const logprobs = choice.logprobs.content;
+    if (!Array.isArray(logprobs) || logprobs.length === 0) {
+      return 1.0;
+    }
+
+    let totalLogProb = 0;
+    let validTokens = 0;
+    
+    for (const token of logprobs) {
+      if (token && typeof token.logprob === 'number') {
+        totalLogProb += token.logprob;
+        validTokens++;
+      }
+    }
+
+    if (validTokens === 0) {
+      return 1.0;
+    }
+
+    const avgLogProb = totalLogProb / validTokens;
+    return Math.exp(-avgLogProb);
+  } catch (error) {
+    log('warn', `Failed to calculate perplexity for sentence: ${sentence.substring(0, 50)}...`);
+    return 1.0;
+  }
+}
+
+/**
+ * Detects perplexity minima (local low points) in a sequence of sentences
+ * These minima indicate natural topic boundaries where content transitions occur
+ * @param sentences - Array of sentences with their perplexity scores
+ * @param threshold - Minimum perplexity difference to consider as a boundary
+ * @returns Promise resolving to array of sentence indices where boundaries should be placed
+ */
+async function detectPPLMinima(sentences: SentenceWithPPL[], threshold: number = PPL_THRESHOLD): Promise<number[]> {
+  const boundaries: number[] = [];
+  
+  for (let i = 1; i < sentences.length - 1; i++) {
+    const currentSentence = sentences[i];
+    const prevSentence = sentences[i - 1];
+    const nextSentence = sentences[i + 1];
+    
+    if (!currentSentence || !prevSentence || !nextSentence) continue;
+    
+    const current = currentSentence.ppl || 1.0;
+    const prev = prevSentence.ppl || 1.0;
+    const next = nextSentence.ppl || 1.0;
+    
+    const leftDiff = prev - current;
+    const rightDiff = next - current;
+    
+    if ((leftDiff > threshold && rightDiff > threshold) || 
+        (leftDiff > threshold && rightDiff === 0)) {
+      boundaries.push(i);
+      currentSentence.isMinima = true;
+    }
+  }
+  
+  return boundaries;
+}
+
+/**
+ * Performs intelligent text chunking based on perplexity analysis
+ * Uses AI to identify natural topic boundaries for more semantically coherent chunks
+ * @param text - The text to chunk
+ * @param options - Configuration options for chunking behavior
+ * @returns Promise resolving to array of text chunks split at natural boundaries
+ */
+async function performPPLChunking(text: string, options: PPLChunkOptions = {}): Promise<string[]> {
+  const {
+    threshold = PPL_THRESHOLD,
+    minChunkSize = MIN_CHUNK_SIZE,
+    maxChunkSize = MAX_CHUNK_SIZE,
+    useDynamicMerging = true
+  } = options;
+
+  const sentences = splitIntoSentences(text);
+  if (sentences.length <= 1) {
+    return [text];
+  }
+
+  const sentencesWithPPL: SentenceWithPPL[] = sentences.map(s => ({ text: s }));
+  
+  let context = "";
+  for (let i = 0; i < sentencesWithPPL.length; i++) {
+    const sentence = sentencesWithPPL[i];
+    if (sentence) {
+      sentence.ppl = await calculateSentencePerplexity(sentence.text, context);
+      context += " " + sentence.text;
+      
+      if (tokenLength(context) > MAX_EMBEDDING_TOKENS * 0.8) {
+        const sentences_to_keep = Math.floor(sentences.length * 0.3);
+        const recentSentences = sentencesWithPPL.slice(-sentences_to_keep);
+        context = recentSentences.map(s => s.text).join(" ");
+      }
+    }
+  }
+
+  const boundaries = await detectPPLMinima(sentencesWithPPL, threshold);
+  
+  const chunks: string[] = [];
+  let currentChunk = "";
+  let sentenceIndex = 0;
+
+  for (let i = 0; i < sentences.length; i++) {
+    currentChunk += sentences[i] + " ";
+    
+    const shouldSplit = boundaries.includes(i) || 
+                       tokenLength(currentChunk) >= maxChunkSize;
+    
+    if (shouldSplit && tokenLength(currentChunk.trim()) >= minChunkSize) {
+      chunks.push(currentChunk.trim());
+      currentChunk = "";
+    }
+  }
+  
+  if (currentChunk.trim()) {
+    chunks.push(currentChunk.trim());
+  }
+
+  if (useDynamicMerging) {
+    return await dynamicallyMergeChunks(chunks, maxChunkSize);
+  }
+
+  return chunks;
+}
+
+/**
+ * Merges small chunks together to optimize chunk sizes while respecting token limits
+ * Attempts to combine chunks up to the target size without exceeding it
+ * @param chunks - Array of text chunks to potentially merge
+ * @param targetSize - Target token size for merged chunks
+ * @returns Promise resolving to array of optimally-sized merged chunks
+ */
+async function dynamicallyMergeChunks(chunks: string[], targetSize: number): Promise<string[]> {
+  const mergedChunks: string[] = [];
+  let currentMerged = "";
+
+  for (const chunk of chunks) {
+    const combinedLength = tokenLength(currentMerged + " " + chunk);
+    
+    if (combinedLength <= targetSize) {
+      currentMerged = currentMerged ? currentMerged + " " + chunk : chunk;
+    } else {
+      if (currentMerged) {
+        mergedChunks.push(currentMerged);
+      }
+      currentMerged = chunk;
+    }
+  }
+
+  if (currentMerged) {
+    mergedChunks.push(currentMerged);
+  }
+
+  return mergedChunks;
+}
+
+/**
+ * Chunks a parsed document into manageable pieces based on HTML structure
+ * Respects heading hierarchy and maintains context through heading paths
+ * Implements sliding window overlap to preserve context across chunk boundaries
+ * @param doc - The parsed document to chunk
+ * @returns Generator yielding individual chunks with metadata
+ */
 function* chunkDocument(doc: ParsedDoc): Generator<Chunk> {
   const root = parse(doc.html);
   let buf = "";
@@ -131,27 +424,59 @@ function* chunkDocument(doc: ParsedDoc): Generator<Chunk> {
   if (final) yield final;
 }
 
-function* chunkExtractedPage(extractedPage: ExtractedPage): Generator<EnhancedChunk> {
+/**
+ * Chunks an extracted page into enhanced chunks with rich metadata
+ * Creates separate chunks for content, metadata, images, and interactive elements
+ * @param extractedPage - Pre-extracted page data with structured information
+ * @returns AsyncGenerator yielding enhanced chunks with semantic context
+ */
+async function* chunkExtractedPage(extractedPage: ExtractedPage): AsyncGenerator<EnhancedChunk> {
   const domain = new URL(extractedPage.url).hostname;
   const baseContext = `${extractedPage.title} - ${extractedPage.excerpt || 'No description'}`;
   
-  // Ensure contentLength is always a valid integer
   const contentLength = Number.isInteger(extractedPage.contentLength) ? extractedPage.contentLength : 0;
   
-  // Chunk main content with heading awareness
   if (extractedPage.content) {
-    const root = parse(extractedPage.content);
-    let buf = "";
-    let headingPath: string[] = [];
+    yield* chunkContentWithPPL(extractedPage, domain, baseContext, contentLength);
+  }
 
-    const flush = (chunkType: 'content' | 'metadata' = 'content'): EnhancedChunk | undefined => {
-      if (buf.trim()) {
-        const chunk: EnhancedChunk = {
+  yield* generateEnhancedMetadataChunks(extractedPage, domain, baseContext, contentLength);
+}
+
+/**
+ * Chunks page content using advanced perplexity-based analysis
+ * Falls back to traditional chunking if perplexity analysis fails
+ * @param extractedPage - The extracted page data
+ * @param domain - Domain name for metadata
+ * @param baseContext - Semantic context for the chunks
+ * @param contentLength - Length of the original content
+ * @returns AsyncGenerator yielding content chunks with enhanced metadata
+ */
+async function* chunkContentWithPPL(
+  extractedPage: ExtractedPage, 
+  domain: string, 
+  baseContext: string, 
+  contentLength: number
+): AsyncGenerator<EnhancedChunk> {
+  if (!extractedPage.content) return;
+
+  try {
+    const pplChunks = await performPPLChunking(extractedPage.content, {
+      threshold: PPL_THRESHOLD,
+      minChunkSize: MIN_CHUNK_SIZE,
+      maxChunkSize: MAX_CHUNK_SIZE,
+      useDynamicMerging: true
+    });
+
+    for (let i = 0; i < pplChunks.length; i++) {
+      const chunkText = pplChunks[i];
+      if (chunkText && tokenLength(chunkText) <= MAX_EMBEDDING_TOKENS) {
+        yield {
           chunkId: uuidv4(),
-          docId: uuidv4(), // Generate new ID for each page ingestion
-          text: buf.trim(),
-          headingPath: headingPath.join(" » "),
-          chunkType,
+          docId: uuidv4(),
+          text: chunkText,
+          headingPath: `Content Chunk ${i + 1}`,
+          chunkType: 'content',
           semanticContext: baseContext,
           domain,
           contentLength,
@@ -159,113 +484,330 @@ function* chunkExtractedPage(extractedPage: ExtractedPage): Generator<EnhancedCh
           ...(extractedPage.siteName && { siteName: extractedPage.siteName }),
           ...(extractedPage.byline && { author: extractedPage.byline }),
         };
-        buf = "";
-        return chunk;
-      }
-      return undefined;
-    };
-
-    for (const node of root.childNodes) {
-      const element = node as any;
-      if (element.tagName && /^h[1-6]$/i.test(element.tagName)) {
-        const flushed = flush();
-        if (flushed) yield flushed;
-        headingPath = [...headingPath.slice(0, Number(element.tagName[1]) - 1), element.text];
-        buf += element.text + "\n";
-      } else {
-        buf += element.text || "";
-        if (tokenLength(buf) >= TOKEN_CAP) {
-          const flushed = flush();
-          if (flushed) yield flushed;
-          buf = "";
-          const nodeText = element.text || "";
-          buf = nodeText.split(" ").slice(-OVERLAP_TOKENS).join(" ");
-        }
       }
     }
-    const final = flush();
-    if (final) yield final;
+  } catch (error) {
+    log('warn', 'PPL chunking failed, falling back to traditional chunking');
+    yield* chunkContentTraditional(extractedPage, domain, baseContext, contentLength);
   }
+}
 
-  // Create metadata chunk with rich context
-  const metadataText = `
-Title: ${extractedPage.title}
-URL: ${extractedPage.url}
-${extractedPage.excerpt ? `Description: ${extractedPage.excerpt}` : ''}
-${extractedPage.byline ? `Author: ${extractedPage.byline}` : ''}
-${extractedPage.publishedTime ? `Published: ${extractedPage.publishedTime}` : ''}
-${extractedPage.siteName ? `Site: ${extractedPage.siteName}` : ''}
-Content Length: ${contentLength} characters
-  `.trim();
+/**
+ * Traditional HTML-structure-based content chunking as fallback method
+ * Uses heading hierarchy and token limits to create content chunks
+ * @param extractedPage - The extracted page data
+ * @param domain - Domain name for metadata
+ * @param baseContext - Semantic context for the chunks
+ * @param contentLength - Length of the original content
+ * @returns Generator yielding content chunks with enhanced metadata
+ */
+function* chunkContentTraditional(
+  extractedPage: ExtractedPage, 
+  domain: string, 
+  baseContext: string, 
+  contentLength: number
+): Generator<EnhancedChunk> {
+  if (!extractedPage.content) return;
+  
+  const root = parse(extractedPage.content);
+  let buf = "";
+  let headingPath: string[] = [];
 
-  yield {
-    chunkId: uuidv4(),
-    docId: uuidv4(),
-    text: metadataText,
-    headingPath: "Page Metadata",
-    chunkType: 'metadata',
-    semanticContext: baseContext,
-    domain,
-    contentLength,
-    ...(extractedPage.publishedTime && { publishedTime: extractedPage.publishedTime }),
-    ...(extractedPage.siteName && { siteName: extractedPage.siteName }),
-    ...(extractedPage.byline && { author: extractedPage.byline }),
+  const flush = (): EnhancedChunk | undefined => {
+    if (buf.trim()) {
+      const chunk: EnhancedChunk = {
+        chunkId: uuidv4(),
+        docId: uuidv4(),
+        text: buf.trim(),
+        headingPath: headingPath.join(" » "),
+        chunkType: 'content',
+        semanticContext: baseContext,
+        domain,
+        contentLength,
+        ...(extractedPage.publishedTime && { publishedTime: extractedPage.publishedTime }),
+        ...(extractedPage.siteName && { siteName: extractedPage.siteName }),
+        ...(extractedPage.byline && { author: extractedPage.byline }),
+      };
+      buf = "";
+      return chunk;
+    }
+    return undefined;
   };
 
-  // Create chunks for images with context
+  for (const node of root.childNodes) {
+    const element = node as any;
+    if (element.tagName && /^h[1-6]$/i.test(element.tagName)) {
+      const flushed = flush();
+      if (flushed) yield flushed;
+      headingPath = [...headingPath.slice(0, Number(element.tagName[1]) - 1), element.text];
+      buf += element.text + "\n";
+    } else {
+      buf += element.text || "";
+      if (tokenLength(buf) >= TOKEN_CAP) {
+        const flushed = flush();
+        if (flushed) yield flushed;
+        buf = "";
+        const nodeText = element.text || "";
+        buf = nodeText.split(" ").slice(-OVERLAP_TOKENS).join(" ");
+      }
+    }
+  }
+  const final = flush();
+  if (final) yield final;
+}
+
+/**
+ * Generates enhanced metadata chunks from extracted page information
+ * Creates separate chunks for page metadata, images, and interactive elements
+ * @param extractedPage - The extracted page data
+ * @param domain - Domain name for metadata
+ * @param baseContext - Semantic context for the chunks
+ * @param contentLength - Length of the original content
+ * @returns Generator yielding metadata chunks with different types (metadata, image_context, action)
+ */
+function* generateEnhancedMetadataChunks(
+  extractedPage: ExtractedPage, 
+  domain: string, 
+  baseContext: string, 
+  contentLength: number
+): Generator<EnhancedChunk> {
+  const metadataComponents = [
+    `Title: ${extractedPage.title}`,
+    `URL: ${extractedPage.url}`,
+    extractedPage.excerpt ? `Description: ${extractedPage.excerpt}` : null,
+    extractedPage.byline ? `Author: ${extractedPage.byline}` : null,
+    extractedPage.publishedTime ? `Published: ${extractedPage.publishedTime}` : null,
+    extractedPage.siteName ? `Site: ${extractedPage.siteName}` : null,
+    `Content Length: ${contentLength} characters`
+  ].filter((component): component is string => component !== null);
+
+  const metadataChunks = createAdaptiveMetadataChunks(metadataComponents, MAX_CHUNK_SIZE);
+  
+  for (let i = 0; i < metadataChunks.length; i++) {
+    const chunk = metadataChunks[i];
+    if (chunk) {
+      const chunkText = chunk.join('\n');
+      
+      if (tokenLength(chunkText) <= MAX_EMBEDDING_TOKENS) {
+        yield {
+          chunkId: uuidv4(),
+          docId: uuidv4(),
+          text: chunkText,
+          headingPath: metadataChunks.length > 1 ? `Page Metadata (${i + 1}/${metadataChunks.length})` : "Page Metadata",
+          chunkType: 'metadata',
+          semanticContext: baseContext,
+          domain,
+          contentLength,
+          ...(extractedPage.publishedTime && { publishedTime: extractedPage.publishedTime }),
+          ...(extractedPage.siteName && { siteName: extractedPage.siteName }),
+          ...(extractedPage.byline && { author: extractedPage.byline }),
+        };
+      }
+    }
+  }
+
   if (extractedPage.images && extractedPage.images.length > 0) {
-    const imageContext = extractedPage.images
-      .map(img => `Image: ${img.src}${img.alt ? ` (${img.alt})` : ''}${img.title ? ` - ${img.title}` : ''}`)
-      .join('\n');
-
-    yield {
-      chunkId: uuidv4(),
-      docId: uuidv4(),
-      text: `Images from ${extractedPage.title}:\n${imageContext}`,
-      headingPath: "Page Images",
-      chunkType: 'image_context',
-      semanticContext: baseContext,
-      domain,
-      contentLength,
-      ...(extractedPage.publishedTime && { publishedTime: extractedPage.publishedTime }),
-      ...(extractedPage.siteName && { siteName: extractedPage.siteName }),
-      ...(extractedPage.byline && { author: extractedPage.byline }),
-    };
+    const imageChunks = createAdaptiveImageChunks(extractedPage.images, extractedPage.title || 'Unknown Page', MAX_CHUNK_SIZE);
+    
+    for (let i = 0; i < imageChunks.length; i++) {
+      const chunk = imageChunks[i];
+      if (!chunk) continue;
+      
+      yield {
+        chunkId: uuidv4(),
+        docId: uuidv4(),
+        text: chunk,
+        headingPath: imageChunks.length > 1 ? `Page Images (${i + 1}/${imageChunks.length})` : "Page Images",
+        chunkType: 'image_context',
+        semanticContext: baseContext,
+        domain,
+        contentLength,
+        ...(extractedPage.publishedTime && { publishedTime: extractedPage.publishedTime }),
+        ...(extractedPage.siteName && { siteName: extractedPage.siteName }),
+        ...(extractedPage.byline && { author: extractedPage.byline }),
+      };
+    }
   }
 
-  // Create chunks for interactive actions
   if (extractedPage.actions && extractedPage.actions.length > 0) {
-    const actionContext = extractedPage.actions
-      .map(action => `${action.type}: ${action.text} (${action.selector})`)
-      .join('\n');
-
-    yield {
-      chunkId: uuidv4(),
-      docId: uuidv4(),
-      text: `Interactive elements on ${extractedPage.title}:\n${actionContext}`,
-      headingPath: "Page Actions",
-      chunkType: 'action',
-      semanticContext: baseContext,
-      domain,
-      contentLength,
-      ...(extractedPage.publishedTime && { publishedTime: extractedPage.publishedTime }),
-      ...(extractedPage.siteName && { siteName: extractedPage.siteName }),
-      ...(extractedPage.byline && { author: extractedPage.byline }),
-    };
+    const actionChunks = createAdaptiveActionChunks(extractedPage.actions, extractedPage.title || 'Unknown Page', MAX_CHUNK_SIZE);
+    
+    for (let i = 0; i < actionChunks.length; i++) {
+      const chunk = actionChunks[i];
+      if (!chunk) continue;
+      
+      yield {
+        chunkId: uuidv4(),
+        docId: uuidv4(),
+        text: chunk,
+        headingPath: actionChunks.length > 1 ? `Page Actions (${i + 1}/${actionChunks.length})` : "Page Actions",
+        chunkType: 'action',
+        semanticContext: baseContext,
+        domain,
+        contentLength,
+        ...(extractedPage.publishedTime && { publishedTime: extractedPage.publishedTime }),
+        ...(extractedPage.siteName && { siteName: extractedPage.siteName }),
+        ...(extractedPage.byline && { author: extractedPage.byline }),
+      };
+    }
   }
 }
 
+/**
+ * Creates adaptively-sized metadata chunks that respect token limits
+ * Groups metadata components together until the size limit is reached
+ * @param components - Array of metadata strings to chunk
+ * @param maxChunkSize - Maximum token size per chunk
+ * @returns Array of metadata chunk arrays, each respecting the size limit
+ */
+function createAdaptiveMetadataChunks(components: string[], maxChunkSize: number): string[][] {
+  const chunks: string[][] = [];
+  let currentChunk: string[] = [];
+  let currentSize = 0;
+
+  for (const component of components) {
+    const componentSize = tokenLength(component);
+    
+    if (currentSize + componentSize > maxChunkSize && currentChunk.length > 0) {
+      chunks.push([...currentChunk]);
+      currentChunk = [component];
+      currentSize = componentSize;
+    } else {
+      currentChunk.push(component);
+      currentSize += componentSize;
+    }
+  }
+
+  if (currentChunk.length > 0) {
+    chunks.push(currentChunk);
+  }
+
+  return chunks.length > 0 ? chunks : [components];
+}
+
+/**
+ * Creates adaptively-sized chunks from page images with descriptions
+ * Groups image information together until token limits are reached
+ * @param images - Array of image objects with src, alt, and title properties
+ * @param title - Page title for context
+ * @param maxChunkSize - Maximum token size per chunk
+ * @returns Array of text chunks containing image information
+ */
+function createAdaptiveImageChunks(images: any[], title: string, maxChunkSize: number): string[] {
+  const chunks: string[] = [];
+  const safeTitle = title || 'Unknown Page';
+  let currentChunk = `Images from ${safeTitle}:\n`;
+  let currentSize = tokenLength(currentChunk);
+
+  for (const img of images) {
+    const imageText = `Image: ${img.src}${img.alt ? ` (${img.alt})` : ''}${img.title ? ` - ${img.title}` : ''}`;
+    const imageSize = tokenLength(imageText);
+    
+    if (currentSize + imageSize > maxChunkSize && currentChunk !== `Images from ${safeTitle}:\n`) {
+      chunks.push(currentChunk.trim());
+      currentChunk = `Images from ${safeTitle}:\n${imageText}`;
+      currentSize = tokenLength(currentChunk);
+    } else {
+      currentChunk += imageText + '\n';
+      currentSize += imageSize;
+    }
+  }
+
+  if (currentChunk.trim() !== `Images from ${safeTitle}:`) {
+    chunks.push(currentChunk.trim());
+  }
+
+  return chunks;
+}
+
+/**
+ * Creates adaptively-sized chunks from page interactive elements
+ * Groups action information together until token limits are reached
+ * @param actions - Array of action objects with type, text, and selector properties
+ * @param title - Page title for context
+ * @param maxChunkSize - Maximum token size per chunk
+ * @returns Array of text chunks containing interactive element information
+ */
+function createAdaptiveActionChunks(actions: any[], title: string, maxChunkSize: number): string[] {
+  const chunks: string[] = [];
+  const safeTitle = title || 'Unknown Page';
+  let currentChunk = `Interactive elements on ${safeTitle}:\n`;
+  let currentSize = tokenLength(currentChunk);
+
+  for (const action of actions) {
+    const actionText = `${action.type}: ${action.text} (${action.selector})`;
+    const actionSize = tokenLength(actionText);
+    
+    if (currentSize + actionSize > maxChunkSize && currentChunk !== `Interactive elements on ${safeTitle}:\n`) {
+      chunks.push(currentChunk.trim());
+      currentChunk = `Interactive elements on ${safeTitle}:\n${actionText}`;
+      currentSize = tokenLength(currentChunk);
+    } else {
+      currentChunk += actionText + '\n';
+      currentSize += actionSize;
+    }
+  }
+
+  if (currentChunk.trim() !== `Interactive elements on ${safeTitle}:`) {
+    chunks.push(currentChunk.trim());
+  }
+
+  return chunks;
+}
+
+/**
+ * Creates vector embeddings from text using OpenAI's text-embedding-3-small model
+ * Includes automatic truncation and retry logic for texts that exceed token limits
+ * @param text - The text to create embeddings for
+ * @returns Promise resolving to a vector embedding array
+ * @throws Error if embedding creation fails after truncation attempts
+ */
 async function embed(text: string): Promise<number[]> {
-  const resp = await openai.embeddings.create({
-    model: "text-embedding-3-small",
-    input: text,
-  });
-  if (!resp.data[0]?.embedding) {
-    throw new Error("Failed to get embedding");
+  const estimatedTokens = tokenLength(text);
+  
+  if (estimatedTokens > MAX_EMBEDDING_TOKENS) {
+    log('warn', `Text too long for embedding (${estimatedTokens} tokens), truncating...`);
+    text = truncateTextToTokenLimit(text, MAX_EMBEDDING_TOKENS);
   }
-  return resp.data[0].embedding as number[];
+
+  try {
+    const resp = await openai.embeddings.create({
+      model: "text-embedding-3-small",
+      input: text,
+    });
+    
+    if (!resp.data[0]?.embedding) {
+      throw new Error("Failed to get embedding");
+    }
+    
+    return resp.data[0].embedding as number[];
+  } catch (error: any) {
+    if (error.message?.includes('maximum context length')) {
+      log('warn', `Retrying with more aggressive truncation for text: ${text.substring(0, 100)}...`);
+      const moreAggressiveTruncation = truncateTextToTokenLimit(text, Math.floor(MAX_EMBEDDING_TOKENS * 0.7));
+      
+      const resp = await openai.embeddings.create({
+        model: "text-embedding-3-small",
+        input: moreAggressiveTruncation,
+      });
+      
+      if (!resp.data[0]?.embedding) {
+        throw new Error("Failed to get embedding after truncation");
+      }
+      
+      return resp.data[0].embedding as number[];
+    }
+    
+    throw error;
+  }
 }
 
+/**
+ * Stores basic document chunks in the Turbopuffer vector database
+ * Creates embeddings for each chunk and stores them with metadata
+ * @param chunks - Array of basic chunks to store
+ * @returns Promise that resolves when all chunks are successfully stored
+ */
 async function upsertChunks(chunks: Chunk[]): Promise<void> {
   const ids: (string | number)[] = [];
   const vecs: number[][] = [];
@@ -298,6 +840,12 @@ async function upsertChunks(chunks: Chunk[]): Promise<void> {
   });
 }
 
+/**
+ * Stores enhanced document chunks with rich metadata in the Turbopuffer vector database
+ * Creates embeddings for each chunk and stores them with extensive metadata fields
+ * @param chunks - Array of enhanced chunks with metadata to store
+ * @returns Promise that resolves when all chunks are successfully stored
+ */
 async function upsertEnhancedChunks(chunks: EnhancedChunk[]): Promise<void> {
   const ids: (string | number)[] = [];
   const vecs: number[][] = [];
@@ -354,6 +902,12 @@ async function upsertEnhancedChunks(chunks: EnhancedChunk[]): Promise<void> {
   });
 }
 
+/**
+ * Ingests a webpage URL into the RAG knowledge base using basic chunking
+ * Fetches, parses, chunks, and indexes the webpage content
+ * @param url - The URL to ingest
+ * @returns Promise resolving to ingestion results with document ID and chunk count
+ */
 export async function ingestUrl(url: string) {
   log('info', `Ingesting URL: ${url}`);
   const doc = await fetchAndParse(url);
@@ -363,6 +917,13 @@ export async function ingestUrl(url: string) {
   return { doc_id: doc.docId, n_chunks: chunks.length };
 }
 
+/**
+ * Performs semantic search over the knowledge base using vector similarity
+ * Creates an embedding for the query and finds the most similar stored chunks
+ * @param query - The search query text
+ * @param top_k - Number of top results to return (default: 5)
+ * @returns Promise resolving to array of matching chunks with similarity scores
+ */
 export async function queryKnowledgeBase(query: string, top_k: number = 5) {
   log('info', `Querying knowledge base: ${query} (top_k=${top_k})`);
   const vec = await embed(query);
@@ -376,9 +937,20 @@ export async function queryKnowledgeBase(query: string, top_k: number = 5) {
   return rows;
 }
 
+/**
+ * Ingests a pre-extracted page into the RAG knowledge base with enhanced metadata
+ * Uses advanced perplexity-based chunking and creates multiple chunk types
+ * @param extractedPage - Pre-extracted page data with structured information
+ * @returns Promise resolving to ingestion results with detailed chunk type breakdown
+ */
 export async function ingestExtractedPage(extractedPage: ExtractedPage) {
   log('info', `Ingesting ExtractedPage: ${extractedPage.title}`);
-  const chunks = [...chunkExtractedPage(extractedPage)];
+  
+  const chunks: EnhancedChunk[] = [];
+  for await (const chunk of chunkExtractedPage(extractedPage)) {
+    chunks.push(chunk);
+  }
+  
   await upsertEnhancedChunks(chunks);
   log('info', `Successfully ingested ${chunks.length} enhanced chunks from ${extractedPage.title}`);
   return { 
