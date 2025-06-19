@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { LoadingOutlined } from "@ant-design/icons";
 import { IconWithStatus } from "@/components/ui/icon-with-status";
+import { GMAIL_CONFIG } from "@vibe/shared-types";
 
-// Gmail SVG icon component
+/** Gmail SVG icon component */
 const GmailIcon: React.FC<{ className?: string }> = ({ className }) => (
   <svg
     className={className}
@@ -21,6 +22,7 @@ interface AuthStatus {
   error?: string;
 }
 
+/** Gmail OAuth authentication button component */
 export const GmailAuthButton: React.FC = () => {
   const [authStatus, setAuthStatus] = useState<AuthStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -48,7 +50,7 @@ export const GmailAuthButton: React.FC = () => {
     try {
       setIsAuthenticating(true);
       await window.vibe.app.gmail.startAuth();
-      await checkAuthStatus(); // Refresh status after auth
+      // Auth status will be refreshed via IPC event listener
     } catch (error) {
       console.error("Error during Gmail authentication:", error);
       setAuthStatus(prev => ({
@@ -77,6 +79,24 @@ export const GmailAuthButton: React.FC = () => {
 
   useEffect(() => {
     checkAuthStatus();
+
+    // Listen for OAuth completion events from main process
+    const handleOAuthCompleted = (tabKey: string) => {
+      if (tabKey === GMAIL_CONFIG.OAUTH_TAB_KEY) {
+        // Delay check to ensure credentials are saved
+        setTimeout(() => {
+          checkAuthStatus();
+        }, 1000);
+      }
+    };
+
+    // Use the proper vibe tabs API for OAuth events
+    const unsubscribe =
+      window.vibe?.tabs?.onOAuthTabCompleted?.(handleOAuthCompleted);
+
+    return () => {
+      unsubscribe?.();
+    };
   }, []);
 
   const getTooltipText = (): string => {
