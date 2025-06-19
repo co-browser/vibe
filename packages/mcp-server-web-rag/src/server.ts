@@ -39,7 +39,7 @@ export class StreamableHTTPServer {
 
   startHTTPServer(port: number = 3000) {
     const app = express();
-    app.use(express.json());
+    app.use(express.json({ limit: '10mb' }));
 
     app.get('*', (req, res) => this.handleGetRequest(req, res));
     app.post('*', (req, res) => this.handlePostRequest(req, res));
@@ -107,6 +107,7 @@ export class StreamableHTTPServer {
         const tool = RAGTools.find((tool) => tool.name === toolName);
 
         log.info(`Handling CallToolRequest for tool: ${toolName}`);
+        log.info(`Tool arguments:`, args);
 
         if (!tool) {
           log.error(`Tool ${toolName} not found.`);
@@ -114,9 +115,11 @@ export class StreamableHTTPServer {
         }
         
         try {
+          log.info(`Executing tool ${toolName}...`);
           const result = await tool.execute(args as any);
-          log.success(`Tool ${toolName} executed. Result:`, result);
-          return {
+          log.success(`Tool ${toolName} executed successfully. Result:`, result);
+          
+          const response = {
             jsonrpc: JSON_RPC,
             content: [
               {
@@ -127,8 +130,13 @@ export class StreamableHTTPServer {
               },
             ],
           };
+          
+          log.info(`Returning response:`, response);
+          return response;
+          
         } catch (error) {
           log.error(`Error executing tool ${toolName}:`, error);
+          log.error(`Error stack:`, error instanceof Error ? error.stack : 'No stack trace');
           return this.createRPCErrorResponse(
             `Error executing tool ${toolName}: ${error}`
           );
@@ -190,6 +198,7 @@ async function startServer() {
   log.info('RAG MCP server ready – tools available for use');
   log.info('Available tools:');
   log.info('- ingest_url: Crawl and ingest a webpage into the knowledge base');
+  log.info('- ingest_extracted_page: Ingest an extracted page into the knowledge base');
   log.info('- query_kb: Search the knowledge base with hybrid search');
 
   process.on('SIGINT', async () => {

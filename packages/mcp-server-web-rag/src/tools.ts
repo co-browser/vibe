@@ -135,6 +135,9 @@ function* chunkExtractedPage(extractedPage: ExtractedPage): Generator<EnhancedCh
   const domain = new URL(extractedPage.url).hostname;
   const baseContext = `${extractedPage.title} - ${extractedPage.excerpt || 'No description'}`;
   
+  // Ensure contentLength is always a valid integer
+  const contentLength = Number.isInteger(extractedPage.contentLength) ? extractedPage.contentLength : 0;
+  
   // Chunk main content with heading awareness
   if (extractedPage.content) {
     const root = parse(extractedPage.content);
@@ -151,7 +154,7 @@ function* chunkExtractedPage(extractedPage: ExtractedPage): Generator<EnhancedCh
           chunkType,
           semanticContext: baseContext,
           domain,
-          contentLength: extractedPage.contentLength || 0,
+          contentLength,
           ...(extractedPage.publishedTime && { publishedTime: extractedPage.publishedTime }),
           ...(extractedPage.siteName && { siteName: extractedPage.siteName }),
           ...(extractedPage.byline && { author: extractedPage.byline }),
@@ -192,7 +195,7 @@ ${extractedPage.excerpt ? `Description: ${extractedPage.excerpt}` : ''}
 ${extractedPage.byline ? `Author: ${extractedPage.byline}` : ''}
 ${extractedPage.publishedTime ? `Published: ${extractedPage.publishedTime}` : ''}
 ${extractedPage.siteName ? `Site: ${extractedPage.siteName}` : ''}
-Content Length: ${extractedPage.contentLength || 0} characters
+Content Length: ${contentLength} characters
   `.trim();
 
   yield {
@@ -203,7 +206,7 @@ Content Length: ${extractedPage.contentLength || 0} characters
     chunkType: 'metadata',
     semanticContext: baseContext,
     domain,
-    contentLength: extractedPage.contentLength || 0,
+    contentLength,
     ...(extractedPage.publishedTime && { publishedTime: extractedPage.publishedTime }),
     ...(extractedPage.siteName && { siteName: extractedPage.siteName }),
     ...(extractedPage.byline && { author: extractedPage.byline }),
@@ -223,7 +226,7 @@ Content Length: ${extractedPage.contentLength || 0} characters
       chunkType: 'image_context',
       semanticContext: baseContext,
       domain,
-      contentLength: extractedPage.contentLength || 0,
+      contentLength,
       ...(extractedPage.publishedTime && { publishedTime: extractedPage.publishedTime }),
       ...(extractedPage.siteName && { siteName: extractedPage.siteName }),
       ...(extractedPage.byline && { author: extractedPage.byline }),
@@ -244,7 +247,7 @@ Content Length: ${extractedPage.contentLength || 0} characters
       chunkType: 'action',
       semanticContext: baseContext,
       domain,
-      contentLength: extractedPage.contentLength || 0,
+      contentLength,
       ...(extractedPage.publishedTime && { publishedTime: extractedPage.publishedTime }),
       ...(extractedPage.siteName && { siteName: extractedPage.siteName }),
       ...(extractedPage.byline && { author: extractedPage.byline }),
@@ -307,7 +310,6 @@ async function upsertEnhancedChunks(chunks: EnhancedChunk[]): Promise<void> {
   const authors: (string | null)[] = [];
   const chunkTypes: string[] = [];
   const semanticContexts: string[] = [];
-  const contentLengths: number[] = [];
 
   for (const c of chunks) {
     ids.push(c.chunkId);
@@ -321,7 +323,6 @@ async function upsertEnhancedChunks(chunks: EnhancedChunk[]): Promise<void> {
     authors.push(c.author || null);
     chunkTypes.push(c.chunkType);
     semanticContexts.push(c.semanticContext);
-    contentLengths.push(c.contentLength);
   }
 
   await ns.write({
@@ -337,7 +338,6 @@ async function upsertEnhancedChunks(chunks: EnhancedChunk[]): Promise<void> {
       author: authors,
       chunk_type: chunkTypes,
       semantic_context: semanticContexts,
-      content_length: contentLengths,
     },
     distance_metric: "cosine_distance",
     schema: {
@@ -350,7 +350,6 @@ async function upsertEnhancedChunks(chunks: EnhancedChunk[]): Promise<void> {
       author: { type: "string", full_text_search: true },
       chunk_type: { type: "string" },
       semantic_context: { type: "string", full_text_search: true },
-      content_length: { type: "integer" },
     },
   });
 }
