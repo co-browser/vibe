@@ -37,6 +37,15 @@ interface VibeAPI {
 }
 
 /**
+ * Electron API interface
+ */
+interface ElectronAPI {
+  platform: string;
+  getWindowType: () => string | null;
+  [key: string]: any;
+}
+
+/**
  * Window interface extensions for the API
  */
 interface Window {
@@ -44,6 +53,11 @@ interface Window {
    * Main Vibe API - Modern interface
    */
   vibe: VibeAPI;
+
+  /**
+   * Electron API - includes window type detection
+   */
+  electronAPI: ElectronAPI;
 
   /**
    * Legacy API - DEPRECATED, use window.vibe instead
@@ -71,7 +85,7 @@ interface Window {
   /**
    * Additional legacy APIs for backward compatibility
    */
-  electron: any;
+  electron: ElectronAPI;
   storeBridge: any;
   gmailAuth: any;
   apiKeys: any;

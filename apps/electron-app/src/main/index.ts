@@ -21,17 +21,17 @@ import {
   childProcessIntegration,
 } from "@sentry/electron/main";
 import AppUpdater from "./services/update-service";
+import { isFirstRun, openOnboardingForFirstRun } from "@/browser/onboarding-window";
+
 
 const logger = createLogger("main-process");
-
-const isProd: boolean = process.env.NODE_ENV === "production";
 
 // Initialize Sentry for error tracking
 init({
   dsn: "https://21ac611f0272b8931073fa7ecc36c600@o4509464945623040.ingest.de.sentry.io/4509464948899920",
-  debug: !isProd,
+  debug: false,
   integrations: [browserWindowSessionIntegration(), childProcessIntegration()],
-  tracesSampleRate: isProd ? 0.1 : 1.0,
+  tracesSampleRate: 0.1,
   tracePropagationTargets: ["localhost"],
   onFatalError: () => {},
 });
@@ -72,6 +72,8 @@ app.commandLine.appendSwitch("enable-blink-features", "MojoJS,MojoJSTest");
 if (!process.env.OPENAI_API_KEY) {
   logger.warn("OPENAI_API_KEY not found in environment");
 }
+
+
 
 // Error handling with telemetry integration
 process.on("uncaughtException", error => {
@@ -218,6 +220,17 @@ async function createInitialWindow(): Promise<void> {
   if (!app.isPackaged) {
     mainWindow.webContents.openDevTools({ mode: "detach" });
   }
+
+  // Check if this is the first run and open onboarding if needed
+  const firstRun = isFirstRun();
+  if (firstRun) {
+    logger.info("First run detected - will open onboarding window");
+    
+    // Wait a bit for the main window to be fully ready
+    setTimeout(() => {
+      openOnboardingForFirstRun(browser);
+    }, 2000); // 2 second delay to ensure everything is loaded
+  }
 }
 
 function initializeApp(): boolean {
@@ -363,10 +376,9 @@ async function initializeServices(): Promise<void> {
 
 // Main application initialization
 app.whenReady().then(() => {
-  if (isProd) {
-    //updater.init();
-  }
+
   app.on("browser-window-created", (_, window) => {
+    //PDFWindow.addSupport(window);
     optimizer.watchWindowShortcuts(window);
   });
 

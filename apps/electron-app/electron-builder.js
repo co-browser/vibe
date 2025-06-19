@@ -43,6 +43,7 @@ module.exports = {
     icon: "resources/icon.icns",
     notarize: false,
     type: "distribution",
+    identity: "E2566872AC26692C6196F1E880B092B692C0B981",
     helperBundleId: "${appId}.helper",
     helperEHBundleId: "${appId}.helper.eh",
     helperGPUBundleId: "${appId}.helper.gpu",
@@ -51,6 +52,9 @@ module.exports = {
     target: ["dmg", "zip"],
     artifactName: "vibe-${version}.${ext}",
     binaries: ["dist/mac-arm64/vibe.app/Contents/MacOS/vibe"],
+    additionalArguments: [
+      "--timestamp",
+    ],
   },
   dmg: {
     icon: "resources/icon.icns",
@@ -95,4 +99,14 @@ module.exports = {
   electronDownload: {
     mirror: "https://npmmirror.com/mirrors/electron/",
   },
+  electronFuses: {
+    runAsNode: false,
+    enableCookieEncryption: true,
+    enableNodeOptionsEnvironmentVariable: false,
+    enableNodeCliInspectArguments: false,
+    enableEmbeddedAsarIntegrityValidation: true,
+    onlyLoadAppFromAsar: true,
+    loadBrowserProcessSpecificV8Snapshot: true,
+    grantFileProtocolExtraPrivileges: false
+}
 };

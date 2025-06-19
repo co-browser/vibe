@@ -228,6 +228,42 @@
   .chrome-tabs-toolbar-right {
     -webkit-app-region: no-drag !important;
   }
+
+  /* Ensure main content areas don't clip overlays */
+  .main-content-wrapper {
+    overflow: visible !important;
+    position: relative;
+    z-index: 1;
+  }
+
+  .browser-window {
+    overflow: visible !important;
+    position: relative;
+  }
+
+  .browser-layout-root {
+    overflow: visible !important;
+    position: relative;
+  }
+
+  .glass-content-wrapper {
+    overflow: visible !important;
+    position: relative;
+  }
+
+  .browser-ui-root {
+    overflow: visible !important;
+    position: relative;
+  }
+
+  /* Ensure navigation and tab containers allow overflow */
+  .tab-bar-container,
+  .navigation-bar-container {
+    overflow: visible !important;
+    position: relative;
+    z-index: 1000;
+  }
+
 }
 
 @layer utilities {

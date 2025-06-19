@@ -6,6 +6,9 @@ import { WINDOW_CONFIG } from "@vibe/shared-types";
 
 import { TabManager } from "./tab-manager";
 import { ViewManager } from "./view-manager";
+import { OnboardingWindow } from "./onboarding-window";
+import { SettingsWindow } from "./settings-window";
+import { AboutWindow } from "./about-window";
 import { createLogger } from "@vibe/shared-types";
 
 const logger = createLogger("ApplicationWindow");
@@ -19,6 +22,11 @@ export class ApplicationWindow extends EventEmitter {
   public readonly window: BrowserWindow;
   public readonly tabManager: TabManager;
   public readonly viewManager: ViewManager;
+
+  // Popup window instances
+  private onboardingWindow: OnboardingWindow | null = null;
+  private settingsWindow: SettingsWindow | null = null;
+  private aboutWindow: AboutWindow | null = null;
 
   constructor(
     browser: any,
@@ -44,6 +52,151 @@ export class ApplicationWindow extends EventEmitter {
       logger.error("🔧 ApplicationWindow: Failed to load renderer:", error);
     });
   }
+
+  // === POPUP WINDOW MANAGEMENT ===
+
+  /**
+   * Opens the onboarding window
+   */
+  public openOnboardingWindow(): OnboardingWindow {
+    if (this.onboardingWindow && !this.onboardingWindow.window.isDestroyed()) {
+      this.onboardingWindow.show();
+      return this.onboardingWindow;
+    }
+
+    this.onboardingWindow = new OnboardingWindow(this.window);
+    
+    this.onboardingWindow.on("destroy", () => {
+      this.onboardingWindow = null;
+    });
+
+    // Forward window events to renderer
+    this.onboardingWindow.on("opened", (windowId) => {
+      if (!this.window.isDestroyed()) {
+        this.window.webContents.send("popup-window-opened", {
+          type: "onboarding",
+          windowId: windowId
+        });
+      }
+    });
+
+    this.onboardingWindow.on("closed", (windowId) => {
+      if (!this.window.isDestroyed()) {
+        this.window.webContents.send("popup-window-closed", {
+          type: "onboarding",
+          windowId: windowId
+        });
+      }
+    });
+
+    return this.onboardingWindow;
+  }
+
+  /**
+   * Opens the settings window
+   */
+  public openSettingsWindow(): SettingsWindow {
+    if (this.settingsWindow && !this.settingsWindow.window.isDestroyed()) {
+      this.settingsWindow.show();
+      return this.settingsWindow;
+    }
+
+    this.settingsWindow = new SettingsWindow(this.window);
+    
+    this.settingsWindow.on("destroy", () => {
+      this.settingsWindow = null;
+    });
+
+    // Forward window events to renderer
+    this.settingsWindow.on("opened", (windowId) => {
+      if (!this.window.isDestroyed()) {
+        this.window.webContents.send("popup-window-opened", {
+          type: "settings",
+          windowId: windowId
+        });
+      }
+    });
+
+    this.settingsWindow.on("closed", (windowId) => {
+      if (!this.window.isDestroyed()) {
+        this.window.webContents.send("popup-window-closed", {
+          type: "settings",
+          windowId: windowId
+        });
+      }
+    });
+
+    return this.settingsWindow;
+  }
+
+  /**
+   * Opens the about window
+   */
+  public openAboutWindow(): AboutWindow {
+    if (this.aboutWindow && !this.aboutWindow.window.isDestroyed()) {
+      this.aboutWindow.show();
+      return this.aboutWindow;
+    }
+
+    this.aboutWindow = new AboutWindow(this.window);
+    
+    this.aboutWindow.on("destroy", () => {
+      this.aboutWindow = null;
+    });
+
+    // Forward window events to renderer
+    this.aboutWindow.on("opened", (windowId) => {
+      if (!this.window.isDestroyed()) {
+        this.window.webContents.send("popup-window-opened", {
+          type: "about",
+          windowId: windowId
+        });
+      }
+    });
+
+    this.aboutWindow.on("closed", (windowId) => {
+      if (!this.window.isDestroyed()) {
+        this.window.webContents.send("popup-window-closed", {
+          type: "about",
+          windowId: windowId
+        });
+      }
+    });
+
+    return this.aboutWindow;
+  }
+
+  /**
+   * Closes all popup windows
+   */
+  public closeAllPopupWindows(): void {
+    if (this.onboardingWindow && !this.onboardingWindow.window.isDestroyed()) {
+      this.onboardingWindow.close();
+    }
+    if (this.settingsWindow && !this.settingsWindow.window.isDestroyed()) {
+      this.settingsWindow.close();
+    }
+    if (this.aboutWindow && !this.aboutWindow.window.isDestroyed()) {
+      this.aboutWindow.close();
+    }
+  }
+
+  /**
+   * Gets the current popup window instances
+   */
+  public getPopupWindows(): {
+    onboarding: OnboardingWindow | null;
+    settings: SettingsWindow | null;
+    about: AboutWindow | null;
+  } {
+    return {
+      onboarding: this.onboardingWindow,
+      settings: this.settingsWindow,
+      about: this.aboutWindow,
+    };
+  }
+
+  // === EXISTING METHODS ===
 
   private getDefaultOptions(): Electron.BrowserWindowConstructorOptions {
     return {
@@ -195,6 +348,9 @@ export class ApplicationWindow extends EventEmitter {
 
   public destroy(): void {
     if (this.window.isDestroyed()) return;
+
+    // Close all popup windows first
+    this.closeAllPopupWindows();
 
     try {
       // Clean up TabManager (includes EventEmitter cleanup and intervals)

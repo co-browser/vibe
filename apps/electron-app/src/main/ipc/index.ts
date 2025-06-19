@@ -10,6 +10,7 @@ import "@/ipc/app/notifications";
 import "@/ipc/app/actions";
 import "@/ipc/app/gmail";
 import "@/ipc/app/api-keys";
+import "@/ipc/app/password-import";
 
 // Chat APIs - direct imports (register themselves)
 import "@/ipc/chat/chat-messaging";
@@ -29,6 +30,7 @@ import "@/ipc/settings/settings-management";
 import "@/ipc/window/window-state";
 import "@/ipc/window/window-interface";
 import "@/ipc/window/chat-panel";
+import "@/ipc/window/popup-windows";
 
 // Browser APIs - direct imports (register themselves)
 import { setupBrowserEventForwarding } from "@/ipc/browser/events";

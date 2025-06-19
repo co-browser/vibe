@@ -6,7 +6,6 @@ import { ApplicationWindow } from "@/browser/application-window";
 import { CDPManager } from "../services/cdp-service";
 import { setupApplicationMenu } from "@/menu";
 import { createLogger } from "@vibe/shared-types";
-
 const logger = createLogger("Browser");
 
 /**
@@ -91,6 +90,17 @@ export class Browser extends EventEmitter {
    */
   public getApplicationWindow(webContentsId: number): ApplicationWindow | null {
     return this.applicationWindows.get(webContentsId) || null;
+  }
+
+  /**
+   * Gets ApplicationWindow by BrowserWindow instance
+   * Useful for IPC handlers that receive a BrowserWindow reference
+   */
+  public getApplicationWindowFromBrowserWindow(browserWindow: BrowserWindow): ApplicationWindow | null {
+    if (browserWindow.isDestroyed()) {
+      return null;
+    }
+    return this.getApplicationWindow(browserWindow.webContents.id);
   }
 
   /**
