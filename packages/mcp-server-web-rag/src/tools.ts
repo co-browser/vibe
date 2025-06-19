@@ -240,7 +240,7 @@ async function calculateSentencePerplexity(sentence: string, context: string): P
     const avgLogProb = totalLogProb / validTokens;
     return Math.exp(-avgLogProb);
   } catch (error) {
-    log('warn', `Failed to calculate perplexity for sentence: ${sentence.substring(0, 50)}...`);
+    log('warn', `Failed to calculate perplexity for sentence: ${sentence.substring(0, 50)}...`, error);
     return 1.0;
   }
 }
@@ -320,7 +320,6 @@ async function performPPLChunking(text: string, options: PPLChunkOptions = {}): 
   
   const chunks: string[] = [];
   let currentChunk = "";
-  let sentenceIndex = 0;
 
   for (let i = 0; i < sentences.length; i++) {
     currentChunk += sentences[i] + " ";
@@ -487,7 +486,7 @@ async function* chunkContentWithPPL(
       }
     }
   } catch (error) {
-    log('warn', 'PPL chunking failed, falling back to traditional chunking');
+    log('warn', 'PPL chunking failed, falling back to traditional chunking', error);
     yield* chunkContentTraditional(extractedPage, domain, baseContext, contentLength);
   }
 }

@@ -5,6 +5,7 @@
 
 import { AgentFactory, Agent } from "@vibe/agent-core";
 import type { ExtractedPage } from "@vibe/shared-types";
+import { MEMORY_CONFIG } from "@vibe/shared-types";
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -21,6 +22,7 @@ interface InitializeData {
     openaiApiKey: string;
     model?: string;
     processorType?: string;
+    mcpServerUrl?: string;
   };
 }
 
@@ -164,6 +166,7 @@ class MessageHandlers {
       processorType: MessageValidator.validateProcessorType(
         config.processorType,
       ),
+      mcpServerUrl: config.mcpServerUrl || MEMORY_CONFIG.MCP_SERVER_URL,
     });
 
     console.log(

@@ -76,6 +76,7 @@ export interface VibeSettingsAPI {
 export interface VibeSessionAPI {
   [key: string]: any;
 }
+
 export interface VibeUpdateAPI {
   [key: string]: any;
 }
