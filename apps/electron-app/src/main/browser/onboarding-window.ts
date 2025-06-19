@@ -3,6 +3,8 @@ import { EventEmitter } from "events";
 import { join } from "path";
 import { is } from "@electron-toolkit/utils";
 import { createLogger } from "@vibe/shared-types";
+import fs from "fs";
+import path from "path";
 
 const logger = createLogger("OnboardingWindow");
 
@@ -11,17 +13,17 @@ const logger = createLogger("OnboardingWindow");
  * Uses a simple flag file in the user data directory
  */
 export function isFirstRun(): boolean {
-  const fs = require('fs');
-  const path = require('path');
-  
   try {
-    const userDataPath = app.getPath('userData');
+    const userDataPath = app.getPath("userData");
     logger.debug("User data path:", userDataPath);
-    const firstRunFlagPath = path.join(userDataPath, '.vibe-first-run-complete');
-    
+    const firstRunFlagPath = path.join(
+      userDataPath,
+      ".vibe-first-run-complete",
+    );
+
     // Check if the flag file exists
     const hasRunBefore = fs.existsSync(firstRunFlagPath);
-    
+
     if (!hasRunBefore) {
       // Create the flag file to mark that the app has been run
       try {
@@ -29,14 +31,18 @@ export function isFirstRun(): boolean {
         if (!fs.existsSync(userDataPath)) {
           fs.mkdirSync(userDataPath, { recursive: true });
         }
-        
+
         // Create the flag file with timestamp
-        fs.writeFileSync(firstRunFlagPath, JSON.stringify({
-          firstRunDate: new Date().toISOString(),
-          version: app.getVersion(),
-          platform: process.platform
-        }), 'utf8');
-        
+        fs.writeFileSync(
+          firstRunFlagPath,
+          JSON.stringify({
+            firstRunDate: new Date().toISOString(),
+            version: app.getVersion(),
+            platform: process.platform,
+          }),
+          "utf8",
+        );
+
         logger.info("First run detected - created flag file");
         return true;
       } catch (error) {
@@ -45,7 +51,7 @@ export function isFirstRun(): boolean {
         return false;
       }
     }
-    
+
     logger.debug("App has been run before - flag file exists");
     return false;
   } catch (error) {
@@ -74,16 +80,17 @@ export async function openOnboardingForFirstRun(browser: any): Promise<void> {
     }
 
     // Get the ApplicationWindow instance
-    const applicationWindow = browser.getApplicationWindowFromBrowserWindow(mainWindow);
+    const applicationWindow =
+      browser.getApplicationWindowFromBrowserWindow(mainWindow);
     if (!applicationWindow) {
       logger.error("Cannot open onboarding: ApplicationWindow not found");
       return;
     }
 
     // Open the onboarding window
-    const onboardingWindow = applicationWindow.openOnboardingWindow();
+    applicationWindow.openOnboardingWindow();
     logger.info("Onboarding window opened for first-time user");
-    
+
     // Track first run onboarding
     setTimeout(() => {
       if (mainWindow && !mainWindow.isDestroyed()) {
@@ -106,7 +113,6 @@ export async function openOnboardingForFirstRun(browser: any): Promise<void> {
           });
       }
     }, 1000);
-    
   } catch (error) {
     logger.error("Failed to open onboarding window:", error);
   }
@@ -123,9 +129,9 @@ export class OnboardingWindow extends EventEmitter {
 
   constructor(parentWindow: BrowserWindow) {
     super();
-    
+
     this.parentWindow = parentWindow;
-    
+
     // Create popup window as child of parent
     this.window = new BrowserWindow(this.getWindowOptions());
     this.id = this.window.id;
@@ -171,7 +177,7 @@ export class OnboardingWindow extends EventEmitter {
         contextIsolation: true,
         webSecurity: true,
         allowRunningInsecureContent: false,
-        additionalArguments: ['--window-type=onboarding']
+        additionalArguments: ["--window-type=onboarding"],
       },
     };
   }
@@ -182,7 +188,7 @@ export class OnboardingWindow extends EventEmitter {
       this.window.focus();
       // Center the onboarding window on screen
       this.window.center();
-      
+
       // Emit window opened event
       this.emit("opened", this.id);
     });
@@ -213,9 +219,10 @@ export class OnboardingWindow extends EventEmitter {
 
     if (is.dev) {
       // In development, load from Vite dev server with onboarding route
-      const devUrl = process.env["ELECTRON_RENDERER_URL"] || "http://localhost:5173";
+      const devUrl =
+        process.env["ELECTRON_RENDERER_URL"] || "http://localhost:5173";
       const onboardingUrl = `${devUrl}#/onboarding`;
-      
+
       try {
         await this.window.loadURL(onboardingUrl);
         logger.debug("Successfully loaded onboarding dev URL");
@@ -223,11 +230,11 @@ export class OnboardingWindow extends EventEmitter {
         logger.error("Failed to load onboarding dev URL:", error);
         // Fallback to file loading
         const htmlPath = join(__dirname, "../renderer/index.html");
-        await this.window.loadFile(htmlPath, { hash: 'onboarding' });
+        await this.window.loadFile(htmlPath, { hash: "onboarding" });
       }
     } else {
       const htmlPath = join(__dirname, "../renderer/index.html");
-      await this.window.loadFile(htmlPath, { hash: 'onboarding' });
+      await this.window.loadFile(htmlPath, { hash: "onboarding" });
     }
   }
 

@@ -1,8 +1,8 @@
-import Store from 'electron-store';
-import { safeStorage } from 'electron';
-import { createLogger } from '@vibe/shared-types';
+import Store from "electron-store";
+import { safeStorage } from "electron";
+import { createLogger } from "@vibe/shared-types";
 
-const logger = createLogger('PersistentStorage');
+const logger = createLogger("PersistentStorage");
 
 /**
  * Encrypted store configuration
@@ -34,16 +34,18 @@ class EncryptedStore {
 
   constructor(options: EncryptedStoreOptions = {}) {
     this.encryptionAvailable = safeStorage.isEncryptionAvailable();
-    
+
     if (!this.encryptionAvailable) {
-      logger.warn('Encryption not available on this system. Data will be stored in plain text.');
+      logger.warn(
+        "Encryption not available on this system. Data will be stored in plain text.",
+      );
     } else {
-      logger.info('Encryption is available. Data will be encrypted on disk.');
+      logger.info("Encryption is available. Data will be encrypted on disk.");
     }
 
     // Configure the store with encryption if available
     const storeOptions: any = {
-      name: options.name || 'encrypted-store',
+      name: options.name || "encrypted-store",
       defaults: options.defaults || {},
       schema: options.schema,
       // Add encryption serialization if available
@@ -51,25 +53,27 @@ class EncryptedStore {
         serialize: (value: any) => {
           const jsonString = JSON.stringify(value);
           const encrypted = safeStorage.encryptString(jsonString);
-          return encrypted.toString('base64');
+          return encrypted.toString("base64");
         },
         deserialize: (value: string) => {
           try {
-            const buffer = Buffer.from(value, 'base64');
+            const buffer = Buffer.from(value, "base64");
             const decrypted = safeStorage.decryptString(buffer);
             return JSON.parse(decrypted);
           } catch (error) {
-            logger.error('Failed to decrypt data:', error);
+            logger.error("Failed to decrypt data:", error);
             // Return empty object if decryption fails
             return {};
           }
-        }
-      })
+        },
+      }),
     };
 
     this.store = new Store(storeOptions);
-    
-    logger.info(`Encrypted store initialized: ${options.name || 'encrypted-store'} (encryption: ${this.encryptionAvailable ? 'enabled' : 'disabled'})`);
+
+    logger.info(
+      `Encrypted store initialized: ${options.name || "encrypted-store"} (encryption: ${this.encryptionAvailable ? "enabled" : "disabled"})`,
+    );
   }
 
   /**
@@ -77,7 +81,7 @@ class EncryptedStore {
    */
   get<T = any>(key: string, defaultValue?: T): T {
     try {
-      return this.store.get(key, defaultValue);
+      return this.store.get(key, defaultValue) as T;
     } catch (error) {
       logger.error(`Failed to get key "${key}" from encrypted store:`, error);
       return defaultValue as T;
@@ -104,7 +108,10 @@ class EncryptedStore {
       this.store.delete(key);
       logger.debug(`Deleted key "${key}" from encrypted store`);
     } catch (error) {
-      logger.error(`Failed to delete key "${key}" from encrypted store:`, error);
+      logger.error(
+        `Failed to delete key "${key}" from encrypted store:`,
+        error,
+      );
     }
   }
 
@@ -126,9 +133,9 @@ class EncryptedStore {
   clear(): void {
     try {
       this.store.clear();
-      logger.info('Cleared all data from encrypted store');
+      logger.info("Cleared all data from encrypted store");
     } catch (error) {
-      logger.error('Failed to clear encrypted store:', error);
+      logger.error("Failed to clear encrypted store:", error);
     }
   }
 
@@ -139,7 +146,7 @@ class EncryptedStore {
     try {
       return this.store.store;
     } catch (error) {
-      logger.error('Failed to get all data from encrypted store:', error);
+      logger.error("Failed to get all data from encrypted store:", error);
       return {};
     }
   }
@@ -151,7 +158,7 @@ class EncryptedStore {
     try {
       return this.store.size;
     } catch (error) {
-      logger.error('Failed to get encrypted store size:', error);
+      logger.error("Failed to get encrypted store size:", error);
       return 0;
     }
   }
@@ -180,19 +187,19 @@ class PlainStore {
 
   constructor(options: PlainStoreOptions = {}) {
     this.store = new Store({
-      name: options.name || 'plain-store',
+      name: options.name || "plain-store",
       defaults: options.defaults || {},
-      schema: options.schema
+      schema: options.schema,
     });
 
-    logger.info(`Plain store initialized: ${options.name || 'plain-store'}`);
+    logger.info(`Plain store initialized: ${options.name || "plain-store"}`);
   }
 
   /**
    * Get a value from the plain store
    */
   get<T = any>(key: string, defaultValue?: T): T {
-    return this.store.get(key, defaultValue);
+    return this.store.get(key, defaultValue) as T;
   }
 
   /**
@@ -223,7 +230,7 @@ class PlainStore {
    */
   clear(): void {
     this.store.clear();
-    logger.info('Cleared all data from plain store');
+    logger.info("Cleared all data from plain store");
   }
 
   /**
@@ -250,7 +257,10 @@ class PlainStore {
   /**
    * Watch for changes to a key
    */
-  onDidChange(key: string, callback: (newValue: any, oldValue: any) => void): () => void {
+  onDidChange(
+    key: string,
+    callback: (newValue: any, oldValue: any) => void,
+  ): () => void {
     return this.store.onDidChange(key, callback);
   }
 
@@ -271,7 +281,9 @@ class PlainStore {
  * @param options Configuration options for the encrypted store
  * @returns EncryptedStore instance
  */
-export function createEncryptedStore(options: EncryptedStoreOptions = {}): EncryptedStore {
+export function createEncryptedStore(
+  options: EncryptedStoreOptions = {},
+): EncryptedStore {
   return new EncryptedStore(options);
 }
 
@@ -290,34 +302,34 @@ export function createPlainStore(options: PlainStoreOptions = {}): PlainStore {
 
 // Default encrypted store for sensitive data (API keys, tokens, etc.)
 export const secureStore = createEncryptedStore({
-  name: 'vibe-secure',
+  name: "vibe-secure",
   defaults: {
     apiKeys: {},
     tokens: {},
-    credentials: {}
-  }
+    credentials: {},
+  },
 });
 
 // Default plain store for general application settings
 export const settingsStore = createPlainStore({
-  name: 'vibe-settings',
+  name: "vibe-settings",
   defaults: {
-    theme: 'system',
-    language: 'en',
+    theme: "system",
+    language: "en",
     windowBounds: {},
-    preferences: {}
-  }
+    preferences: {},
+  },
 });
 
 // Default plain store for user data that doesn't need encryption
 export const userDataStore = createPlainStore({
-  name: 'vibe-userdata',
+  name: "vibe-userdata",
   defaults: {
     bookmarks: [],
     history: [],
     tabs: [],
-    sessions: []
-  }
+    sessions: [],
+  },
 });
 
 /**
@@ -344,7 +356,7 @@ export function getStorageInfo(): {
     encryptionAvailable: isEncryptionAvailable(),
     secureStorePath: secureStore.path,
     settingsStorePath: settingsStore.path,
-    userDataStorePath: userDataStore.path
+    userDataStorePath: userDataStore.path,
   };
 }
 
@@ -353,41 +365,41 @@ export function getStorageInfo(): {
  */
 export function initializeStores(): void {
   const info = getStorageInfo();
-  
-  logger.info('Storage system initialized:', {
+
+  logger.info("Storage system initialized:", {
     encryptionAvailable: info.encryptionAvailable,
     stores: {
       secure: info.secureStorePath,
       settings: info.settingsStorePath,
-      userData: info.userDataStorePath
-    }
+      userData: info.userDataStorePath,
+    },
   });
 
   // Test stores to ensure they're working
   try {
-    secureStore.set('_test', 'test-value');
-    const testValue = secureStore.get('_test');
-    if (testValue === 'test-value') {
-      secureStore.delete('_test');
-      logger.info('Secure store test: PASSED');
+    secureStore.set("_test", "test-value");
+    const testValue = secureStore.get("_test");
+    if (testValue === "test-value") {
+      secureStore.delete("_test");
+      logger.info("Secure store test: PASSED");
     } else {
-      logger.warn('Secure store test: FAILED');
+      logger.warn("Secure store test: FAILED");
     }
   } catch (error) {
-    logger.error('Secure store test failed:', error);
+    logger.error("Secure store test failed:", error);
   }
 
   try {
-    settingsStore.set('_test', 'test-value');
-    const testValue = settingsStore.get('_test');
-    if (testValue === 'test-value') {
-      settingsStore.delete('_test');
-      logger.info('Settings store test: PASSED');
+    settingsStore.set("_test", "test-value");
+    const testValue = settingsStore.get("_test");
+    if (testValue === "test-value") {
+      settingsStore.delete("_test");
+      logger.info("Settings store test: PASSED");
     } else {
-      logger.warn('Settings store test: FAILED');
+      logger.warn("Settings store test: FAILED");
     }
   } catch (error) {
-    logger.error('Settings store test failed:', error);
+    logger.error("Settings store test failed:", error);
   }
 }
 

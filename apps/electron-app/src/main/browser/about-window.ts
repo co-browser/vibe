@@ -17,9 +17,9 @@ export class AboutWindow extends EventEmitter {
 
   constructor(parentWindow: BrowserWindow) {
     super();
-    
+
     this.parentWindow = parentWindow;
-    
+
     // Create popup window as child of parent
     this.window = new BrowserWindow(this.getWindowOptions());
     this.id = this.window.id;
@@ -66,7 +66,7 @@ export class AboutWindow extends EventEmitter {
         contextIsolation: true,
         webSecurity: true,
         allowRunningInsecureContent: false,
-        additionalArguments: ['--window-type=about']
+        additionalArguments: ["--window-type=about"],
       },
     };
   }
@@ -77,7 +77,7 @@ export class AboutWindow extends EventEmitter {
       this.window.focus();
       // Position relative to parent
       this.positionRelativeToParent();
-      
+
       // Emit window opened event
       this.emit("opened", this.id);
     });
@@ -116,11 +116,11 @@ export class AboutWindow extends EventEmitter {
 
     try {
       const parentBounds = this.parentWindow.getBounds();
-      
+
       // Position the about window offset from the parent
       const x = parentBounds.x + 100;
       const y = parentBounds.y + 100;
-      
+
       this.window.setPosition(x, y);
     } catch (error) {
       logger.warn("Could not position about window relative to parent:", error);
@@ -134,9 +134,10 @@ export class AboutWindow extends EventEmitter {
 
     if (is.dev) {
       // In development, load from Vite dev server with about route
-      const devUrl = process.env["ELECTRON_RENDERER_URL"] || "http://localhost:5173";
+      const devUrl =
+        process.env["ELECTRON_RENDERER_URL"] || "http://localhost:5173";
       const aboutUrl = `${devUrl}#/about`;
-      
+
       try {
         await this.window.loadURL(aboutUrl);
         logger.debug("Successfully loaded about dev URL");
@@ -144,11 +145,11 @@ export class AboutWindow extends EventEmitter {
         logger.error("Failed to load about dev URL:", error);
         // Fallback to file loading
         const htmlPath = join(__dirname, "../renderer/index.html");
-        await this.window.loadFile(htmlPath, { hash: 'about' });
+        await this.window.loadFile(htmlPath, { hash: "about" });
       }
     } else {
       const htmlPath = join(__dirname, "../renderer/index.html");
-      await this.window.loadFile(htmlPath, { hash: 'about' });
+      await this.window.loadFile(htmlPath, { hash: "about" });
     }
   }
 

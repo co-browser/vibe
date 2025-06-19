@@ -21,8 +21,8 @@ import AboutPage from "./pages/about/AboutPage";
  */
 function getWindowType(): string {
   // Check URL hash first (for development)
-  const hash = window.location.hash.replace('#', '');
-  if (hash && ['onboarding', 'settings', 'about'].includes(hash)) {
+  const hash = window.location.hash.replace("#", "");
+  if (hash && ["onboarding", "settings", "about"].includes(hash)) {
     return hash;
   }
 
@@ -30,20 +30,23 @@ function getWindowType(): string {
   // The popup windows pass --window-type=<type> as additionalArguments
   if (window.electronAPI?.getWindowType) {
     const windowType = window.electronAPI.getWindowType();
-    if (windowType && ['onboarding', 'settings', 'about'].includes(windowType)) {
+    if (
+      windowType &&
+      ["onboarding", "settings", "about"].includes(windowType)
+    ) {
       return windowType;
     }
   }
 
   // Default to main browser application
-  return 'browser';
+  return "browser";
 }
 
 /**
  * Main application component with window type detection
  */
 function Routes() {
-  const [windowType, setWindowType] = useState<string>('browser');
+  const [windowType, setWindowType] = useState<string>("browser");
 
   useEffect(() => {
     const type = getWindowType();
@@ -51,15 +54,15 @@ function Routes() {
   }, []);
 
   // Render popup windows directly without router
-  if (windowType === 'onboarding') {
+  if (windowType === "onboarding") {
     return <OnboardingPage />;
   }
 
-  if (windowType === 'settings') {
+  if (windowType === "settings") {
     return <SettingsPage />;
   }
 
-  if (windowType === 'about') {
+  if (windowType === "about") {
     return <AboutPage />;
   }
 

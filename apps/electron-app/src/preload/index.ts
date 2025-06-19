@@ -34,16 +34,16 @@ function getWindowType(): string | null {
     // Check process.argv for --window-type=<type>
     const args = process.argv || [];
     for (const arg of args) {
-      if (arg.startsWith('--window-type=')) {
-        const windowType = arg.split('=')[1];
-        if (['onboarding', 'settings', 'about'].includes(windowType)) {
+      if (arg.startsWith("--window-type=")) {
+        const windowType = arg.split("=")[1];
+        if (["onboarding", "settings", "about"].includes(windowType)) {
           return windowType;
         }
       }
     }
     return null;
   } catch (error) {
-    logger.error('Error getting window type:', error);
+    logger.error("Error getting window type:", error);
     return null;
   }
 }
@@ -496,7 +496,7 @@ const interfaceAPI: VibeInterfaceAPI = {
   onChatPanelVisibilityChanged: (callback: (isVisible: boolean) => void) => {
     return createEventListener("chat-area-visibility-changed", callback);
   },
-  
+
   // Popup window methods
   openOnboardingWindow: async () => {
     return ipcRenderer.invoke("window:open-onboarding");
@@ -516,10 +516,14 @@ const interfaceAPI: VibeInterfaceAPI = {
   isPopupWindowOpen: async (windowType: string) => {
     return ipcRenderer.invoke("window:is-popup-open", windowType);
   },
-  onPopupWindowOpened: (callback: (data: { type: string; windowId: number }) => void) => {
+  onPopupWindowOpened: (
+    callback: (data: { type: string; windowId: number }) => void,
+  ) => {
     return createEventListener("popup-window-opened", callback);
   },
-  onPopupWindowClosed: (callback: (data: { type: string; windowId: number }) => void) => {
+  onPopupWindowClosed: (
+    callback: (data: { type: string; windowId: number }) => void,
+  ) => {
     return createEventListener("popup-window-closed", callback);
   },
 };

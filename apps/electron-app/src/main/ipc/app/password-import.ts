@@ -26,25 +26,30 @@ class PasswordImporter {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
-  private static sendProgress(webContents: Electron.WebContents, progress: PasswordImportProgress): void {
+  private static sendProgress(
+    webContents: Electron.WebContents,
+    progress: PasswordImportProgress,
+  ): void {
     webContents.send("password-import-progress", progress);
   }
 
-  static async importFromSafari(webContents: Electron.WebContents): Promise<PasswordImportResult> {
+  static async importFromSafari(
+    webContents: Electron.WebContents,
+  ): Promise<PasswordImportResult> {
     try {
       logger.info("Starting Safari password import");
-      
+
       this.sendProgress(webContents, {
         browser: "Safari",
         stage: "scanning",
-        message: "Scanning Safari keychain..."
+        message: "Scanning Safari keychain...",
       });
       await this.delay(1000);
 
       this.sendProgress(webContents, {
         browser: "Safari",
         stage: "reading",
-        message: "Reading Safari password database..."
+        message: "Reading Safari password database...",
       });
       await this.delay(1500);
 
@@ -52,41 +57,45 @@ class PasswordImporter {
       this.sendProgress(webContents, {
         browser: "Safari",
         stage: "importing",
-        message: `Found ${passwordCount} passwords, importing with encryption...`
+        message: `Found ${passwordCount} passwords, importing with encryption...`,
       });
       await this.delay(2000);
 
-      logger.info(`Successfully imported ${passwordCount} passwords from Safari`);
+      logger.info(
+        `Successfully imported ${passwordCount} passwords from Safari`,
+      );
       return {
         browser: "Safari",
         success: true,
-        passwordCount
+        passwordCount,
       };
     } catch (error) {
       logger.error("Safari import failed:", error);
       return {
         browser: "Safari",
         success: false,
-        error: error instanceof Error ? error.message : "Unknown error"
+        error: error instanceof Error ? error.message : "Unknown error",
       };
     }
   }
 
-  static async importFromChrome(webContents: Electron.WebContents): Promise<PasswordImportResult> {
+  static async importFromChrome(
+    webContents: Electron.WebContents,
+  ): Promise<PasswordImportResult> {
     try {
       logger.info("Starting Chrome password import");
-      
+
       this.sendProgress(webContents, {
         browser: "Chrome",
         stage: "locating",
-        message: "Locating Chrome profile directory..."
+        message: "Locating Chrome profile directory...",
       });
       await this.delay(800);
 
       this.sendProgress(webContents, {
         browser: "Chrome",
         stage: "decrypting",
-        message: "Decrypting Chrome password database..."
+        message: "Decrypting Chrome password database...",
       });
       await this.delay(2000);
 
@@ -94,41 +103,45 @@ class PasswordImporter {
       this.sendProgress(webContents, {
         browser: "Chrome",
         stage: "importing",
-        message: `Processing ${passwordCount} Chrome passwords...`
+        message: `Processing ${passwordCount} Chrome passwords...`,
       });
       await this.delay(1800);
 
-      logger.info(`Successfully imported ${passwordCount} passwords from Chrome`);
+      logger.info(
+        `Successfully imported ${passwordCount} passwords from Chrome`,
+      );
       return {
         browser: "Chrome",
         success: true,
-        passwordCount
+        passwordCount,
       };
     } catch (error) {
       logger.error("Chrome import failed:", error);
       return {
         browser: "Chrome",
         success: false,
-        error: error instanceof Error ? error.message : "Unknown error"
+        error: error instanceof Error ? error.message : "Unknown error",
       };
     }
   }
 
-  static async importFromFirefox(webContents: Electron.WebContents): Promise<PasswordImportResult> {
+  static async importFromFirefox(
+    webContents: Electron.WebContents,
+  ): Promise<PasswordImportResult> {
     try {
       logger.info("Starting Firefox password import");
-      
+
       this.sendProgress(webContents, {
         browser: "Firefox",
         stage: "scanning",
-        message: "Scanning Firefox profiles..."
+        message: "Scanning Firefox profiles...",
       });
       await this.delay(1200);
 
       this.sendProgress(webContents, {
         browser: "Firefox",
         stage: "reading",
-        message: "Reading logins.json database..."
+        message: "Reading logins.json database...",
       });
       await this.delay(1600);
 
@@ -136,41 +149,45 @@ class PasswordImporter {
       this.sendProgress(webContents, {
         browser: "Firefox",
         stage: "importing",
-        message: `Importing ${passwordCount} Firefox passwords...`
+        message: `Importing ${passwordCount} Firefox passwords...`,
       });
       await this.delay(2200);
 
-      logger.info(`Successfully imported ${passwordCount} passwords from Firefox`);
+      logger.info(
+        `Successfully imported ${passwordCount} passwords from Firefox`,
+      );
       return {
         browser: "Firefox",
         success: true,
-        passwordCount
+        passwordCount,
       };
     } catch (error) {
       logger.error("Firefox import failed:", error);
       return {
         browser: "Firefox",
         success: false,
-        error: error instanceof Error ? error.message : "Unknown error"
+        error: error instanceof Error ? error.message : "Unknown error",
       };
     }
   }
 
-  static async importFromBrave(webContents: Electron.WebContents): Promise<PasswordImportResult> {
+  static async importFromBrave(
+    webContents: Electron.WebContents,
+  ): Promise<PasswordImportResult> {
     try {
       logger.info("Starting Brave password import");
-      
+
       this.sendProgress(webContents, {
         browser: "Brave",
         stage: "locating",
-        message: "Locating Brave browser data..."
+        message: "Locating Brave browser data...",
       });
       await this.delay(900);
 
       this.sendProgress(webContents, {
         browser: "Brave",
         stage: "decrypting",
-        message: "Decrypting Brave password vault..."
+        message: "Decrypting Brave password vault...",
       });
       await this.delay(1700);
 
@@ -178,41 +195,45 @@ class PasswordImporter {
       this.sendProgress(webContents, {
         browser: "Brave",
         stage: "importing",
-        message: `Securing ${passwordCount} Brave passwords...`
+        message: `Securing ${passwordCount} Brave passwords...`,
       });
       await this.delay(1900);
 
-      logger.info(`Successfully imported ${passwordCount} passwords from Brave`);
+      logger.info(
+        `Successfully imported ${passwordCount} passwords from Brave`,
+      );
       return {
         browser: "Brave",
         success: true,
-        passwordCount
+        passwordCount,
       };
     } catch (error) {
       logger.error("Brave import failed:", error);
       return {
         browser: "Brave",
         success: false,
-        error: error instanceof Error ? error.message : "Unknown error"
+        error: error instanceof Error ? error.message : "Unknown error",
       };
     }
   }
 
-  static async importFromArc(webContents: Electron.WebContents): Promise<PasswordImportResult> {
+  static async importFromArc(
+    webContents: Electron.WebContents,
+  ): Promise<PasswordImportResult> {
     try {
       logger.info("Starting Arc password import");
-      
+
       this.sendProgress(webContents, {
         browser: "Arc",
         stage: "connecting",
-        message: "Connecting to Arc browser..."
+        message: "Connecting to Arc browser...",
       });
       await this.delay(1100);
 
       this.sendProgress(webContents, {
         browser: "Arc",
         stage: "reading",
-        message: "Reading Arc password storage..."
+        message: "Reading Arc password storage...",
       });
       await this.delay(1400);
 
@@ -220,7 +241,7 @@ class PasswordImporter {
       this.sendProgress(webContents, {
         browser: "Arc",
         stage: "importing",
-        message: `Transferring ${passwordCount} Arc passwords...`
+        message: `Transferring ${passwordCount} Arc passwords...`,
       });
       await this.delay(1600);
 
@@ -228,14 +249,14 @@ class PasswordImporter {
       return {
         browser: "Arc",
         success: true,
-        passwordCount
+        passwordCount,
       };
     } catch (error) {
       logger.error("Arc import failed:", error);
       return {
         browser: "Arc",
         success: false,
-        error: error instanceof Error ? error.message : "Unknown error"
+        error: error instanceof Error ? error.message : "Unknown error",
       };
     }
   }
@@ -244,7 +265,7 @@ class PasswordImporter {
 // Register IPC handlers
 ipcMain.handle("password-import-start", async (event, browser: string) => {
   logger.info(`Starting password import for ${browser}`);
-  
+
   const webContents = event.sender;
   let result: PasswordImportResult;
 
@@ -282,9 +303,9 @@ ipcMain.handle("password-import-start", async (event, browser: string) => {
     const errorResult: PasswordImportResult = {
       browser,
       success: false,
-      error: error instanceof Error ? error.message : "Unknown error"
+      error: error instanceof Error ? error.message : "Unknown error",
     };
-    
+
     webContents.send("password-import-error", errorResult);
     return errorResult;
   }

@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect } from "react";
 
-export type PopupWindowType = 'onboarding' | 'settings' | 'about';
+export type PopupWindowType = "onboarding" | "settings" | "about";
 
 export interface PopupWindowStates {
   onboarding: boolean;
@@ -25,19 +25,22 @@ export function usePopupWindowState() {
   useEffect(() => {
     const checkInitialStates = async () => {
       try {
-        const [onboardingResult, settingsResult, aboutResult] = await Promise.all([
-          window.vibe.interface.isPopupWindowOpen('onboarding'),
-          window.vibe.interface.isPopupWindowOpen('settings'),
-          window.vibe.interface.isPopupWindowOpen('about'),
-        ]);
+        const [onboardingResult, settingsResult, aboutResult] =
+          await Promise.all([
+            window.vibe.interface.isPopupWindowOpen("onboarding"),
+            window.vibe.interface.isPopupWindowOpen("settings"),
+            window.vibe.interface.isPopupWindowOpen("about"),
+          ]);
 
         setWindowStates({
-          onboarding: onboardingResult.success ? onboardingResult.isOpen : false,
+          onboarding: onboardingResult.success
+            ? onboardingResult.isOpen
+            : false,
           settings: settingsResult.success ? settingsResult.isOpen : false,
           about: aboutResult.success ? aboutResult.isOpen : false,
         });
       } catch (error) {
-        console.error('Failed to check initial popup window states:', error);
+        console.error("Failed to check initial popup window states:", error);
       } finally {
         setIsLoading(false);
       }
@@ -49,26 +52,28 @@ export function usePopupWindowState() {
   // Set up event listeners for real-time updates
   useEffect(() => {
     const handleWindowOpened = (data: { type: string; windowId: number }) => {
-      if (['onboarding', 'settings', 'about'].includes(data.type)) {
+      if (["onboarding", "settings", "about"].includes(data.type)) {
         setWindowStates(prev => ({
           ...prev,
-          [data.type]: true
+          [data.type]: true,
         }));
       }
     };
 
     const handleWindowClosed = (data: { type: string; windowId: number }) => {
-      if (['onboarding', 'settings', 'about'].includes(data.type)) {
+      if (["onboarding", "settings", "about"].includes(data.type)) {
         setWindowStates(prev => ({
           ...prev,
-          [data.type]: false
+          [data.type]: false,
         }));
       }
     };
 
     // Set up event listeners
-    const unsubscribeOpened = window.vibe.interface.onPopupWindowOpened(handleWindowOpened);
-    const unsubscribeClosed = window.vibe.interface.onPopupWindowClosed(handleWindowClosed);
+    const unsubscribeOpened =
+      window.vibe.interface.onPopupWindowOpened(handleWindowOpened);
+    const unsubscribeClosed =
+      window.vibe.interface.onPopupWindowClosed(handleWindowClosed);
 
     // Cleanup on unmount
     return () => {
@@ -82,20 +87,23 @@ export function usePopupWindowState() {
     try {
       let result;
       switch (windowType) {
-        case 'onboarding':
+        case "onboarding":
           result = await window.vibe.interface.openOnboardingWindow();
           break;
-        case 'settings':
+        case "settings":
           result = await window.vibe.interface.openSettingsWindow();
           break;
-        case 'about':
+        case "about":
           result = await window.vibe.interface.openAboutWindow();
           break;
       }
       return result;
     } catch (error) {
       console.error(`Failed to open ${windowType} window:`, error);
-      return { success: false, error: error instanceof Error ? error.message : String(error) };
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
     }
   };
 
@@ -109,8 +117,11 @@ export function usePopupWindowState() {
     try {
       return await window.vibe.interface.closeAllPopupWindows();
     } catch (error) {
-      console.error('Failed to close all popup windows:', error);
-      return { success: false, error: error instanceof Error ? error.message : String(error) };
+      console.error("Failed to close all popup windows:", error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
     }
   };
 
@@ -121,9 +132,9 @@ export function usePopupWindowState() {
     openWindow,
     closeAllWindows,
     // Individual window openers for convenience
-    openOnboarding: () => openWindow('onboarding'),
-    openSettings: () => openWindow('settings'),
-    openAbout: () => openWindow('about'),
+    openOnboarding: () => openWindow("onboarding"),
+    openSettings: () => openWindow("settings"),
+    openAbout: () => openWindow("about"),
   };
 }
 

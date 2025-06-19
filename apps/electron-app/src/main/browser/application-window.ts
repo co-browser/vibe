@@ -65,26 +65,26 @@ export class ApplicationWindow extends EventEmitter {
     }
 
     this.onboardingWindow = new OnboardingWindow(this.window);
-    
+
     this.onboardingWindow.on("destroy", () => {
       this.onboardingWindow = null;
     });
 
     // Forward window events to renderer
-    this.onboardingWindow.on("opened", (windowId) => {
+    this.onboardingWindow.on("opened", windowId => {
       if (!this.window.isDestroyed()) {
         this.window.webContents.send("popup-window-opened", {
           type: "onboarding",
-          windowId: windowId
+          windowId: windowId,
         });
       }
     });
 
-    this.onboardingWindow.on("closed", (windowId) => {
+    this.onboardingWindow.on("closed", windowId => {
       if (!this.window.isDestroyed()) {
         this.window.webContents.send("popup-window-closed", {
           type: "onboarding",
-          windowId: windowId
+          windowId: windowId,
         });
       }
     });
@@ -102,26 +102,26 @@ export class ApplicationWindow extends EventEmitter {
     }
 
     this.settingsWindow = new SettingsWindow(this.window);
-    
+
     this.settingsWindow.on("destroy", () => {
       this.settingsWindow = null;
     });
 
     // Forward window events to renderer
-    this.settingsWindow.on("opened", (windowId) => {
+    this.settingsWindow.on("opened", windowId => {
       if (!this.window.isDestroyed()) {
         this.window.webContents.send("popup-window-opened", {
           type: "settings",
-          windowId: windowId
+          windowId: windowId,
         });
       }
     });
 
-    this.settingsWindow.on("closed", (windowId) => {
+    this.settingsWindow.on("closed", windowId => {
       if (!this.window.isDestroyed()) {
         this.window.webContents.send("popup-window-closed", {
           type: "settings",
-          windowId: windowId
+          windowId: windowId,
         });
       }
     });
@@ -139,26 +139,26 @@ export class ApplicationWindow extends EventEmitter {
     }
 
     this.aboutWindow = new AboutWindow(this.window);
-    
+
     this.aboutWindow.on("destroy", () => {
       this.aboutWindow = null;
     });
 
     // Forward window events to renderer
-    this.aboutWindow.on("opened", (windowId) => {
+    this.aboutWindow.on("opened", windowId => {
       if (!this.window.isDestroyed()) {
         this.window.webContents.send("popup-window-opened", {
           type: "about",
-          windowId: windowId
+          windowId: windowId,
         });
       }
     });
 
-    this.aboutWindow.on("closed", (windowId) => {
+    this.aboutWindow.on("closed", windowId => {
       if (!this.window.isDestroyed()) {
         this.window.webContents.send("popup-window-closed", {
           type: "about",
-          windowId: windowId
+          windowId: windowId,
         });
       }
     });

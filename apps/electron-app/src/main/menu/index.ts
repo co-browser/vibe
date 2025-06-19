@@ -18,7 +18,7 @@ import { createHelpMenu } from "@/menu/items/help";
 
 /**
  * Sets up the application menu with browser integration
-*/
+ */
 export function setupApplicationMenu(browser: Browser): () => void {
   const buildMenu = () => {
     const isMac = process.platform === "darwin";

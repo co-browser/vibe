@@ -21,8 +21,10 @@ import {
   childProcessIntegration,
 } from "@sentry/electron/main";
 import AppUpdater from "./services/update-service";
-import { isFirstRun, openOnboardingForFirstRun } from "@/browser/onboarding-window";
-
+import {
+  isFirstRun,
+  openOnboardingForFirstRun,
+} from "@/browser/onboarding-window";
 
 const logger = createLogger("main-process");
 
@@ -72,8 +74,6 @@ app.commandLine.appendSwitch("enable-blink-features", "MojoJS,MojoJSTest");
 if (!process.env.OPENAI_API_KEY) {
   logger.warn("OPENAI_API_KEY not found in environment");
 }
-
-
 
 // Error handling with telemetry integration
 process.on("uncaughtException", error => {
@@ -225,7 +225,7 @@ async function createInitialWindow(): Promise<void> {
   const firstRun = isFirstRun();
   if (firstRun) {
     logger.info("First run detected - will open onboarding window");
-    
+
     // Wait a bit for the main window to be fully ready
     setTimeout(() => {
       openOnboardingForFirstRun(browser);
@@ -376,7 +376,6 @@ async function initializeServices(): Promise<void> {
 
 // Main application initialization
 app.whenReady().then(() => {
-
   app.on("browser-window-created", (_, window) => {
     //PDFWindow.addSupport(window);
     optimizer.watchWindowShortcuts(window);

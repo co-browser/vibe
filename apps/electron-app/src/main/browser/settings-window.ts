@@ -17,9 +17,9 @@ export class SettingsWindow extends EventEmitter {
 
   constructor(parentWindow: BrowserWindow) {
     super();
-    
+
     this.parentWindow = parentWindow;
-    
+
     // Create popup window as child of parent
     this.window = new BrowserWindow(this.getWindowOptions());
     this.id = this.window.id;
@@ -64,17 +64,17 @@ export class SettingsWindow extends EventEmitter {
         contextIsolation: true,
         webSecurity: true,
         allowRunningInsecureContent: false,
-        additionalArguments: ['--window-type=settings']
+        additionalArguments: ["--window-type=settings"],
       },
     };
   }
-private setupEvents(): void {
+  private setupEvents(): void {
     this.window.once("ready-to-show", () => {
       this.window.show();
       this.window.focus();
       // Position relative to parent but don't center exactly
       this.positionRelativeToParent();
-      
+
       // Emit window opened event
       this.emit("opened", this.id);
     });
@@ -102,7 +102,7 @@ private setupEvents(): void {
     });
 
     // Prevent the window from being hidden when parent is minimized
-    this.window.on("minimize", (event) => {
+    this.window.on("minimize", () => {
       // Allow the settings window to minimize independently
       logger.debug("Settings window minimized independently");
     });
@@ -119,15 +119,17 @@ private setupEvents(): void {
 
     try {
       const parentBounds = this.parentWindow.getBounds();
-      const windowBounds = this.window.getBounds();
-      
+
       // Position the settings window offset from the parent
       const x = parentBounds.x + 50;
       const y = parentBounds.y + 50;
-      
+
       this.window.setPosition(x, y);
     } catch (error) {
-      logger.warn("Could not position settings window relative to parent:", error);
+      logger.warn(
+        "Could not position settings window relative to parent:",
+        error,
+      );
       // Fallback to center on screen
       this.window.center();
     }
@@ -138,9 +140,10 @@ private setupEvents(): void {
 
     if (is.dev) {
       // In development, load from Vite dev server with settings route
-      const devUrl = process.env["ELECTRON_RENDERER_URL"] || "http://localhost:5173";
+      const devUrl =
+        process.env["ELECTRON_RENDERER_URL"] || "http://localhost:5173";
       const settingsUrl = `${devUrl}#/settings`;
-      
+
       try {
         await this.window.loadURL(settingsUrl);
         logger.debug("Successfully loaded settings dev URL");
@@ -148,11 +151,11 @@ private setupEvents(): void {
         logger.error("Failed to load settings dev URL:", error);
         // Fallback to file loading
         const htmlPath = join(__dirname, "../renderer/index.html");
-        await this.window.loadFile(htmlPath, { hash: 'settings' });
+        await this.window.loadFile(htmlPath, { hash: "settings" });
       }
     } else {
       const htmlPath = join(__dirname, "../renderer/index.html");
-      await this.window.loadFile(htmlPath, { hash: 'settings' });
+      await this.window.loadFile(htmlPath, { hash: "settings" });
     }
   }
 

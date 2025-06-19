@@ -96,7 +96,9 @@ export class Browser extends EventEmitter {
    * Gets ApplicationWindow by BrowserWindow instance
    * Useful for IPC handlers that receive a BrowserWindow reference
    */
-  public getApplicationWindowFromBrowserWindow(browserWindow: BrowserWindow): ApplicationWindow | null {
+  public getApplicationWindowFromBrowserWindow(
+    browserWindow: BrowserWindow,
+  ): ApplicationWindow | null {
     if (browserWindow.isDestroyed()) {
       return null;
     }
