@@ -22,16 +22,16 @@ async function runAgentTest() {
     
     const conversations = [
       {
-        title: "📝 Ingesting and Analyzing Content",
-        query: "Please ingest the content from https://example.com and then tell me what the website is about."
+        title: "📝 Ingesting Technical Documentation",
+        query: "Please ingest the content from https://docs.github.com/en/get-started/quickstart/hello-world and then tell me what this GitHub tutorial is about."
       },
       {
-        title: "🔍 Searching Knowledge Base", 
-        query: "What information do we have about examples in our knowledge base? Can you find any content related to domain examples?"
+        title: "🏗️ Analyzing Development Workflow", 
+        query: "Based on the ingested documentation, can you explain the GitHub workflow described in the tutorial? What are the key steps and concepts?"
       },
       {
-        title: "❓ Testing Knowledge Recall",
-        query: "Based on what you've learned from the ingested content, what would you say is the main purpose of the example.com website?"
+        title: "🔧 Technical Implementation Concepts",
+        query: "What specific technical concepts and best practices are mentioned in the GitHub tutorial? How do repositories, branches, and pull requests work together?"
       }
     ];
 

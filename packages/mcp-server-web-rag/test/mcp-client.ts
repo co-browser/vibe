@@ -1,5 +1,6 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import type { ExtractedPage } from '@vibe/tab-extraction-core';
 
 interface TestResult {
   success: boolean;
@@ -57,6 +58,32 @@ export class RAGTestClient {
       const result = await this.client.callTool({
         name: 'ingest_url',
         arguments: { url }
+      });
+
+      if (result.isError) {
+        return {
+          success: false,
+          error: typeof result.error === 'string' ? result.error : String(result.error)
+        };
+      }
+
+      return {
+        success: true,
+        data: result.content
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  }
+
+  async ingestExtractedPage(extractedPage: ExtractedPage): Promise<TestResult> {
+    try {
+      const result = await this.client.callTool({
+        name: 'ingest_extracted_page',
+        arguments: { extractedPage }
       });
 
       if (result.isError) {

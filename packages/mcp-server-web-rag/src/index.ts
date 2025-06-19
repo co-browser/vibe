@@ -20,7 +20,7 @@ const server = new StreamableHTTPServer(
 );
 
 const app = express();
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
 const router = express.Router();
 const MCP_ENDPOINT = '/mcp';

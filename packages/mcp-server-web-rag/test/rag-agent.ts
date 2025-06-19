@@ -99,7 +99,32 @@ Always provide helpful and accurate responses based on the information you find.
         }
 
         if (result.success) {
-          const toolOutput = JSON.stringify(result.data, null, 2);
+          // Extract the actual result from MCP response format
+          let toolOutput: string;
+          
+          if (Array.isArray(result.data) && result.data.length > 0 && result.data[0].text) {
+            // Extract the actual result from MCP response text
+            const mcpText = result.data[0].text;
+            const resultMatch = mcpText.match(/Result: (.+)$/);
+            
+            if (resultMatch) {
+              try {
+                // Parse the actual result data
+                const actualResult = JSON.parse(resultMatch[1]);
+                toolOutput = JSON.stringify(actualResult, null, 2);
+              } catch {
+                // If parsing fails, use the matched text as-is
+                toolOutput = resultMatch[1];
+              }
+            } else {
+              // Fallback to the full MCP text
+              toolOutput = mcpText;
+            }
+          } else {
+            // Fallback to original behavior
+            toolOutput = JSON.stringify(result.data, null, 2);
+          }
+          
           console.log(`✅ Tool '${toolName}' result:\n${toolOutput}`);
 
           messages.push({
@@ -123,7 +148,7 @@ Always provide helpful and accurate responses based on the information you find.
         model: 'gpt-4o-mini',
         max_tokens: 1000,
         messages,
-        tools: this.tools.map(this.mcpToolToOpenAITool),
+        // No tools and no tool_choice - just generate a regular response
       });
 
       const followUpChoice = followUpResponse.choices[0];
