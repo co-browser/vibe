@@ -22,6 +22,8 @@ interface MCPServer {
 
 class MCPManager {
   private servers: Map<string, MCPServer> = new Map();
+  private restartAttempts: Map<string, number> = new Map();
+  private readonly maxRestartAttempts = 3;
 
   constructor() {
     this.initialize();
@@ -213,7 +215,17 @@ class MCPManager {
 
       // Attempt restart if not a clean exit
       if (code !== 0 && code !== null) {
-        console.log(`[MCP-${config.name}] Attempting restart after crash`);
+        const attempts = this.restartAttempts.get(config.name) || 0;
+        if (attempts >= this.maxRestartAttempts) {
+          console.error(
+            `[MCP-${config.name}] Max restart attempts (${this.maxRestartAttempts}) reached - stopping restart attempts`,
+          );
+          return;
+        }
+        this.restartAttempts.set(config.name, attempts + 1);
+        console.log(
+          `[MCP-${config.name}] Attempting restart after crash (attempt ${attempts + 1}/${this.maxRestartAttempts})`,
+        );
         setTimeout(() => this.startMCPServer(config), 2000);
       }
     });
@@ -274,6 +286,8 @@ class MCPManager {
             `[MCPManager] Server ${name} health check passed - marking as ready`,
           );
           server.status = "ready";
+          // Reset restart attempts on successful startup
+          this.restartAttempts.delete(name);
           this.notifyServerStatus(name, "ready");
           return;
         }
