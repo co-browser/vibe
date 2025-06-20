@@ -2,7 +2,7 @@
 export * from "./types"; // Export all types
 export * from "./tools/pageExtractor"; // Exports functions like getCurrentPageContent and schemas
 export * from "./utils/formatting"; // Or specific functions
-export * from "./utils/logger";
+// Logger now comes from @vibe/shared-types
 export { EnhancedExtractor } from "./extractors/enhanced.js";
 export { CDPConnector } from "./cdp/connector.js";
 export { ActiveTabTracker, activeTabTracker } from "./cdp/tabTracker.js";

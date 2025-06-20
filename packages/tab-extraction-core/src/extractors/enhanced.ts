@@ -1,4 +1,4 @@
-import { createLogger } from "../utils/logger.js";
+import { createLogger } from "@vibe/shared-types";
 import type { ExtractedPage, PageMetadata } from "../types/index.js";
 import type { CDPConnection } from "../cdp/connector.js";
 import { ReadabilityExtractor } from "./readability.js";

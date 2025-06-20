@@ -1,0 +1,37 @@
+{
+  "name": "@vibe/mcp-gmail",
+  "version": "1.0.0",
+  "description": "Gmail MCP Server - Streamable HTTP version",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev:standalone": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "test": "tsx test/test-runner.ts"
+  },
+  "keywords": [
+    "mcp",
+    "gmail",
+    "email"
+  ],
+  "author": "",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.13.0",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "google-auth-library": "^9.15.1",
+    "googleapis": "^144.0.0",
+    "zod": "^3.24.1",
+    "zod-to-json-schema": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.10.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

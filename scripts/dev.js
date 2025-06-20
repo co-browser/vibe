@@ -7,6 +7,11 @@ const path = require("path");
 // Load environment variables from root .env file
 require("dotenv").config({ path: path.resolve(__dirname, "../.env") });
 
+// Set cleaner log levels for development
+process.env.LOG_LEVEL = process.env.LOG_LEVEL || "info";
+process.env.SENTRY_LOG_LEVEL = "error";
+process.env.ELECTRON_DISABLE_STACK_TRACES = "true";
+
 let turboProcess;
 const childProcesses = [];
 
@@ -19,7 +24,7 @@ function cleanup() {
   console.log("\n🧹 Cleaning up processes...");
 
   // Kill all child processes
-  childProcesses.forEach((proc) => {
+  childProcesses.forEach(proc => {
     if (proc && !proc.killed) {
       try {
         process.kill(-proc.pid, "SIGTERM");
@@ -48,7 +53,7 @@ process.on("SIGTERM", cleanup);
 process.on("exit", cleanup);
 
 // Handle uncaught exceptions
-process.on("uncaughtException", (err) => {
+process.on("uncaughtException", err => {
   console.error("Uncaught exception:", err);
   cleanup();
 });
@@ -61,13 +66,23 @@ async function main() {
   try {
     // Build dependencies first
     console.log("📦 Building required dependencies...\n");
+
+    // Build tab extraction core
     execSync("turbo run build --filter=@vibe/tab-extraction-core", {
       stdio: "inherit",
     });
+
+    // Build MCP packages
+    console.log("📦 Building MCP packages...\n");
+    execSync("turbo run build --filter=@vibe/mcp-*", {
+      stdio: "inherit",
+    });
+
     console.log("✅ Dependencies built successfully\n");
 
     // Check if OPENAI_API_KEY is available
-    if (!process.env.OPENAI_API_KEY) console.log("⚠️  OPENAI_API_KEY not foun in env\n");
+    if (!process.env.OPENAI_API_KEY)
+      console.log("⚠️  OPENAI_API_KEY not foun in env\n");
 
     turboProcess = spawn("turbo", ["run", "dev"], {
       stdio: "inherit",
@@ -76,12 +91,12 @@ async function main() {
     childProcesses.push(turboProcess);
 
     if (turboProcess) {
-      turboProcess.on("error", (err) => {
+      turboProcess.on("error", err => {
         console.error("Failed to start turbo:", err);
         cleanup();
       });
 
-      turboProcess.on("exit", (code) => {
+      turboProcess.on("exit", code => {
         if (code !== 0 && code !== null) {
           console.error(`Turbo exited with code ${code}`);
         }
@@ -90,7 +105,6 @@ async function main() {
     }
 
     console.log("🎉 All services started! Press Ctrl+C to stop.\n");
-
   } catch (err) {
     console.error("❌ Failed to start development environment:", err.message);
     cleanup();

@@ -12,6 +12,7 @@ import { Browser } from "@/browser/browser";
 import { BrowserWindow } from "electron";
 import { createLogger } from "@vibe/shared-types";
 import type { IAgentProvider } from "@vibe/shared-types";
+import { mainStore } from "@/store/store";
 
 const logger = createLogger("tab-agent");
 
@@ -39,7 +40,7 @@ function getAgentService(): IAgentProvider | null {
 export async function sendTabToAgent(browser: Browser): Promise<void> {
   const focusedWindow = BrowserWindow.getFocusedWindow();
   if (!focusedWindow) {
-    logger.error("No focused window available");
+    logger.debug("No focused window available for tab agent");
     return;
   }
 
@@ -125,7 +126,6 @@ export async function sendTabToAgent(browser: Browser): Promise<void> {
   }
 
   // Add immediate favicon to chat context (loading state)
-  const { mainStore } = await import("../store/store");
   const currentState = mainStore.getState();
 
   // Get favicon from sessionTabs store where it was saved during tab lifecycle
@@ -275,7 +275,6 @@ async function updateTabContextToCompleted(
   isFallback: boolean = false,
 ): Promise<void> {
   try {
-    const { mainStore } = await import("../store/store");
     const currentState = mainStore.getState();
 
     // Find the shared loading entry
@@ -471,7 +470,7 @@ export async function autoSaveTabToMemory(
 ): Promise<void> {
   const focusedWindow = BrowserWindow.getFocusedWindow();
   if (!focusedWindow) {
-    logger.error("No focused window available");
+    logger.debug("No focused window available for auto-save");
     return;
   }
 

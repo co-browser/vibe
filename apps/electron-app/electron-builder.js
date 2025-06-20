@@ -17,6 +17,13 @@ module.exports = {
   asarUnpack: [
     "dist/mac-arm64/vibe.app/Contents/Resources/app.asar.unpacked/node_modules/sqlite3/build/Release/node_sqlite3.node",
   ],
+  extraResources: [
+    {
+      from: "../../packages/mcp-*/dist",
+      to: "mcp-servers",
+      filter: ["**/*"],
+    },
+  ],
   win: {
     executableName: "vibe-desktop",
   },
