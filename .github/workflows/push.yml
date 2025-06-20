@@ -77,7 +77,7 @@ jobs:
     secrets:
       SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
     with:
-      status: ${{ needs.lint-and-typecheck.result }}${{ needs.test.result }}
+      status: ${{ (needs.lint-and-typecheck.result == 'success' && needs.test.result == 'success') && 'success' || 'failure' }}
       actor: ${{ github.actor }}
       repository: ${{ github.repository }}
       branch: "main"
