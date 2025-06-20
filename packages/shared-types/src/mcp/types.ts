@@ -57,8 +57,13 @@ export interface IMCPConnectionManager {
 }
 
 export interface IMCPToolRouter {
-  parseToolName(toolName: string): { serverName: string; originalName: string } | null;
-  findTool(toolName: string, connections: Map<string, MCPConnection>): MCPConnection | null;
+  parseToolName(
+    toolName: string,
+  ): { serverName: string; originalName: string } | null;
+  findTool(
+    toolName: string,
+    connections: Map<string, MCPConnection>,
+  ): MCPConnection | null;
   formatToolName(serverName: string, originalName: string): string;
   getOriginalToolName(toolName: string): string;
   validateToolName(toolName: string): boolean;
@@ -68,7 +73,10 @@ export interface IMCPManager {
   initialize(configs: MCPServerConfig[]): Promise<void>;
   getConnection(serverName: string): MCPConnection | null;
   getAllTools(): Promise<Record<string, MCPTool>>;
-  callTool<T = unknown>(toolName: string, args: Record<string, unknown>): Promise<MCPCallResult<T>>;
+  callTool<T = unknown>(
+    toolName: string,
+    args: Record<string, unknown>,
+  ): Promise<MCPCallResult<T>>;
   getStatus(): Record<string, MCPConnectionStatus>;
   performHealthChecks(): Promise<void>;
   disconnect(): Promise<void>;
@@ -87,4 +95,4 @@ export interface MCPConfigValidator {
   validateServerConfig(config: unknown): config is MCPServerConfig;
   validateToolName(toolName: string): boolean;
   validateToolArgs(args: unknown): boolean;
-} 
+}

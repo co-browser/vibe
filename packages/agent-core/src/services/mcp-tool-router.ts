@@ -1,6 +1,6 @@
 /**
  * MCP Tool Router - Handles tool name parsing and routing
- * 
+ *
  * Focused responsibility: Parse tool names and route calls to correct servers
  */
 
@@ -8,28 +8,33 @@ import {
   createLogger,
   MCPConnection,
   MCPTool,
-  IMCPToolRouter
+  IMCPToolRouter,
 } from "@vibe/shared-types";
 
 const logger = createLogger("McpToolRouter");
 
 export class MCPToolRouter implements IMCPToolRouter {
-  private static readonly TOOL_NAME_SEPARATOR = ':';
+  private static readonly TOOL_NAME_SEPARATOR = ":";
   private static readonly TOOL_NAME_PATTERN = /^[a-z0-9_-]+$/i;
   private static readonly NAMESPACED_PATTERN = /^[a-z0-9_-]+:[a-z0-9_-]+$/i;
 
   // Cache for parsed tool names to improve performance
-  private readonly parseCache = new Map<string, { serverName: string; originalName: string } | null>();
+  private readonly parseCache = new Map<
+    string,
+    { serverName: string; originalName: string } | null
+  >();
 
   /**
    * Parses a tool name to extract server and original tool name
    * Uses caching for performance optimization
-   * 
+   *
    * @param toolName - Tool name in format "server:tool" or just "tool"
    * @returns Parsed components or null if invalid
    */
-  parseToolName(toolName: string): { serverName: string; originalName: string } | null {
-    if (!toolName || typeof toolName !== 'string') {
+  parseToolName(
+    toolName: string,
+  ): { serverName: string; originalName: string } | null {
+    if (!toolName || typeof toolName !== "string") {
       return null;
     }
 
@@ -42,7 +47,9 @@ export class MCPToolRouter implements IMCPToolRouter {
 
     // Handle namespaced tools (preferred format)
     if (toolName.includes(MCPToolRouter.TOOL_NAME_SEPARATOR)) {
-      const separatorIndex = toolName.indexOf(MCPToolRouter.TOOL_NAME_SEPARATOR);
+      const separatorIndex = toolName.indexOf(
+        MCPToolRouter.TOOL_NAME_SEPARATOR,
+      );
       const serverName = toolName.substring(0, separatorIndex).trim();
       const originalName = toolName.substring(separatorIndex + 1).trim();
 
@@ -59,17 +66,23 @@ export class MCPToolRouter implements IMCPToolRouter {
   /**
    * Finds the connection that contains a specific tool
    * Optimized search with early returns
-   * 
+   *
    * @param toolName - Tool name to search for
    * @param connections - Map of server connections
    * @returns Connection containing the tool, or null if not found
    */
-  findTool(toolName: string, connections: Map<string, MCPConnection>): MCPConnection | null {
+  findTool(
+    toolName: string,
+    connections: Map<string, MCPConnection>,
+  ): MCPConnection | null {
     // First try parsing as namespaced tool
     const parsed = this.parseToolName(toolName);
     if (parsed) {
       const connection = connections.get(parsed.serverName);
-      if (connection?.isConnected && this.hasToolInConnection(connection, parsed.originalName)) {
+      if (
+        connection?.isConnected &&
+        this.hasToolInConnection(connection, parsed.originalName)
+      ) {
         return connection;
       }
       return null;
@@ -77,8 +90,13 @@ export class MCPToolRouter implements IMCPToolRouter {
 
     // Legacy fallback: search all connections for tool name
     for (const connection of connections.values()) {
-      if (connection.isConnected && this.hasToolInConnection(connection, toolName)) {
-        logger.debug(`Found tool '${toolName}' in server '${connection.serverName}' (legacy mode)`);
+      if (
+        connection.isConnected &&
+        this.hasToolInConnection(connection, toolName)
+      ) {
+        logger.debug(
+          `Found tool '${toolName}' in server '${connection.serverName}' (legacy mode)`,
+        );
         return connection;
       }
     }
@@ -110,12 +128,14 @@ export class MCPToolRouter implements IMCPToolRouter {
    * Uses precompiled regex patterns for performance
    */
   validateToolName(toolName: string): boolean {
-    if (!toolName || typeof toolName !== 'string') {
+    if (!toolName || typeof toolName !== "string") {
       return false;
     }
 
-    return MCPToolRouter.NAMESPACED_PATTERN.test(toolName) ||
-      MCPToolRouter.TOOL_NAME_PATTERN.test(toolName);
+    return (
+      MCPToolRouter.NAMESPACED_PATTERN.test(toolName) ||
+      MCPToolRouter.TOOL_NAME_PATTERN.test(toolName)
+    );
   }
 
   /**
@@ -141,16 +161,21 @@ export class MCPToolRouter implements IMCPToolRouter {
    * Checks if a connection has a specific tool available
    * Optimized with early returns and null checks
    */
-  private hasToolInConnection(connection: MCPConnection, toolName: string): boolean {
+  private hasToolInConnection(
+    connection: MCPConnection,
+    toolName: string,
+  ): boolean {
     const tools = connection.tools;
-    if (!tools || typeof tools !== 'object') {
+    if (!tools || typeof tools !== "object") {
       return false;
     }
 
     // Check both original tool names and formatted tool names efficiently
     for (const tool of Object.values(tools)) {
-      if (this.isValidTool(tool) &&
-        (tool.originalName === toolName || tool.name === toolName)) {
+      if (
+        this.isValidTool(tool) &&
+        (tool.originalName === toolName || tool.name === toolName)
+      ) {
         return true;
       }
     }
@@ -162,9 +187,11 @@ export class MCPToolRouter implements IMCPToolRouter {
    * Type guard to ensure tool object is valid
    */
   private isValidTool(tool: unknown): tool is MCPTool {
-    return typeof tool === 'object' &&
+    return (
+      typeof tool === "object" &&
       tool !== null &&
-      'originalName' in tool &&
-      'name' in tool;
+      "originalName" in tool &&
+      "name" in tool
+    );
   }
-} 
+}

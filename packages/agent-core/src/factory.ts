@@ -31,12 +31,16 @@ export class AgentFactory {
           logger.error("MCP manager initialization failed:", error);
         });
 
-        logger.debug(`Agent created with ${serverConfigs.length} MCP servers: ${serverConfigs.map(s => s.name).join(', ')}`);
+        logger.debug(
+          `Agent created with ${serverConfigs.length} MCP servers: ${serverConfigs.map(s => s.name).join(", ")}`,
+        );
       } else {
         logger.warn("No MCP server configurations available");
       }
     } else {
-      logger.warn("Process environment not available, skipping MCP initialization");
+      logger.warn(
+        "Process environment not available, skipping MCP initialization",
+      );
     }
 
     // Wire up manager dependencies with multi-MCP support
