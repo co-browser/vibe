@@ -90,13 +90,9 @@ export const GLASSMORPHISM_CONFIG = {
 } as const;
 
 /**
- * Memory + RAG configuration for MCP server integration
+ * Memory + RAG configuration - removed legacy single-server approach
+ * Now handled by multi-server MCP configuration in factory.ts
  */
-import { getMCPServerUrl } from "../mcp/index.js";
-
-export function getRAGServerURL(): string {
-  return getMCPServerUrl("rag", "/mcp") || "http://localhost:3000/mcp";
-}
 
 /**
  * Gmail OAuth configuration
