@@ -1,5 +1,5 @@
 /**
- * MCP Manager - Lean orchestrator for multiple MCP connections
+ * MCP Manager - Orchestrator for multiple MCP connections
  */
 
 import {
