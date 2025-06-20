@@ -1,6 +1,6 @@
 import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert';
-import { exportAllWorkspaces } from './fileExporter.js';
+import { exportAllWorkspaces } from './fileExporter.ts';
 import { promises as fs } from 'fs';
 
 interface WrittenFiles {

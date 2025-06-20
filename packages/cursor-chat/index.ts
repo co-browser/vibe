@@ -30,14 +30,7 @@ interface ChatTab {
   bubbles?: Bubble[];
 }
 
-interface ChatData {
-  tabs: Array<{
-    id: string;
-    title: string;
-    timestamp: string;
-    bubbles?: Bubble[];
-  }>;
-}
+
 
 interface ComposerMessage {
   type: number;
@@ -55,9 +48,7 @@ interface Composer {
   conversation?: ComposerMessage[];
 }
 
-interface ComposerData {
-  allComposers: Composer[];
-}
+
 
 interface WorkspaceDetail {
   tabs: Array<{
@@ -78,9 +69,9 @@ interface AllChatData {
 
 async function exportAllChatHistory(): Promise<AllChatData[]> {
   try {
-    let workspaces = await getAllWorkspaces();
+    const workspaces = await getAllWorkspaces();
 
-    let filterdWorkspaces = DEBUG ? workspaces
+    const filterdWorkspaces = DEBUG ? workspaces
       .filter((w) => {
         if (w && w.folder) {
           return w.folder.endsWith('cursor-export')
@@ -176,7 +167,7 @@ async function getAllWorkspaces(): Promise<WorkspaceInfo[]> {
           try {
             const workspaceData = JSON.parse(await fs.readFile(workspaceJsonPath, 'utf-8'));
             folder = workspaceData.folder;
-          } catch (error) {
+          } catch {
             console.log(`No workspace.json found for ${entry.name}`);
           }
 
@@ -202,7 +193,7 @@ async function getAllWorkspaces(): Promise<WorkspaceInfo[]> {
   }
 }
 
-async function getWorkspaceDetail(workspaceId: string, workspaceFolder?: string): Promise<WorkspaceDetail> {
+async function getWorkspaceDetail(workspaceId: string, _workspaceFolder?: string): Promise<WorkspaceDetail> {
   try {
     const workspacePath = process.env.WORKSPACE_PATH || '/Users/rpm/Library/Application Support/Cursor/User/workspaceStorage';
     const dbPath = path.join(workspacePath, workspaceId, 'state.vscdb');

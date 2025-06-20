@@ -1,6 +1,6 @@
 import { marked } from 'marked';
 import fs from 'fs/promises';
-import { formatDateTime } from './formatters.js';
+import { formatDateTime } from './formatters.ts';
 
 interface WorkspaceInfo {
   id: string;

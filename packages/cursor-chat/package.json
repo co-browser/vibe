@@ -1,27 +1,16 @@
 {
-  "name": "cursor-export",
-  "version": "1.0.6",
-  "description": "Export Cursor chat and composer history",
+  "name": "cursor-chat",
+  "version": "0.0.1",
+  "description": "export cursor chat",
   "main": "index.ts",
-  "bin": {
-    "cursor-export": "cli.ts"
-  },
   "files": [
     "index.ts",
-    "cli.ts",
-    "exportFiles"
+    "exportfiles"
   ],
   "scripts": {
     "deploy": "npm publish",
     "test": "node --test"
   },
-  "keywords": [
-    "cursor",
-    "chat",
-    "export"
-  ],
-  "author": "jcwsw129@gmail.com",
-  "license": "MIT",
   "dependencies": {
     "github-markdown-css": "^5.5.0",
     "marked": "^12.0.2",

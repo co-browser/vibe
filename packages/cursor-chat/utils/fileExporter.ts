@@ -1,7 +1,7 @@
 import fs from 'fs/promises';
 import path from 'path';
-import { convertToMarkdown, convertToHtml } from './converters.js';
-import { getSafeFilename } from './formatters.js';
+import { convertToMarkdown, convertToHtml } from './converters.ts';
+import { getSafeFilename } from './formatters.ts';
 
 interface WorkspaceInfo {
   id: string;
