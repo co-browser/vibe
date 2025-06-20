@@ -46,6 +46,13 @@ module.exports = {
       },
     ],
   },
+  extraResources: [
+    {
+      from: "../../packages/mcp-*/dist",
+      to: "mcp-servers",
+      filter: ["**/*"],
+    },
+  ],
   win: {
     executableName: "vibe-desktop",
   },

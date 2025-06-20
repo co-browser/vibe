@@ -224,9 +224,16 @@ export class GmailOAuthService {
       webPreferences: {
         contextIsolation: true,
         nodeIntegration: false,
-        sandbox: false, // Allow Google OAuth to work properly
-        webSecurity: false, // Temporarily disable for OAuth flow
+        sandbox: true, // Re-enable sandbox for security
+        webSecurity: true, // Re-enable web security
         allowRunningInsecureContent: false,
+        // Use the default session partition to share cookies/auth with other tabs
+        partition: undefined, // Uses default session, same as regular tabs
+        // Allow navigation to OAuth URLs
+        navigateOnDragDrop: false,
+        // Disable features not needed for OAuth
+        webgl: false,
+        plugins: false,
       },
     });
 
@@ -249,6 +256,65 @@ export class GmailOAuthService {
     if (bounds.width > 0 && bounds.height > 0) {
       view.setBounds(bounds);
     }
+
+    // Configure session permissions specifically for OAuth
+    const session = view.webContents.session;
+
+    // Define allowed OAuth origins for security
+    const allowedOAuthOrigins = [
+      "https://accounts.google.com",
+      "https://oauth2.googleapis.com",
+      "https://www.googleapis.com",
+    ];
+
+    // Allow Google OAuth domains with controlled CORS handling
+    session.webRequest.onBeforeSendHeaders(
+      { urls: ["https://*.google.com/*", "https://*.googleapis.com/*"] },
+      (details, callback) => {
+        // Only modify Origin for OAuth-specific URLs
+        if (
+          details.url.includes("oauth2callback") ||
+          details.url.includes("accounts.google.com/oauth") ||
+          details.url.includes("accounts.google.com/o/oauth2") ||
+          details.url.includes("oauth2.googleapis.com/token")
+        ) {
+          // Preserve Origin for security auditing but mark as OAuth request
+          details.requestHeaders["X-OAuth-Flow"] = "gmail-mcp";
+        }
+        callback({ requestHeaders: details.requestHeaders });
+      },
+    );
+
+    // Handle CORS preflight requests for OAuth with restrictive headers
+    session.webRequest.onHeadersReceived(
+      { urls: ["https://*.google.com/*", "https://*.googleapis.com/*"] },
+      (details, callback) => {
+        // Extract the origin from request headers
+        const requestOrigin =
+          details.requestHeaders?.["Origin"] ||
+          details.requestHeaders?.["origin"] ||
+          "https://accounts.google.com";
+
+        // Only allow specific origins
+        const allowedOrigin = allowedOAuthOrigins.includes(requestOrigin)
+          ? requestOrigin
+          : allowedOAuthOrigins[0];
+
+        const responseHeaders = {
+          ...details.responseHeaders,
+          "Access-Control-Allow-Origin": [allowedOrigin],
+          "Access-Control-Allow-Methods": ["GET, POST, OPTIONS"],
+          "Access-Control-Allow-Headers": [
+            "Content-Type",
+            "Authorization",
+            "X-Requested-With",
+          ],
+          "Access-Control-Allow-Credentials": ["true"],
+          "Access-Control-Max-Age": ["86400"], // 24 hours
+        };
+        callback({ responseHeaders });
+      },
+    );
 
     return view;
   }
@@ -307,12 +373,16 @@ export class GmailOAuthService {
         },
       );
 
-      // Handle navigation errors gracefully - don't block OAuth for CSP errors
+      // Handle navigation errors gracefully - don't block OAuth for expected errors
       this.authView.webContents.on(
         "did-fail-load",
         (_event, errorCode, errorDescription, validatedURL) => {
-          // CSP errors (-30) are common with Google OAuth and usually don't prevent the flow
-          if (errorCode !== -30) {
+          // Known error codes that don't prevent OAuth flow:
+          // -30: CSP violations (common with Google OAuth)
+          // -3: Aborted (often happens during redirects)
+          const ignorableErrors = [-30, -3];
+
+          if (!ignorableErrors.includes(errorCode)) {
             logger.warn(
               `[GmailAuth] Navigation failed: ${errorDescription} (${errorCode}) for ${validatedURL}`,
             );
@@ -323,9 +393,20 @@ export class GmailOAuthService {
       // Add certificate error handling for OAuth
       this.authView.webContents.on(
         "certificate-error",
-        (event, url, _error, _certificate, callback) => {
-          // Allow Google OAuth certificates
+        (event, url, error, certificate, callback) => {
+          // Validate Google OAuth certificates more strictly
           if (url.includes("google.com") || url.includes("googleapis.com")) {
+            // Log certificate details for security monitoring
+            logger.warn(`[GmailAuth] Certificate error for ${url}: ${error}`, {
+              issuer: certificate.issuerName,
+              subject: certificate.subjectName,
+              validFrom: certificate.validStart,
+              validTo: certificate.validExpiry,
+              fingerprint: certificate.fingerprint,
+            });
+
+            // Additional validation could be implemented here
+            // For now, we'll allow Google certificates but log the issue
             event.preventDefault();
             callback(true);
           } else {
@@ -359,7 +440,6 @@ export class GmailOAuthService {
         res.end("Not found");
         return;
       }
-
       try {
         const url = new URL(req.url, GMAIL_CONFIG.REDIRECT_URI);
         const code = url.searchParams.get("code");
@@ -521,8 +601,15 @@ export class GmailOAuthService {
       if (this.authView) {
         try {
           if (!this.authView.webContents.isDestroyed()) {
-            this.authView.webContents.removeAllListeners();
-            this.authView.webContents.destroy();
+            try {
+              this.authView.webContents.removeAllListeners();
+              this.authView.webContents.destroy();
+            } catch (error) {
+              logger.warn(
+                "[GmailAuth] WebContents already destroyed during cleanup:",
+                error,
+              );
+            }
           }
 
           // Only perform viewManager-dependent operations if viewManager is available

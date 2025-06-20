@@ -39,6 +39,9 @@ import "@/ipc/browser/windows";
 import "@/ipc/browser/navigation";
 import "@/ipc/browser/content";
 
+// MCP APIs - direct imports (register themselves)
+import "@/ipc/mcp/mcp-status";
+
 /**
  * Registers all IPC handlers
  */
