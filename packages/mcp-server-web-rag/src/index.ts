@@ -73,7 +73,7 @@ app.listen(PORT, () => {
   log.success(`Press Ctrl+C to stop the server`);
 });
 
-process.on('SIGINT', async () => {
+async function shutdown() {
   log.info('Shutting down server...');
   try {
     await server.close();
@@ -82,15 +82,7 @@ process.on('SIGINT', async () => {
     log.error('Error during server shutdown:', error);
   }
   process.exit(0);
-});
+}
 
-process.on('SIGTERM', async () => {
-  log.info('Shutting down server...');
-  try {
-    await server.close();
-    log.success('Server shutdown completed successfully');
-  } catch (error) {
-    log.error('Error during server shutdown:', error);
-  }
-  process.exit(0);
-}); 
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown); 
