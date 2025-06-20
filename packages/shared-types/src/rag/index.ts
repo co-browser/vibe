@@ -40,18 +40,18 @@ export interface EnhancedRAGChunk extends RAGChunk {
 export interface RAGIngestionResult {
   url: string;
   title: string;
-  n_chunks: number;
-  processing_time_ms: number;
-  chunk_types: Record<string, number>;
-  doc_id?: string;
+  nChunks: number;
+  processingTimeMs: number;
+  chunkTypes: Record<string, number>;
+  docId?: string;
 }
 
 // RAG Query Result
 export interface RAGQueryResult {
   chunks: RAGChunk[];
   query: string;
-  total_results: number;
-  search_time_ms?: number;
+  totalResults: number;
+  searchTimeMs?: number;
 }
 
 // RAG Tool Response
