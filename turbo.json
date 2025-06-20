@@ -10,7 +10,13 @@
     "dev": {
       "cache": false,
       "persistent": true,
-      "env": ["GITHUB_TOKEN", "OPENAI_API_KEY", "PORT", "LOG_LEVEL", "MCP_SERVER_PORT"],
+      "env": [
+        "GITHUB_TOKEN",
+        "OPENAI_API_KEY",
+        "PORT",
+        "LOG_LEVEL",
+        "MCP_SERVER_PORT"
+      ],
       "interruptible": true
     },
     "format": {

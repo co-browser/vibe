@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createLogger } from "../utils/logger.js";
+import { createLogger } from "@vibe/shared-types";
 import { CDPConnector } from "../cdp/connector.js";
 import { activeTabTracker } from "../cdp/tabTracker.js";
 import { EnhancedExtractor } from "../extractors/enhanced.js";

@@ -1,6 +1,7 @@
 {
   "name": "@vibe/agent-core",
   "version": "0.1.0",
+  "type": "module",
   "description": "Vibe AI agent core functionality for CoBrowser",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -24,7 +25,7 @@
   },
   "exports": {
     ".": {
-      "import": "./dist/index.js",  
+      "import": "./dist/index.js",
       "require": "./dist/index.js",
       "types": "./dist/index.d.ts"
     }

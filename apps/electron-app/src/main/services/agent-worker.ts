@@ -105,13 +105,15 @@ export class AgentWorker extends EventEmitter {
         throw new Error(`Invalid message type: ${type}`);
       }
 
-      // Add debugging for message structure
-      console.log(
-        "[AgentWorker] Sending message to worker:",
-        type,
-        "ID:",
-        messageId,
-      );
+      // Add debugging for message structure (only for non-ping messages)
+      if (type !== "ping" || process.env.LOG_LEVEL === "debug") {
+        console.log(
+          "[AgentWorker] Sending message to worker:",
+          type,
+          "ID:",
+          messageId,
+        );
+      }
 
       this.workerProcess!.postMessage(message);
     });
@@ -185,7 +187,9 @@ export class AgentWorker extends EventEmitter {
       }
     }, this.healthCheckIntervalMs);
 
-    console.log("[AgentWorker] Health monitoring started");
+    if (process.env.LOG_LEVEL === "debug") {
+      console.log("[AgentWorker] Health monitoring started");
+    }
   }
 
   /**
@@ -211,9 +215,11 @@ export class AgentWorker extends EventEmitter {
       throw new Error(`Worker process file not found: ${workerPath}`);
     }
 
-    console.log("[AgentWorker] Creating utility process:", workerPath);
-    console.log("[AgentWorker] Current __dirname:", __dirname);
-    console.log("[AgentWorker] Resolved worker path:", workerPath);
+    if (process.env.LOG_LEVEL === "debug") {
+      console.log("[AgentWorker] Creating utility process:", workerPath);
+      console.log("[AgentWorker] Current __dirname:", __dirname);
+      console.log("[AgentWorker] Resolved worker path:", workerPath);
+    }
 
     // Create utility process using Electron's utilityProcess.fork()
     this.workerProcess = utilityProcess.fork(workerPath, [], {
@@ -221,6 +227,7 @@ export class AgentWorker extends EventEmitter {
       serviceName: "agent-worker",
       env: {
         NODE_ENV: process.env.NODE_ENV || "development",
+        LOG_LEVEL: process.env.LOG_LEVEL,
         OPENAI_API_KEY: process.env.OPENAI_API_KEY,
       },
     });
@@ -228,7 +235,15 @@ export class AgentWorker extends EventEmitter {
     // Capture stdout and stderr to see actual errors from utility process
     if (this.workerProcess.stdout) {
       this.workerProcess.stdout.on("data", data => {
-        console.log("[AgentWorker] Worker stdout:", data.toString());
+        const output = data.toString();
+        // Only log important messages or in debug mode
+        if (
+          output.includes("ERROR") ||
+          output.includes("WARN") ||
+          process.env.LOG_LEVEL === "debug"
+        ) {
+          console.log("[AgentWorker] Worker stdout:", output);
+        }
       });
     }
 
@@ -275,7 +290,10 @@ export class AgentWorker extends EventEmitter {
    * Handle messages from worker process
    */
   private handleWorkerMessage(message: any): void {
-    console.log("[AgentWorker] Received message from worker:", message.type);
+    // Only log non-ping messages unless debug mode
+    if (message.type !== "response" || process.env.LOG_LEVEL === "debug") {
+      console.log("[AgentWorker] Received message from worker:", message.type);
+    }
 
     // Handle different message types
     if (message.type === "response" && message.id) {
@@ -296,7 +314,9 @@ export class AgentWorker extends EventEmitter {
       this.emit("stream", message.id, message.data);
     } else if (message.type === "ready") {
       // Ready signal - enhanced detection for health monitoring
-      console.log("[AgentWorker] Worker ready signal received");
+      if (process.env.LOG_LEVEL === "debug") {
+        console.log("[AgentWorker] Worker ready signal received");
+      }
       this.lastHealthCheck = Date.now();
 
       if (!this.isConnected) {
@@ -307,8 +327,10 @@ export class AgentWorker extends EventEmitter {
         });
       }
     } else if (message.type === "pong") {
-      // Health check response - no specific action needed, just logging
-      console.log("[AgentWorker] Health check pong received");
+      // Health check response - no logging needed unless debug
+      if (process.env.LOG_LEVEL === "debug") {
+        console.log("[AgentWorker] Health check pong received");
+      }
     } else {
       console.warn(
         "[AgentWorker] Unknown message type from worker:",

@@ -9,6 +9,7 @@ import { WebContentsView } from "electron";
 import { EventEmitter } from "events";
 import type { CDPManager } from "../services/cdp-service";
 import { fetchFaviconAsDataUrl } from "@/utils/favicon";
+import { autoSaveTabToMemory } from "@/utils/tab-agent";
 
 const logger = createLogger("TabManager");
 
@@ -55,6 +56,21 @@ export class TabManager extends EventEmitter {
 
     // Add rounded corners for glassmorphism design
     view.setBorderRadius(GLASSMORPHISM_CONFIG.BORDER_RADIUS);
+
+    // Suppress common DevTools console errors (Autofill, etc.)
+    view.webContents.on(
+      "console-message",
+      (_event, _level, message, _line, _sourceId) => {
+        // Suppress Autofill-related DevTools errors which are harmless
+        if (
+          message.includes("Autofill.enable") ||
+          message.includes("Autofill.setAddresses")
+        ) {
+          return; // Don't log these
+        }
+        // Let other console messages through normally
+      },
+    );
 
     // Optional CDP integration
     if (this.cdpManager) {
@@ -598,9 +614,12 @@ export class TabManager extends EventEmitter {
 
     // Log periodically to avoid spam
     if (this.maintenanceCounter % TAB_CONFIG.MAINTENANCE_LOG_INTERVAL === 0) {
-      logger.info(
-        `Tab maintenance: ${totalTabs} total, ${sleepingTabs} sleeping`,
-      );
+      // Only log tab maintenance in debug mode
+      if (process.env.LOG_LEVEL === "debug") {
+        logger.info(
+          `Tab maintenance: ${totalTabs} total, ${sleepingTabs} sleeping`,
+        );
+      }
     }
 
     for (const [tabKey, tab] of this.tabs) {
@@ -932,11 +951,8 @@ export class TabManager extends EventEmitter {
       `Starting async save (${this.activeSaves.size}/${this.maxConcurrentSaves}): ${title}`,
     );
 
-    // Import and start save - completely non-blocking
-    import("@/utils/tab-agent")
-      .then(({ autoSaveTabToMemory }) =>
-        autoSaveTabToMemory(tabKey, this._browser),
-      )
+    // Start save - completely non-blocking
+    autoSaveTabToMemory(tabKey, this._browser)
       .then(() => {
         // Mark URL as saved to prevent duplicates
         this.savedUrls.add(url);

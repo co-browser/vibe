@@ -265,7 +265,10 @@ class MessageHandlers {
   }
 
   static async handlePing(message: BaseMessage): Promise<void> {
-    console.log("[AgentWorker] Health check ping received");
+    // Only log in debug mode to reduce noise
+    if (process.env.LOG_LEVEL === "debug") {
+      console.log("[AgentWorker] Health check ping received");
+    }
 
     IPCMessenger.sendResponse(message.id, {
       type: "pong",
@@ -306,7 +309,10 @@ async function handleMessageWithErrorHandling(
     return;
   }
 
-  console.log("[AgentWorker] Processing message:", message.type);
+  // Only log non-ping messages unless debug mode
+  if (message.type !== "ping" || process.env.LOG_LEVEL === "debug") {
+    console.log("[AgentWorker] Processing message:", message.type);
+  }
 
   try {
     switch (message.type) {
