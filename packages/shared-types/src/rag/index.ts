@@ -55,9 +55,9 @@ export interface RAGQueryResult {
 }
 
 // RAG Tool Response
-export interface RAGToolResponse {
+export interface RAGToolResponse<T = unknown> {
   success: boolean;
-  data?: any;
+  data?: T;
   error?: string;
 }
 
