@@ -2,12 +2,12 @@
   "name": "rag-web-mcp",
   "version": "1.0.0",
   "description": "RAG pipeline exposed as an MCP server via llama-index tools",
-  "main": "dist/server.js",
+  "main": "dist/index.js",
   "type": "module",
   "scripts": {
     "build": "tsc",
-    "start": "node dist/server.js",
-    "dev": "tsx watch src/server.ts",
+    "start": "node dist/index.js",
+    "dev": "tsx watch src/index.ts",
     "clean": "rm -rf dist",
     "test": "tsx test/test-runner.ts",
     "test:agent": "tsx test/test-agent.ts"

@@ -10,8 +10,7 @@ import type {
   LoggingMessageNotification,
   Notification,
 } from '@modelcontextprotocol/sdk/types.js';
-import express, { type Request, type Response } from 'express';
-import { Server as HTTPServer } from 'http';
+import type { Request, Response } from 'express';
 import { randomUUID } from 'node:crypto';
 import { logger } from './helpers/logs.js';
 import { RAGTools } from './tools.js';
@@ -22,7 +21,6 @@ const JSON_RPC_ERROR = -32603;
 
 export class StreamableHTTPServer {
   server: Server;
-  private httpServer: HTTPServer | null = null;
 
   constructor(server: Server) {
     this.server = server;
@@ -31,30 +29,8 @@ export class StreamableHTTPServer {
 
   async close() {
     log.info('Shutting down server...');
-    if (this.httpServer) {
-      this.httpServer.close();
-    }
     await this.server.close();
     log.info('Server shutdown complete.');
-  }
-
-  startHTTPServer(port: number = 3000) {
-    const app = express();
-    app.use(express.json({ limit: '1mb' }));
-
-    app.post('/mcp', (req, res) => this.handlePostRequest(req, res));
-    
-    app.all('*', (req, res) => {
-      res.status(404).json(this.createRPCErrorResponse('Endpoint not found. Use POST /mcp'));
-      log.info(`Responded to ${req.method} ${req.path} with 404 Not Found`);
-    });
-
-    this.httpServer = app.listen(port, () => {
-      log.success(`RAG MCP server listening on port ${port}`);
-      log.info(`Server URL: http://localhost:${port}/mcp`);
-    });
-
-    return this.httpServer;
   }
 
   async handleGetRequest(req: Request, res: Response) {
@@ -180,45 +156,4 @@ export class StreamableHTTPServer {
       id: randomUUID(),
     };
   }
-}
-
-async function startServer() {
-  log.info('Starting RAG MCP server...');
-
-  const server = new Server({
-    name: 'rag-web-mcp',
-    version: '1.0.0',
-  }, {
-    capabilities: {
-      tools: {},
-    },
-  });
-
-  const streamableServer = new StreamableHTTPServer(server);
-  
-  const port = parseInt(process.env.PORT || '3000', 10);
-  streamableServer.startHTTPServer(port);
-
-  log.info('RAG MCP server ready – tools available for use');
-  log.info('Available tools:');
-  log.info('- ingest_url: Crawl and ingest a webpage into the knowledge base');
-  log.info('- ingest_extracted_page: Ingest an extracted page into the knowledge base');
-  log.info('- query_kb: Search the knowledge base with hybrid search');
-
-  process.on('SIGINT', async () => {
-    log.info('\nShutting down RAG MCP server...');
-    await streamableServer.close();
-    process.exit(0);
-  });
-
-  process.on('SIGTERM', async () => {
-    log.info('\nShutting down RAG MCP server...');
-    await streamableServer.close();
-    process.exit(0);
-  });
-}
-
-startServer().catch(error => {
-  log.error('Failed to start server:', error);
-  process.exit(1);
-}); 
+} 
