@@ -3,6 +3,9 @@ name: Release
 on:
   push:
     branches: [main]
+  pull_request:
+    types: [closed]
+    branches: [main]
 
 permissions:
   contents: write
@@ -23,15 +26,16 @@ jobs:
     uses: ./.github/workflows/ci.yml
     secrets: inherit
 
-  # Determine if a release should be made
-  version-check:
-    name: Version Check
+  # Create release PR when commits are pushed to main
+  create-release-pr:
+    name: Create Release PR
     runs-on: ubuntu-latest
     needs: validate
+    if: github.event_name == 'push' && !contains(github.event.head_commit.message, '[skip ci]')
     outputs:
-      new_release_published: ${{ steps.semantic-release.outputs.new_release_published }}
-      new_release_version: ${{ steps.semantic-release.outputs.new_release_version }}
-      new_release_git_tag: ${{ steps.semantic-release.outputs.new_release_git_tag }}
+      should_release: ${{ steps.semantic-release-dry-run.outputs.new_release_published }}
+      version: ${{ steps.semantic-release-dry-run.outputs.new_release_version }}
+      notes: ${{ steps.semantic-release-dry-run.outputs.new_release_notes }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -53,76 +57,79 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Semantic Release (Dry Run)
-        id: semantic-release
+      - name: Semantic Release Dry Run
+        id: semantic-release-dry-run
         uses: cycjimmy/semantic-release-action@v4
         with:
           semantic_version: 24
           dry_run: true
-          extra_plugins: |
-            conventional-changelog-conventionalcommits@8
-            semantic-release-export-data@1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # Build the application with determined version
-  build:
-    name: Build Application
-    runs-on: macos-latest
-    needs: version-check
-    if: needs.version-check.outputs.new_release_published == 'true'
-    env:
-      RELEASE_VERSION: ${{ needs.version-check.outputs.new_release_version }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9.1.4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: "pnpm"
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: build, sign, notarize, staple DMG
-        env:
-          VIBE_VERSION: ${{ env.RELEASE_VERSION }}
-          #the password for cert.p12
-          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-          #csc_link is    CSC_LINK=$(openssl base64 -in cert.p12
-          CSC_LINK: ${{ secrets.CSC_LINK }}
-          #dev email
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          #mandatory app password, not reg password
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          #apple dev team id
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      - name: Create Release Branch and PR
+        if: steps.semantic-release-dry-run.outputs.new_release_published == 'true'
         run: |
-          echo "Building version: $VIBE_VERSION"
-          pnpm run build:mac
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: vibe-desktop-${{ env.RELEASE_VERSION }}
-          path: |
-            apps/electron-app/dist/vibe-*.dmg
-          retention-days: 30
+          # Configure git
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
 
-  # Create the actual release with artifacts
-  release:
-    name: Create Release
+          # Create and switch to release branch
+          RELEASE_BRANCH="release/v${{ steps.semantic-release-dry-run.outputs.new_release_version }}"
+          git checkout -b "$RELEASE_BRANCH"
+
+          # Run semantic release to generate files (without pushing)
+          npx semantic-release --dry-run --no-ci || true
+
+          # Generate changelog and version file manually
+          echo "${{ steps.semantic-release-dry-run.outputs.new_release_version }}" > VERSION
+
+          # Update CHANGELOG.md (this will be done by semantic-release when PR is merged)
+          # For now, we'll add a placeholder entry
+          if [ -f CHANGELOG.md ]; then
+            sed -i '1i\# Changelog\n\n## [v${{ steps.semantic-release-dry-run.outputs.new_release_version }}](https://github.com/${{ github.repository }}/compare/v$(cat VERSION)...v${{ steps.semantic-release-dry-run.outputs.new_release_version }}) ($(date +%Y-%m-%d))\n\n${{ steps.semantic-release-dry-run.outputs.new_release_notes }}\n' CHANGELOG.md
+          else
+            echo -e "# Changelog\n\n## [v${{ steps.semantic-release-dry-run.outputs.new_release_version }}] ($(date +%Y-%m-%d))\n\n${{ steps.semantic-release-dry-run.outputs.new_release_notes }}" > CHANGELOG.md
+          fi
+
+          # Commit changes
+          git add VERSION CHANGELOG.md
+          git commit -m "chore(release): ${{ steps.semantic-release-dry-run.outputs.new_release_version }} [skip ci]"
+
+          # Push branch
+          git push origin "$RELEASE_BRANCH"
+
+          # Create PR using GitHub CLI
+          gh pr create \
+            --base main \
+            --head "$RELEASE_BRANCH" \
+            --title "chore(release): v${{ steps.semantic-release-dry-run.outputs.new_release_version }}" \
+            --body "$(cat <<'EOF'
+          ## Release v${{ steps.semantic-release-dry-run.outputs.new_release_version }}
+
+          This PR contains the release changes for version ${{ steps.semantic-release-dry-run.outputs.new_release_version }}.
+
+          ### Release Notes
+          ${{ steps.semantic-release-dry-run.outputs.new_release_notes }}
+
+          ### Files Changed
+          - VERSION: Updated to ${{ steps.semantic-release-dry-run.outputs.new_release_version }}
+          - CHANGELOG.md: Added release notes
+
+          **Please review and merge this PR to publish the release.**
+
+          🤖 This PR was automatically created by the release workflow.
+          EOF
+          )" \
+            --reviewer michiosw
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Publish the release after PR is merged
+  publish-release:
+    name: Publish Release
     runs-on: ubuntu-latest
     needs: validate
+    if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'release/')
     outputs:
       released: ${{ steps.semantic-release.outputs.new_release_published }}
       version: ${{ steps.semantic-release.outputs.new_release_version }}
@@ -160,8 +167,8 @@ jobs:
   notify:
     name: Discord Notification
     runs-on: ubuntu-latest
-    needs: release
-    if: needs.release.outputs.released == 'true'
+    needs: publish-release
+    if: needs.publish-release.outputs.released == 'true'
     steps:
       - name: Send Discord Notification
         uses: Ilshidur/action-discord@master
@@ -169,9 +176,9 @@ jobs:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
         with:
           args: |
-            🚀 **New Release: v${{ needs.release.outputs.version }}**
+            🚀 **New Release: v${{ needs.publish-release.outputs.version }}**
 
             Repository: **${{ github.repository }}**
-            Release Notes: ${{ github.server_url }}/${{ github.repository }}/releases/tag/v${{ needs.release.outputs.version }}
+            Release Notes: ${{ github.server_url }}/${{ github.repository }}/releases/tag/v${{ needs.publish-release.outputs.version }}
 
-            ${{ needs.release.outputs.notes }}
+            ${{ needs.publish-release.outputs.notes }}
