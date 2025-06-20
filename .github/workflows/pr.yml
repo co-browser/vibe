@@ -1,25 +1,11 @@
-name: CI
-
-on:
-  pull_request:
-    branches: [main]
-  push:
-    branches: [main]
-  workflow_call:
-
-permissions:
-  contents: read
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+on: pull_request
+name: pull_request
 
 jobs:
   lint-and-typecheck:
-    name: Lint & Type Check
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -32,8 +18,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'pnpm'
+          node-version: "20"
+          cache: "pnpm"
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -51,10 +37,12 @@ jobs:
         run: pnpm format:check
 
   test:
-    name: Test
+    needs: lint-and-typecheck
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
     steps:
-      - name: Checkout
+      - name: checkout code
         uses: actions/checkout@v4
 
       - name: Install pnpm
@@ -65,8 +53,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'pnpm'
+          node-version: "20"
+          cache: "pnpm"
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -78,33 +66,17 @@ jobs:
         run: pnpm test
         continue-on-error: true # Allow to continue since tests may not be set up yet
 
-  build:
-    name: Build
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9.1.4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'pnpm'
-
-      - name: Setup Python (for MCP server)
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build packages
-        run: pnpm build
-        continue-on-error: true
-
+  slack-notifications:
+    if: always()
+    uses: ./.github/workflows/slack-notifications.yml
+    needs:
+      - test
+      - lint-and-typecheck
+    secrets:
+      SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+    with:
+      status: ${{ (needs.lint-and-typecheck.result == 'success' && needs.test.result == 'success') && 'success' || 'failure' }}
+      actor: ${{ github.actor }}
+      repository: ${{ github.repository }}
+      branch: ${{ github.event.pull_request.head.ref }}
+      run_id: ${{ github.run_id }}
