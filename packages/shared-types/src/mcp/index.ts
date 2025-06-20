@@ -34,8 +34,8 @@ export interface IMCPService {
   terminate(): Promise<void>;
 }
 
-// MCP Server Registry - Central configuration for all MCP servers
-export const MCP_SERVERS: Record<string, MCPServerConfig> = {
+// Base MCP Server Registry - Static configuration only
+export const MCP_SERVERS_BASE: Record<string, Omit<MCPServerConfig, "env">> = {
   gmail: {
     name: "gmail",
     port: 3001,
@@ -50,15 +50,6 @@ export const MCP_SERVERS: Record<string, MCPServerConfig> = {
     url: "http://localhost:3000",
     healthEndpoint: "/health",
     mcpEndpoint: "/mcp",
-    env: {
-      // Environment variables specific to RAG server
-      ...(process.env.TURBOPUFFER_API_KEY && {
-        TURBOPUFFER_API_KEY: process.env.TURBOPUFFER_API_KEY,
-      }),
-      ENABLE_PPL_CHUNKING: process.env.ENABLE_PPL_CHUNKING || "false",
-      FAST_MODE: process.env.FAST_MODE || "true",
-      VERBOSE_LOGS: process.env.VERBOSE_LOGS || "false",
-    },
   },
   // Future MCP servers can be added here
   // github: {
@@ -70,24 +61,63 @@ export const MCP_SERVERS: Record<string, MCPServerConfig> = {
   // },
 } as const;
 
-// Helper functions
-export function getMCPServerConfig(name: string): MCPServerConfig | undefined {
-  return MCP_SERVERS[name];
+// Helper functions for static configuration
+export function getMCPServerBaseConfig(
+  name: string,
+): Omit<MCPServerConfig, "env"> | undefined {
+  return MCP_SERVERS_BASE[name];
 }
 
-export function getAllMCPServerConfigs(): MCPServerConfig[] {
-  return Object.values(MCP_SERVERS);
+export function getAllMCPServerBaseConfigs(): Omit<MCPServerConfig, "env">[] {
+  return Object.values(MCP_SERVERS_BASE);
 }
 
 export function getMCPServerUrl(
   name: string,
   endpoint?: string,
 ): string | undefined {
-  const config = getMCPServerConfig(name);
+  const config = getMCPServerBaseConfig(name);
   if (!config) return undefined;
 
   if (endpoint) {
     return `${config.url}${endpoint}`;
   }
   return config.url;
+}
+
+// Factory function for creating runtime configuration (main process only)
+export function createMCPServerConfig(
+  name: string,
+  envVars?: Record<string, string>,
+): MCPServerConfig | undefined {
+  const baseConfig = getMCPServerBaseConfig(name);
+  if (!baseConfig) return undefined;
+
+  // Add environment-specific configuration
+  let env: Record<string, string> = {};
+
+  if (name === "rag" && envVars) {
+    env = {
+      ...(envVars.TURBOPUFFER_API_KEY && {
+        TURBOPUFFER_API_KEY: envVars.TURBOPUFFER_API_KEY,
+      }),
+      ENABLE_PPL_CHUNKING: envVars.ENABLE_PPL_CHUNKING || "false",
+      FAST_MODE: envVars.FAST_MODE || "true",
+      VERBOSE_LOGS: envVars.VERBOSE_LOGS || "false",
+    };
+  }
+
+  return {
+    ...baseConfig,
+    env,
+  };
+}
+
+// Factory function for getting all runtime configurations (main process only)
+export function getAllMCPServerConfigs(
+  envVars?: Record<string, string>,
+): MCPServerConfig[] {
+  return Object.keys(MCP_SERVERS_BASE)
+    .map(name => createMCPServerConfig(name, envVars))
+    .filter((config): config is MCPServerConfig => config !== undefined);
 }
