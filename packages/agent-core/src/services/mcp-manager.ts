@@ -142,7 +142,7 @@ export class MCPManager implements IMCPManager {
         connected: connection.isConnected,
         toolCount: Object.keys(connection.tools || {}).length,
         lastCheck: connection.lastHealthCheck,
-        errorCount: connection.connectionAttempts,
+        errorCount: connection.connectionAttempts, // connectionAttempts tracks failed attempts only
       };
     }
 
