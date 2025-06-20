@@ -21,7 +21,7 @@
   ],
   "packageManager": "pnpm@10.12.1",
   "scripts": {
-    "postinstall": "husky && turbo run build --filter=@vibe/tab-extraction-core",
+    "postinstall": "husky && turbo run build",
     "prepare": "husky",
     "dev": "node scripts/dev.js",
     "build": "turbo run build",

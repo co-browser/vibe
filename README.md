@@ -15,8 +15,6 @@
 
 Vibe Browser is an AI-powered desktop browser that transforms traditional web browsing into an intelligent, memory-enhanced experience.
 
-## v0.1.0◊
-
 > [!WARNING]
 >
 > This project is in alpha stage and not production-ready. 
