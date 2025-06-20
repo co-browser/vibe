@@ -10,6 +10,8 @@ import http from "http";
 import {
   getAllMCPServerConfigs,
   type MCPServerConfig,
+  findWorkspaceRoot,
+  getMonorepoPackagePath,
 } from "@vibe/shared-types";
 
 interface MCPServer {
@@ -67,41 +69,89 @@ class MCPManager {
     const isDev = process.env.NODE_ENV === "development";
 
     // Try multiple possible locations
-    const possiblePaths = isDev
-      ? [
-          // Try built JavaScript first (most reliable) - go up 5 levels to workspace root
-          path.resolve(
-            __dirname,
-            `../../../../../packages/mcp-${config.name}/dist/index.js`,
-          ),
-          path.resolve(
-            process.cwd(),
-            `packages/mcp-${config.name}/dist/index.js`,
-          ),
+    let possiblePaths: string[] = [];
+
+    if (isDev) {
+      // Use the shared utility to find package path
+      const packagePath = getMonorepoPackagePath(
+        `mcp-${config.name}`,
+        __dirname,
+      );
+
+      if (packagePath) {
+        possiblePaths = [
+          // Try built JavaScript first (most reliable)
+          path.join(packagePath, "dist", "index.js"),
           // Fallback to TypeScript source (requires tsx)
-          path.resolve(
-            __dirname,
-            `../../../../../packages/mcp-${config.name}/src/index.ts`,
-          ),
-          path.resolve(
-            process.cwd(),
-            `packages/mcp-${config.name}/src/index.ts`,
-          ),
-        ]
-      : [
-          path.resolve(
-            __dirname,
-            `../../mcp-servers/mcp-${config.name}/index.js`,
-          ),
-          ...(process.resourcesPath
-            ? [
-                path.resolve(
-                  process.resourcesPath,
-                  `mcp-servers/mcp-${config.name}/index.js`,
-                ),
-              ]
-            : []),
+          path.join(packagePath, "src", "index.ts"),
         ];
+      } else {
+        // Fallback to manual resolution if package utility fails
+        const workspaceRoot = findWorkspaceRoot(__dirname);
+
+        if (workspaceRoot) {
+          possiblePaths = [
+            path.join(
+              workspaceRoot,
+              "packages",
+              `mcp-${config.name}`,
+              "dist",
+              "index.js",
+            ),
+            path.join(
+              workspaceRoot,
+              "packages",
+              `mcp-${config.name}`,
+              "src",
+              "index.ts",
+            ),
+          ];
+        } else {
+          // Last resort: try process.cwd()
+          console.warn(
+            "[MCPManager] Package and workspace root not found, falling back to process.cwd()",
+          );
+          possiblePaths = [
+            path.join(
+              process.cwd(),
+              "packages",
+              `mcp-${config.name}`,
+              "dist",
+              "index.js",
+            ),
+            path.join(
+              process.cwd(),
+              "packages",
+              `mcp-${config.name}`,
+              "src",
+              "index.ts",
+            ),
+          ];
+        }
+      }
+    } else {
+      // Production paths
+      possiblePaths = [
+        path.join(
+          __dirname,
+          "..",
+          "..",
+          "mcp-servers",
+          `mcp-${config.name}`,
+          "index.js",
+        ),
+        ...(process.resourcesPath
+          ? [
+              path.join(
+                process.resourcesPath,
+                "mcp-servers",
+                `mcp-${config.name}`,
+                "index.js",
+              ),
+            ]
+          : []),
+      ];
+    }
 
     let mcpPath: string | null = null;
     for (const testPath of possiblePaths) {

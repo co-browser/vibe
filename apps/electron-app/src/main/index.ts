@@ -5,7 +5,6 @@
 import { app, BrowserWindow, dialog, shell } from "electron";
 import { optimizer } from "@electron-toolkit/utils";
 import { config } from "dotenv";
-import { resolve } from "path";
 
 import { Browser } from "@/browser/browser";
 import { registerAllIpcHandlers } from "@/ipc";
@@ -16,7 +15,11 @@ import { setMCPServiceInstance } from "@/ipc/mcp/mcp-status";
 import { setAgentServiceInstance as setAgentStatusInstance } from "@/ipc/chat/agent-status";
 import { setAgentServiceInstance as setChatMessagingInstance } from "@/ipc/chat/chat-messaging";
 import { setAgentServiceInstance as setTabAgentInstance } from "@/utils/tab-agent";
-import { createLogger, MAIN_PROCESS_CONFIG } from "@vibe/shared-types";
+import {
+  createLogger,
+  MAIN_PROCESS_CONFIG,
+  findFileUpwards,
+} from "@vibe/shared-types";
 import {
   init,
   browserWindowSessionIntegration,
@@ -53,7 +56,12 @@ init({
 // Simple logging only for now
 
 // Load environment variables
-config({ path: resolve(__dirname, "../../../../.env") });
+const envPath = findFileUpwards(__dirname, ".env");
+if (envPath) {
+  config({ path: envPath });
+} else {
+  logger.warn(".env file not found in directory tree");
+}
 
 // Global browser instance
 export let browser: Browser | null = null;
