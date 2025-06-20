@@ -1,6 +1,22 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
+/**
+ * RAG Tools for Web Content Ingestion and Search
+ * 
+ * Environment Variables:
+ * - OPENAI_API_KEY: Required for embeddings and optional perplexity chunking
+ * - TURBOPUFFER_API_KEY: Required for vector database storage
+ * - ENABLE_PPL_CHUNKING: Set to 'true' to enable expensive perplexity-based chunking (default: false)
+ * - FAST_MODE: Set to 'false' to disable fast optimizations (default: true)
+ * - VERBOSE_LOGS: Set to 'true' to enable detailed logging (default: false)
+ * 
+ * Performance Notes:
+ * - Fast mode uses efficient sentence-based chunking and skips HTML parsing
+ * - Perplexity chunking makes many OpenAI API calls and can be very slow (60+ seconds for large documents)
+ * - Default configuration prioritizes speed over potential quality improvements from perplexity analysis
+ */
+
 import { OpenAI } from "openai";
 import { Turbopuffer } from "@turbopuffer/turbopuffer";
 import { v4 as uuidv4 } from "uuid";
@@ -18,15 +34,42 @@ const PPL_THRESHOLD = 0.5;
 const MIN_CHUNK_SIZE = 50;
 const MAX_CHUNK_SIZE = 800;
 
+// Performance configuration - disable expensive perplexity chunking by default
+const ENABLE_PPL_CHUNKING = process.env.ENABLE_PPL_CHUNKING === 'true';
+const FAST_MODE = process.env.FAST_MODE !== 'false'; // enabled by default
+const VERBOSE_LOGS = process.env.VERBOSE_LOGS === 'true'; // disabled by default
+
 /**
  * Logs messages with timestamp and level formatting
+ * Optimized to avoid verbose content that could clog the terminal
  * @param level - Log level (info, warn, error, etc.)
  * @param message - Main log message
- * @param args - Additional arguments to log
+ * @param args - Additional arguments to log (simplified for verbose data)
  */
 function log(level: string, message: string, ...args: any[]) {
   const timestamp = new Date().toISOString();
-  console.log(`[${timestamp}] [${level.toUpperCase()}] ${message}`, ...args);
+  
+  // Skip detailed logs unless verbose mode is enabled
+  if (!VERBOSE_LOGS && level === 'info' && message.includes('Processing embedding')) {
+    return; // Skip frequent embedding progress logs
+  }
+  
+  // Simplify args to avoid verbose output in logs
+  const simplifiedArgs = args.map(arg => {
+    if (arg instanceof Error) {
+      return VERBOSE_LOGS ? arg : `[Error: ${arg.message}]`;
+    }
+    if (typeof arg === 'object' && arg !== null) {
+      // For objects, just show the type or constructor name unless verbose
+      return VERBOSE_LOGS ? arg : `[${arg.constructor?.name || 'Object'}]`;
+    }
+    if (typeof arg === 'string' && arg.length > 100) {
+      return VERBOSE_LOGS ? arg : `[String: ${arg.length} chars]`;
+    }
+    return arg;
+  });
+  
+  console.log(`[${timestamp}] [${level.toUpperCase()}] ${message}`, ...simplifiedArgs);
 }
 
 if (!process.env.OPENAI_API_KEY) {
@@ -240,7 +283,7 @@ async function calculateSentencePerplexity(sentence: string, context: string): P
     const avgLogProb = totalLogProb / validTokens;
     return Math.exp(-avgLogProb);
   } catch (error) {
-    log('warn', `Failed to calculate perplexity for sentence: ${sentence.substring(0, 50)}...`, error);
+    log('warn', `Failed to calculate perplexity for sentence (truncated)`, error);
     return 1.0;
   }
 }
@@ -459,7 +502,15 @@ async function* chunkContentWithPPL(
 ): AsyncGenerator<EnhancedChunk> {
   if (!extractedPage.content) return;
 
+  // Skip expensive perplexity chunking unless explicitly enabled
+  if (!ENABLE_PPL_CHUNKING || FAST_MODE) {
+    log('info', 'Using fast traditional chunking (PPL chunking disabled)');
+    yield* chunkContentTraditional(extractedPage, domain, baseContext, contentLength);
+    return;
+  }
+
   try {
+    log('info', 'Using perplexity-based chunking (slow but potentially better quality)');
     const pplChunks = await performPPLChunking(extractedPage.content, {
       threshold: PPL_THRESHOLD,
       minChunkSize: MIN_CHUNK_SIZE,
@@ -507,6 +558,12 @@ function* chunkContentTraditional(
   contentLength: number
 ): Generator<EnhancedChunk> {
   if (!extractedPage.content) return;
+
+  // Fast mode: use simple text splitting instead of HTML parsing for better performance
+  if (FAST_MODE) {
+    yield* chunkContentFast(extractedPage, domain, baseContext, contentLength);
+    return;
+  }
   
   const root = parse(extractedPage.content);
   let buf = "";
@@ -553,6 +610,74 @@ function* chunkContentTraditional(
   }
   const final = flush();
   if (final) yield final;
+}
+
+/**
+ * Fast content chunking that skips HTML parsing for maximum performance
+ * Uses simple text splitting with sentence awareness
+ * @param extractedPage - The extracted page data
+ * @param domain - Domain name for metadata
+ * @param baseContext - Semantic context for the chunks
+ * @param contentLength - Length of the original content
+ * @returns Generator yielding content chunks with enhanced metadata
+ */
+function* chunkContentFast(
+  extractedPage: ExtractedPage, 
+  domain: string, 
+  baseContext: string, 
+  contentLength: number
+): Generator<EnhancedChunk> {
+  if (!extractedPage.content) return;
+
+  // Use textContent if available for faster processing
+  const text = extractedPage.textContent || extractedPage.content;
+  const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 10);
+  
+  let currentChunk = "";
+  let chunkIndex = 1;
+
+  const flushChunk = (): EnhancedChunk | null => {
+    if (currentChunk.trim()) {
+      const chunk: EnhancedChunk = {
+        chunkId: uuidv4(),
+        docId: uuidv4(),
+        text: currentChunk.trim(),
+        headingPath: `Content Chunk ${chunkIndex}`,
+        chunkType: 'content',
+        semanticContext: baseContext,
+        domain,
+        contentLength,
+        ...(extractedPage.publishedTime && { publishedTime: extractedPage.publishedTime }),
+        ...(extractedPage.siteName && { siteName: extractedPage.siteName }),
+        ...(extractedPage.byline && { author: extractedPage.byline }),
+      };
+      chunkIndex++;
+      currentChunk = "";
+      return chunk;
+    }
+    return null;
+  };
+
+  for (const sentence of sentences) {
+    const testChunk = currentChunk + sentence + ". ";
+    
+    if (tokenLength(testChunk) > MAX_CHUNK_SIZE) {
+      // Flush current chunk if adding this sentence would exceed limit
+      const chunk = flushChunk();
+      if (chunk) yield chunk;
+      
+      // Start new chunk with overlap
+      const words = currentChunk.split(" ");
+      const overlapText = words.slice(-OVERLAP_TOKENS).join(" ");
+      currentChunk = overlapText + sentence + ". ";
+    } else {
+      currentChunk = testChunk;
+    }
+  }
+
+  // Flush final chunk
+  const finalChunk = flushChunk();
+  if (finalChunk) yield finalChunk;
 }
 
 /**
@@ -782,7 +907,7 @@ async function embed(text: string): Promise<number[]> {
     return resp.data[0].embedding as number[];
   } catch (error: any) {
     if (error.message?.includes('maximum context length')) {
-      log('warn', `Retrying with more aggressive truncation for text: ${text.substring(0, 100)}...`);
+      log('warn', `Retrying with more aggressive truncation (text was too long)`);
       const moreAggressiveTruncation = truncateTextToTokenLimit(text, Math.floor(MAX_EMBEDDING_TOKENS * 0.7));
       
       const resp = await openai.embeddings.create({
@@ -846,6 +971,11 @@ async function upsertChunks(chunks: Chunk[]): Promise<void> {
  * @returns Promise that resolves when all chunks are successfully stored
  */
 async function upsertEnhancedChunks(chunks: EnhancedChunk[]): Promise<void> {
+  if (chunks.length === 0) return;
+  
+  log('info', `Creating embeddings for ${chunks.length} chunks...`);
+  const startTime = Date.now();
+  
   const ids: (string | number)[] = [];
   const vecs: number[][] = [];
   const texts: string[] = [];
@@ -858,7 +988,15 @@ async function upsertEnhancedChunks(chunks: EnhancedChunk[]): Promise<void> {
   const chunkTypes: string[] = [];
   const semanticContexts: string[] = [];
 
-  for (const c of chunks) {
+  // Process embeddings with progress logging
+  for (let i = 0; i < chunks.length; i++) {
+    const c = chunks[i];
+    if (!c) continue; // Safety check
+    
+    if (i % 5 === 0) {
+      log('info', `Processing embedding ${i + 1}/${chunks.length}`);
+    }
+    
     ids.push(c.chunkId);
     vecs.push(await embed(c.text));
     texts.push(c.text);
@@ -872,6 +1010,10 @@ async function upsertEnhancedChunks(chunks: EnhancedChunk[]): Promise<void> {
     semanticContexts.push(c.semanticContext);
   }
 
+  const embeddingTime = Date.now() - startTime;
+  log('info', `Created ${chunks.length} embeddings in ${embeddingTime}ms`);
+
+  const writeStartTime = Date.now();
   await ns.write({
     upsert_columns: {
       id: ids,
@@ -899,6 +1041,10 @@ async function upsertEnhancedChunks(chunks: EnhancedChunk[]): Promise<void> {
       semantic_context: { type: "string", full_text_search: true },
     },
   });
+  
+  const writeTime = Date.now() - writeStartTime;
+  const totalTime = Date.now() - startTime;
+  log('info', `Stored ${chunks.length} chunks in ${writeTime}ms (total: ${totalTime}ms)`);
 }
 
 /**
@@ -943,19 +1089,31 @@ export async function queryKnowledgeBase(query: string, top_k: number = 5) {
  * @returns Promise resolving to ingestion results with detailed chunk type breakdown
  */
 export async function ingestExtractedPage(extractedPage: ExtractedPage) {
-  log('info', `Ingesting ExtractedPage: ${extractedPage.title}`);
+  const startTime = Date.now();
+  log('info', `Ingesting ExtractedPage: ${extractedPage.title} (${extractedPage.contentLength || 'unknown size'} chars)`);
   
   const chunks: EnhancedChunk[] = [];
+  
+  // Collect all chunks
+  const chunkStartTime = Date.now();
   for await (const chunk of chunkExtractedPage(extractedPage)) {
     chunks.push(chunk);
   }
+  const chunkTime = Date.now() - chunkStartTime;
   
+  log('info', `Generated ${chunks.length} chunks in ${chunkTime}ms`);
+  
+  // Store chunks in database
   await upsertEnhancedChunks(chunks);
-  log('info', `Successfully ingested ${chunks.length} enhanced chunks from ${extractedPage.title}`);
+  
+  const totalTime = Date.now() - startTime;
+  log('info', `Successfully ingested ${chunks.length} enhanced chunks from ${extractedPage.title} in ${totalTime}ms`);
+  
   return { 
     url: extractedPage.url,
     title: extractedPage.title,
     n_chunks: chunks.length,
+    processing_time_ms: totalTime,
     chunk_types: chunks.reduce((acc, chunk) => {
       acc[chunk.chunkType] = (acc[chunk.chunkType] || 0) + 1;
       return acc;
@@ -966,7 +1124,7 @@ export async function ingestExtractedPage(extractedPage: ExtractedPage) {
 export const RAGTools = [
   {
     name: "ingest_url",
-    description: "Crawl a public webpage and add it to the RAG knowledge base",
+    description: "Crawl a public webpage and add it to the RAG knowledge base using fast traditional chunking",
     inputSchema: {
       type: "object",
       properties: {
@@ -980,7 +1138,7 @@ export const RAGTools = [
   },
   {
     name: "ingest_extracted_page",
-    description: "Add a pre-extracted page (ExtractedPage) to the RAG knowledge base with enhanced metadata and semantic chunking",
+    description: "Add a pre-extracted page (ExtractedPage) to the RAG knowledge base with enhanced metadata and optimized fast chunking. Uses efficient sentence-based chunking by default for speed.",
     inputSchema: {
       type: "object",
       properties: {
