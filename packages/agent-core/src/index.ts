@@ -15,3 +15,6 @@ export * from "./react/index.js";
 
 // Interfaces
 export * from "./interfaces/index.js";
+
+// Services
+export { MCPConnectionService } from "./services/mcp-service.js";

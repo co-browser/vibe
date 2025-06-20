@@ -3,10 +3,33 @@ import { createLogger } from "@vibe/shared-types";
 import { CDPConnector } from "../cdp/connector.js";
 import { activeTabTracker } from "../cdp/tabTracker.js";
 import { EnhancedExtractor } from "../extractors/enhanced.js";
-import { formatForLLM, createPageSummary } from "../utils/formatting.js";
 import { ExtractionError } from "../types/errors.js";
+import type { ExtractedPage } from "../types/index.js";
 
 const logger = createLogger("page-extractor-tool");
+
+// Simplified result types
+export type PageExtractionResult = ExtractedPage | PageExtractionError;
+
+export type PageExtractionError = {
+  readonly isError: true;
+  readonly message: string;
+};
+
+// Helper function to safely extract text content from PageExtractionResult
+export function extractTextFromPageContent(
+  result: PageExtractionResult,
+): string {
+  if ("isError" in result && result.isError) {
+    return result.message;
+  }
+
+  // At this point, TypeScript knows it's ExtractedPage
+  const extractedPage = result as ExtractedPage;
+  return (
+    extractedPage.content || extractedPage.textContent || "No content available"
+  );
+}
 
 // Tool parameter schemas
 export const getCurrentPageContentSchema = z.object({
@@ -76,14 +99,11 @@ export const getPageActionsSchema = z.object({
     .describe("URL of the tab (used for fallback matching)"),
 });
 
-// Tool implementations
+// Simplified function signature - single overload
 export async function getCurrentPageContent(
   args: z.infer<typeof getCurrentPageContentSchema>,
   cdpConnector: CDPConnector,
-): Promise<{
-  content: Array<{ type: "text"; text: string }>;
-  isError?: boolean;
-}> {
+): Promise<PageExtractionResult> {
   logger.info(`[PageExtractor] getCurrentPageContent called with args:`, args);
 
   const activeTab = args.cdpTargetId
@@ -101,13 +121,8 @@ export async function getCurrentPageContent(
   if (!activeTab) {
     logger.error(`[PageExtractor] No active tab found`);
     return {
-      content: [
-        {
-          type: "text",
-          text: "No active tab found. Please make sure you have a tab open.",
-        },
-      ],
       isError: true,
+      message: "No active tab found. Please make sure you have a tab open.",
     };
   }
 
@@ -136,46 +151,13 @@ export async function getCurrentPageContent(
       `[PageExtractor] Content extracted successfully, format: ${args.format}`,
     );
 
-    // Format based on requested format
-    let formattedContent;
-    switch (args.format) {
-      case "summary":
-        formattedContent = createPageSummary(extractedPage);
-        break;
-      case "markdown":
-        // Enhanced markdown format with metadata
-        formattedContent = `# ${extractedPage.title}
-
-**URL:** ${extractedPage.url}  
-**Description:** ${extractedPage.excerpt || "No description available"}  
-**Author:** ${extractedPage.byline || "Unknown"}  
-**Published:** ${extractedPage.publishedTime || "Unknown"}  
-**Site:** ${extractedPage.siteName || "Unknown"}  
-
----
-
-${extractedPage.content}`;
-        break;
-      case "raw":
-        formattedContent = JSON.stringify(extractedPage, null, 2);
-        break;
-      default:
-        formattedContent = formatForLLM(extractedPage);
-    }
-
     await cdpConnector.disconnect(activeTab.cdpTargetId);
-
-    return { content: [{ type: "text", text: formattedContent }] };
+    return extractedPage;
   } catch (error) {
     logger.error("Error extracting page content:", error);
     return {
-      content: [
-        {
-          type: "text",
-          text: `Error: ${error instanceof Error ? error.message : "Unknown error"}`,
-        },
-      ],
       isError: true,
+      message: `Error: ${error instanceof Error ? error.message : "Unknown error"}`,
     };
   }
 }
@@ -183,32 +165,7 @@ ${extractedPage.content}`;
 export async function getPageSummary(
   args: z.infer<typeof getPageSummarySchema>,
   cdpConnector: CDPConnector,
-): Promise<{
-  content: Array<{ type: "text"; text: string }>;
-  isError?: boolean;
-}> {
-  const activeTab = args.cdpTargetId
-    ? {
-        id: "current",
-        url: args.url || "",
-        title: "",
-        cdpTargetId: args.cdpTargetId,
-        isActive: true,
-      }
-    : activeTabTracker.getActiveTab();
-
-  if (!activeTab) {
-    return {
-      content: [
-        {
-          type: "text",
-          text: "No active tab found. Please make sure you have a tab open.",
-        },
-      ],
-      isError: true,
-    };
-  }
-
+): Promise<PageExtractionResult> {
   return getCurrentPageContent(
     {
       format: "summary",

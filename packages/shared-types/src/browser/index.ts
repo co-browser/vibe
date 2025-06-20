@@ -106,3 +106,45 @@ export interface PageContent {
   lang?: string;
   dir?: string;
 }
+
+export interface PageMetadata {
+  openGraph?: {
+    title?: string;
+    description?: string;
+    image?: string;
+    url?: string;
+    type?: string;
+    siteName?: string;
+  };
+  twitter?: {
+    card?: string;
+    title?: string;
+    description?: string;
+    image?: string;
+    creator?: string;
+  };
+  jsonLd?: any[];
+  microdata?: any[];
+}
+
+export interface ExtractedPage extends PageContent {
+  metadata: PageMetadata;
+  images: Array<{
+    src: string;
+    alt?: string;
+    title?: string;
+  }>;
+  links: Array<{
+    href: string;
+    text: string;
+    rel?: string;
+  }>;
+  actions: Array<{
+    type: "button" | "link" | "form";
+    selector: string;
+    text: string;
+    attributes: Record<string, string>;
+  }>;
+  extractionTime: number;
+  contentLength: number;
+}
