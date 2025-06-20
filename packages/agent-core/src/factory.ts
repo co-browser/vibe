@@ -1,42 +1,49 @@
 import { Agent } from "./agent.js";
 import { ToolManager } from "./managers/tool-manager.js";
 import { StreamProcessor } from "./managers/stream-processor.js";
-import { MCPConnectionService } from "./services/mcp-service.js";
+import { MCPManager } from "./services/mcp-manager.js";
 import type { AgentConfig } from "./types.js";
-import { createLogger } from "@vibe/shared-types";
+import { createLogger, getAllMCPServerConfigs } from "@vibe/shared-types";
 
 const logger = createLogger("AgentFactory");
-
-// Constants for MCP configuration
-const MCP_MAX_ATTEMPTS = 3;
-const MCP_RETRY_DELAY = 1000;
-const LOG_PREFIX = "[AgentCore]";
 
 // New AgentFactory class
 export class AgentFactory {
   static create(config: AgentConfig): Agent {
-    // Create MCP service if server URL provided
-    const mcpService = config.mcpServerUrl
-      ? new MCPConnectionService({
-          serverUrl: config.mcpServerUrl,
-          maxAttempts: MCP_MAX_ATTEMPTS,
-          retryDelay: MCP_RETRY_DELAY,
-          logPrefix: LOG_PREFIX,
-        })
-      : undefined;
+    // Create MCP manager for multiple server connections
+    const mcpManager = new MCPManager();
 
-    // Initialize MCP connection in background if service exists
-    if (mcpService) {
-      mcpService.connect().catch(error => {
-        logger.error("MCP initialization failed:", error);
-      });
+    // Initialize MCP connections in background if environment variables are available
+    if (typeof process !== "undefined" && process.env) {
+      // Create environment variables object for MCP server configuration
+      const envVars: Record<string, string> = {};
+      for (const [key, value] of Object.entries(process.env)) {
+        if (value !== undefined) {
+          envVars[key] = value;
+        }
+      }
+
+      // Get all MCP server configurations
+      const serverConfigs = getAllMCPServerConfigs(envVars);
+
+      if (serverConfigs.length > 0) {
+        mcpManager.initialize(serverConfigs).catch((error: Error) => {
+          logger.error("MCP manager initialization failed:", error);
+        });
+
+        logger.debug(`Agent created with ${serverConfigs.length} MCP servers: ${serverConfigs.map(s => s.name).join(', ')}`);
+      } else {
+        logger.warn("No MCP server configurations available");
+      }
+    } else {
+      logger.warn("Process environment not available, skipping MCP initialization");
     }
 
-    // Wire up manager dependencies (no context manager needed - ReAct handles memory via tools)
-    const toolManager = new ToolManager(mcpService);
+    // Wire up manager dependencies with multi-MCP support
+    const toolManager = new ToolManager(mcpManager);
     const streamProcessor = new StreamProcessor();
 
-    // Create and return configured Agent with pure ReAct implementation
+    // Create and return configured Agent with multi-MCP implementation
     return new Agent(toolManager, streamProcessor, config);
   }
 }

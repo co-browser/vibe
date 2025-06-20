@@ -8,7 +8,6 @@ export interface AgentConfig {
   openaiApiKey: string;
   model?: string;
   temperature?: number;
-  mcpServerUrl?: string;
   processorType?: "react" | "coact";
 }
 
@@ -16,11 +15,11 @@ export interface AgentStatus {
   ready: boolean;
   initialized: boolean;
   serviceStatus:
-    | "disconnected"
-    | "initializing"
-    | "ready"
-    | "processing"
-    | "error";
+  | "disconnected"
+  | "initializing"
+  | "ready"
+  | "processing"
+  | "error";
   workerStatus?: {
     connected: boolean;
     restartCount: number;
@@ -83,12 +82,12 @@ export interface MemoryNote {
 // MCP Tool Result Types
 export interface MCPToolResult {
   result?:
-    | {
-        content?: Array<{
-          text: string;
-        }>;
-      }
-    | string;
+  | {
+    content?: Array<{
+      text: string;
+    }>;
+  }
+  | string;
 }
 
 export interface MCPGenerateTextResult {
