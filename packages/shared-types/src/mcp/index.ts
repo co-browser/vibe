@@ -44,6 +44,22 @@ export const MCP_SERVERS: Record<string, MCPServerConfig> = {
     mcpEndpoint: "/mcp",
     // Gmail MCP server loads its own configuration from ~/.gmail-mcp/
   },
+  rag: {
+    name: "rag",
+    port: 3000,
+    url: "http://localhost:3000",
+    healthEndpoint: "/health",
+    mcpEndpoint: "/mcp",
+    env: {
+      // Environment variables specific to RAG server
+      ...(process.env.TURBOPUFFER_API_KEY && {
+        TURBOPUFFER_API_KEY: process.env.TURBOPUFFER_API_KEY,
+      }),
+      ENABLE_PPL_CHUNKING: process.env.ENABLE_PPL_CHUNKING || "false",
+      FAST_MODE: process.env.FAST_MODE || "true",
+      VERBOSE_LOGS: process.env.VERBOSE_LOGS || "false",
+    },
+  },
   // Future MCP servers can be added here
   // github: {
   //   name: "github",
