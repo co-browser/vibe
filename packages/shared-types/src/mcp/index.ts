@@ -1,18 +1,21 @@
 /**
- * MCP (Model Context Protocol) related types and configuration
+ * MCP (Model Context Protocol) - Centralized exports and configuration
+ * 
+ * This module provides a clean interface for MCP functionality across the application.
+ * It includes type definitions, error classes, constants, and factory functions.
  */
 
-// MCP Server Configuration
-export interface MCPServerConfig {
-  name: string;
-  port: number;
-  url: string;
-  path?: string;
-  env?: Record<string, string>;
-  healthEndpoint?: string;
-  mcpEndpoint?: string;
-}
+// Export enhanced types and utilities
+export * from "./types.js";
+export * from "./errors.js";
+export * from "./constants.js";
 
+// Import for use in this file
+import type { MCPServerConfig } from "./types.js";
+
+/**
+ * Legacy compatibility interface - use IMCPService from types.ts for new code
+ */
 export interface MCPServerStatus {
   name: string;
   status: "starting" | "ready" | "error" | "stopped";
@@ -21,7 +24,9 @@ export interface MCPServerStatus {
   error?: string;
 }
 
-// MCP Service Interface
+/**
+ * Legacy MCP Service Interface - use IMCPManager from types.ts for new implementations
+ */
 export interface IMCPService {
   initialize(): Promise<void>;
   getStatus(): {
@@ -34,7 +39,10 @@ export interface IMCPService {
   terminate(): Promise<void>;
 }
 
-// Base MCP Server Registry - Static configuration only
+/**
+ * Static MCP Server Registry
+ * Contains base configuration for all supported MCP servers
+ */
 export const MCP_SERVERS_BASE: Record<string, Omit<MCPServerConfig, "env">> = {
   gmail: {
     name: "gmail",
@@ -51,9 +59,9 @@ export const MCP_SERVERS_BASE: Record<string, Omit<MCPServerConfig, "env">> = {
     healthEndpoint: "/health",
     mcpEndpoint: "/mcp",
   },
-  // Future MCP servers can be added here
+  // Future MCP servers can be added here:
   // github: {
-  //   name: "github",
+  //   name: "github", 
   //   port: 3002,
   //   url: "http://localhost:3002",
   //   healthEndpoint: "/health",
@@ -61,17 +69,34 @@ export const MCP_SERVERS_BASE: Record<string, Omit<MCPServerConfig, "env">> = {
   // },
 } as const;
 
-// Helper functions for static configuration
+/**
+ * Get base configuration for a specific MCP server
+ * 
+ * @param name - Server name (e.g., "rag", "gmail")
+ * @returns Base configuration without environment variables
+ */
 export function getMCPServerBaseConfig(
   name: string,
 ): Omit<MCPServerConfig, "env"> | undefined {
   return MCP_SERVERS_BASE[name];
 }
 
+/**
+ * Get all available MCP server base configurations
+ * 
+ * @returns Array of base configurations without environment variables
+ */
 export function getAllMCPServerBaseConfigs(): Omit<MCPServerConfig, "env">[] {
   return Object.values(MCP_SERVERS_BASE);
 }
 
+/**
+ * Construct a URL for an MCP server endpoint
+ * 
+ * @param name - Server name
+ * @param endpoint - Optional endpoint path (e.g., "/mcp", "/health")
+ * @returns Complete URL or undefined if server not found
+ */
 export function getMCPServerUrl(
   name: string,
   endpoint?: string,
@@ -85,7 +110,14 @@ export function getMCPServerUrl(
   return config.url;
 }
 
-// Factory function for creating runtime configuration (main process only)
+/**
+ * Create a runtime MCP server configuration (main process only)
+ * Combines base configuration with environment-specific settings
+ * 
+ * @param name - Server name
+ * @param envVars - Environment variables for server configuration
+ * @returns Complete server configuration or undefined if not found
+ */
 export function createMCPServerConfig(
   name: string,
   envVars?: Record<string, string>,
@@ -93,18 +125,31 @@ export function createMCPServerConfig(
   const baseConfig = getMCPServerBaseConfig(name);
   if (!baseConfig) return undefined;
 
-  // Add environment-specific configuration
-  let env: Record<string, string> = {};
+  // Build environment-specific configuration
+  const env: Record<string, string> = {};
 
-  if (name === "rag" && envVars) {
-    env = {
-      ...(envVars.TURBOPUFFER_API_KEY && {
-        TURBOPUFFER_API_KEY: envVars.TURBOPUFFER_API_KEY,
-      }),
-      ENABLE_PPL_CHUNKING: envVars.ENABLE_PPL_CHUNKING || "false",
-      FAST_MODE: envVars.FAST_MODE || "true",
-      VERBOSE_LOGS: envVars.VERBOSE_LOGS || "false",
-    };
+  switch (name) {
+    case "rag":
+      if (envVars) {
+        Object.assign(env, {
+          ...(envVars.TURBOPUFFER_API_KEY && {
+            TURBOPUFFER_API_KEY: envVars.TURBOPUFFER_API_KEY,
+          }),
+          ENABLE_PPL_CHUNKING: envVars.ENABLE_PPL_CHUNKING || "false",
+          FAST_MODE: envVars.FAST_MODE || "true",
+          VERBOSE_LOGS: envVars.VERBOSE_LOGS || "false",
+        });
+      }
+      break;
+
+    case "gmail":
+      // Gmail MCP server manages its own configuration
+      // No environment variables needed from agent
+      break;
+
+    default:
+      // Future servers can add their environment configuration here
+      break;
   }
 
   return {
@@ -113,7 +158,12 @@ export function createMCPServerConfig(
   };
 }
 
-// Factory function for getting all runtime configurations (main process only)
+/**
+ * Create all available MCP server configurations (main process only)
+ * 
+ * @param envVars - Environment variables for server configuration
+ * @returns Array of complete server configurations
+ */
 export function getAllMCPServerConfigs(
   envVars?: Record<string, string>,
 ): MCPServerConfig[] {
