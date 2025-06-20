@@ -11,5 +11,10 @@ export const IPC_CHANNELS = {
   GMAIL_START_AUTH: "gmail-start-auth",
   GMAIL_CLEAR_AUTH: "gmail-clear-auth",
   GMAIL_AUTH_SUCCESS: "gmail-auth-success",
+  // Password import channels
+  PASSWORD_IMPORT_START: "password-import-start",
+  PASSWORD_IMPORT_PROGRESS: "password-import-progress",
+  PASSWORD_IMPORT_COMPLETE: "password-import-complete",
+  PASSWORD_IMPORT_ERROR: "password-import-error",
   // Add other IPC channel constants here
 };

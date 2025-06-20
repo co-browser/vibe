@@ -17,6 +17,44 @@ module.exports = {
   asarUnpack: [
     "dist/mac-arm64/vibe.app/Contents/Resources/app.asar.unpacked/node_modules/sqlite3/build/Release/node_sqlite3.node",
   ],
+  packagerConfig: {
+    afterComplete: [
+      (buildPath, electronVersion, platform, arch, callback) => {
+        if (platform == "darwin") {
+          try {
+            // Copy the plugin to the app bundle
+            const fs = require("fs");
+            const path = require("path");
+            const pluginPath = path.join(
+              __dirname,
+              "node_modules",
+              "electron-mac-dock-icon-switcher",
+              "build",
+              "Release",
+              "DockTile.docktileplugin"
+            );
+            
+            if (!fs.existsSync(pluginPath)) {
+              return callback(new Error(`Dock tile plugin not found at ${pluginPath}`));
+            }
+            
+            const pluginDest = path.join(
+              buildPath,
+              "vibe.app",
+              "Contents",
+              "PlugIns",
+              "DockTile.docktileplugin"
+            );
+            fs.mkdirSync(pluginDest, { recursive: true });
+            fs.cpSync(pluginPath, pluginDest, { recursive: true, overwrite: true });
+          } catch (error) {
+            return callback(new Error(`Failed to copy dock tile plugin: ${error.message}`));
+          }
+        }
+        callback();
+      },
+    ],
+  },
   extraResources: [
     {
       from: "../../packages/mcp-*/dist",
@@ -36,10 +74,20 @@ module.exports = {
   mac: {
     appId: "xyz.cobrowser.vibe",
     extendInfo: {
+      NSDockTilePlugIn: "DockTile.docktileplugin",
       NSBluetoothAlwaysUsageDescription: "passkey access",
       NSBluetoothPeripheralUsageDescription: "passkey access",
       NSCameraUsageDescription: "webrtc access",
       NSMicrophoneUsageDescription: "webrtc access",
+      NSServices: [
+                {
+                    NSSendTypes: ["NSStringPboardType"],
+                    NSMessage: "handleTextDropOnDock",
+                    NSMenuItem: {
+                        default: "Open with CoBrowser",
+                    },
+                },
+            ],
     },
     category: "public.app-category.developer-tools",
     entitlements: "resources/entitlements.mac.plist",
@@ -50,6 +98,7 @@ module.exports = {
     icon: "resources/icon.icns",
     notarize: false,
     type: "distribution",
+    identity: "E2566872AC26692C6196F1E880B092B692C0B981",
     helperBundleId: "${appId}.helper",
     helperEHBundleId: "${appId}.helper.eh",
     helperGPUBundleId: "${appId}.helper.gpu",
@@ -102,4 +151,14 @@ module.exports = {
   electronDownload: {
     mirror: "https://npmmirror.com/mirrors/electron/",
   },
+  electronFuses: {
+    runAsNode: false,
+    enableCookieEncryption: true,
+    enableNodeOptionsEnvironmentVariable: false,
+    enableNodeCliInspectArguments: false,
+    enableEmbeddedAsarIntegrityValidation: true,
+    onlyLoadAppFromAsar: true,
+    loadBrowserProcessSpecificV8Snapshot: true,
+    grantFileProtocolExtraPrivileges: false
+}
 };

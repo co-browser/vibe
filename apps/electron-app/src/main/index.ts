@@ -5,7 +5,8 @@
 import { app, BrowserWindow, dialog, shell } from "electron";
 import { optimizer } from "@electron-toolkit/utils";
 import { config } from "dotenv";
-
+import { resolve } from "path";
+import { detect } from "node-mac-detect-browsers";
 import { Browser } from "@/browser/browser";
 import { registerAllIpcHandlers } from "@/ipc";
 import { setupMemoryMonitoring } from "@/utils/helpers";
@@ -26,6 +27,10 @@ import {
   childProcessIntegration,
 } from "@sentry/electron/main";
 import AppUpdater from "./services/update-service";
+import {
+  isFirstRun,
+  openOnboardingForFirstRun,
+} from "@/browser/onboarding-window";
 
 // Set consistent log level for all processes
 if (!process.env.LOG_LEVEL) {
@@ -41,14 +46,12 @@ if (process.env.NODE_ENV === "development") {
 
 const logger = createLogger("main-process");
 
-const isProd: boolean = process.env.NODE_ENV === "production";
-
 // Initialize Sentry for error tracking
 init({
   dsn: "https://21ac611f0272b8931073fa7ecc36c600@o4509464945623040.ingest.de.sentry.io/4509464948899920",
-  debug: !isProd,
+  debug: false,
   integrations: [browserWindowSessionIntegration(), childProcessIntegration()],
-  tracesSampleRate: isProd ? 0.1 : 1.0,
+  tracesSampleRate: 0.1,
   tracePropagationTargets: ["localhost"],
   onFatalError: () => {},
 });
@@ -74,6 +77,7 @@ let mcpService: MCPService | null = null;
 
 // Track shutdown state
 let isShuttingDown = false;
+let detectedBrowsers: any[] = []; // Store detected browsers globally
 
 // Cleanup functions
 let unsubscribeVibe: (() => void) | null = null;
@@ -254,6 +258,17 @@ async function createInitialWindow(): Promise<void> {
   if (!app.isPackaged) {
     mainWindow.webContents.openDevTools({ mode: "detach" });
   }
+
+  // Check if this is the first run and open onboarding if needed
+  const firstRun = isFirstRun();
+  if (firstRun) {
+    logger.info("First run detected - will open onboarding window");
+
+    // Wait a bit for the main window to be fully ready
+    setTimeout(() => {
+      openOnboardingForFirstRun(browser, detectedBrowsers);
+    }, 2000); // 2 second delay to ensure everything is loaded
+  }
 }
 
 function initializeApp(): boolean {
@@ -319,6 +334,19 @@ async function initializeServices(): Promise<void> {
     // Initialize simple analytics instead of complex telemetry system
     logger.info("Using simplified analytics system");
 
+    // Detect browsers and store globally
+    detect((err, results) => {
+      if (err) {
+        logger.error(err.message || String(err));
+        detectedBrowsers = []; // Set empty array on error
+      } else {
+        detectedBrowsers = results || [];
+        logger.info(
+          `Detected ${detectedBrowsers.length} browsers:`,
+          detectedBrowsers.map(b => b.name),
+        );
+      }
+    });
     // Log app startup
     logger.info("App startup complete", {
       version: app.getVersion(),
@@ -427,10 +455,8 @@ async function initializeServices(): Promise<void> {
 
 // Main application initialization
 app.whenReady().then(() => {
-  if (isProd) {
-    //updater.init();
-  }
   app.on("browser-window-created", (_, window) => {
+    //PDFWindow.addSupport(window);
     optimizer.watchWindowShortcuts(window);
   });
 

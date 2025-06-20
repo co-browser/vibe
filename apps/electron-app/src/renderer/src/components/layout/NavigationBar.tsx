@@ -12,6 +12,7 @@ import {
   SearchOutlined,
   ClockCircleOutlined,
   GlobalOutlined,
+  SettingOutlined,
   LinkOutlined,
 } from "@ant-design/icons";
 import "../styles/NavigationBar.css";
@@ -55,6 +56,19 @@ const NavigationBar: React.FC = () => {
   const inputRef = useRef<HTMLInputElement>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
 
+  // Listen for window opened events
+  const unsubscribeOpened = window.vibe.interface.onPopupWindowOpened(data => {
+    console.log(`${data.type} window opened with ID: ${data.windowId}`);
+  });
+
+  // Listen for window closed events
+  const unsubscribeClosed = window.vibe.interface.onPopupWindowClosed(data => {
+    console.log(`${data.type} window closed`);
+  });
+
+  // Don't forget to cleanup
+  unsubscribeOpened();
+  unsubscribeClosed();
   // Get current active tab
   useEffect(() => {
     const getCurrentTab = async () => {
@@ -375,6 +389,19 @@ const NavigationBar: React.FC = () => {
     }
   }, [chatPanelVisible]);
 
+  const openSettings = async () => {
+    try {
+      const result = await window.vibe.interface.openSettingsWindow();
+      if (result.success) {
+        console.log("Settings window opened with ID:", result.windowId);
+      } else {
+        console.error("Failed to open settings:", result.error);
+      }
+    } catch (error) {
+      console.error("Error opening settings window:", error);
+    }
+  };
+
   // Telemetry handlers are now passed as props from BrowserUI
 
   // Input handling
@@ -386,6 +413,22 @@ const NavigationBar: React.FC = () => {
       const newSuggestions = await generateRealSuggestions(value);
       setSuggestions(newSuggestions);
       setShowSuggestions(newSuggestions.length > 0);
+
+      // Position suggestions dropdown using fixed positioning
+      if (
+        suggestionsRef.current &&
+        inputRef.current &&
+        newSuggestions.length > 0
+      ) {
+        setTimeout(() => {
+          const inputRect = inputRef.current!.getBoundingClientRect();
+          const suggestionsEl = suggestionsRef.current!;
+
+          suggestionsEl.style.top = `${inputRect.bottom + 4}px`;
+          suggestionsEl.style.left = `${inputRect.left}px`;
+          suggestionsEl.style.width = `${inputRect.width}px`;
+        }, 0);
+      }
     } else {
       setSuggestions([]);
       setShowSuggestions(false);
@@ -398,6 +441,16 @@ const NavigationBar: React.FC = () => {
       const newSuggestions = await generateRealSuggestions(inputValue);
       setSuggestions(newSuggestions);
       setShowSuggestions(newSuggestions.length > 0);
+    }
+
+    // Position suggestions dropdown using fixed positioning
+    if (suggestionsRef.current && inputRef.current) {
+      const inputRect = inputRef.current.getBoundingClientRect();
+      const suggestionsEl = suggestionsRef.current;
+
+      suggestionsEl.style.top = `${inputRect.bottom + 4}px`;
+      suggestionsEl.style.left = `${inputRect.left}px`;
+      suggestionsEl.style.width = `${inputRect.width}px`;
     }
   };
 
@@ -522,16 +575,18 @@ const NavigationBar: React.FC = () => {
         >
           <ReloadOutlined spin={navigationState.isLoading} />
         </button>
-        <button
-          className={`nav-button ${chatPanelVisible ? "active" : ""} ${agentStatus ? "enabled" : ""}`}
-          onClick={handleToggleChat}
-          title={
-            agentStatus ? "Toggle AI assistant" : "AI assistant not available"
-          }
-          disabled={!agentStatus}
-        >
-          <RobotOutlined />
-        </button>
+        <div id="show-agent-chat-onboarding">
+          <button
+            className={`nav-button ${chatPanelVisible ? "active" : ""} ${agentStatus ? "enabled" : ""}`}
+            onClick={handleToggleChat}
+            title={
+              agentStatus ? "Toggle AI assistant" : "AI assistant not available"
+            }
+            disabled={!agentStatus}
+          >
+            <RobotOutlined />
+          </button>
+        </div>
       </div>
 
       <div className="omnibar-container">
@@ -575,6 +630,14 @@ const NavigationBar: React.FC = () => {
           )}
         </div>
       </div>
+      <button
+        className={`nav-button ${chatPanelVisible ? "active" : ""} ${agentStatus ? "enabled" : ""}`}
+        onClick={openSettings}
+        title="Open Settings"
+        disabled={!agentStatus}
+      >
+        <SettingOutlined />
+      </button>
     </div>
   );
 };

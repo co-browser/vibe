@@ -6,7 +6,11 @@ import { WINDOW_CONFIG } from "@vibe/shared-types";
 
 import { TabManager } from "./tab-manager";
 import { ViewManager } from "./view-manager";
+import { OnboardingWindow } from "./onboarding-window";
+import { SettingsWindow } from "./settings-window";
+import { AboutWindow } from "./about-window";
 import { createLogger } from "@vibe/shared-types";
+import type { DetectedBrowser } from "./onboarding-window";
 
 const logger = createLogger("ApplicationWindow");
 import type { CDPManager } from "../services/cdp-service";
@@ -19,6 +23,11 @@ export class ApplicationWindow extends EventEmitter {
   public readonly window: BrowserWindow;
   public readonly tabManager: TabManager;
   public readonly viewManager: ViewManager;
+
+  // Popup window instances
+  private onboardingWindow: OnboardingWindow | null = null;
+  private settingsWindow: SettingsWindow | null = null;
+  private aboutWindow: AboutWindow | null = null;
 
   constructor(
     browser: any,
@@ -44,6 +53,121 @@ export class ApplicationWindow extends EventEmitter {
       logger.error("🔧 ApplicationWindow: Failed to load renderer:", error);
     });
   }
+
+  // === POPUP WINDOW MANAGEMENT ===
+
+  /**
+   * Generic helper function for managing popup windows
+   */
+  private openPopupWindow<T extends { window: BrowserWindow; show(): void; on(event: string, listener: (...args: any[]) => void): void }>(
+    windowProperty: keyof this,
+    WindowClass: new (...args: any[]) => T,
+    windowType: string,
+    ...constructorArgs: any[]
+  ): T {
+    const existingWindow = this[windowProperty] as T | null;
+    
+    if (existingWindow && !existingWindow.window.isDestroyed()) {
+      existingWindow.show();
+      return existingWindow;
+    }
+
+    const newWindow = new WindowClass(this.window, ...constructorArgs);
+    (this as any)[windowProperty] = newWindow;
+
+    newWindow.on("destroy", () => {
+      (this as any)[windowProperty] = null;
+    });
+
+    // Forward window events to renderer
+    newWindow.on("opened", windowId => {
+      if (!this.window.isDestroyed()) {
+        this.window.webContents.send("popup-window-opened", {
+          type: windowType,
+          windowId: windowId,
+        });
+      }
+    });
+
+    newWindow.on("closed", windowId => {
+      if (!this.window.isDestroyed()) {
+        this.window.webContents.send("popup-window-closed", {
+          type: windowType,
+          windowId: windowId,
+        });
+      }
+    });
+
+    return newWindow;
+  }
+
+  /**
+   * Opens the onboarding window
+   */
+  public openOnboardingWindow(
+    detectedBrowsers?: DetectedBrowser[],
+  ): OnboardingWindow {
+    return this.openPopupWindow(
+      'onboardingWindow',
+      OnboardingWindow,
+      'onboarding',
+      detectedBrowsers
+    );
+  }
+
+  /**
+   * Opens the settings window
+   */
+  public openSettingsWindow(): SettingsWindow {
+    return this.openPopupWindow(
+      'settingsWindow',
+      SettingsWindow,
+      'settings'
+    );
+  }
+
+  /**
+   * Opens the about window
+   */
+  public openAboutWindow(): AboutWindow {
+    return this.openPopupWindow(
+      'aboutWindow',
+      AboutWindow,
+      'about'
+    );
+  }
+
+  /**
+   * Closes all popup windows
+   */
+  public closeAllPopupWindows(): void {
+    if (this.onboardingWindow && !this.onboardingWindow.window.isDestroyed()) {
+      this.onboardingWindow.close();
+    }
+    if (this.settingsWindow && !this.settingsWindow.window.isDestroyed()) {
+      this.settingsWindow.close();
+    }
+    if (this.aboutWindow && !this.aboutWindow.window.isDestroyed()) {
+      this.aboutWindow.close();
+    }
+  }
+
+  /**
+   * Gets the current popup window instances
+   */
+  public getPopupWindows(): {
+    onboarding: OnboardingWindow | null;
+    settings: SettingsWindow | null;
+    about: AboutWindow | null;
+  } {
+    return {
+      onboarding: this.onboardingWindow,
+      settings: this.settingsWindow,
+      about: this.aboutWindow,
+    };
+  }
+
+  // === EXISTING METHODS ===
 
   private getDefaultOptions(): Electron.BrowserWindowConstructorOptions {
     return {
@@ -195,6 +319,9 @@ export class ApplicationWindow extends EventEmitter {
 
   public destroy(): void {
     if (this.window.isDestroyed()) return;
+
+    // Close all popup windows first
+    this.closeAllPopupWindows();
 
     try {
       // Clean up TabManager (includes EventEmitter cleanup and intervals)

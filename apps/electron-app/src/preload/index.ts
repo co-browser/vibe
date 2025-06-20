@@ -26,6 +26,50 @@ import { VibeSessionAPI } from "@vibe/shared-types";
 import { VibeUpdateAPI } from "@vibe/shared-types";
 
 /**
+ * Gets the window type from command line arguments
+ * Used to determine if this is a popup window (onboarding, settings, about)
+ */
+function getWindowType(): string | null {
+  try {
+    // Check process.argv for --window-type=<type>
+    const args = process.argv || [];
+    for (const arg of args) {
+      if (arg.startsWith("--window-type=")) {
+        const windowType = arg.split("=")[1];
+        if (["onboarding", "settings", "about"].includes(windowType)) {
+          return windowType;
+        }
+      }
+    }
+    return null;
+  } catch (error) {
+    logger.error("Error getting window type:", error);
+    return null;
+  }
+}
+
+/**
+ * Gets the detected browsers from command line arguments
+ * Used in onboarding window to show only available browsers
+ */
+function getDetectedBrowsers(): any[] {
+  try {
+    // Check process.argv for --detected-browsers=<json>
+    const args = process.argv || [];
+    for (const arg of args) {
+      if (arg.startsWith("--detected-browsers=")) {
+        const browsersJson = arg.split("=")[1];
+        return JSON.parse(browsersJson);
+      }
+    }
+    return [];
+  } catch (error) {
+    logger.error("Error getting detected browsers:", error);
+    return [];
+  }
+}
+
+/**
  * Validates if a key is a non-empty string
  * @param key The key to validate
  * @returns True if the key is a valid string, false otherwise
@@ -473,6 +517,36 @@ const interfaceAPI: VibeInterfaceAPI = {
   onChatPanelVisibilityChanged: (callback: (isVisible: boolean) => void) => {
     return createEventListener("chat-area-visibility-changed", callback);
   },
+
+  // Popup window methods
+  openOnboardingWindow: async () => {
+    return ipcRenderer.invoke("window:open-onboarding");
+  },
+  openSettingsWindow: async () => {
+    return ipcRenderer.invoke("window:open-settings");
+  },
+  openAboutWindow: async () => {
+    return ipcRenderer.invoke("window:open-about");
+  },
+  getPopupWindows: async () => {
+    return ipcRenderer.invoke("window:get-popup-windows");
+  },
+  closeAllPopupWindows: async () => {
+    return ipcRenderer.invoke("window:close-all-popups");
+  },
+  isPopupWindowOpen: async (windowType: string) => {
+    return ipcRenderer.invoke("window:is-popup-open", windowType);
+  },
+  onPopupWindowOpened: (
+    callback: (data: { type: string; windowId: number }) => void,
+  ) => {
+    return createEventListener("popup-window-opened", callback);
+  },
+  onPopupWindowClosed: (
+    callback: (data: { type: string; windowId: number }) => void,
+  ) => {
+    return createEventListener("popup-window-closed", callback);
+  },
 };
 
 // Chat API implementation
@@ -728,9 +802,25 @@ const vibeAPI = {
 if (process.contextIsolated) {
   try {
     contextBridge.exposeInMainWorld("vibe", vibeAPI);
-    contextBridge.exposeInMainWorld("electron", {
+    contextBridge.exposeInMainWorld("electronAPI", {
       ...electronAPI,
       platform: process.platform,
+      getWindowType: getWindowType, // Add window type detection
+      getDetectedBrowsers: getDetectedBrowsers, // Add detected browsers
+      ipcRenderer: {
+        on: (
+          channel: string,
+          callback: (event: any, ...args: any[]) => void,
+        ) => {
+          ipcRenderer.on(channel, callback);
+        },
+        removeListener: (channel: string, callback: any) => {
+          ipcRenderer.removeListener(channel, callback);
+        },
+        invoke: (channel: string, ...args: any[]) => {
+          return ipcRenderer.invoke(channel, ...args);
+        },
+      },
       // Legacy methods for backward compatibility
       ...legacyListeners,
       // Legacy individual methods - deprecated, functionality removed
@@ -756,6 +846,14 @@ if (process.contextIsolated) {
           };
         }
       },
+    });
+    contextBridge.exposeInMainWorld("electron", {
+      ...electronAPI,
+      platform: process.platform,
+      getWindowType: getWindowType, // Also expose on legacy electron object
+      getDetectedBrowsers: getDetectedBrowsers, // Also expose on legacy electron object
+      // Legacy methods for backward compatibility
+      ...legacyListeners,
     });
     contextBridge.exposeInMainWorld("storeBridge", storeBridge);
     contextBridge.exposeInMainWorld("gmailAuth", additionalAPIs.gmailAuth);

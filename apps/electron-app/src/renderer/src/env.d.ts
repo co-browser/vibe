@@ -37,42 +37,71 @@ interface VibeAPI {
 }
 
 /**
- * Window interface extensions for the API
+ * Electron API interface
  */
-interface Window {
-  /**
-   * Main Vibe API - Modern interface
-   */
-  vibe: VibeAPI;
-
-  /**
-   * Legacy API - DEPRECATED, use window.vibe instead
-   */
-  api: {
-    /**
-     * Initializes the agent with the provided API key
-     * @param apiKey The API key to use for initialization
-     * @returns A promise that resolves to a success object
-     */
-    initializeAgent: (
-      apiKey: string,
-    ) => Promise<{ success: boolean; error?: string }>;
-
-    /**
-     * Processes user input through the agent
-     * @param input The user input to process
-     * @returns A promise that resolves to a response object
-     */
-    processAgentInput: (
-      input: string,
-    ) => Promise<{ success: boolean; response?: string; error?: string }>;
+interface ElectronAPI {
+  platform: string;
+  getWindowType: () => string | null;
+  ipcRenderer?: {
+    on: (
+      channel: string,
+      callback: (event: any, ...args: any[]) => void,
+    ) => void;
+    removeListener: (channel: string, callback: any) => void;
+    invoke: (channel: string, ...args: any[]) => Promise<any>;
   };
-
-  /**
-   * Additional legacy APIs for backward compatibility
-   */
-  electron: any;
-  storeBridge: any;
-  gmailAuth: any;
-  apiKeys: any;
+  [key: string]: any;
 }
+
+/**
+ * Global declarations
+ */
+declare global {
+  /**
+   * Window interface extensions for the API
+   */
+  interface Window {
+    /**
+     * Main Vibe API - Modern interface
+     */
+    vibe: VibeAPI;
+
+    /**
+     * Electron API - includes window type detection and IPC
+     */
+    electronAPI: ElectronAPI;
+
+    /**
+     * Legacy API - DEPRECATED, use window.vibe instead
+     */
+    api: {
+      /**
+       * Initializes the agent with the provided API key
+       * @param apiKey The API key to use for initialization
+       * @returns A promise that resolves to a success object
+       */
+      initializeAgent: (
+        apiKey: string,
+      ) => Promise<{ success: boolean; error?: string }>;
+
+      /**
+       * Processes user input through the agent
+       * @param input The user input to process
+       * @returns A promise that resolves to a response object
+       */
+      processAgentInput: (
+        input: string,
+      ) => Promise<{ success: boolean; response?: string; error?: string }>;
+    };
+
+    /**
+     * Additional legacy APIs for backward compatibility
+     */
+    electron: ElectronAPI;
+    storeBridge: any;
+    gmailAuth: any;
+    apiKeys: any;
+  }
+}
+
+export {};
