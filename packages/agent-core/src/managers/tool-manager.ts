@@ -167,28 +167,23 @@ export class ToolManager implements IToolManager {
     }
 
     try {
-      // Check if ingest_extracted_page tool is available (from RAG MCP server)
-      const tools = await this.getTools();
-      const ragIngestTool = this.findToolByName(tools, "ingest_extracted_page");
-
-      if (!ragIngestTool) {
-        logger.warn(
-          `${LOG_PREFIX} ingest_extracted_page tool not available in any connected server`,
-        );
-        return;
-      }
-
-      // Call the RAG ingestion tool with the full ExtractedPage object
-      const ingestResult = await this.mcpManager.callTool(ragIngestTool, {
-        extractedPage,
-      });
-
-      if (!ingestResult.success) {
-        throw new Error(ingestResult.error || "Failed to ingest page");
-      }
-      logger.debug(
-        `${LOG_PREFIX} Saved tab memory to RAG system for: ${extractedPage.title}`,
+      // Use namespaced tool name (clean architecture)
+      const result = await this.mcpManager.callTool(
+        "rag:ingest_extracted_page",
+        {
+          extractedPage,
+        },
       );
+
+      if (result.success) {
+        logger.debug(
+          `${LOG_PREFIX} Saved tab memory to RAG system for: ${extractedPage.title} (${result.executionTime}ms)`,
+        );
+      } else {
+        logger.error(
+          `${LOG_PREFIX} Failed to save tab memory: ${result.error}`,
+        );
+      }
     } catch (error) {
       logger.error(
         `${LOG_PREFIX} Failed to save tab memory to RAG system:`,
