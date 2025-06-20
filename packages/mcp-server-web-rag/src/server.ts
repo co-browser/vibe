@@ -11,6 +11,7 @@ import type {
   Notification,
 } from '@modelcontextprotocol/sdk/types.js';
 import express, { type Request, type Response } from 'express';
+import { Server as HTTPServer } from 'http';
 import { randomUUID } from 'node:crypto';
 import { logger } from './helpers/logs.js';
 import { RAGTools } from './tools.js';
@@ -21,7 +22,7 @@ const JSON_RPC_ERROR = -32603;
 
 export class StreamableHTTPServer {
   server: Server;
-  private httpServer: any;
+  private httpServer: HTTPServer | null = null;
 
   constructor(server: Server) {
     this.server = server;
@@ -39,7 +40,7 @@ export class StreamableHTTPServer {
 
   startHTTPServer(port: number = 3000) {
     const app = express();
-    app.use(express.json({ limit: '10mb' }));
+    app.use(express.json({ limit: '1mb' }));
 
     app.post('/mcp', (req, res) => this.handlePostRequest(req, res));
     
@@ -77,7 +78,6 @@ export class StreamableHTTPServer {
       res.on('close', () => {
         log.success('Request closed by client');
         transport.close();
-        this.server.close();
       });
 
       await this.sendMessages(transport);

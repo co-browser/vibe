@@ -9,6 +9,12 @@ interface TestCase {
   fn: () => Promise<void>;
 }
 
+interface Tool {
+  name: string;
+  description: string;
+  inputSchema: object;
+}
+
 class RAGTestRunner {
   private client: RAGTestClient;
   private extractor: SimpleExtractor;
@@ -74,13 +80,13 @@ class RAGTestRunner {
     const requiredTools = ['ingest_url', 'ingest_extracted_page', 'query_kb'];
     
     for (const toolName of requiredTools) {
-      const tool = tools.find((t: any) => t.name === toolName);
+      const tool = tools.find((t: Tool) => t.name === toolName);
       if (!tool) {
         throw new Error(`Required tool '${toolName}' not found`);
       }
     }
 
-    console.log(`   Found ${tools.length} tools: ${tools.map((t: any) => t.name).join(', ')}`);
+    console.log(`   Found ${tools.length} tools: ${tools.map((t: Tool) => t.name).join(', ')}`);
   }
 
   private async testIngestion() {

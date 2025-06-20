@@ -20,17 +20,47 @@ const server = new StreamableHTTPServer(
 );
 
 const app = express();
-app.use(express.json({ limit: '10mb' }));
+// Set JSON body limit to 1MB - sufficient for ExtractedPage objects with full web content
+// while preventing DoS attacks. Most web pages are under 1MB of text content when JSON-serialized.
+app.use(express.json({ limit: '1mb' }));
 
 const router = express.Router();
 const MCP_ENDPOINT = '/mcp';
 
 router.post(MCP_ENDPOINT, async (req: Request, res: Response) => {
-  await server.handlePostRequest(req, res);
+  try {
+    await server.handlePostRequest(req, res);
+  } catch (error) {
+    log.error('Error handling POST request:', error);
+    if (!res.headersSent) {
+      res.status(500).json({
+        jsonrpc: '2.0',
+        error: {
+          code: -32603,
+          message: 'Internal server error while processing MCP request'
+        },
+        id: null
+      });
+    }
+  }
 });
 
 router.get(MCP_ENDPOINT, async (req: Request, res: Response) => {
-  await server.handleGetRequest(req, res);
+  try {
+    await server.handleGetRequest(req, res);
+  } catch (error) {
+    log.error('Error handling GET request:', error);
+    if (!res.headersSent) {
+      res.status(500).json({
+        jsonrpc: '2.0',
+        error: {
+          code: -32603,
+          message: 'Internal server error while processing MCP request'
+        },
+        id: null
+      });
+    }
+  }
 });
 
 app.use('/', router);
@@ -43,6 +73,11 @@ app.listen(PORT, () => {
 
 process.on('SIGINT', async () => {
   log.error('Shutting down server...');
-  await server.close();
+  try {
+    await server.close();
+    log.success('Server shutdown completed successfully');
+  } catch (error) {
+    log.error('Error during server shutdown:', error);
+  }
   process.exit(0);
 });
