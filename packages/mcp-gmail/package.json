@@ -7,8 +7,7 @@
   "scripts": {
     "dev:standalone": "tsx watch src/index.ts",
     "build": "tsc",
-    "start": "node dist/index.js",
-    "test": "tsx test/test-runner.ts"
+    "start": "node dist/index.js"
   },
   "keywords": [
     "mcp",
