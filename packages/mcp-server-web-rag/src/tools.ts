@@ -82,7 +82,7 @@ if (!process.env.TURBOPUFFER_API_KEY) {
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const tpuf = new Turbopuffer({
   apiKey: process.env.TURBOPUFFER_API_KEY!,
-  region: REGION as any,
+  region: REGION,
 });
 const ns = tpuf.namespace(NAMESPACE);
 

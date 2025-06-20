@@ -15,6 +15,7 @@ export class RAGAgent {
   private llm: OpenAI;
   private mcpClient: RAGTestClient;
   private tools: MCPTool[] = [];
+  private toolHandlers: Record<string, (args: any) => Promise<any>> = {};
 
   constructor(mcpServerUrl: string = 'http://localhost:3000/mcp') {
     if (!process.env.OPENAI_API_KEY) {
@@ -26,6 +27,21 @@ export class RAGAgent {
     });
     
     this.mcpClient = new RAGTestClient(mcpServerUrl);
+    this.setupToolHandlers();
+  }
+
+  private setupToolHandlers() {
+    this.toolHandlers = {
+      'ingest_url': async (args) => {
+        return await this.mcpClient.ingestUrl(args.url);
+      },
+      'query_kb': async (args) => {
+        return await this.mcpClient.queryKnowledgeBase(args.query, args.top_k || 5);
+      },
+      'ingest_extracted_page': async (args) => {
+        return await this.mcpClient.ingestExtractedPage(args.extractedPage);
+      }
+    };
   }
 
   async connect() {
@@ -87,14 +103,17 @@ Always provide helpful and accurate responses based on the information you find.
         console.log(`\n🔧 Using tool '${toolName}' with arguments: ${toolArgs}`);
 
         let result;
-        if (toolName === 'ingest_url') {
-          const args = JSON.parse(toolArgs);
-          result = await this.mcpClient.ingestUrl(args.url);
-        } else if (toolName === 'query_kb') {
-          const args = JSON.parse(toolArgs);
-          result = await this.mcpClient.queryKnowledgeBase(args.query, args.top_k || 5);
-        } else {
-          console.log(`❌ Unknown tool: ${toolName}`);
+        try {
+          const parsedArgs = JSON.parse(toolArgs);
+          
+          if (this.toolHandlers[toolName]) {
+            result = await this.toolHandlers[toolName](parsedArgs);
+          } else {
+            console.log(`❌ Unknown tool: ${toolName}`);
+            continue;
+          }
+        } catch (error) {
+          console.log(`❌ Error invoking tool '${toolName}': ${error instanceof Error ? error.message : String(error)}`);
           continue;
         }
 
@@ -103,23 +122,9 @@ Always provide helpful and accurate responses based on the information you find.
           let toolOutput: string;
           
           if (Array.isArray(result.data) && result.data.length > 0 && result.data[0].text) {
-            // Extract the actual result from MCP response text
+            // Extract the actual result from MCP response text using robust parsing
             const mcpText = result.data[0].text;
-            const resultMatch = mcpText.match(/Result: (.+)$/);
-            
-            if (resultMatch) {
-              try {
-                // Parse the actual result data
-                const actualResult = JSON.parse(resultMatch[1]);
-                toolOutput = JSON.stringify(actualResult, null, 2);
-              } catch {
-                // If parsing fails, use the matched text as-is
-                toolOutput = resultMatch[1];
-              }
-            } else {
-              // Fallback to the full MCP text
-              toolOutput = mcpText;
-            }
+            toolOutput = this.extractResultFromMCPText(mcpText);
           } else {
             // Fallback to original behavior
             toolOutput = JSON.stringify(result.data, null, 2);
@@ -176,5 +181,70 @@ Always provide helpful and accurate responses based on the information you find.
         parameters: tool.inputSchema,
       },
     };
+  }
+
+  private extractResultFromMCPText(mcpText: string): string {
+    // Strategy 1: Look for "Result: " pattern with structured parsing
+    const resultIndex = mcpText.lastIndexOf('Result: ');
+    if (resultIndex !== -1) {
+      const potentialJson = mcpText.substring(resultIndex + 8).trim();
+      
+      // Try to parse as JSON
+      const jsonResult = this.safeParseJSON(potentialJson);
+      if (jsonResult !== null) {
+        return JSON.stringify(jsonResult, null, 2);
+      }
+      
+      // If not valid JSON, return the text after "Result: "
+      return potentialJson;
+    }
+    
+    // Strategy 2: Look for JSON-like patterns in the entire text
+    const jsonResult = this.extractJSONFromText(mcpText);
+    if (jsonResult !== null) {
+      return JSON.stringify(jsonResult, null, 2);
+    }
+    
+    // Strategy 3: Fallback to the full MCP text
+    return mcpText;
+  }
+  
+  private safeParseJSON(text: string): any | null {
+    try {
+      return JSON.parse(text);
+    } catch {
+      // Try to find and extract a JSON object from the text
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        try {
+          return JSON.parse(jsonMatch[0]);
+        } catch {
+          return null;
+        }
+      }
+      return null;
+    }
+  }
+  
+  private extractJSONFromText(text: string): any | null {
+    // Look for JSON objects or arrays in the text
+    const patterns = [
+      /\{[\s\S]*\}/,  // JSON object
+      /\[[\s\S]*\]/   // JSON array
+    ];
+    
+    for (const pattern of patterns) {
+      const matches = text.match(pattern);
+      if (matches) {
+        for (const match of matches) {
+          const parsed = this.safeParseJSON(match);
+          if (parsed !== null) {
+            return parsed;
+          }
+        }
+      }
+    }
+    
+    return null;
   }
 } 
