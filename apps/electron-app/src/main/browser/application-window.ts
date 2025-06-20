@@ -59,7 +59,9 @@ export class ApplicationWindow extends EventEmitter {
   /**
    * Opens the onboarding window
    */
-  public openOnboardingWindow(detectedBrowsers?: DetectedBrowser[]): OnboardingWindow {
+  public openOnboardingWindow(
+    detectedBrowsers?: DetectedBrowser[],
+  ): OnboardingWindow {
     if (this.onboardingWindow && !this.onboardingWindow.window.isDestroyed()) {
       this.onboardingWindow.show();
       return this.onboardingWindow;

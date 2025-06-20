@@ -296,7 +296,7 @@ async function initializeServices(): Promise<void> {
   try {
     // Initialize simple analytics instead of complex telemetry system
     logger.info("Using simplified analytics system");
-    
+
     // Detect browsers and store globally
     detect((err, results) => {
       if (err) {
@@ -304,7 +304,10 @@ async function initializeServices(): Promise<void> {
         detectedBrowsers = []; // Set empty array on error
       } else {
         detectedBrowsers = results || [];
-        logger.info(`Detected ${detectedBrowsers.length} browsers:`, detectedBrowsers.map(b => b.name));
+        logger.info(
+          `Detected ${detectedBrowsers.length} browsers:`,
+          detectedBrowsers.map(b => b.name),
+        );
       }
     });
     // Log app startup

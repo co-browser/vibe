@@ -30,13 +30,17 @@ interface OnboardingPageProps {
 /**
  * OnboardingPage - Enhanced component with password import functionality
  */
-export function OnboardingPage({ detectedBrowsers: propDetectedBrowsers }: OnboardingPageProps = {}) {
+export function OnboardingPage({
+  detectedBrowsers: propDetectedBrowsers,
+}: OnboardingPageProps = {}) {
   const [currentStep, setCurrentStep] = useState<"welcome" | "password-import">(
     "welcome",
   );
   const [consoleOutput, setConsoleOutput] = useState<string[]>([]);
   const [isImporting, setIsImporting] = useState(false);
-  const [detectedBrowsers, setDetectedBrowsers] = useState<DetectedBrowser[]>(propDetectedBrowsers || []);
+  const [detectedBrowsers, setDetectedBrowsers] = useState<DetectedBrowser[]>(
+    propDetectedBrowsers || [],
+  );
   const consoleRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll console to bottom when new output is added
@@ -61,12 +65,18 @@ export function OnboardingPage({ detectedBrowsers: propDetectedBrowsers }: Onboa
         setDetectedBrowsers(browsers);
       };
 
-      window.electronAPI?.ipcRenderer?.on('detected-browsers', (_, browsers) => {
-        handleDetectedBrowsers(browsers);
-      });
+      window.electronAPI?.ipcRenderer?.on(
+        "detected-browsers",
+        (_, browsers) => {
+          handleDetectedBrowsers(browsers);
+        },
+      );
 
       return () => {
-        window.electronAPI?.ipcRenderer?.removeListener('detected-browsers', handleDetectedBrowsers);
+        window.electronAPI?.ipcRenderer?.removeListener(
+          "detected-browsers",
+          handleDetectedBrowsers,
+        );
       };
     }
     // No cleanup needed when browsers are passed as props
@@ -167,39 +177,59 @@ export function OnboardingPage({ detectedBrowsers: propDetectedBrowsers }: Onboa
 
   const getBrowserIcon = (browserName: string) => {
     const iconMap: Record<string, string> = {
-      Safari: '🧭',
-      'Google Chrome': '🌐',
-      'Google Chrome Canary': '🌐',
-      'Google Chrome for Testing': '🌐',
-      Chrome: '🌐',
-      Firefox: '🦊',
-      Brave: '🦁',
-      'Microsoft Edge': '🌐',
-      Edge: '🌐',
-      Opera: '🎭',
-      Arc: '🌙',
-      'Pale Moon': '🌙'
+      Safari: "🧭",
+      "Google Chrome": "🌐",
+      "Google Chrome Canary": "🌐",
+      "Google Chrome for Testing": "🌐",
+      Chrome: "🌐",
+      Firefox: "🦊",
+      Brave: "🦁",
+      "Microsoft Edge": "🌐",
+      Edge: "🌐",
+      Opera: "🎭",
+      Arc: "🌙",
+      "Pale Moon": "🌙",
     };
-    return iconMap[browserName] || '🌐';
+    return iconMap[browserName] || "🌐";
   };
 
   // Filter detected browsers to only show supported ones for password import
   const getSupportedBrowsers = () => {
-    const supportedBrowserNames = ['Safari', 'Google Chrome', 'Chrome', 'Firefox', 'Brave', 'Microsoft Edge', 'Edge', 'Opera', 'Arc'];
-    
+    const supportedBrowserNames = [
+      "Safari",
+      "Google Chrome",
+      "Chrome",
+      "Firefox",
+      "Brave",
+      "Microsoft Edge",
+      "Edge",
+      "Opera",
+      "Arc",
+    ];
+
     if (detectedBrowsers.length === 0) {
       // Fallback to default list if no browsers detected
-      return supportedBrowserNames.map(name => ({ name, path: '', detected: false, default: false }));
+      return supportedBrowserNames.map(name => ({
+        name,
+        path: "",
+        detected: false,
+        default: false,
+      }));
     }
 
     return detectedBrowsers
-      .filter(browser => 
-        supportedBrowserNames.some(supported => 
-          browser.name.toLowerCase().includes(supported.toLowerCase()) ||
-          supported.toLowerCase().includes(browser.name.toLowerCase())
-        )
+      .filter(browser =>
+        supportedBrowserNames.some(
+          supported =>
+            browser.name.toLowerCase().includes(supported.toLowerCase()) ||
+            supported.toLowerCase().includes(browser.name.toLowerCase()),
+        ),
       )
-      .map(browser => ({ ...browser, detected: true, default: browser.default || false }));
+      .map(browser => ({
+        ...browser,
+        detected: true,
+        default: browser.default || false,
+      }));
   };
 
   if (currentStep === "welcome") {
@@ -374,30 +404,39 @@ export function OnboardingPage({ detectedBrowsers: propDetectedBrowsers }: Onboa
 
         {/* Browser Import Buttons */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
-          {supportedBrowsers.map((browser) => (
+          {supportedBrowsers.map(browser => (
             <button
               key={browser.name}
               onClick={() => handlePasswordImport(browser.name)}
               disabled={isImporting || !browser.detected}
               className={`group relative flex flex-col items-center justify-center p-6 border rounded-xl transition-all duration-200 ${
-                browser.detected 
-                  ? 'bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 hover:border-blue-300 dark:hover:border-blue-500 hover:shadow-lg' 
-                  : 'bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-700 opacity-50 cursor-not-allowed'
-              } ${isImporting ? 'opacity-50 cursor-not-allowed' : ''}`}
-              style={browser.detected ? {
-                background: 'linear-gradient(135deg, var(--glass-background-start), var(--glass-background-end))',
-                backdropFilter: 'blur(10px)',
-                border: '1px solid rgba(255, 255, 255, 0.2)',
-              } : {}}
+                browser.detected
+                  ? "bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 hover:border-blue-300 dark:hover:border-blue-500 hover:shadow-lg"
+                  : "bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-700 opacity-50 cursor-not-allowed"
+              } ${isImporting ? "opacity-50 cursor-not-allowed" : ""}`}
+              style={
+                browser.detected
+                  ? {
+                      background:
+                        "linear-gradient(135deg, var(--glass-background-start), var(--glass-background-end))",
+                      backdropFilter: "blur(10px)",
+                      border: "1px solid rgba(255, 255, 255, 0.2)",
+                    }
+                  : {}
+              }
             >
-              <div className={`text-3xl mb-2 transition-transform duration-200 ${browser.detected ? 'group-hover:scale-110' : ''}`}>
+              <div
+                className={`text-3xl mb-2 transition-transform duration-200 ${browser.detected ? "group-hover:scale-110" : ""}`}
+              >
                 {getBrowserIcon(browser.name)}
               </div>
-              <span className={`text-sm font-medium transition-colors ${
-                browser.detected 
-                  ? 'text-gray-700 dark:text-gray-300 group-hover:text-blue-600 dark:group-hover:text-blue-400' 
-                  : 'text-gray-500 dark:text-gray-600'
-              }`}>
+              <span
+                className={`text-sm font-medium transition-colors ${
+                  browser.detected
+                    ? "text-gray-700 dark:text-gray-300 group-hover:text-blue-600 dark:group-hover:text-blue-400"
+                    : "text-gray-500 dark:text-gray-600"
+                }`}
+              >
                 {browser.name}
               </span>
               {!browser.detected && (

@@ -808,7 +808,10 @@ if (process.contextIsolated) {
       getWindowType: getWindowType, // Add window type detection
       getDetectedBrowsers: getDetectedBrowsers, // Add detected browsers
       ipcRenderer: {
-        on: (channel: string, callback: (event: any, ...args: any[]) => void) => {
+        on: (
+          channel: string,
+          callback: (event: any, ...args: any[]) => void,
+        ) => {
           ipcRenderer.on(channel, callback);
         },
         removeListener: (channel: string, callback: any) => {

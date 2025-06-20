@@ -72,7 +72,10 @@ export function isFirstRun(): boolean {
  * Opens the onboarding window for first-time users
  * This function should be called from the main process after the browser is ready
  */
-export async function openOnboardingForFirstRun(browser: any, detectedBrowsers?: DetectedBrowser[]): Promise<void> {
+export async function openOnboardingForFirstRun(
+  browser: any,
+  detectedBrowsers?: DetectedBrowser[],
+): Promise<void> {
   if (!browser) {
     logger.error("Cannot open onboarding: browser instance not available");
     return;
@@ -135,9 +138,12 @@ export class OnboardingWindow extends EventEmitter {
   private parentWindow: BrowserWindow;
   private detectedBrowsers: DetectedBrowser[];
 
-  constructor(parentWindow: BrowserWindow, detectedBrowsers: DetectedBrowser[] = []) {
+  constructor(
+    parentWindow: BrowserWindow,
+    detectedBrowsers: DetectedBrowser[] = [],
+  ) {
     super();
-    
+
     this.parentWindow = parentWindow;
     this.detectedBrowsers = detectedBrowsers;
 
@@ -187,9 +193,9 @@ export class OnboardingWindow extends EventEmitter {
         webSecurity: true,
         allowRunningInsecureContent: false,
         additionalArguments: [
-          '--window-type=onboarding',
-          `--detected-browsers=${JSON.stringify(this.detectedBrowsers)}`
-        ]
+          "--window-type=onboarding",
+          `--detected-browsers=${JSON.stringify(this.detectedBrowsers)}`,
+        ],
       },
     };
   }
@@ -200,10 +206,10 @@ export class OnboardingWindow extends EventEmitter {
       this.window.focus();
       // Center the onboarding window on screen
       this.window.center();
-      
+
       // Send detected browsers to renderer after window is ready
-      this.window.webContents.send('detected-browsers', this.detectedBrowsers);
-      
+      this.window.webContents.send("detected-browsers", this.detectedBrowsers);
+
       // Emit window opened event
       this.emit("opened", this.id);
     });
@@ -288,12 +294,6 @@ export class OnboardingWindow extends EventEmitter {
     return this.detectedBrowsers;
   }
 }
-
-
-
-
-
-
 
 // Export the interface for use in other files
 export type { DetectedBrowser };

@@ -12,7 +12,9 @@ import { useEffect, useState } from "react";
 import BrowserRoute from "./routes/browser/route";
 
 // Popup Pages
-import OnboardingPage, { type DetectedBrowser } from "./pages/onboarding/OnboardingPage";
+import OnboardingPage, {
+  type DetectedBrowser,
+} from "./pages/onboarding/OnboardingPage";
 import SettingsPage from "./pages/settings/SettingsPage";
 import AboutPage from "./pages/about/AboutPage";
 
@@ -57,12 +59,14 @@ function getDetectedBrowsers(): DetectedBrowser[] {
  */
 function Routes() {
   const [windowType, setWindowType] = useState<string>("browser");
-  const [detectedBrowsers, setDetectedBrowsers] = useState<DetectedBrowser[]>([]);
+  const [detectedBrowsers, setDetectedBrowsers] = useState<DetectedBrowser[]>(
+    [],
+  );
 
   useEffect(() => {
     const type = getWindowType();
     setWindowType(type);
-    
+
     // Get detected browsers for onboarding window
     if (type === "onboarding") {
       const browsers = getDetectedBrowsers();
