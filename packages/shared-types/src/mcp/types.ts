@@ -30,7 +30,7 @@ export interface MCPConnection<TClient = any, TTransport = any> {
   isConnected: boolean;
   tools?: Record<string, MCPTool>;
   lastHealthCheck?: number;
-  connectionAttempts: number;
+  connectionAttempts: number; // Tracks failed connection attempts (not total attempts)
 }
 
 // Tool-related types with better typing
