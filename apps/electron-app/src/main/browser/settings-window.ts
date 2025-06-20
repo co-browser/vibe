@@ -85,17 +85,9 @@ export class SettingsWindow extends EventEmitter {
       this.destroy();
     });
 
-    // Handle escape key to close
+    // Handle keyboard shortcuts to close (Escape and Cmd/Ctrl+W)
     this.window.webContents.on("before-input-event", (event, input) => {
-      if (input.key === "Escape") {
-        event.preventDefault(); // Prevent the event from bubbling up
-        this.close();
-      }
-    });
-
-    // Handle Cmd/Ctrl+W to close
-    this.window.webContents.on("before-input-event", (event, input) => {
-      if ((input.control || input.meta) && input.key === "w") {
+      if (input.key === "Escape" || ((input.control || input.meta) && input.key === "w")) {
         event.preventDefault(); // Prevent the event from bubbling up
         this.close();
       }
@@ -155,7 +147,13 @@ export class SettingsWindow extends EventEmitter {
       }
     } else {
       const htmlPath = join(__dirname, "../renderer/index.html");
-      await this.window.loadFile(htmlPath, { hash: "settings" });
+      try {
+        await this.window.loadFile(htmlPath, { hash: "settings" });
+        logger.debug("Successfully loaded settings file");
+      } catch (error) {
+        logger.error("Failed to load settings file:", error);
+        throw error;
+      }
     }
   }
 
@@ -170,11 +168,8 @@ export class SettingsWindow extends EventEmitter {
 
     this.emit("destroy");
     this.removeAllListeners();
-
-    if (!this.window.isDestroyed()) {
-      this.window.removeAllListeners();
-      this.window.close();
-    }
+    this.window.removeAllListeners();
+    this.window.close();
   }
 
   public show(): void {

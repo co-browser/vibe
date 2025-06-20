@@ -9,11 +9,18 @@ const logger = createLogger("popup-windows-ipc");
  * Handles opening onboarding, settings, and about windows
  */
 
-ipcMain.handle("window:open-onboarding", async event => {
+/**
+ * Generic helper function for opening popup windows
+ */
+async function openPopupWindow(
+  event: Electron.IpcMainInvokeEvent,
+  windowType: 'onboarding' | 'settings' | 'about',
+  openMethod: 'openOnboardingWindow' | 'openSettingsWindow' | 'openAboutWindow'
+) {
   try {
     const senderWindow = browser?.getWindowFromWebContents(event.sender);
     if (!senderWindow) {
-      logger.error("Cannot open onboarding window: sender window not found");
+      logger.error(`Cannot open ${windowType} window: sender window not found`);
       return { success: false, error: "Sender window not found" };
     }
 
@@ -21,90 +28,36 @@ ipcMain.handle("window:open-onboarding", async event => {
     const applicationWindow =
       browser?.getApplicationWindowFromBrowserWindow(senderWindow);
     if (!applicationWindow) {
-      logger.error(
-        "Cannot open onboarding window: ApplicationWindow not found",
-      );
+      logger.error(`Cannot open ${windowType} window: ApplicationWindow not found`);
       return { success: false, error: "ApplicationWindow not found" };
     }
 
-    const onboardingWindow = applicationWindow.openOnboardingWindow();
-    logger.info("Onboarding window opened successfully");
+    const popupWindow = applicationWindow[openMethod]();
+    logger.info(`${windowType.charAt(0).toUpperCase() + windowType.slice(1)} window opened successfully`);
 
     return {
       success: true,
-      windowId: onboardingWindow.id,
+      windowId: popupWindow.id,
     };
   } catch (error) {
-    logger.error("Failed to open onboarding window:", error);
+    logger.error(`Failed to open ${windowType} window:`, error);
     return {
       success: false,
       error: error instanceof Error ? error.message : String(error),
     };
   }
+}
+
+ipcMain.handle("window:open-onboarding", async event => {
+  return openPopupWindow(event, 'onboarding', 'openOnboardingWindow');
 });
 
 ipcMain.handle("window:open-settings", async event => {
-  try {
-    const senderWindow = browser?.getWindowFromWebContents(event.sender);
-    if (!senderWindow) {
-      logger.error("Cannot open settings window: sender window not found");
-      return { success: false, error: "Sender window not found" };
-    }
-
-    // Get the ApplicationWindow instance from the Browser
-    const applicationWindow =
-      browser?.getApplicationWindowFromBrowserWindow(senderWindow);
-    if (!applicationWindow) {
-      logger.error("Cannot open settings window: ApplicationWindow not found");
-      return { success: false, error: "ApplicationWindow not found" };
-    }
-
-    const settingsWindow = applicationWindow.openSettingsWindow();
-    logger.info("Settings window opened successfully");
-
-    return {
-      success: true,
-      windowId: settingsWindow.id,
-    };
-  } catch (error) {
-    logger.error("Failed to open settings window:", error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : String(error),
-    };
-  }
+  return openPopupWindow(event, 'settings', 'openSettingsWindow');
 });
 
 ipcMain.handle("window:open-about", async event => {
-  try {
-    const senderWindow = browser?.getWindowFromWebContents(event.sender);
-    if (!senderWindow) {
-      logger.error("Cannot open about window: sender window not found");
-      return { success: false, error: "Sender window not found" };
-    }
-
-    // Get the ApplicationWindow instance from the Browser
-    const applicationWindow =
-      browser?.getApplicationWindowFromBrowserWindow(senderWindow);
-    if (!applicationWindow) {
-      logger.error("Cannot open about window: ApplicationWindow not found");
-      return { success: false, error: "ApplicationWindow not found" };
-    }
-
-    const aboutWindow = applicationWindow.openAboutWindow();
-    logger.info("About window opened successfully");
-
-    return {
-      success: true,
-      windowId: aboutWindow.id,
-    };
-  } catch (error) {
-    logger.error("Failed to open about window:", error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : String(error),
-    };
-  }
+  return openPopupWindow(event, 'about', 'openAboutWindow');
 });
 
 ipcMain.handle("window:get-popup-windows", async event => {

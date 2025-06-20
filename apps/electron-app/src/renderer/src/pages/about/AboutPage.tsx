@@ -53,7 +53,15 @@ export function AboutPage() {
 
           <div className="flex justify-center">
             <button
-              onClick={() => window.close()}
+              onClick={() => {
+                try {
+                  window.electronAPI?.closeWindow();
+                } catch (error) {
+                  console.error('Failed to close window:', error);
+                  // Fallback: try direct window.close() if IPC fails
+                  window.close();
+                }
+              }}
               className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
             >
               Close

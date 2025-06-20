@@ -36,37 +36,35 @@ class EncryptedStore {
     this.encryptionAvailable = safeStorage.isEncryptionAvailable();
 
     if (!this.encryptionAvailable) {
-      logger.warn(
-        "Encryption not available on this system. Data will be stored in plain text.",
-      );
+      const errorMessage = "Encryption not available on this system. Cannot store sensitive data securely.";
+      logger.error(errorMessage);
+      throw new Error(errorMessage);
     } else {
       logger.info("Encryption is available. Data will be encrypted on disk.");
     }
 
-    // Configure the store with encryption if available
+    // Configure the store with encryption (encryption is guaranteed to be available at this point)
     const storeOptions: any = {
       name: options.name || "encrypted-store",
       defaults: options.defaults || {},
       schema: options.schema,
-      // Add encryption serialization if available
-      ...(this.encryptionAvailable && {
-        serialize: (value: any) => {
-          const jsonString = JSON.stringify(value);
-          const encrypted = safeStorage.encryptString(jsonString);
-          return encrypted.toString("base64");
-        },
-        deserialize: (value: string) => {
-          try {
-            const buffer = Buffer.from(value, "base64");
-            const decrypted = safeStorage.decryptString(buffer);
-            return JSON.parse(decrypted);
-          } catch (error) {
-            logger.error("Failed to decrypt data:", error);
-            // Return empty object if decryption fails
-            return {};
-          }
-        },
-      }),
+      // Add encryption serialization
+      serialize: (value: any) => {
+        const jsonString = JSON.stringify(value);
+        const encrypted = safeStorage.encryptString(jsonString);
+        return encrypted.toString("base64");
+      },
+      deserialize: (value: string) => {
+        try {
+          const buffer = Buffer.from(value, "base64");
+          const decrypted = safeStorage.decryptString(buffer);
+          return JSON.parse(decrypted);
+        } catch (error) {
+          logger.error("Failed to decrypt data:", error);
+          // Return empty object if decryption fails
+          return {};
+        }
+      },
     };
 
     this.store = new Store(storeOptions);

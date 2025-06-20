@@ -36,6 +36,8 @@
     background-color: transparent !important;
     font-family:
       -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", sans-serif;
+    overflow: visible !important;
+    position: relative;
   }
 
   /* Tab Bar Container - Top layer of chrome */
@@ -236,10 +238,7 @@
     z-index: 1;
   }
 
-  .browser-window {
-    overflow: visible !important;
-    position: relative;
-  }
+
 
   .browser-layout-root {
     overflow: visible !important;

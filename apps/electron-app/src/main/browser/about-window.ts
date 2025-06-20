@@ -88,17 +88,9 @@ export class AboutWindow extends EventEmitter {
       this.destroy();
     });
 
-    // Handle escape key to close
+    // Handle keyboard shortcuts to close (Escape, Enter, Return)
     this.window.webContents.on("before-input-event", (event, input) => {
-      if (input.key === "Escape") {
-        event.preventDefault(); // Prevent the event from bubbling up
-        this.close();
-      }
-    });
-
-    // Handle Enter key to close (common for about dialogs)
-    this.window.webContents.on("before-input-event", (event, input) => {
-      if (input.key === "Enter" || input.key === "Return") {
+      if (input.key === "Escape" || input.key === "Enter" || input.key === "Return") {
         event.preventDefault(); // Prevent the event from bubbling up
         this.close();
       }

@@ -57,116 +57,84 @@ export class ApplicationWindow extends EventEmitter {
   // === POPUP WINDOW MANAGEMENT ===
 
   /**
+   * Generic helper function for managing popup windows
+   */
+  private openPopupWindow<T extends { window: BrowserWindow; show(): void; on(event: string, listener: (...args: any[]) => void): void }>(
+    windowProperty: keyof this,
+    WindowClass: new (...args: any[]) => T,
+    windowType: string,
+    ...constructorArgs: any[]
+  ): T {
+    const existingWindow = this[windowProperty] as T | null;
+    
+    if (existingWindow && !existingWindow.window.isDestroyed()) {
+      existingWindow.show();
+      return existingWindow;
+    }
+
+    const newWindow = new WindowClass(this.window, ...constructorArgs);
+    (this as any)[windowProperty] = newWindow;
+
+    newWindow.on("destroy", () => {
+      (this as any)[windowProperty] = null;
+    });
+
+    // Forward window events to renderer
+    newWindow.on("opened", windowId => {
+      if (!this.window.isDestroyed()) {
+        this.window.webContents.send("popup-window-opened", {
+          type: windowType,
+          windowId: windowId,
+        });
+      }
+    });
+
+    newWindow.on("closed", windowId => {
+      if (!this.window.isDestroyed()) {
+        this.window.webContents.send("popup-window-closed", {
+          type: windowType,
+          windowId: windowId,
+        });
+      }
+    });
+
+    return newWindow;
+  }
+
+  /**
    * Opens the onboarding window
    */
   public openOnboardingWindow(
     detectedBrowsers?: DetectedBrowser[],
   ): OnboardingWindow {
-    if (this.onboardingWindow && !this.onboardingWindow.window.isDestroyed()) {
-      this.onboardingWindow.show();
-      return this.onboardingWindow;
-    }
-
-    this.onboardingWindow = new OnboardingWindow(this.window, detectedBrowsers);
-
-    this.onboardingWindow.on("destroy", () => {
-      this.onboardingWindow = null;
-    });
-
-    // Forward window events to renderer
-    this.onboardingWindow.on("opened", windowId => {
-      if (!this.window.isDestroyed()) {
-        this.window.webContents.send("popup-window-opened", {
-          type: "onboarding",
-          windowId: windowId,
-        });
-      }
-    });
-
-    this.onboardingWindow.on("closed", windowId => {
-      if (!this.window.isDestroyed()) {
-        this.window.webContents.send("popup-window-closed", {
-          type: "onboarding",
-          windowId: windowId,
-        });
-      }
-    });
-
-    return this.onboardingWindow;
+    return this.openPopupWindow(
+      'onboardingWindow',
+      OnboardingWindow,
+      'onboarding',
+      detectedBrowsers
+    );
   }
 
   /**
    * Opens the settings window
    */
   public openSettingsWindow(): SettingsWindow {
-    if (this.settingsWindow && !this.settingsWindow.window.isDestroyed()) {
-      this.settingsWindow.show();
-      return this.settingsWindow;
-    }
-
-    this.settingsWindow = new SettingsWindow(this.window);
-
-    this.settingsWindow.on("destroy", () => {
-      this.settingsWindow = null;
-    });
-
-    // Forward window events to renderer
-    this.settingsWindow.on("opened", windowId => {
-      if (!this.window.isDestroyed()) {
-        this.window.webContents.send("popup-window-opened", {
-          type: "settings",
-          windowId: windowId,
-        });
-      }
-    });
-
-    this.settingsWindow.on("closed", windowId => {
-      if (!this.window.isDestroyed()) {
-        this.window.webContents.send("popup-window-closed", {
-          type: "settings",
-          windowId: windowId,
-        });
-      }
-    });
-
-    return this.settingsWindow;
+    return this.openPopupWindow(
+      'settingsWindow',
+      SettingsWindow,
+      'settings'
+    );
   }
 
   /**
    * Opens the about window
    */
   public openAboutWindow(): AboutWindow {
-    if (this.aboutWindow && !this.aboutWindow.window.isDestroyed()) {
-      this.aboutWindow.show();
-      return this.aboutWindow;
-    }
-
-    this.aboutWindow = new AboutWindow(this.window);
-
-    this.aboutWindow.on("destroy", () => {
-      this.aboutWindow = null;
-    });
-
-    // Forward window events to renderer
-    this.aboutWindow.on("opened", windowId => {
-      if (!this.window.isDestroyed()) {
-        this.window.webContents.send("popup-window-opened", {
-          type: "about",
-          windowId: windowId,
-        });
-      }
-    });
-
-    this.aboutWindow.on("closed", windowId => {
-      if (!this.window.isDestroyed()) {
-        this.window.webContents.send("popup-window-closed", {
-          type: "about",
-          windowId: windowId,
-        });
-      }
-    });
-
-    return this.aboutWindow;
+    return this.openPopupWindow(
+      'aboutWindow',
+      AboutWindow,
+      'about'
+    );
   }
 
   /**

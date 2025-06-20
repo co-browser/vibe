@@ -17,6 +17,35 @@ module.exports = {
   asarUnpack: [
     "dist/mac-arm64/vibe.app/Contents/Resources/app.asar.unpacked/node_modules/sqlite3/build/Release/node_sqlite3.node",
   ],
+  packagerConfig: {
+    afterComplete: [
+      (buildPath, electronVersion, platform, arch, callback) => {
+        if (platform == "darwin") {
+          // Copy the plugin to the app bundle
+          const fs = require("fs");
+          const path = require("path");
+          const pluginPath = path.join(
+            __dirname,
+            "node_modules",
+            "electron-mac-dock-icon-switcher",
+            "build",
+            "Release",
+            "DockTile.docktileplugin"
+          );
+          const pluginDest = path.join(
+            buildPath,
+            "vibe.app",
+            "Contents",
+            "PlugIns",
+            "DockTile.docktileplugin"
+          );
+          fs.mkdirSync(pluginDest, { recursive: true });
+          fs.cpSync(pluginPath, pluginDest, { recursive: true, overwrite: true });
+        }
+        callback();
+      },
+    ],
+  },
   win: {
     executableName: "vibe-desktop",
   },
@@ -43,35 +72,6 @@ module.exports = {
                     },
                 },
             ],
-      packagerConfig: {
-      afterComplete: [
-        (buildPath, electronVersion, platform, arch, callback) => {
-          if (platform == "darwin") {
-            // Copy the plugin to the app bundle
-            const fs = require("fs");
-            const path = require("path");
-            const pluginPath = path.join(
-              __dirname,
-              "node_modules",
-              "electron-mac-dock-icon-switcher",
-              "build",
-              "Release",
-              "DockTile.docktileplugin"
-            );
-            const pluginDest = path.join(
-              buildPath,
-              "vibe.app",
-              "Contents",
-              "PlugIns",
-              "DockTile.docktileplugin"
-            );
-            fs.mkdirSync(pluginDest, { recursive: true });
-            fs.cpSync(pluginPath, pluginDest, { recursive: true, overwrite: true });
-          }
-          callback();
-        },
-      ],
-    }
     },
     category: "public.app-category.developer-tools",
     entitlements: "resources/entitlements.mac.plist",
@@ -91,9 +91,6 @@ module.exports = {
     target: ["dmg", "zip"],
     artifactName: "vibe-${version}.${ext}",
     binaries: ["dist/mac-arm64/vibe.app/Contents/MacOS/vibe"],
-    additionalArguments: [
-      "--timestamp",
-    ],
   },
   dmg: {
     icon: "resources/icon.icns",

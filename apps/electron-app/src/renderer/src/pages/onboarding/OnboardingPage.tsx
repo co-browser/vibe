@@ -65,17 +65,19 @@ export function OnboardingPage({
         setDetectedBrowsers(browsers);
       };
 
+      const ipcHandler = (_, browsers) => {
+        handleDetectedBrowsers(browsers);
+      };
+
       window.electronAPI?.ipcRenderer?.on(
         "detected-browsers",
-        (_, browsers) => {
-          handleDetectedBrowsers(browsers);
-        },
+        ipcHandler,
       );
 
       return () => {
         window.electronAPI?.ipcRenderer?.removeListener(
           "detected-browsers",
-          handleDetectedBrowsers,
+          ipcHandler,
         );
       };
     }

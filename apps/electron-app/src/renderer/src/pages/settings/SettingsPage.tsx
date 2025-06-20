@@ -259,9 +259,12 @@ export function SettingsPage() {
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                           Max Response Length
                         </label>
-                        <select className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                        <select 
+                          defaultValue="2048"
+                          className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        >
                           <option value="1024">Short (1024 tokens)</option>
-                          <option value="2048" selected>
+                          <option value="2048">
                             Medium (2048 tokens)
                           </option>
                           <option value="4096">Long (4096 tokens)</option>
@@ -478,7 +481,7 @@ export function SettingsPage() {
             <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
               <div className="flex justify-between items-center">
                 <button
-                  onClick={() => window.close()}
+                  onClick={() => window.electronAPI?.closeWindow()}
                   className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-colors"
                 >
                   Cancel
