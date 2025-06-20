@@ -1,14 +1,15 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import express, { type Request, type Response } from 'express';
-import { StreamableHTTPServer } from './server';
+import { StreamableHTTPServer } from './server.js';
 import { logger } from './helpers/logs.js';
 import { hostname } from 'node:os';
+
 const log = logger('index');
 
 const server = new StreamableHTTPServer(
   new Server(
     {
-      name: 'rag-http-server',
+      name: 'rag-web-mcp',
       version: '1.0.0',
     },
     {
@@ -67,12 +68,13 @@ app.use('/', router);
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
+  log.success(`RAG MCP Streamable HTTP Server`);
   log.success(`MCP endpoint: http://${hostname()}:${PORT}${MCP_ENDPOINT}`);
   log.success(`Press Ctrl+C to stop the server`);
 });
 
 process.on('SIGINT', async () => {
-  log.error('Shutting down server...');
+  log.info('Shutting down server...');
   try {
     await server.close();
     log.success('Server shutdown completed successfully');
@@ -81,3 +83,14 @@ process.on('SIGINT', async () => {
   }
   process.exit(0);
 });
+
+process.on('SIGTERM', async () => {
+  log.info('Shutting down server...');
+  try {
+    await server.close();
+    log.success('Server shutdown completed successfully');
+  } catch (error) {
+    log.error('Error during server shutdown:', error);
+  }
+  process.exit(0);
+}); 
