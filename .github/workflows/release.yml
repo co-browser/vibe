@@ -6,6 +6,7 @@ on:
   pull_request:
     types: [closed]
     branches: [main]
+  workflow_dispatch: # Allow manual triggers
 
 permissions:
   contents: write
@@ -19,166 +20,225 @@ concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
-jobs:
-  # Run CI validation first
-  validate:
-    name: Validate Build
-    uses: ./.github/workflows/ci.yml
-    secrets: inherit
+# Set global timeout following best practices
+defaults:
+  run:
+    shell: bash
 
-  # Create release PR when commits are pushed to main
-  create-release-pr:
-    name: Create Release PR
+jobs:
+  # Determine if a release is needed
+  check-release:
+    name: Check for Release
     runs-on: ubuntu-latest
-    needs: validate
-    if: github.event_name == 'push' && !contains(github.event.head_commit.message, '[skip ci]')
+    timeout-minutes: 10
+    if: |
+      github.event_name == 'push' && 
+      !contains(github.event.head_commit.message, '[skip ci]') &&
+      !contains(github.event.head_commit.message, 'chore(release)')
     outputs:
-      should_release: ${{ steps.semantic-release-dry-run.outputs.new_release_published }}
-      version: ${{ steps.semantic-release-dry-run.outputs.new_release_version }}
-      notes: ${{ steps.semantic-release-dry-run.outputs.new_release_notes }}
+      should_release: ${{ steps.semantic-release-check.outputs.new_release_published }}
+      version: ${{ steps.semantic-release-check.outputs.new_release_version }}
+      notes: ${{ steps.semantic-release-check.outputs.new_release_notes }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9.1.4
+          # Use a Personal Access Token to trigger subsequent workflows
+          token: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
         with:
           node-version: "20"
-          cache: "pnpm"
+
+      - name: Cache dependencies
+        uses: actions/cache@6849a6489940f00c2f30c0fb92c6274307ccb58a # v4.1.2
+        with:
+          path: ~/.pnpm-store
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # v4.0.0
+        with:
+          version: 9.1.4
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Semantic Release Dry Run
-        id: semantic-release-dry-run
-        uses: cycjimmy/semantic-release-action@v4
+      - name: Check if release is needed
+        id: semantic-release-check
+        uses: cycjimmy/semantic-release-action@b1b432f13acb7768e0c8efdec416d363a57546f2 # v4.1.1
         with:
           semantic_version: 24
           dry_run: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Create Release Branch and PR
-        if: steps.semantic-release-dry-run.outputs.new_release_published == 'true'
+  # Create release PR when a release is needed
+  create-release-pr:
+    name: Create Release PR
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: check-release
+    if: needs.check-release.outputs.should_release == 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+        with:
+          node-version: "20"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # v4.0.0
+        with:
+          version: 9.1.4
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Configure Git
         run: |
-          # Configure git
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # Create and switch to release branch
-          RELEASE_BRANCH="release/v${{ steps.semantic-release-dry-run.outputs.new_release_version }}"
+      - name: Create Release Branch
+        id: create-branch
+        run: |
+          RELEASE_BRANCH="release/v${{ needs.check-release.outputs.version }}"
           git checkout -b "$RELEASE_BRANCH"
+          echo "branch=$RELEASE_BRANCH" >> $GITHUB_OUTPUT
 
-          # Run semantic release to generate files (without pushing)
-          npx semantic-release --dry-run --no-ci || true
-
-          # Generate changelog and version file manually
-          echo "${{ steps.semantic-release-dry-run.outputs.new_release_version }}" > VERSION
-
-          # Update CHANGELOG.md (this will be done by semantic-release when PR is merged)
-          # For now, we'll add a placeholder entry
-          if [ -f CHANGELOG.md ]; then
-            sed -i '1i\# Changelog\n\n## [v${{ steps.semantic-release-dry-run.outputs.new_release_version }}](https://github.com/${{ github.repository }}/compare/v$(cat VERSION)...v${{ steps.semantic-release-dry-run.outputs.new_release_version }}) ($(date +%Y-%m-%d))\n\n${{ steps.semantic-release-dry-run.outputs.new_release_notes }}\n' CHANGELOG.md
-          else
-            echo -e "# Changelog\n\n## [v${{ steps.semantic-release-dry-run.outputs.new_release_version }}] ($(date +%Y-%m-%d))\n\n${{ steps.semantic-release-dry-run.outputs.new_release_notes }}" > CHANGELOG.md
-          fi
-
-          # Commit changes
-          git add VERSION CHANGELOG.md
-          git commit -m "chore(release): ${{ steps.semantic-release-dry-run.outputs.new_release_version }} [skip ci]"
-
-          # Push branch
-          git push origin "$RELEASE_BRANCH"
-
-          # Create PR using GitHub CLI
-          gh pr create \
-            --base main \
-            --head "$RELEASE_BRANCH" \
-            --title "chore(release): v${{ steps.semantic-release-dry-run.outputs.new_release_version }}" \
-            --body "$(cat <<'EOF'
-          ## Release v${{ steps.semantic-release-dry-run.outputs.new_release_version }}
-
-          This PR contains the release changes for version ${{ steps.semantic-release-dry-run.outputs.new_release_version }}.
-
-          ### Release Notes
-          ${{ steps.semantic-release-dry-run.outputs.new_release_notes }}
-
-          ### Files Changed
-          - VERSION: Updated to ${{ steps.semantic-release-dry-run.outputs.new_release_version }}
-          - CHANGELOG.md: Added release notes
-
-          **Please review and merge this PR to publish the release.**
-
-          🤖 This PR was automatically created by the release workflow.
-          EOF
-          )" \
-            --reviewer michiosw
+      - name: Generate Release Assets
+        run: |
+          # Let semantic-release handle CHANGELOG and VERSION updates
+          npx semantic-release --no-ci --dry-run
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Commit Release Changes
+        run: |
+          # Only commit if there are changes
+          if [[ -n $(git status -s) ]]; then
+            git add .
+            git commit -m "chore(release): prepare v${{ needs.check-release.outputs.version }} [skip ci]"
+            git push origin "${{ steps.create-branch.outputs.branch }}"
+          else
+            echo "No changes to commit"
+            exit 1
+          fi
+
+      - name: Create Pull Request
+        id: create-pr
+        uses: peter-evans/create-pull-request@5e914681df9dc83aa4e4905692ca88beb2f9e91f # v7.0.5
+        with:
+          token: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          branch: ${{ steps.create-branch.outputs.branch }}
+          base: main
+          title: "chore(release): v${{ needs.check-release.outputs.version }}"
+          body: |
+            ## 🚀 Release v${{ needs.check-release.outputs.version }}
+
+            This PR contains the automated release changes for version **v${{ needs.check-release.outputs.version }}**.
+
+            ### 📝 Release Notes
+            ${{ needs.check-release.outputs.notes }}
+
+            ### 📦 Changes
+            - Updated `VERSION` to ${{ needs.check-release.outputs.version }}
+            - Updated `CHANGELOG.md` with release notes
+
+            ### ✅ Checklist
+            - [ ] Review the changelog entries
+            - [ ] Verify version bump is correct
+            - [ ] Ensure all tests pass
+
+            ---
+            🤖 *This PR was automatically created by the release workflow.*
+          labels: |
+            release
+            automated
+
+      - name: Enable Auto-merge
+        if: steps.create-pr.outputs.pull-request-number
+        run: |
+          gh pr merge --auto --squash "${{ steps.create-pr.outputs.pull-request-number }}"
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
 
   # Publish the release after PR is merged
   publish-release:
     name: Publish Release
     runs-on: ubuntu-latest
-    needs: validate
-    if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'release/')
+    timeout-minutes: 20
+    if: |
+      github.event_name == 'pull_request' && 
+      github.event.action == 'closed' && 
+      github.event.pull_request.merged == true && 
+      startsWith(github.event.pull_request.head.ref, 'release/')
     outputs:
       released: ${{ steps.semantic-release.outputs.new_release_published }}
       version: ${{ steps.semantic-release.outputs.new_release_version }}
       notes: ${{ steps.semantic-release.outputs.new_release_notes }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9.1.4
+          token: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
         with:
           node-version: "20"
-          cache: "pnpm"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # v4.0.0
+        with:
+          version: 9.1.4
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Semantic Release
+      - name: Publish Release
         id: semantic-release
-        uses: cycjimmy/semantic-release-action@v4
+        uses: cycjimmy/semantic-release-action@b1b432f13acb7768e0c8efdec416d363a57546f2 # v4.1.1
         with:
           semantic_version: 24
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
 
   # Notify Discord on successful release
-  notify:
+  notify-discord:
     name: Discord Notification
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     needs: publish-release
-    if: needs.publish-release.outputs.released == 'true'
+    if: |
+      always() && 
+      needs.publish-release.result == 'success' && 
+      needs.publish-release.outputs.released == 'true'
     steps:
       - name: Send Discord Notification
-        uses: Ilshidur/action-discord@master
+        uses: Ilshidur/action-discord@0c4b27844ba47cb1c7bee539c8eead5284ce9fa9 # 0.3.2
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
         with:
           args: |
             🚀 **New Release: v${{ needs.publish-release.outputs.version }}**
 
-            Repository: **${{ github.repository }}**
-            Release Notes: ${{ github.server_url }}/${{ github.repository }}/releases/tag/v${{ needs.publish-release.outputs.version }}
+            📦 **Repository:** ${{ github.repository }}
+            📋 **Release Notes:** ${{ github.server_url }}/${{ github.repository }}/releases/tag/v${{ needs.publish-release.outputs.version }}
 
+            ✨ **Highlights:**
             ${{ needs.publish-release.outputs.notes }}
+
+            ---
+            [View Release](${{ github.server_url }}/${{ github.repository }}/releases/tag/v${{ needs.publish-release.outputs.version }}) | [View Changelog](${{ github.server_url }}/${{ github.repository }}/blob/main/CHANGELOG.md)
