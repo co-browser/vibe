@@ -61,7 +61,7 @@ Always provide helpful and accurate responses based on the information you find.
     console.log('💭 Thinking...');
     
     const response = await this.llm.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: 'gpt-4o',
       max_tokens: 1000,
       messages,
       tools: this.tools.map(this.mcpToolToOpenAITool),
@@ -125,7 +125,13 @@ Always provide helpful and accurate responses based on the information you find.
             toolOutput = JSON.stringify(result.data, null, 2);
           }
           
-          console.log(`✅ Tool '${toolName}' result:\n${toolOutput}`);
+          // Truncate long outputs to prevent terminal clogging
+          const maxOutputLength = 500;
+          const displayOutput = toolOutput.length > maxOutputLength 
+            ? toolOutput.substring(0, maxOutputLength) + `\n... [${toolOutput.length - maxOutputLength} more chars]`
+            : toolOutput;
+          
+          console.log(`✅ Tool '${toolName}' result:\n${displayOutput}`);
 
           messages.push({
             role: 'tool',
@@ -145,7 +151,7 @@ Always provide helpful and accurate responses based on the information you find.
       console.log('💭 Processing tool results...');
       
       const followUpResponse = await this.llm.chat.completions.create({
-        model: 'gpt-4o-mini',
+        model: 'gpt-4o',
         max_tokens: 1000,
         messages,
         // No tools and no tool_choice - just generate a regular response
