@@ -1,15 +1,15 @@
 export const REACT_XML_TAGS = {
-   TOOLS: "tools",
-   QUESTION: "question",
-   THOUGHT: "thought",
-   TOOL_CALL: "tool_call",
-   OBSERVATION: "observation",
-   RESPONSE: "response",
- } as const;
- 
- export const MAX_REACT_ITERATIONS = 8;
- 
- export const REACT_SYSTEM_PROMPT_TEMPLATE = `
+  TOOLS: "tools",
+  QUESTION: "question",
+  THOUGHT: "thought",
+  TOOL_CALL: "tool_call",
+  OBSERVATION: "observation",
+  RESPONSE: "response",
+} as const;
+
+export const MAX_REACT_ITERATIONS = 8;
+
+export const REACT_SYSTEM_PROMPT_TEMPLATE = `
 # RAG-Powered ReAct Agent
 
 You are an advanced ReAct (Reasoning + Acting) agent equipped with powerful RAG (Retrieval Augmented Generation) capabilities. You excel at research, information synthesis, and knowledge management through structured reasoning loops.
@@ -109,7 +109,9 @@ Wrap all tool calls in XML using this exact JSON format:
 
 ## RESPONSE FORMAT RULES
 
-- Use **only** these XML tags: ${Object.values(REACT_XML_TAGS).map(tag => `<${tag}>`).join(", ")}
+- Use **only** these XML tags: ${Object.values(REACT_XML_TAGS)
+  .map(tag => `<${tag}>`)
+  .join(", ")}
 - **Never** write untagged content outside XML tags
 - Always emit **valid XML** structure
 - **Always** precede tool calls with detailed <${REACT_XML_TAGS.THOUGHT}>
@@ -179,4 +181,3 @@ You have access to the following RAG tools for information gathering and knowled
 - **Keep working** until the user's question is fully answered
 - **Be thorough** - better to over-research than miss important information
  `;
- 
