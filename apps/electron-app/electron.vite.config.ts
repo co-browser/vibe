@@ -27,7 +27,7 @@ export default defineConfig({
     resolve: {
       alias: {
         "@": path.resolve(__dirname, "./src/main"),
-        "~": path.resolve(__dirname, "./src/shared"),
+        "@vibe/shared-types": path.resolve(__dirname, "../../packages/shared-types/src/index.ts"),
       },
     },
     build: {
@@ -35,6 +35,7 @@ export default defineConfig({
         input: {
           index: path.resolve(__dirname, "./src/main/index.ts"),
           "processes/agent-process": path.resolve(__dirname, "./src/main/processes/agent-process.ts"),
+          "processes/mcp-manager-process": path.resolve(__dirname, "./src/main/processes/mcp-manager-process.ts"),
         },
         output: {
           entryFileNames: "[name].js",
@@ -46,7 +47,7 @@ export default defineConfig({
     plugins: [externalizeDepsPlugin()],
     resolve: {
       alias: {
-        "~": path.resolve(__dirname, "./src/shared"),
+        "@vibe/shared-types": path.resolve(__dirname, "../../packages/shared-types/src/index.ts"),
       },
     },
   },
@@ -54,7 +55,6 @@ export default defineConfig({
     resolve: {
       alias: {
         "@": path.resolve(__dirname, "./src/renderer/src"),
-        "~": path.resolve(__dirname, "./src/shared"),
         "@vibe/shared-types": path.resolve(__dirname, "../../packages/shared-types/src/index.ts"),
       },
     },

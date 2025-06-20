@@ -8,9 +8,17 @@ import { createStore as createZustandVanillaStore } from "zustand/vanilla";
 
 import type { AppState } from "../../../main/store/types";
 import type { ChatMessage } from "@vibe/shared-types";
-import { createLogger } from "@vibe/shared-types";
-
-const logger = createLogger("RendererStore");
+// Simple browser-compatible logger for renderer process
+const logger = {
+  info: (msg: string, ...args: any[]) =>
+    console.log(`[RendererStore] ${msg}`, ...args),
+  warn: (msg: string, ...args: any[]) =>
+    console.warn(`[RendererStore] ${msg}`, ...args),
+  error: (msg: string, ...args: any[]) =>
+    console.error(`[RendererStore] ${msg}`, ...args),
+  debug: (msg: string, ...args: any[]) =>
+    console.log(`[RendererStore] ${msg}`, ...args),
+};
 
 /**
  * Interface for the bridge communication

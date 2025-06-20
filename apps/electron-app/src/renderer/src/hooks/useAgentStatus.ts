@@ -1,7 +1,15 @@
 import { useEffect, useState } from "react";
-import { createLogger } from "@vibe/shared-types";
-
-const logger = createLogger("AgentStatus");
+// Simple browser-compatible logger for renderer process
+const logger = {
+  info: (msg: string, ...args: any[]) =>
+    console.log(`[AgentStatus] ${msg}`, ...args),
+  warn: (msg: string, ...args: any[]) =>
+    console.warn(`[AgentStatus] ${msg}`, ...args),
+  error: (msg: string, ...args: any[]) =>
+    console.error(`[AgentStatus] ${msg}`, ...args),
+  debug: (msg: string, ...args: any[]) =>
+    console.log(`[AgentStatus] ${msg}`, ...args),
+};
 
 export const useAgentStatus = () => {
   const [isAgentInitializing, setIsAgentInitializing] = useState(true);

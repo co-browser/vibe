@@ -157,3 +157,4 @@ electron.vite.config.*.mjs
 tmp/
 temp/
 tmp-build/
+*.tsbuildinfo
