@@ -92,9 +92,11 @@ export const GLASSMORPHISM_CONFIG = {
 /**
  * Memory + RAG configuration for MCP server integration
  */
-export const MEMORY_CONFIG = {
-  MCP_SERVER_URL: "http://localhost:3000/mcp",
-} as const;
+import { getMCPServerUrl } from "../mcp/index.js";
+
+export function getRAGServerURL(): string {
+  return getMCPServerUrl("rag", "/mcp") || "http://localhost:3000/mcp";
+}
 
 /**
  * Gmail OAuth configuration

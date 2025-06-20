@@ -5,7 +5,7 @@
 
 import { AgentFactory, Agent } from "@vibe/agent-core";
 import type { ExtractedPage } from "@vibe/shared-types";
-import { MEMORY_CONFIG } from "@vibe/shared-types";
+import { getMCPServerUrl } from "@vibe/shared-types";
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -166,7 +166,7 @@ class MessageHandlers {
       processorType: MessageValidator.validateProcessorType(
         config.processorType,
       ),
-      mcpServerUrl: config.mcpServerUrl || MEMORY_CONFIG.MCP_SERVER_URL,
+      mcpServerUrl: config.mcpServerUrl || getMCPServerUrl("rag", "/mcp"),
     });
 
     console.log(
