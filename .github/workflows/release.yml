@@ -118,22 +118,40 @@ jobs:
 
       - name: Generate Release Assets
         run: |
-          # Let semantic-release handle CHANGELOG and VERSION updates
-          npx semantic-release --no-ci --dry-run
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Create VERSION file
+          echo "${{ needs.check-release.outputs.version }}" > VERSION
+
+          # Update CHANGELOG.md with release notes
+          if [[ ! -f CHANGELOG.md ]]; then
+            echo "# Changelog" > CHANGELOG.md
+            echo "" >> CHANGELOG.md
+          fi
+
+          # Prepend new release notes to CHANGELOG.md
+          {
+            echo "# Changelog"
+            echo ""
+            echo "## [${{ needs.check-release.outputs.version }}] - $(date '+%Y-%m-%d')"
+            echo ""
+            echo "${{ needs.check-release.outputs.notes }}"
+            echo ""
+            tail -n +3 CHANGELOG.md 2>/dev/null || true
+          } > CHANGELOG.md.tmp && mv CHANGELOG.md.tmp CHANGELOG.md
 
       - name: Commit Release Changes
         run: |
-          # Only commit if there are changes
-          if [[ -n $(git status -s) ]]; then
-            git add .
-            git commit -m "chore(release): prepare v${{ needs.check-release.outputs.version }} [skip ci]"
-            git push origin "${{ steps.create-branch.outputs.branch }}"
-          else
+          # Add the generated files
+          git add VERSION CHANGELOG.md
+
+          # Check if there are changes to commit
+          if git diff --staged --quiet; then
             echo "No changes to commit"
             exit 1
           fi
+
+          # Commit and push changes
+          git commit -m "chore(release): prepare v${{ needs.check-release.outputs.version }} [skip ci]"
+          git push origin "${{ steps.create-branch.outputs.branch }}"
 
       - name: Create Pull Request
         id: create-pr
