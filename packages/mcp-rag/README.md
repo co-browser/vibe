@@ -1,4 +1,4 @@
-# @vibe/mcp-server-web-rag
+# @vibe/mcp-rag
 
 MCP server providing RAG (Retrieval-Augmented Generation) capabilities for web content ingestion and semantic search via OpenAI embeddings and TurboPuffer vector storage.
 

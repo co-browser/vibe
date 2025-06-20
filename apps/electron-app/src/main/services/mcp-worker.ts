@@ -92,6 +92,12 @@ export class MCPWorker extends EventEmitter {
       PATH: process.env.PATH, // Pass through PATH for finding executables
       GMAIL_CLIENT_ID: process.env.GMAIL_CLIENT_ID,
       GMAIL_CLIENT_SECRET: process.env.GMAIL_CLIENT_SECRET,
+      // RAG server environment variables
+      OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+      TURBOPUFFER_API_KEY: process.env.TURBOPUFFER_API_KEY,
+      ENABLE_PPL_CHUNKING: process.env.ENABLE_PPL_CHUNKING,
+      FAST_MODE: process.env.FAST_MODE,
+      VERBOSE_LOGS: process.env.VERBOSE_LOGS,
     };
 
     // Only include defined environment variables

@@ -24,6 +24,7 @@ import fetch from "node-fetch";
 import { JSDOM } from "jsdom";
 import { parse } from "node-html-parser";
 import type { ExtractedPage } from "@vibe/tab-extraction-core";
+import { createLogger } from "@vibe/shared-types";
 
 const REGION = "gcp-europe-west3";
 const NAMESPACE = "kb-main";
@@ -39,21 +40,22 @@ const ENABLE_PPL_CHUNKING = process.env.ENABLE_PPL_CHUNKING === 'true';
 const FAST_MODE = process.env.FAST_MODE !== 'false'; // enabled by default
 const VERBOSE_LOGS = process.env.VERBOSE_LOGS === 'true'; // disabled by default
 
+// Create logger instance
+const logger = createLogger('rag-tools');
+
 /**
- * Logs messages with timestamp and level formatting
- * Optimized to avoid verbose content that could clog the terminal
- * @param level - Log level (info, warn, error, etc.)
+ * Logs messages with level-appropriate methods
+ * Uses shared-types logger for consistent formatting
+ * @param level - Log level (info, warn, error, debug)
  * @param message - Main log message
- * @param args - Additional arguments to log (simplified for verbose data)
+ * @param args - Additional arguments to log
  */
-function log(level: string, message: string, ...args: any[]) {
-  const timestamp = new Date().toISOString();
-  
+function log(level: 'info' | 'warn' | 'error' | 'debug', message: string, ...args: any[]) {
   // Skip detailed logs unless verbose mode is enabled
   if (!VERBOSE_LOGS && level === 'info' && message.includes('Processing embedding')) {
     return; // Skip frequent embedding progress logs
   }
-  
+
   // Simplify args to avoid verbose output in logs
   const simplifiedArgs = args.map(arg => {
     if (arg instanceof Error) {
@@ -68,8 +70,24 @@ function log(level: string, message: string, ...args: any[]) {
     }
     return arg;
   });
-  
-  console.log(`[${timestamp}] [${level.toUpperCase()}] ${message}`, ...simplifiedArgs);
+
+  // Use shared logger with appropriate level
+  switch (level) {
+    case 'info':
+      logger.info(message, ...simplifiedArgs);
+      break;
+    case 'warn':
+      logger.warn(message, ...simplifiedArgs);
+      break;
+    case 'error':
+      logger.error(message, ...simplifiedArgs);
+      break;
+    case 'debug':
+      if (VERBOSE_LOGS) {
+        logger.debug(message, ...simplifiedArgs);
+      }
+      break;
+  }
 }
 
 if (!process.env.OPENAI_API_KEY) {
@@ -168,10 +186,10 @@ async function fetchAndParse(url: string): Promise<ParsedDoc> {
 function tokenLength(str: string): number {
   const words = str.trim().split(/\s+/);
   const chars = str.length;
-  
+
   const charBasedEstimate = Math.ceil(chars / 3.5);
   const wordBasedEstimate = Math.ceil(words.length * 1.3);
-  
+
   return Math.max(charBasedEstimate, wordBasedEstimate);
 }
 
@@ -186,15 +204,15 @@ function truncateTextToTokenLimit(text: string, maxTokens: number): string {
   if (tokenLength(text) <= maxTokens) {
     return text;
   }
-  
+
   let left = 0;
   let right = text.length;
   let result = text;
-  
+
   while (left < right) {
     const mid = Math.floor((left + right) / 2);
     const truncated = text.substring(0, mid);
-    
+
     if (tokenLength(truncated) <= maxTokens) {
       result = truncated;
       left = mid + 1;
@@ -202,7 +220,7 @@ function truncateTextToTokenLimit(text: string, maxTokens: number): string {
       right = mid;
     }
   }
-  
+
   const sentences = result.split(/[.!?]+/);
   if (sentences.length > 1) {
     sentences.pop();
@@ -214,7 +232,7 @@ function truncateTextToTokenLimit(text: string, maxTokens: number): string {
       result = words.join(' ');
     }
   }
-  
+
   return result.trim();
 }
 
@@ -241,7 +259,7 @@ function splitIntoSentences(text: string): string[] {
  */
 async function calculateSentencePerplexity(sentence: string, context: string): Promise<number> {
   const prompt = context + " " + sentence;
-  
+
   try {
     const response = await openai.chat.completions.create({
       model: "gpt-3.5-turbo",
@@ -268,7 +286,7 @@ async function calculateSentencePerplexity(sentence: string, context: string): P
 
     let totalLogProb = 0;
     let validTokens = 0;
-    
+
     for (const token of logprobs) {
       if (token && typeof token.logprob === 'number') {
         totalLogProb += token.logprob;
@@ -297,28 +315,28 @@ async function calculateSentencePerplexity(sentence: string, context: string): P
  */
 async function detectPPLMinima(sentences: SentenceWithPPL[], threshold: number = PPL_THRESHOLD): Promise<number[]> {
   const boundaries: number[] = [];
-  
+
   for (let i = 1; i < sentences.length - 1; i++) {
     const currentSentence = sentences[i];
     const prevSentence = sentences[i - 1];
     const nextSentence = sentences[i + 1];
-    
+
     if (!currentSentence || !prevSentence || !nextSentence) continue;
-    
+
     const current = currentSentence.ppl || 1.0;
     const prev = prevSentence.ppl || 1.0;
     const next = nextSentence.ppl || 1.0;
-    
+
     const leftDiff = prev - current;
     const rightDiff = next - current;
-    
-    if ((leftDiff > threshold && rightDiff > threshold) || 
-        (leftDiff > threshold && rightDiff === 0)) {
+
+    if ((leftDiff > threshold && rightDiff > threshold) ||
+      (leftDiff > threshold && rightDiff === 0)) {
       boundaries.push(i);
       currentSentence.isMinima = true;
     }
   }
-  
+
   return boundaries;
 }
 
@@ -343,14 +361,14 @@ async function performPPLChunking(text: string, options: PPLChunkOptions = {}): 
   }
 
   const sentencesWithPPL: SentenceWithPPL[] = sentences.map(s => ({ text: s }));
-  
+
   let context = "";
   for (let i = 0; i < sentencesWithPPL.length; i++) {
     const sentence = sentencesWithPPL[i];
     if (sentence) {
       sentence.ppl = await calculateSentencePerplexity(sentence.text, context);
       context += " " + sentence.text;
-      
+
       if (tokenLength(context) > MAX_EMBEDDING_TOKENS * 0.8) {
         const sentences_to_keep = Math.floor(sentences.length * 0.3);
         const recentSentences = sentencesWithPPL.slice(-sentences_to_keep);
@@ -360,22 +378,22 @@ async function performPPLChunking(text: string, options: PPLChunkOptions = {}): 
   }
 
   const boundaries = await detectPPLMinima(sentencesWithPPL, threshold);
-  
+
   const chunks: string[] = [];
   let currentChunk = "";
 
   for (let i = 0; i < sentences.length; i++) {
     currentChunk += sentences[i] + " ";
-    
-    const shouldSplit = boundaries.includes(i) || 
-                       tokenLength(currentChunk) >= maxChunkSize;
-    
+
+    const shouldSplit = boundaries.includes(i) ||
+      tokenLength(currentChunk) >= maxChunkSize;
+
     if (shouldSplit && tokenLength(currentChunk.trim()) >= minChunkSize) {
       chunks.push(currentChunk.trim());
       currentChunk = "";
     }
   }
-  
+
   if (currentChunk.trim()) {
     chunks.push(currentChunk.trim());
   }
@@ -400,7 +418,7 @@ async function dynamicallyMergeChunks(chunks: string[], targetSize: number): Pro
 
   for (const chunk of chunks) {
     const combinedLength = tokenLength(currentMerged + " " + chunk);
-    
+
     if (combinedLength <= targetSize) {
       currentMerged = currentMerged ? currentMerged + " " + chunk : chunk;
     } else {
@@ -475,9 +493,9 @@ function* chunkDocument(doc: ParsedDoc): Generator<Chunk> {
 async function* chunkExtractedPage(extractedPage: ExtractedPage): AsyncGenerator<EnhancedChunk> {
   const domain = new URL(extractedPage.url).hostname;
   const baseContext = `${extractedPage.title} - ${extractedPage.excerpt || 'No description'}`;
-  
+
   const contentLength = Number.isInteger(extractedPage.contentLength) ? extractedPage.contentLength : 0;
-  
+
   if (extractedPage.content) {
     yield* chunkContentWithPPL(extractedPage, domain, baseContext, contentLength);
   }
@@ -495,9 +513,9 @@ async function* chunkExtractedPage(extractedPage: ExtractedPage): AsyncGenerator
  * @returns AsyncGenerator yielding content chunks with enhanced metadata
  */
 async function* chunkContentWithPPL(
-  extractedPage: ExtractedPage, 
-  domain: string, 
-  baseContext: string, 
+  extractedPage: ExtractedPage,
+  domain: string,
+  baseContext: string,
   contentLength: number
 ): AsyncGenerator<EnhancedChunk> {
   if (!extractedPage.content) return;
@@ -552,9 +570,9 @@ async function* chunkContentWithPPL(
  * @returns Generator yielding content chunks with enhanced metadata
  */
 function* chunkContentTraditional(
-  extractedPage: ExtractedPage, 
-  domain: string, 
-  baseContext: string, 
+  extractedPage: ExtractedPage,
+  domain: string,
+  baseContext: string,
   contentLength: number
 ): Generator<EnhancedChunk> {
   if (!extractedPage.content) return;
@@ -564,7 +582,7 @@ function* chunkContentTraditional(
     yield* chunkContentFast(extractedPage, domain, baseContext, contentLength);
     return;
   }
-  
+
   const root = parse(extractedPage.content);
   let buf = "";
   let headingPath: string[] = [];
@@ -622,9 +640,9 @@ function* chunkContentTraditional(
  * @returns Generator yielding content chunks with enhanced metadata
  */
 function* chunkContentFast(
-  extractedPage: ExtractedPage, 
-  domain: string, 
-  baseContext: string, 
+  extractedPage: ExtractedPage,
+  domain: string,
+  baseContext: string,
   contentLength: number
 ): Generator<EnhancedChunk> {
   if (!extractedPage.content) return;
@@ -632,7 +650,7 @@ function* chunkContentFast(
   // Use textContent if available for faster processing
   const text = extractedPage.textContent || extractedPage.content;
   const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 10);
-  
+
   let currentChunk = "";
   let chunkIndex = 1;
 
@@ -660,12 +678,12 @@ function* chunkContentFast(
 
   for (const sentence of sentences) {
     const testChunk = currentChunk + sentence + ". ";
-    
+
     if (tokenLength(testChunk) > MAX_CHUNK_SIZE) {
       // Flush current chunk if adding this sentence would exceed limit
       const chunk = flushChunk();
       if (chunk) yield chunk;
-      
+
       // Start new chunk with overlap
       const words = currentChunk.split(" ");
       const overlapText = words.slice(-OVERLAP_TOKENS).join(" ");
@@ -690,9 +708,9 @@ function* chunkContentFast(
  * @returns Generator yielding metadata chunks with different types (metadata, image_context, action)
  */
 function* generateEnhancedMetadataChunks(
-  extractedPage: ExtractedPage, 
-  domain: string, 
-  baseContext: string, 
+  extractedPage: ExtractedPage,
+  domain: string,
+  baseContext: string,
   contentLength: number
 ): Generator<EnhancedChunk> {
   const metadataComponents = [
@@ -706,12 +724,12 @@ function* generateEnhancedMetadataChunks(
   ].filter((component): component is string => component !== null);
 
   const metadataChunks = createAdaptiveMetadataChunks(metadataComponents, MAX_CHUNK_SIZE);
-  
+
   for (let i = 0; i < metadataChunks.length; i++) {
     const chunk = metadataChunks[i];
     if (chunk) {
       const chunkText = chunk.join('\n');
-      
+
       if (tokenLength(chunkText) <= MAX_EMBEDDING_TOKENS) {
         yield {
           chunkId: uuidv4(),
@@ -732,11 +750,11 @@ function* generateEnhancedMetadataChunks(
 
   if (extractedPage.images && extractedPage.images.length > 0) {
     const imageChunks = createAdaptiveImageChunks(extractedPage.images, extractedPage.title || 'Unknown Page', MAX_CHUNK_SIZE);
-    
+
     for (let i = 0; i < imageChunks.length; i++) {
       const chunk = imageChunks[i];
       if (!chunk) continue;
-      
+
       yield {
         chunkId: uuidv4(),
         docId: uuidv4(),
@@ -755,11 +773,11 @@ function* generateEnhancedMetadataChunks(
 
   if (extractedPage.actions && extractedPage.actions.length > 0) {
     const actionChunks = createAdaptiveActionChunks(extractedPage.actions, extractedPage.title || 'Unknown Page', MAX_CHUNK_SIZE);
-    
+
     for (let i = 0; i < actionChunks.length; i++) {
       const chunk = actionChunks[i];
       if (!chunk) continue;
-      
+
       yield {
         chunkId: uuidv4(),
         docId: uuidv4(),
@@ -791,7 +809,7 @@ function createAdaptiveMetadataChunks(components: string[], maxChunkSize: number
 
   for (const component of components) {
     const componentSize = tokenLength(component);
-    
+
     if (currentSize + componentSize > maxChunkSize && currentChunk.length > 0) {
       chunks.push([...currentChunk]);
       currentChunk = [component];
@@ -826,7 +844,7 @@ function createAdaptiveImageChunks(images: any[], title: string, maxChunkSize: n
   for (const img of images) {
     const imageText = `Image: ${img.src}${img.alt ? ` (${img.alt})` : ''}${img.title ? ` - ${img.title}` : ''}`;
     const imageSize = tokenLength(imageText);
-    
+
     if (currentSize + imageSize > maxChunkSize && currentChunk !== `Images from ${safeTitle}:\n`) {
       chunks.push(currentChunk.trim());
       currentChunk = `Images from ${safeTitle}:\n${imageText}`;
@@ -861,7 +879,7 @@ function createAdaptiveActionChunks(actions: any[], title: string, maxChunkSize:
   for (const action of actions) {
     const actionText = `${action.type}: ${action.text} (${action.selector})`;
     const actionSize = tokenLength(actionText);
-    
+
     if (currentSize + actionSize > maxChunkSize && currentChunk !== `Interactive elements on ${safeTitle}:\n`) {
       chunks.push(currentChunk.trim());
       currentChunk = `Interactive elements on ${safeTitle}:\n${actionText}`;
@@ -888,7 +906,7 @@ function createAdaptiveActionChunks(actions: any[], title: string, maxChunkSize:
  */
 async function embed(text: string): Promise<number[]> {
   const estimatedTokens = tokenLength(text);
-  
+
   if (estimatedTokens > MAX_EMBEDDING_TOKENS) {
     log('warn', `Text too long for embedding (${estimatedTokens} tokens), truncating...`);
     text = truncateTextToTokenLimit(text, MAX_EMBEDDING_TOKENS);
@@ -899,29 +917,29 @@ async function embed(text: string): Promise<number[]> {
       model: "text-embedding-3-small",
       input: text,
     });
-    
+
     if (!resp.data[0]?.embedding) {
       throw new Error("Failed to get embedding");
     }
-    
+
     return resp.data[0].embedding as number[];
   } catch (error: any) {
     if (error.message?.includes('maximum context length')) {
       log('warn', `Retrying with more aggressive truncation (text was too long)`);
       const moreAggressiveTruncation = truncateTextToTokenLimit(text, Math.floor(MAX_EMBEDDING_TOKENS * 0.7));
-      
+
       const resp = await openai.embeddings.create({
         model: "text-embedding-3-small",
         input: moreAggressiveTruncation,
       });
-      
+
       if (!resp.data[0]?.embedding) {
         throw new Error("Failed to get embedding after truncation");
       }
-      
+
       return resp.data[0].embedding as number[];
     }
-    
+
     throw error;
   }
 }
@@ -972,10 +990,10 @@ async function upsertChunks(chunks: Chunk[]): Promise<void> {
  */
 async function upsertEnhancedChunks(chunks: EnhancedChunk[]): Promise<void> {
   if (chunks.length === 0) return;
-  
+
   log('info', `Creating embeddings for ${chunks.length} chunks...`);
   const startTime = Date.now();
-  
+
   const ids: (string | number)[] = [];
   const vecs: number[][] = [];
   const texts: string[] = [];
@@ -992,11 +1010,11 @@ async function upsertEnhancedChunks(chunks: EnhancedChunk[]): Promise<void> {
   for (let i = 0; i < chunks.length; i++) {
     const c = chunks[i];
     if (!c) continue; // Safety check
-    
+
     if (i % 5 === 0) {
       log('info', `Processing embedding ${i + 1}/${chunks.length}`);
     }
-    
+
     ids.push(c.chunkId);
     vecs.push(await embed(c.text));
     texts.push(c.text);
@@ -1041,7 +1059,7 @@ async function upsertEnhancedChunks(chunks: EnhancedChunk[]): Promise<void> {
       semantic_context: { type: "string", full_text_search: true },
     },
   });
-  
+
   const writeTime = Date.now() - writeStartTime;
   const totalTime = Date.now() - startTime;
   log('info', `Stored ${chunks.length} chunks in ${writeTime}ms (total: ${totalTime}ms)`);
@@ -1091,25 +1109,25 @@ export async function queryKnowledgeBase(query: string, top_k: number = 5) {
 export async function ingestExtractedPage(extractedPage: ExtractedPage) {
   const startTime = Date.now();
   log('info', `Ingesting ExtractedPage: ${extractedPage.title} (${extractedPage.contentLength || 'unknown size'} chars)`);
-  
+
   const chunks: EnhancedChunk[] = [];
-  
+
   // Collect all chunks
   const chunkStartTime = Date.now();
   for await (const chunk of chunkExtractedPage(extractedPage)) {
     chunks.push(chunk);
   }
   const chunkTime = Date.now() - chunkStartTime;
-  
+
   log('info', `Generated ${chunks.length} chunks in ${chunkTime}ms`);
-  
+
   // Store chunks in database
   await upsertEnhancedChunks(chunks);
-  
+
   const totalTime = Date.now() - startTime;
   log('info', `Successfully ingested ${chunks.length} enhanced chunks from ${extractedPage.title} in ${totalTime}ms`);
-  
-  return { 
+
+  return {
     url: extractedPage.url,
     title: extractedPage.title,
     n_chunks: chunks.length,
@@ -1167,7 +1185,7 @@ export const RAGTools = [
               }
             },
             actions: {
-              type: "array", 
+              type: "array",
               items: {
                 type: "object",
                 properties: {

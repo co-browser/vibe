@@ -38,3 +38,6 @@ export * from "./gmail";
 
 // MCP types
 export * from "./mcp";
+
+// RAG types
+export * from "./rag";

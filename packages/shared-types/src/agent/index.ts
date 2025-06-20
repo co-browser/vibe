@@ -8,7 +8,6 @@ export interface AgentConfig {
   openaiApiKey: string;
   model?: string;
   temperature?: number;
-  mcpServerUrl?: string;
   processorType?: "react" | "coact";
 }
 

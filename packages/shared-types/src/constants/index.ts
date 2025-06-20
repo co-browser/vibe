@@ -90,11 +90,9 @@ export const GLASSMORPHISM_CONFIG = {
 } as const;
 
 /**
- * Memory + RAG configuration for MCP server integration
+ * Memory + RAG configuration - removed legacy single-server approach
+ * Now handled by multi-server MCP configuration in factory.ts
  */
-export const MEMORY_CONFIG = {
-  MCP_SERVER_URL: "http://localhost:3000/mcp",
-} as const;
 
 /**
  * Gmail OAuth configuration
