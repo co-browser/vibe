@@ -100,9 +100,16 @@ async function gracefulShutdown(signal: string) {
     }, 30000);
 
     // Wait for all connections to close
+    let waitCount = 0;
+    const maxWaitCycles = 30; // Max 30 seconds with 1-second intervals
     while (activeSockets.size > 0) {
+      if (waitCount >= maxWaitCycles) {
+        logger.warn('Max wait time exceeded, forcing shutdown');
+        break;
+      }
       logger.info(`Waiting for ${activeSockets.size} active connection(s) to close...`);
       await new Promise(resolve => setTimeout(resolve, 1000));
+      waitCount++;
     }
 
     clearTimeout(shutdownTimeout);
