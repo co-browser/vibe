@@ -1,5 +1,5 @@
 /**
- * MCP Tool Router - Simple tool name parsing and routing
+ * MCP Tool Router - Tool name parsing and routing
  */
 
 import { MCPConnection, IMCPToolRouter } from "@vibe/shared-types";
@@ -87,9 +87,9 @@ export class MCPToolRouter implements IMCPToolRouter {
   }
 
   /**
-   * Clear any internal state (no-op for lean implementation)
+   * Clear any internal state
    */
   clearCache(): void {
-    // No cache to clear in lean implementation
+    // No cache to clear in this implementation
   }
 }
