@@ -1,5 +1,10 @@
 import { createLogger } from "@vibe/shared-types";
-import type { ExtractedPage, IMCPManager, MCPTool, MCPCallResult } from "@vibe/shared-types";
+import type {
+  ExtractedPage,
+  IMCPManager,
+  MCPTool,
+  MCPCallResult,
+} from "@vibe/shared-types";
 
 import type { IToolManager } from "../interfaces/index.js";
 import type { ReactObservation } from "../react/types.js";
@@ -14,7 +19,7 @@ export class ToolManager implements IToolManager {
   private cachedTools: Record<string, MCPTool> | null = null;
   private cachedFormattedTools: string | null = null;
 
-  constructor(private mcpManager?: IMCPManager) { }
+  constructor(private mcpManager?: IMCPManager) {}
 
   async getTools(): Promise<Record<string, MCPTool> | undefined> {
     // Return cached tools if available
@@ -59,7 +64,7 @@ export class ToolManager implements IToolManager {
       }
 
       // Validate arguments
-      if (!args || typeof args !== 'object') {
+      if (!args || typeof args !== "object") {
         return {
           tool_call_id: toolCallId,
           tool_name: toolName,
@@ -69,7 +74,10 @@ export class ToolManager implements IToolManager {
       }
 
       // Call the tool through MCP manager - it will route to the correct server
-      const callResult: MCPCallResult = await this.mcpManager.callTool(toolName, args);
+      const callResult: MCPCallResult = await this.mcpManager.callTool(
+        toolName,
+        args,
+      );
 
       if (!callResult.success) {
         return {
@@ -122,10 +130,14 @@ export class ToolManager implements IToolManager {
           const parameters = this.formatToolSchema(tool.inputSchema);
 
           // Include server information in description
-          const serverInfo = tool.serverName ? ` (from ${tool.serverName} server)` : "";
+          const serverInfo = tool.serverName
+            ? ` (from ${tool.serverName} server)`
+            : "";
           const enhancedDescription = `${description}${serverInfo}`;
 
-          logger.debug(`${LOG_PREFIX} Tool ${name} formatted from server ${tool.serverName || 'unknown'}`);
+          logger.debug(
+            `${LOG_PREFIX} Tool ${name} formatted from server ${tool.serverName || "unknown"}`,
+          );
 
           return `<tool>
 <n>${name}</n>
@@ -157,10 +169,12 @@ export class ToolManager implements IToolManager {
     try {
       // Check if ingest_extracted_page tool is available (from RAG MCP server)
       const tools = await this.getTools();
-      const ragIngestTool = this.findToolByName(tools, 'ingest_extracted_page');
+      const ragIngestTool = this.findToolByName(tools, "ingest_extracted_page");
 
       if (!ragIngestTool) {
-        logger.warn(`${LOG_PREFIX} ingest_extracted_page tool not available in any connected server`);
+        logger.warn(
+          `${LOG_PREFIX} ingest_extracted_page tool not available in any connected server`,
+        );
         return;
       }
 
@@ -202,7 +216,10 @@ export class ToolManager implements IToolManager {
       // PERSISTENT MEMORY: Save both user message and response to MCP server
       if (this.mcpManager) {
         const tools = await this.getTools();
-        const memoryTool = this.findToolByName(tools, 'save_conversation_memory');
+        const memoryTool = this.findToolByName(
+          tools,
+          "save_conversation_memory",
+        );
 
         if (memoryTool) {
           try {
@@ -283,14 +300,18 @@ export class ToolManager implements IToolManager {
   /**
    * Find a tool by name pattern in the tools collection
    */
-  private findToolByName(tools: Record<string, MCPTool> | undefined, namePattern: string): string | null {
+  private findToolByName(
+    tools: Record<string, MCPTool> | undefined,
+    namePattern: string,
+  ): string | null {
     if (!tools) {
       return null;
     }
 
-    return Object.keys(tools).find(toolName =>
-      toolName.includes(namePattern)
-    ) || null;
+    return (
+      Object.keys(tools).find(toolName => toolName.includes(namePattern)) ||
+      null
+    );
   }
 
   /**

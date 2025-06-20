@@ -1,6 +1,6 @@
 /**
  * MCP Manager - Clean, Professional, Lean Implementation
- * 
+ *
  * Orchestrates multiple MCP connections using focused, single-responsibility components.
  * Leverages shared infrastructure from @vibe/shared-types.
  */
@@ -16,7 +16,7 @@ import {
   MCPToolError,
   MCP_DEFAULTS,
   debounce,
-  IMCPManager
+  IMCPManager,
 } from "@vibe/shared-types";
 
 import { MCPConnectionManager } from "./mcp-connection-manager.js";
@@ -51,13 +51,16 @@ export class MCPManager implements IMCPManager {
     // Validate configs before processing
     const validConfigs = configs.filter(this.isValidConfig);
     if (validConfigs.length !== configs.length) {
-      logger.warn(`Filtered out ${configs.length - validConfigs.length} invalid configurations`);
+      logger.warn(
+        `Filtered out ${configs.length - validConfigs.length} invalid configurations`,
+      );
     }
 
     // Create connections in parallel for better performance
-    const connectionPromises = validConfigs.map(async (config) => {
+    const connectionPromises = validConfigs.map(async config => {
       try {
-        const connection = await this.connectionManager.createConnection(config);
+        const connection =
+          await this.connectionManager.createConnection(config);
         await this.fetchAndCacheTools(connection);
         return { success: true, serverName: config.name, connection };
       } catch (error) {
@@ -71,7 +74,11 @@ export class MCPManager implements IMCPManager {
     // Process results and store successful connections
     let successCount = 0;
     for (const result of results) {
-      if (result.status === "fulfilled" && result.value.success && result.value.connection) {
+      if (
+        result.status === "fulfilled" &&
+        result.value.success &&
+        result.value.connection
+      ) {
         this.connections.set(result.value.serverName, result.value.connection);
         successCount++;
       }
@@ -81,7 +88,9 @@ export class MCPManager implements IMCPManager {
     this.invalidateToolsCache();
     this.startPeriodicHealthChecks();
 
-    logger.info(`MCP manager initialized: ${successCount}/${validConfigs.length} servers connected`);
+    logger.info(
+      `MCP manager initialized: ${successCount}/${validConfigs.length} servers connected`,
+    );
 
     if (successCount === 0) {
       throw new MCPConnectionError("Failed to connect to any MCP servers");
@@ -113,7 +122,7 @@ export class MCPManager implements IMCPManager {
    */
   async callTool<T = unknown>(
     toolName: string,
-    args: Record<string, unknown>
+    args: Record<string, unknown>,
   ): Promise<MCPCallResult<T>> {
     const startTime = Date.now();
 
@@ -123,8 +132,10 @@ export class MCPManager implements IMCPManager {
         throw new MCPToolError(`Invalid tool name format: ${toolName}`);
       }
 
-      if (!args || typeof args !== 'object') {
-        throw new MCPToolError(`Invalid arguments provided for tool: ${toolName}`);
+      if (!args || typeof args !== "object") {
+        throw new MCPToolError(
+          `Invalid arguments provided for tool: ${toolName}`,
+        );
       }
 
       // Find the connection that has this tool
@@ -132,7 +143,7 @@ export class MCPManager implements IMCPManager {
       if (!connection) {
         const availableTools = Object.keys(await this.getAllTools());
         throw new MCPToolError(
-          `Tool '${toolName}' not found. Available tools: ${availableTools.join(', ')}`
+          `Tool '${toolName}' not found. Available tools: ${availableTools.join(", ")}`,
         );
       }
 
@@ -142,15 +153,21 @@ export class MCPManager implements IMCPManager {
       // Execute the tool call with timeout
       const callPromise = connection.client.callTool({
         name: originalToolName,
-        arguments: args
+        arguments: args,
       });
 
       const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new MCPToolError(
-          `Tool execution timeout after ${MCP_DEFAULTS.TOOL_EXECUTION_TIMEOUT_MS}ms`,
-          connection.serverName,
-          toolName
-        )), MCP_DEFAULTS.TOOL_EXECUTION_TIMEOUT_MS)
+        setTimeout(
+          () =>
+            reject(
+              new MCPToolError(
+                `Tool execution timeout after ${MCP_DEFAULTS.TOOL_EXECUTION_TIMEOUT_MS}ms`,
+                connection.serverName,
+                toolName,
+              ),
+            ),
+          MCP_DEFAULTS.TOOL_EXECUTION_TIMEOUT_MS,
+        ),
       );
 
       const result = await Promise.race([callPromise, timeoutPromise]);
@@ -159,29 +176,34 @@ export class MCPManager implements IMCPManager {
         throw new MCPToolError(
           `Tool execution failed: ${result.error}`,
           connection.serverName,
-          toolName
+          toolName,
         );
       }
 
       const executionTime = Date.now() - startTime;
-      logger.debug(`Tool '${toolName}' executed successfully in ${executionTime}ms`);
+      logger.debug(
+        `Tool '${toolName}' executed successfully in ${executionTime}ms`,
+      );
 
       return {
         success: true,
         data: result.content as T,
-        executionTime
+        executionTime,
       };
-
     } catch (error) {
       const executionTime = Date.now() - startTime;
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
 
-      logger.error(`Tool '${toolName}' execution failed after ${executionTime}ms:`, error);
+      logger.error(
+        `Tool '${toolName}' execution failed after ${executionTime}ms:`,
+        error,
+      );
 
       return {
         success: false,
         error: errorMessage,
-        executionTime
+        executionTime,
       };
     }
   }
@@ -197,7 +219,7 @@ export class MCPManager implements IMCPManager {
         connected: connection.isConnected,
         toolCount: Object.keys(connection.tools || {}).length,
         lastCheck: connection.lastHealthCheck,
-        errorCount: connection.connectionAttempts // Using as error counter
+        errorCount: connection.connectionAttempts, // Using as error counter
       };
     }
 
@@ -219,27 +241,35 @@ export class MCPManager implements IMCPManager {
       return;
     }
 
-    logger.debug(`Performing health checks on ${this.connections.size} connections`);
+    logger.debug(
+      `Performing health checks on ${this.connections.size} connections`,
+    );
 
-    const healthPromises = Array.from(this.connections.values()).map(async (connection) => {
-      try {
-        const wasConnected = connection.isConnected;
-        const isHealthy = await this.connectionManager.testConnection(connection);
+    const healthPromises = Array.from(this.connections.values()).map(
+      async connection => {
+        try {
+          const wasConnected = connection.isConnected;
+          const isHealthy =
+            await this.connectionManager.testConnection(connection);
 
-        // If connection status changed, invalidate cache
-        if (wasConnected !== connection.isConnected) {
+          // If connection status changed, invalidate cache
+          if (wasConnected !== connection.isConnected) {
+            this.invalidateToolsCache();
+          }
+
+          if (!isHealthy) {
+            logger.warn(`Health check failed for ${connection.serverName}`);
+          }
+        } catch (error) {
+          logger.error(
+            `Health check error for ${connection.serverName}:`,
+            error,
+          );
+          connection.isConnected = false;
           this.invalidateToolsCache();
         }
-
-        if (!isHealthy) {
-          logger.warn(`Health check failed for ${connection.serverName}`);
-        }
-      } catch (error) {
-        logger.error(`Health check error for ${connection.serverName}:`, error);
-        connection.isConnected = false;
-        this.invalidateToolsCache();
-      }
-    });
+      },
+    );
 
     await Promise.allSettled(healthPromises);
   }
@@ -255,7 +285,7 @@ export class MCPManager implements IMCPManager {
 
     // Close all connections
     const disconnectPromises = Array.from(this.connections.values()).map(
-      connection => this.connectionManager.closeConnection(connection)
+      connection => this.connectionManager.closeConnection(connection),
     );
 
     await Promise.allSettled(disconnectPromises);
@@ -299,10 +329,10 @@ export class MCPManager implements IMCPManager {
   private isValidConfig(config: MCPServerConfig): boolean {
     return !!(
       config &&
-      typeof config === 'object' &&
+      typeof config === "object" &&
       config.name &&
       config.url &&
-      typeof config.port === 'number' &&
+      typeof config.port === "number" &&
       config.port > 0 &&
       config.port < 65536
     );
@@ -314,7 +344,11 @@ export class MCPManager implements IMCPManager {
   private async fetchAndCacheTools(connection: MCPConnection): Promise<void> {
     let lastError: Error | undefined;
 
-    for (let attempt = 0; attempt < MCP_DEFAULTS.MAX_RETRY_ATTEMPTS; attempt++) {
+    for (
+      let attempt = 0;
+      attempt < MCP_DEFAULTS.MAX_RETRY_ATTEMPTS;
+      attempt++
+    ) {
       try {
         const result = await connection.client.listTools();
 
@@ -323,27 +357,36 @@ export class MCPManager implements IMCPManager {
 
           for (const tool of result.tools) {
             if (tool?.name) {
-              const toolKey = this.toolRouter.formatToolName(connection.serverName, tool.name);
+              const toolKey = this.toolRouter.formatToolName(
+                connection.serverName,
+                tool.name,
+              );
               toolsObject[toolKey] = {
                 name: toolKey,
                 description: tool.description || "No description",
                 inputSchema: tool.inputSchema || { type: "object" },
                 serverName: connection.serverName,
-                originalName: tool.name
+                originalName: tool.name,
               };
             }
           }
 
           connection.tools = toolsObject;
-          logger.debug(`Fetched ${Object.keys(toolsObject).length} tools from ${connection.serverName}`);
+          logger.debug(
+            `Fetched ${Object.keys(toolsObject).length} tools from ${connection.serverName}`,
+          );
           return;
         }
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
-        logger.warn(`Tools fetch attempt ${attempt + 1} failed for ${connection.serverName}`);
+        logger.warn(
+          `Tools fetch attempt ${attempt + 1} failed for ${connection.serverName}`,
+        );
 
         if (attempt < MCP_DEFAULTS.MAX_RETRY_ATTEMPTS - 1) {
-          await new Promise(resolve => setTimeout(resolve, MCP_DEFAULTS.RETRY_DELAY_MS));
+          await new Promise(resolve =>
+            setTimeout(resolve, MCP_DEFAULTS.RETRY_DELAY_MS),
+          );
         }
       }
     }
@@ -351,7 +394,7 @@ export class MCPManager implements IMCPManager {
     throw new MCPConnectionError(
       `Failed to fetch tools after ${MCP_DEFAULTS.MAX_RETRY_ATTEMPTS} attempts`,
       connection.serverName,
-      lastError
+      lastError,
     );
   }
-} 
+}

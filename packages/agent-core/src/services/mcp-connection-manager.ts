@@ -1,6 +1,6 @@
 /**
  * MCP Connection Manager - Handles individual server connections
- * 
+ *
  * Focused responsibility: Create, test, and manage single MCP connections
  * Uses defensive programming and proper resource cleanup.
  */
@@ -16,13 +16,12 @@ import {
   MCP_DEFAULTS,
   MCP_CLIENT_CONFIG,
   MCP_ENDPOINTS,
-  IMCPConnectionManager
+  IMCPConnectionManager,
 } from "@vibe/shared-types";
 
 const logger = createLogger("McpConnectionManager");
 
 export class MCPConnectionManager implements IMCPConnectionManager {
-
   /**
    * Creates a new MCP connection with proper error handling and timeouts
    */
@@ -40,14 +39,14 @@ export class MCPConnectionManager implements IMCPConnectionManager {
       throw new MCPConnectionError(
         `Invalid server URL: ${serverUrl}`,
         config.name,
-        error instanceof Error ? error : new Error(String(error))
+        error instanceof Error ? error : new Error(String(error)),
       );
     }
 
     // Create client with consistent naming
     const client = new Client({
       name: `${MCP_CLIENT_CONFIG.NAME_PREFIX}-${config.name}-client`,
-      version: MCP_DEFAULTS.CLIENT_VERSION
+      version: MCP_DEFAULTS.CLIENT_VERSION,
     });
 
     const connection: MCPConnection = {
@@ -58,7 +57,7 @@ export class MCPConnectionManager implements IMCPConnectionManager {
       isConnected: false,
       connectionAttempts: 0,
       lastHealthCheck: undefined,
-      tools: undefined
+      tools: undefined,
     };
 
     try {
@@ -70,7 +69,6 @@ export class MCPConnectionManager implements IMCPConnectionManager {
 
       logger.debug(`Successfully connected to ${config.name}`);
       return connection;
-
     } catch (error) {
       connection.connectionAttempts++;
 
@@ -83,7 +81,7 @@ export class MCPConnectionManager implements IMCPConnectionManager {
       throw new MCPConnectionError(
         errorMessage,
         config.name,
-        error instanceof Error ? error : new Error(String(error))
+        error instanceof Error ? error : new Error(String(error)),
       );
     }
   }
@@ -100,17 +98,22 @@ export class MCPConnectionManager implements IMCPConnectionManager {
       // Simple health check by listing tools with timeout
       const healthCheckPromise = connection.client.listTools();
       const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new MCPTimeoutError(
-          'Health check timeout',
-          connection.serverName
-        )), 5000)
+        setTimeout(
+          () =>
+            reject(
+              new MCPTimeoutError(
+                "Health check timeout",
+                connection.serverName,
+              ),
+            ),
+          5000,
+        ),
       );
 
       await Promise.race([healthCheckPromise, timeoutPromise]);
 
       connection.lastHealthCheck = Date.now();
       return true;
-
     } catch (error) {
       logger.warn(`Health check failed for ${connection.serverName}:`, error);
       connection.isConnected = false;
@@ -129,7 +132,10 @@ export class MCPConnectionManager implements IMCPConnectionManager {
         logger.debug(`Closed connection to ${connection.serverName}`);
       }
     } catch (error) {
-      logger.error(`Error closing connection to ${connection.serverName}:`, error);
+      logger.error(
+        `Error closing connection to ${connection.serverName}:`,
+        error,
+      );
       // Still mark as disconnected even if close failed
       connection.isConnected = false;
     }
@@ -143,16 +149,28 @@ export class MCPConnectionManager implements IMCPConnectionManager {
       throw new MCPConnectionError("Configuration is required");
     }
 
-    if (!config.name || typeof config.name !== 'string') {
-      throw new MCPConnectionError("Server name is required and must be a string");
+    if (!config.name || typeof config.name !== "string") {
+      throw new MCPConnectionError(
+        "Server name is required and must be a string",
+      );
     }
 
-    if (!config.url || typeof config.url !== 'string') {
-      throw new MCPConnectionError("Server URL is required and must be a string", config.name);
+    if (!config.url || typeof config.url !== "string") {
+      throw new MCPConnectionError(
+        "Server URL is required and must be a string",
+        config.name,
+      );
     }
 
-    if (typeof config.port !== 'number' || config.port <= 0 || config.port >= 65536) {
-      throw new MCPConnectionError("Server port must be a valid number between 1 and 65535", config.name);
+    if (
+      typeof config.port !== "number" ||
+      config.port <= 0 ||
+      config.port >= 65536
+    ) {
+      throw new MCPConnectionError(
+        "Server port must be a valid number between 1 and 65535",
+        config.name,
+      );
     }
   }
 
@@ -170,10 +188,16 @@ export class MCPConnectionManager implements IMCPConnectionManager {
   private async connectWithTimeout(connection: MCPConnection): Promise<void> {
     const connectPromise = connection.client.connect(connection.transport);
     const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new MCPTimeoutError(
-        `Connection timeout after ${MCP_DEFAULTS.CONNECTION_TIMEOUT_MS}ms`,
-        connection.config.name
-      )), MCP_DEFAULTS.CONNECTION_TIMEOUT_MS)
+      setTimeout(
+        () =>
+          reject(
+            new MCPTimeoutError(
+              `Connection timeout after ${MCP_DEFAULTS.CONNECTION_TIMEOUT_MS}ms`,
+              connection.config.name,
+            ),
+          ),
+        MCP_DEFAULTS.CONNECTION_TIMEOUT_MS,
+      ),
     );
 
     await Promise.race([connectPromise, timeoutPromise]);
@@ -182,7 +206,9 @@ export class MCPConnectionManager implements IMCPConnectionManager {
   /**
    * Safely close transport with error handling
    */
-  private async safeCloseTransport(transport: StreamableHTTPClientTransport): Promise<void> {
+  private async safeCloseTransport(
+    transport: StreamableHTTPClientTransport,
+  ): Promise<void> {
     try {
       await transport.close();
     } catch (error) {
@@ -190,4 +216,4 @@ export class MCPConnectionManager implements IMCPConnectionManager {
       logger.debug("Transport close error (non-fatal):", error);
     }
   }
-} 
+}

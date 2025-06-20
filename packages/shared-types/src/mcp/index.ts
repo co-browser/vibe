@@ -1,6 +1,6 @@
 /**
  * MCP (Model Context Protocol) - Centralized exports and configuration
- * 
+ *
  * This module provides a clean interface for MCP functionality across the application.
  * It includes type definitions, error classes, constants, and factory functions.
  */
@@ -61,7 +61,7 @@ export const MCP_SERVERS_BASE: Record<string, Omit<MCPServerConfig, "env">> = {
   },
   // Future MCP servers can be added here:
   // github: {
-  //   name: "github", 
+  //   name: "github",
   //   port: 3002,
   //   url: "http://localhost:3002",
   //   healthEndpoint: "/health",
@@ -71,7 +71,7 @@ export const MCP_SERVERS_BASE: Record<string, Omit<MCPServerConfig, "env">> = {
 
 /**
  * Get base configuration for a specific MCP server
- * 
+ *
  * @param name - Server name (e.g., "rag", "gmail")
  * @returns Base configuration without environment variables
  */
@@ -83,7 +83,7 @@ export function getMCPServerBaseConfig(
 
 /**
  * Get all available MCP server base configurations
- * 
+ *
  * @returns Array of base configurations without environment variables
  */
 export function getAllMCPServerBaseConfigs(): Omit<MCPServerConfig, "env">[] {
@@ -92,7 +92,7 @@ export function getAllMCPServerBaseConfigs(): Omit<MCPServerConfig, "env">[] {
 
 /**
  * Construct a URL for an MCP server endpoint
- * 
+ *
  * @param name - Server name
  * @param endpoint - Optional endpoint path (e.g., "/mcp", "/health")
  * @returns Complete URL or undefined if server not found
@@ -113,7 +113,7 @@ export function getMCPServerUrl(
 /**
  * Create a runtime MCP server configuration (main process only)
  * Combines base configuration with environment-specific settings
- * 
+ *
  * @param name - Server name
  * @param envVars - Environment variables for server configuration
  * @returns Complete server configuration or undefined if not found
@@ -160,7 +160,7 @@ export function createMCPServerConfig(
 
 /**
  * Create all available MCP server configurations (main process only)
- * 
+ *
  * @param envVars - Environment variables for server configuration
  * @returns Array of complete server configurations
  */

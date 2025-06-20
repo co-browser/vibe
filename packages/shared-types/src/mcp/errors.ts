@@ -7,24 +7,29 @@ export class MCPError extends Error {
     message: string,
     public readonly code: string,
     public readonly serverName?: string,
-    public readonly cause?: Error
+    public readonly cause?: Error,
   ) {
     super(message);
-    this.name = 'MCPError';
+    this.name = "MCPError";
   }
 }
 
 export class MCPConnectionError extends MCPError {
   constructor(message: string, serverName?: string, cause?: Error) {
-    super(message, 'MCP_CONNECTION_ERROR', serverName, cause);
-    this.name = 'MCPConnectionError';
+    super(message, "MCP_CONNECTION_ERROR", serverName, cause);
+    this.name = "MCPConnectionError";
   }
 }
 
 export class MCPToolError extends MCPError {
-  constructor(message: string, serverName?: string, toolName?: string, cause?: Error) {
-    super(message, 'MCP_TOOL_ERROR', serverName, cause);
-    this.name = 'MCPToolError';
+  constructor(
+    message: string,
+    serverName?: string,
+    toolName?: string,
+    cause?: Error,
+  ) {
+    super(message, "MCP_TOOL_ERROR", serverName, cause);
+    this.name = "MCPToolError";
     this.toolName = toolName;
   }
 
@@ -33,14 +38,14 @@ export class MCPToolError extends MCPError {
 
 export class MCPConfigurationError extends MCPError {
   constructor(message: string, serverName?: string, cause?: Error) {
-    super(message, 'MCP_CONFIGURATION_ERROR', serverName, cause);
-    this.name = 'MCPConfigurationError';
+    super(message, "MCP_CONFIGURATION_ERROR", serverName, cause);
+    this.name = "MCPConfigurationError";
   }
 }
 
 export class MCPTimeoutError extends MCPError {
   constructor(message: string, serverName?: string, cause?: Error) {
-    super(message, 'MCP_TIMEOUT_ERROR', serverName, cause);
-    this.name = 'MCPTimeoutError';
+    super(message, "MCP_TIMEOUT_ERROR", serverName, cause);
+    this.name = "MCPTimeoutError";
   }
-} 
+}

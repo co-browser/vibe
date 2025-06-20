@@ -23,4 +23,4 @@ export const MCP_ENDPOINTS = {
 export const MCP_CLIENT_CONFIG = {
   NAME_PREFIX: "agent",
   USER_AGENT: "vibe-mcp-client",
-} as const; 
+} as const;
