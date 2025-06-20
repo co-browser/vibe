@@ -93,8 +93,7 @@ export const GLASSMORPHISM_CONFIG = {
  * Memory + RAG configuration for MCP server integration
  */
 export const MEMORY_CONFIG = {
-  MCP_SERVER_URL: "http://localhost:8052/sse",
-  DEFAULT_USER_ID: "browser_user",
+  MCP_SERVER_URL: "http://localhost:3000/mcp",
 } as const;
 
 /**

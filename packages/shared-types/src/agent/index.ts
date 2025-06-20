@@ -2,10 +2,13 @@
  * Agent-related shared types
  */
 
+import type { ExtractedPage } from "../browser/index.js";
+
 export interface AgentConfig {
   openaiApiKey: string;
   model?: string;
   temperature?: number;
+  mcpServerUrl?: string;
   processorType?: "react" | "coact";
 }
 
@@ -35,7 +38,7 @@ export interface IAgentProvider {
   sendMessage(message: string): Promise<void>;
   getStatus(): AgentStatus;
   reset(): Promise<void>;
-  saveTabMemory(url: string, title: string, content: string): Promise<void>;
+  saveTabMemory(extractedPage: ExtractedPage): Promise<void>;
 
   // Event handling
   on(event: "message-stream", listener: (data: any) => void): void;
@@ -75,4 +78,36 @@ export interface MemoryNote {
   domain?: string; // Domain extracted from URL
   createdAt: string;
   score?: number;
+}
+
+// MCP Tool Result Types
+export interface MCPToolResult {
+  result?:
+    | {
+        content?: Array<{
+          text: string;
+        }>;
+      }
+    | string;
+}
+
+export interface MCPGenerateTextResult {
+  toolResults?: MCPToolResult[];
+}
+
+import type { ContentChunk } from "../content";
+
+export interface MCPSearchMemoryData {
+  type: "memory_discovery" | "content_search" | "recent_memories";
+  query?: string;
+  memories?: MemoryNote[];
+  content_chunks?: ContentChunk[];
+  discovered_domains?: string[];
+}
+
+export interface MCPContentData {
+  type: "content_search";
+  query: string;
+  source_filter?: string;
+  content_chunks: ContentChunk[];
 }

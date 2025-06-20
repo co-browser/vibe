@@ -51,8 +51,14 @@ ipcMain.handle("content:extract", async event => {
 
     await cdpConnector.disconnect(cdpTargetId);
 
+    // Check if extraction was successful and extract content
+    let extractedContent = "";
+    if (!("isError" in pageContent) && pageContent.content) {
+      extractedContent = pageContent.content;
+    }
+
     return {
-      content: pageContent.content?.[0]?.text || "",
+      content: extractedContent,
       url: activeTab.url,
       title: activeTab.title,
     };

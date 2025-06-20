@@ -4,6 +4,8 @@
  */
 
 import { AgentFactory, Agent } from "@vibe/agent-core";
+import type { ExtractedPage } from "@vibe/shared-types";
+import { MEMORY_CONFIG } from "@vibe/shared-types";
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -20,6 +22,7 @@ interface InitializeData {
     openaiApiKey: string;
     model?: string;
     processorType?: string;
+    mcpServerUrl?: string;
   };
 }
 
@@ -28,9 +31,7 @@ interface ChatStreamData {
 }
 
 interface SaveTabMemoryData {
-  url: string;
-  title: string;
-  content: string;
+  extractedPage: ExtractedPage;
 }
 
 interface PingData {
@@ -141,11 +142,11 @@ class MessageValidator {
   }
 
   static validateTabMemoryData(data: any): SaveTabMemoryData {
-    const { url, title, content } = data || {};
-    if (!url || !title || !content) {
-      throw new Error("URL, title, and content are required");
+    const { extractedPage } = data || {};
+    if (!extractedPage || !extractedPage.url || !extractedPage.title) {
+      throw new Error("Valid ExtractedPage with URL and title is required");
     }
-    return { url, title, content };
+    return { extractedPage };
   }
 }
 
@@ -165,6 +166,7 @@ class MessageHandlers {
       processorType: MessageValidator.validateProcessorType(
         config.processorType,
       ),
+      mcpServerUrl: config.mcpServerUrl || MEMORY_CONFIG.MCP_SERVER_URL,
     });
 
     console.log(
@@ -278,13 +280,13 @@ class MessageHandlers {
   static async handleSaveTabMemory(message: BaseMessage): Promise<void> {
     MessageValidator.validateAgent();
 
-    const { url, title, content } = MessageValidator.validateTabMemoryData(
+    const { extractedPage } = MessageValidator.validateTabMemoryData(
       message.data,
     );
 
-    console.log("[AgentWorker] Saving tab memory:", title);
+    console.log("[AgentWorker] Saving tab memory:", extractedPage.title);
 
-    await agent!.saveTabMemory(url, title, content);
+    await agent!.saveTabMemory(extractedPage);
 
     console.log("[AgentWorker] Tab memory saved successfully");
     IPCMessenger.sendResponse(message.id, { success: true });
