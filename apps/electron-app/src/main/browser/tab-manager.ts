@@ -446,7 +446,8 @@ export class TabManager extends EventEmitter {
   }
 
   /**
-   * Put tab to sleep using flow-browser approach
+   * Put tab to sleep with defensive checks for valid navigation state
+   * Ensures tab has navigable content before sleeping to prevent wake-up issues
    */
   public putTabToSleep(tabKey: string): boolean {
     const tab = this.tabs.get(tabKey);
@@ -460,6 +461,35 @@ export class TabManager extends EventEmitter {
     }
 
     try {
+      const view = this.getBrowserView(tabKey);
+      if (!view || view.webContents.isDestroyed()) {
+        return false;
+      }
+
+      const webContents = view.webContents;
+      const currentUrl = webContents.getURL();
+
+      // Don't sleep tabs that are already at problematic URLs
+      if (
+        !currentUrl ||
+        currentUrl === TAB_CONFIG.SLEEP_MODE_URL ||
+        currentUrl.startsWith("about:") ||
+        currentUrl.startsWith("chrome:") ||
+        currentUrl.startsWith("file:") ||
+        currentUrl === "about:blank"
+      ) {
+        logger.debug(
+          `Skipping sleep for tab ${tabKey} with problematic URL: ${currentUrl}`,
+        );
+        return false;
+      }
+
+      // Ensure tab has been loading/loaded to establish navigation history
+      if (webContents.isLoading()) {
+        logger.debug(`Skipping sleep for tab ${tabKey} - still loading`);
+        return false;
+      }
+
       // Update tab state first (flow-browser approach)
       this.updateTabState(tabKey);
 
@@ -468,12 +498,10 @@ export class TabManager extends EventEmitter {
         url: TAB_CONFIG.SLEEP_MODE_URL,
       });
 
-      const view = this.getBrowserView(tabKey);
-      if (view && view.webContents) {
-        view.webContents.loadURL(TAB_CONFIG.SLEEP_MODE_URL);
-      }
+      // Load sleep mode URL (this creates a navigation entry that can be removed on wake)
+      webContents.loadURL(TAB_CONFIG.SLEEP_MODE_URL);
 
-      this.logDebug(`Tab ${tabKey} put to sleep`);
+      this.logDebug(`Tab ${tabKey} put to sleep from URL: ${currentUrl}`);
       return true;
     } catch (error) {
       logger.error(`Failed to put tab ${tabKey} to sleep:`, error);
@@ -482,7 +510,8 @@ export class TabManager extends EventEmitter {
   }
 
   /**
-   * Wake up sleeping tab using flow-browser approach
+   * Wake up sleeping tab with robust fallback handling
+   * Handles edge cases: no history, corrupted state, user navigation during sleep
    */
   public wakeUpTab(tabKey: string): boolean {
     const tab = this.tabs.get(tabKey);
@@ -495,38 +524,33 @@ export class TabManager extends EventEmitter {
       const webContents = view.webContents;
       const navigationHistory = webContents.navigationHistory;
 
-      // Use navigation history to restore previous URL (flow-browser approach)
+      // Check current URL and navigation state
+      const currentUrl = webContents.getURL();
       const activeIndex = navigationHistory.getActiveIndex();
       const currentEntry = navigationHistory.getEntryAtIndex(activeIndex);
 
+      // Case 1: Ideal scenario - tab is at sleep URL and has history to go back to
       if (
         currentEntry &&
         currentEntry.url === TAB_CONFIG.SLEEP_MODE_URL &&
         navigationHistory.canGoBack()
       ) {
-        // Set up one-time navigation completion listener
-        const onNavigationComplete = () => {
-          webContents.removeListener("did-finish-load", onNavigationComplete);
-          webContents.removeListener("did-fail-load", onNavigationComplete);
-
-          // Clean up sleep mode entry from history
-          try {
-            navigationHistory.removeEntryAtIndex(activeIndex);
-            this.updateTabState(tabKey);
-          } catch (error) {
-            logger.warn(
-              `Failed to clean up navigation history for tab ${tabKey}:`,
-              error,
-            );
-          }
-        };
-
-        // Listen for navigation completion
-        webContents.once("did-finish-load", onNavigationComplete);
-        webContents.once("did-fail-load", onNavigationComplete);
-
-        // Initiate navigation
-        navigationHistory.goBack();
+        this.wakeUpFromHistory(
+          webContents,
+          navigationHistory,
+          activeIndex,
+          tabKey,
+        );
+      }
+      // Case 2: Tab is at sleep URL but no history - find fallback URL
+      else if (currentUrl === TAB_CONFIG.SLEEP_MODE_URL) {
+        this.wakeUpWithFallback(webContents, navigationHistory, tabKey);
+      }
+      // Case 3: Tab navigated away from sleep URL (user interaction) - just update state
+      else {
+        logger.info(
+          `Tab ${tabKey} already navigated away from sleep URL, updating state only`,
+        );
       }
 
       // Update tab state
@@ -538,7 +562,100 @@ export class TabManager extends EventEmitter {
       return true;
     } catch (error) {
       logger.error(`Failed to wake up tab ${tabKey}:`, error);
+      // Fallback: try to load a default URL
+      this.emergencyWakeUp(tabKey);
       return false;
+    }
+  }
+
+  /**
+   * Wake up tab using navigation history (ideal case)
+   */
+  private wakeUpFromHistory(
+    webContents: any,
+    navigationHistory: any,
+    sleepIndex: number,
+    tabKey: string,
+  ): void {
+    // Set up one-time navigation completion listener
+    const onNavigationComplete = () => {
+      webContents.removeListener("did-finish-load", onNavigationComplete);
+      webContents.removeListener("did-fail-load", onNavigationComplete);
+
+      // Clean up sleep mode entry from history
+      try {
+        navigationHistory.removeEntryAtIndex(sleepIndex);
+        this.updateTabState(tabKey);
+      } catch (error) {
+        logger.warn(
+          `Failed to clean up navigation history for tab ${tabKey}:`,
+          error,
+        );
+      }
+    };
+
+    // Listen for navigation completion
+    webContents.once("did-finish-load", onNavigationComplete);
+    webContents.once("did-fail-load", onNavigationComplete);
+
+    // Initiate navigation
+    navigationHistory.goBack();
+  }
+
+  /**
+   * Wake up tab when no valid history exists (fallback case)
+   */
+  private wakeUpWithFallback(
+    webContents: any,
+    navigationHistory: any,
+    tabKey: string,
+  ): void {
+    // Try to find a valid URL from history entries
+    let fallbackUrl = "https://www.google.com"; // Default fallback
+
+    try {
+      const entries = navigationHistory.getAllEntries();
+      // Look for the most recent non-sleep URL
+      for (let i = entries.length - 1; i >= 0; i--) {
+        const entry = entries[i];
+        if (
+          entry.url &&
+          entry.url !== TAB_CONFIG.SLEEP_MODE_URL &&
+          !entry.url.startsWith("about:")
+        ) {
+          fallbackUrl = entry.url;
+          break;
+        }
+      }
+    } catch (error) {
+      logger.warn(
+        `Failed to find fallback URL from history for tab ${tabKey}:`,
+        error,
+      );
+    }
+
+    logger.info(`Waking up tab ${tabKey} with fallback URL: ${fallbackUrl}`);
+
+    // Load the fallback URL
+    webContents.loadURL(fallbackUrl).catch((error: any) => {
+      logger.error(`Failed to load fallback URL for tab ${tabKey}:`, error);
+      // Last resort: load about:blank
+      webContents.loadURL("about:blank");
+    });
+  }
+
+  /**
+   * Emergency wake up when all else fails
+   */
+  private emergencyWakeUp(tabKey: string): void {
+    const view = this.getBrowserView(tabKey);
+    if (view && !view.webContents.isDestroyed()) {
+      logger.warn(`Emergency wake up for tab ${tabKey}, loading default page`);
+      view.webContents.loadURL("https://www.google.com").catch(() => {
+        view.webContents.loadURL("about:blank");
+      });
+
+      this.updateTab(tabKey, { asleep: false });
     }
   }
 
