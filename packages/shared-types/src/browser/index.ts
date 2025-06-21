@@ -3,6 +3,43 @@
  */
 
 /**
+ * Layout and UI Management Types
+ */
+export interface LayoutContextType {
+  isChatPanelVisible: boolean;
+  chatPanelWidth: number;
+  setChatPanelVisible: (visible: boolean) => void;
+  setChatPanelWidth: (width: number) => void;
+  chatPanelKey: number;
+  isRecovering: boolean;
+}
+
+export interface ChatPanelState {
+  isVisible: boolean;
+  width?: number;
+}
+
+export interface ChatPanelRecoveryOptions {
+  debounceMs?: number;
+  healthCheckIntervalMs?: number;
+  recoveryOverlayMs?: number;
+  powerSaveBlocker?: boolean;
+}
+
+/**
+ * IPC Event Payload Types
+ * Type-safe definitions for IPC message payloads
+ */
+export interface IPCEventPayloads {
+  "sync-chat-panel-state": ChatPanelState;
+  "chat-area-visibility-changed": boolean;
+  "toggle-custom-chat-area": boolean;
+  "interface:get-chat-panel-state": never; // No payload
+  "interface:set-chat-panel-width": number;
+  "interface:recover-chat-panel": never; // No payload
+}
+
+/**
  * Comprehensive metadata for CDP connections and state tracking
  */
 export interface CDPMetadata {

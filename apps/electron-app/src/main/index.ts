@@ -2,7 +2,14 @@
  * Main process entry point for Vibe Browser
  */
 
-import { app, BrowserWindow, dialog, shell } from "electron";
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  shell,
+  powerMonitor,
+  powerSaveBlocker,
+} from "electron";
 import { optimizer } from "@electron-toolkit/utils";
 import { config } from "dotenv";
 
@@ -250,9 +257,77 @@ async function createInitialWindow(): Promise<void> {
 
   const mainWindow = await browser.createWindow();
 
-  // Open devtools in development
   if (!app.isPackaged) {
     mainWindow.webContents.openDevTools({ mode: "detach" });
+  }
+}
+
+function broadcastChatPanelState(): void {
+  if (!browser) return;
+
+  try {
+    const allWindows = browser.getAllWindows();
+
+    allWindows.forEach(browserWindow => {
+      if (browserWindow && !browserWindow.isDestroyed()) {
+        const appWindow = browser?.getApplicationWindow(
+          browserWindow.webContents.id,
+        );
+        const chatPanelState = appWindow?.viewManager?.getChatPanelState() || {
+          isVisible: false,
+        };
+        browserWindow.webContents.send("sync-chat-panel-state", chatPanelState);
+      }
+    });
+  } catch (error) {
+    logger.error("Error during chat panel state broadcast:", error);
+  }
+}
+
+function setupChatPanelRecovery(): void {
+  try {
+    const USE_POWER_SAVE_BLOCKER = process.env.VIBE_PREVENT_SLEEP === "true";
+    let powerSaveBlockerId: number | null = null;
+
+    if (USE_POWER_SAVE_BLOCKER) {
+      powerSaveBlockerId = powerSaveBlocker.start("prevent-display-sleep");
+    }
+
+    powerMonitor.on("resume", () => {
+      setTimeout(() => {
+        broadcastChatPanelState();
+      }, 1000);
+    });
+
+    powerMonitor.on("unlock-screen", () => {
+      setTimeout(() => {
+        broadcastChatPanelState();
+      }, 500);
+    });
+
+    app.on("browser-window-focus", (_event, window) => {
+      setTimeout(() => {
+        if (window && !window.isDestroyed()) {
+          const appWindow = browser?.getApplicationWindow(
+            window.webContents.id,
+          );
+          const chatPanelState =
+            appWindow?.viewManager?.getChatPanelState() || { isVisible: false };
+          window.webContents.send("sync-chat-panel-state", chatPanelState);
+        }
+      }, 500);
+    });
+
+    app.on("will-quit", () => {
+      if (
+        powerSaveBlockerId !== null &&
+        powerSaveBlocker.isStarted(powerSaveBlockerId)
+      ) {
+        powerSaveBlocker.stop(powerSaveBlockerId);
+      }
+    });
+  } catch (error) {
+    logger.error("Failed to setup chat panel recovery:", error);
   }
 }
 
@@ -268,6 +343,9 @@ function initializeApp(): boolean {
 
   // Initialize the Browser
   browser = new Browser();
+
+  // Setup chat panel recovery system
+  setupChatPanelRecovery();
 
   // Setup second instance handler
   app.on("second-instance", () => {
