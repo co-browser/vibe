@@ -504,11 +504,29 @@ export class TabManager extends EventEmitter {
         currentEntry.url === TAB_CONFIG.SLEEP_MODE_URL &&
         navigationHistory.canGoBack()
       ) {
+        // Set up one-time navigation completion listener
+        const onNavigationComplete = () => {
+          webContents.removeListener("did-finish-load", onNavigationComplete);
+          webContents.removeListener("did-fail-load", onNavigationComplete);
+
+          // Clean up sleep mode entry from history
+          try {
+            navigationHistory.removeEntryAtIndex(activeIndex);
+            this.updateTabState(tabKey);
+          } catch (error) {
+            logger.warn(
+              `Failed to clean up navigation history for tab ${tabKey}:`,
+              error,
+            );
+          }
+        };
+
+        // Listen for navigation completion
+        webContents.once("did-finish-load", onNavigationComplete);
+        webContents.once("did-fail-load", onNavigationComplete);
+
+        // Initiate navigation
         navigationHistory.goBack();
-        setTimeout(() => {
-          navigationHistory.removeEntryAtIndex(activeIndex);
-          this.updateTabState(tabKey);
-        }, 100);
       }
 
       // Update tab state
