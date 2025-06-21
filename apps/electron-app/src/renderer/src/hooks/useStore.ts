@@ -8,16 +8,9 @@ import { createStore as createZustandVanillaStore } from "zustand/vanilla";
 
 import type { AppState } from "../../../main/store/types";
 import type { ChatMessage } from "@vibe/shared-types";
-// Simple browser-compatible logger for renderer process
 const logger = {
-  info: (msg: string, ...args: any[]) =>
-    console.log(`[RendererStore] ${msg}`, ...args),
-  warn: (msg: string, ...args: any[]) =>
-    console.warn(`[RendererStore] ${msg}`, ...args),
   error: (msg: string, ...args: any[]) =>
     console.error(`[RendererStore] ${msg}`, ...args),
-  debug: (msg: string, ...args: any[]) =>
-    console.log(`[RendererStore] ${msg}`, ...args),
 };
 
 /**
@@ -97,9 +90,6 @@ const createUseBridgedStore = <S_AppState extends AppState>(
   bridge: Handlers<S_AppState> | undefined,
 ): UseBoundStore<StoreApi<S_AppState>> => {
   if (!bridge) {
-    logger.error(
-      "Zustand bridge not found on window object. Renderer store will not sync; using a local dummy store.",
-    );
     const initialLocalState: AppState = {
       messages: [],
       requestedTabContext: [],

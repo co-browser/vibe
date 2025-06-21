@@ -26,13 +26,6 @@ export class ErrorBoundary extends Component<Props, State> {
     console.error("[ErrorBoundary] Component stack:", errorInfo.componentStack);
 
     this.props.onError?.(error, errorInfo);
-
-    if (import.meta.env.DEV) {
-      console.group("[ErrorBoundary] Development details");
-      console.error("Full error:", error);
-      console.error("Error info:", errorInfo);
-      console.groupEnd();
-    }
   }
 
   render(): ReactNode {

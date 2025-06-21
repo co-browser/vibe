@@ -163,6 +163,16 @@
     color: var(--text-secondary);
   }
 
+  /* Chat Panel Recovery Animation */
+  @keyframes spin {
+    0% {
+      transform: rotate(0deg);
+    }
+    100% {
+      transform: rotate(360deg);
+    }
+  }
+
   /* Debug Info */
   .debug-info {
     @apply fixed bottom-4 left-4 text-xs font-mono p-2 rounded;
