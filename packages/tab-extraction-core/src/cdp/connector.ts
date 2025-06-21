@@ -1,5 +1,5 @@
 import CDP from "chrome-remote-interface";
-import { createLogger } from "../utils/logger.js";
+import { createLogger } from "@vibe/shared-types";
 import type { CDPTarget } from "../types/index.js";
 import { extractionConfig } from "../config/extraction.js";
 

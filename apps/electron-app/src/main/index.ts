@@ -5,16 +5,21 @@
 import { app, BrowserWindow, dialog, shell } from "electron";
 import { optimizer } from "@electron-toolkit/utils";
 import { config } from "dotenv";
-import { resolve } from "path";
 import { detect } from "node-mac-detect-browsers";
 import { Browser } from "@/browser/browser";
 import { registerAllIpcHandlers } from "@/ipc";
 import { setupMemoryMonitoring } from "@/utils/helpers";
 import { AgentService } from "@/services/agent-service";
+import { MCPService } from "@/services/mcp-service";
+import { setMCPServiceInstance } from "@/ipc/mcp/mcp-status";
 import { setAgentServiceInstance as setAgentStatusInstance } from "@/ipc/chat/agent-status";
 import { setAgentServiceInstance as setChatMessagingInstance } from "@/ipc/chat/chat-messaging";
 import { setAgentServiceInstance as setTabAgentInstance } from "@/utils/tab-agent";
-import { createLogger, MAIN_PROCESS_CONFIG } from "@vibe/shared-types";
+import {
+  createLogger,
+  MAIN_PROCESS_CONFIG,
+  findFileUpwards,
+} from "@vibe/shared-types";
 import {
   init,
   browserWindowSessionIntegration,
@@ -26,6 +31,18 @@ import {
   openOnboardingForFirstRun,
 } from "@/browser/onboarding-window";
 import { SettingsWindow } from "@/browser/settings-window";
+
+// Set consistent log level for all processes
+if (!process.env.LOG_LEVEL) {
+  process.env.LOG_LEVEL =
+    process.env.NODE_ENV === "development" ? "info" : "error";
+}
+
+// Reduce Sentry noise in development
+if (process.env.NODE_ENV === "development") {
+  // Silence verbose Sentry logs
+  process.env.SENTRY_LOG_LEVEL = "error";
+}
 
 const logger = createLogger("main-process");
 
@@ -42,13 +59,21 @@ init({
 // Simple logging only for now
 
 // Load environment variables
-config({ path: resolve(__dirname, "../../../../.env") });
+const envPath = findFileUpwards(__dirname, ".env");
+if (envPath) {
+  config({ path: envPath });
+} else {
+  logger.warn(".env file not found in directory tree");
+}
 
 // Global browser instance
 export let browser: Browser | null = null;
 
 // Global agent service instance
 let agentService: AgentService | null = null;
+
+// Global MCP service instance
+let mcpService: MCPService | null = null;
 
 // Track shutdown state
 let isShuttingDown = false;
@@ -132,6 +157,17 @@ async function gracefulShutdown(signal: string): Promise<void> {
     // Clean up resources
     if (memoryMonitor) {
       memoryMonitor.triggerGarbageCollection();
+    }
+
+    // Cleanup MCP service first (before agent)
+    if (mcpService) {
+      try {
+        await mcpService.terminate();
+        logger.info("MCP service terminated successfully");
+      } catch (error) {
+        logger.error("Error during MCP service termination:", error);
+      }
+      mcpService = null;
     }
 
     // Cleanup agent service
@@ -326,6 +362,34 @@ async function initializeServices(): Promise<void> {
       environment: process.env.NODE_ENV || "development",
       has_openai_key: !!process.env.OPENAI_API_KEY,
     });
+
+    // Initialize MCP service first (before agent)
+    try {
+      logger.info("Initializing MCP service");
+
+      mcpService = new MCPService();
+
+      // Set up error handling for MCP service
+      mcpService.on("error", error => {
+        logger.error("MCPService error:", error);
+      });
+
+      mcpService.on("ready", () => {
+        logger.info("MCPService ready");
+      });
+
+      // Initialize MCP service
+      await mcpService.initialize();
+
+      // Inject MCP service into IPC handlers
+      setMCPServiceInstance(mcpService);
+
+      logger.info("MCP service initialized successfully");
+    } catch (error) {
+      logger.error("MCP service initialization failed:", error);
+      // MCP service failed to initialize - this may impact functionality
+      logger.warn("Application will continue without MCP service");
+    }
 
     if (process.env.OPENAI_API_KEY) {
       // Initialize agent service after MCP is ready
