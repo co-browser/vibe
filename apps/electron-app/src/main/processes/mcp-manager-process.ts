@@ -36,7 +36,13 @@ class MCPManager {
       console.log("[MCPManager] Initializing MCP manager");
 
       // Always start MCP servers as child processes (consistent dev/prod behavior)
-      const serverConfigs = getAllMCPServerConfigs();
+      const envVars: Record<string, string> = {};
+      for (const [key, value] of Object.entries(process.env)) {
+        if (value !== undefined) {
+          envVars[key] = value;
+        }
+      }
+      const serverConfigs = getAllMCPServerConfigs(envVars);
       console.log(
         `[MCPManager] Found ${serverConfigs.length} server configurations`,
       );

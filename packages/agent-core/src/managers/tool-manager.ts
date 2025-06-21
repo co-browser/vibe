@@ -1,9 +1,13 @@
 import { createLogger } from "@vibe/shared-types";
-import type { ExtractedPage } from "@vibe/shared-types";
+import type {
+  ExtractedPage,
+  IMCPManager,
+  MCPTool,
+  MCPCallResult,
+} from "@vibe/shared-types";
 
 import type { IToolManager } from "../interfaces/index.js";
 import type { ReactObservation } from "../react/types.js";
-import type { IMCPConnectionService } from "../services/mcp-service.js";
 import type { CoreMessage } from "ai";
 
 const logger = createLogger("ToolManager");
@@ -12,25 +16,25 @@ const LOG_PREFIX = "[AgentCore]";
 
 export class ToolManager implements IToolManager {
   private conversationHistory: CoreMessage[] = [];
-  private cachedTools: any = null;
+  private cachedTools: Record<string, MCPTool> | null = null;
   private cachedFormattedTools: string | null = null;
 
-  constructor(private mcpService?: IMCPConnectionService) {}
+  constructor(private mcpManager?: IMCPManager) {}
 
-  async getTools(): Promise<any> {
+  async getTools(): Promise<Record<string, MCPTool> | undefined> {
     // Return cached tools if available
     if (this.cachedTools) {
       return this.cachedTools;
     }
 
-    if (!this.mcpService) {
+    if (!this.mcpManager) {
       return undefined;
     }
 
     try {
-      this.cachedTools = await this.mcpService.getTools();
+      this.cachedTools = await this.mcpManager.getAllTools();
       logger.debug(
-        `${LOG_PREFIX} Tools cached (${Object.keys(this.cachedTools || {}).length} tools)`,
+        `${LOG_PREFIX} Tools cached (${Object.keys(this.cachedTools || {}).length} tools from multiple servers)`,
       );
       return this.cachedTools;
     } catch (error) {
@@ -41,7 +45,7 @@ export class ToolManager implements IToolManager {
 
   async executeTools(
     toolName: string,
-    args: any,
+    args: Record<string, unknown>,
     toolCallId: string,
   ): Promise<ReactObservation> {
     try {
@@ -50,22 +54,44 @@ export class ToolManager implements IToolManager {
         args,
       );
 
-      if (!this.mcpService) {
+      if (!this.mcpManager) {
         return {
           tool_call_id: toolCallId,
           tool_name: toolName,
           result: null,
-          error: "MCP service not available",
+          error: "MCP manager not available",
         };
       }
 
-      // Call the tool directly through MCP service - no LLM needed
-      const result = await this.mcpService.callTool(toolName, args);
+      // Validate arguments
+      if (!args || typeof args !== "object") {
+        return {
+          tool_call_id: toolCallId,
+          tool_name: toolName,
+          result: null,
+          error: "Invalid arguments provided",
+        };
+      }
+
+      // Call the tool through MCP manager - it will route to the correct server
+      const callResult: MCPCallResult = await this.mcpManager.callTool(
+        toolName,
+        args,
+      );
+
+      if (!callResult.success) {
+        return {
+          tool_call_id: toolCallId,
+          tool_name: toolName,
+          result: null,
+          error: callResult.error || "Tool execution failed",
+        };
+      }
 
       return {
         tool_call_id: toolCallId,
         tool_name: toolName,
-        result: typeof result === "string" ? result : JSON.stringify(result),
+        result: this.formatToolResult(callResult.data),
       };
     } catch (error) {
       logger.error(
@@ -94,22 +120,28 @@ export class ToolManager implements IToolManager {
       }
 
       logger.debug(
-        `${LOG_PREFIX} Formatting ${Object.keys(tools).length} MCP tools for ReAct`,
+        `${LOG_PREFIX} Formatting ${Object.keys(tools).length} MCP tools for ReAct from multiple servers`,
       );
 
       // Convert tools to ReAct format
       const toolDescriptions = Object.entries(tools)
-        .map(([name, tool]: [string, any]) => {
+        .map(([name, tool]) => {
           const description = tool.description || "No description";
-          const parameters = tool.inputSchema
-            ? JSON.stringify(tool.inputSchema, null, 2)
-            : "{}";
+          const parameters = this.formatToolSchema(tool.inputSchema);
 
-          logger.debug(`${LOG_PREFIX} Tool ${name} formatted`);
+          // Include server information in description
+          const serverInfo = tool.serverName
+            ? ` (from ${tool.serverName} server)`
+            : "";
+          const enhancedDescription = `${description}${serverInfo}`;
+
+          logger.debug(
+            `${LOG_PREFIX} Tool ${name} formatted from server ${tool.serverName || "unknown"}`,
+          );
 
           return `<tool>
-<name>${name}</name>
-<description>${description}</description>
+<n>${name}</n>
+<description>${enhancedDescription}</description>
 <parameters_json_schema>${parameters}</parameters_json_schema>
 </tool>`;
         })
@@ -117,7 +149,7 @@ export class ToolManager implements IToolManager {
 
       this.cachedFormattedTools = toolDescriptions;
       logger.debug(
-        `${LOG_PREFIX} Tools formatted and cached for LLM (${Object.keys(tools).length} total)`,
+        `${LOG_PREFIX} Tools formatted and cached for LLM (${Object.keys(tools).length} total from multiple servers)`,
       );
       return this.cachedFormattedTools;
     } catch (error) {
@@ -127,28 +159,31 @@ export class ToolManager implements IToolManager {
   }
 
   async saveTabMemory(extractedPage: ExtractedPage): Promise<void> {
-    if (!this.mcpService) {
+    if (!this.mcpManager) {
       logger.warn(
-        `${LOG_PREFIX} No MCP service available for saving tab memory`,
+        `${LOG_PREFIX} No MCP manager available for saving tab memory`,
       );
       return;
     }
 
     try {
-      // Check if ingest_extracted_page tool is available (from RAG MCP server)
-      const tools = await this.getTools();
-      if (!tools || !tools.ingest_extracted_page) {
-        logger.warn(`${LOG_PREFIX} ingest_extracted_page tool not available`);
-        return;
-      }
-
-      // Call the RAG ingestion tool with the full ExtractedPage object
-      await this.mcpService.callTool("ingest_extracted_page", {
-        extractedPage,
-      });
-      logger.debug(
-        `${LOG_PREFIX} Saved tab memory to RAG system for: ${extractedPage.title}`,
+      // Use namespaced tool name (clean architecture)
+      const result = await this.mcpManager.callTool(
+        "rag:ingest_extracted_page",
+        {
+          extractedPage,
+        },
       );
+
+      if (result.success) {
+        logger.debug(
+          `${LOG_PREFIX} Saved tab memory to RAG system for: ${extractedPage.title} (${result.executionTime}ms)`,
+        );
+      } else {
+        logger.error(
+          `${LOG_PREFIX} Failed to save tab memory: ${result.error}`,
+        );
+      }
     } catch (error) {
       logger.error(
         `${LOG_PREFIX} Failed to save tab memory to RAG system:`,
@@ -174,29 +209,30 @@ export class ToolManager implements IToolManager {
       }
 
       // PERSISTENT MEMORY: Save both user message and response to MCP server
-      if (this.mcpService) {
+      if (this.mcpManager) {
         const tools = await this.getTools();
-        if (tools && tools.save_conversation_memory) {
+        const memoryTool = this.findToolByName(
+          tools,
+          "save_conversation_memory",
+        );
+
+        if (memoryTool) {
           try {
             // Save user message
-            const trimmedUserMessage =
-              userMessage.length > 500
-                ? userMessage.substring(0, 500) + "..."
-                : userMessage;
-
-            await this.mcpService.callTool("save_conversation_memory", {
+            const trimmedUserMessage = this.trimMessage(userMessage, 500);
+            const userResult = await this.mcpManager.callTool(memoryTool, {
               information: `User: ${trimmedUserMessage}`,
             });
 
             // Save agent response
-            const trimmedResponse =
-              response.length > 500
-                ? response.substring(0, 500) + "..."
-                : response;
-
-            await this.mcpService.callTool("save_conversation_memory", {
+            const trimmedResponse = this.trimMessage(response, 500);
+            const assistantResult = await this.mcpManager.callTool(memoryTool, {
               information: `Assistant: ${trimmedResponse}`,
             });
+
+            if (!userResult.success || !assistantResult.success) {
+              throw new Error("Failed to save conversation to memory");
+            }
 
             logger.debug(
               `${LOG_PREFIX} Saved conversation exchange to persistent memory`,
@@ -219,10 +255,67 @@ export class ToolManager implements IToolManager {
     return [...this.conversationHistory];
   }
 
-  // Clear cache if needed (e.g., when MCP server restarts)
+  // Clear cache if needed (e.g., when MCP servers restart)
   clearToolCache(): void {
     this.cachedTools = null;
     this.cachedFormattedTools = null;
     logger.debug(`${LOG_PREFIX} Tool cache cleared`);
+  }
+
+  /**
+   * Safely format tool result for display
+   */
+  private formatToolResult(data: unknown): string {
+    if (typeof data === "string") {
+      return data;
+    }
+
+    if (data === null || data === undefined) {
+      return "";
+    }
+
+    try {
+      return JSON.stringify(data, null, 2);
+    } catch {
+      return String(data);
+    }
+  }
+
+  /**
+   * Format tool schema for display
+   */
+  private formatToolSchema(schema: unknown): string {
+    try {
+      return JSON.stringify(schema, null, 2);
+    } catch {
+      return "{}";
+    }
+  }
+
+  /**
+   * Find a tool by name pattern in the tools collection
+   */
+  private findToolByName(
+    tools: Record<string, MCPTool> | undefined,
+    namePattern: string,
+  ): string | null {
+    if (!tools) {
+      return null;
+    }
+
+    return (
+      Object.keys(tools).find(toolName => toolName.includes(namePattern)) ||
+      null
+    );
+  }
+
+  /**
+   * Safely trim message to specified length
+   */
+  private trimMessage(message: string, maxLength: number): string {
+    if (message.length <= maxLength) {
+      return message;
+    }
+    return message.substring(0, maxLength) + "...";
   }
 }
