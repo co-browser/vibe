@@ -7,6 +7,7 @@ import "./components/styles/index.css";
 import { RouterProvider } from "./router/provider";
 import { Route } from "./router/route";
 import { useEffect, useState } from "react";
+import { ContextMenuDetector } from "./components/ui/context-menu-detector";
 
 // Browser Route
 import BrowserRoute from "./routes/browser/route";
@@ -74,7 +75,7 @@ function Routes() {
     }
   }, []);
 
-  // Render popup windows directly without router
+  // Render popup windows directly without router (no context menu for popup windows)
   if (windowType === "onboarding") {
     return <OnboardingPage detectedBrowsers={detectedBrowsers} />;
   }
@@ -87,13 +88,15 @@ function Routes() {
     return <AboutPage />;
   }
 
-  // Default browser application with router
+  // Default browser application with router and context menu detection
   return (
-    <RouterProvider>
-      <Route>
-        <BrowserRoute />
-      </Route>
-    </RouterProvider>
+    <ContextMenuDetector>
+      <RouterProvider>
+        <Route>
+          <BrowserRoute />
+        </Route>
+      </RouterProvider>
+    </ContextMenuDetector>
   );
 }
 

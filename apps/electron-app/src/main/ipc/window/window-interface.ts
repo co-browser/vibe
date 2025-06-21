@@ -1,62 +1,48 @@
-import { ipcMain } from "electron";
-import { browser } from "@/index";
+import { ipcMain, BrowserWindow } from "electron";
+import { createLogger } from "@vibe/shared-types";
+
+const logger = createLogger("WindowInterface");
 
 /**
- * Window interface management handlers
- * Direct approach - no registration functions needed
+ * Window interface IPC handlers
  */
 
-ipcMain.handle("interface:get-window-id", async event => {
-  const senderWindow = browser?.getWindowFromWebContents(event.sender);
-  return senderWindow?.id || null;
-});
-
-ipcMain.handle("interface:get-all-windows", async () => {
-  const windows = browser?.getAllWindows() || [];
-  return windows.map(window => ({
-    windowId: window.id,
-    isMainWindow: window === browser?.getMainWindow(),
-    isVisible: window.isVisible(),
-    isFocused: window.isFocused(),
-    isMinimized: window.isMinimized(),
-    isMaximized: window.isMaximized(),
-    bounds: window.getBounds(),
-  }));
-});
-
-ipcMain.handle("interface:get-window-state", async event => {
-  const senderWindow = browser?.getWindowFromWebContents(event.sender);
-  if (!senderWindow) return null;
-
-  return {
-    windowId: senderWindow.id,
-    isMaximized: senderWindow.isMaximized(),
-    isMinimized: senderWindow.isMinimized(),
-    isFullScreen: senderWindow.isFullScreen(),
-    bounds: senderWindow.getBounds(),
-  };
-});
-
-ipcMain.on("interface:move-window-to", (event, x: number, y: number) => {
-  const senderWindow = browser?.getWindowFromWebContents(event.sender);
-  if (senderWindow) {
-    senderWindow.setPosition(x, y);
+ipcMain.handle("window:get-id", event => {
+  try {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    return window?.id || null;
+  } catch (error) {
+    logger.error("Failed to get window ID:", error);
+    return null;
   }
 });
 
-ipcMain.on(
-  "interface:resize-window-to",
-  (event, width: number, height: number) => {
-    const senderWindow = browser?.getWindowFromWebContents(event.sender);
-    if (senderWindow) {
-      senderWindow.setSize(width, height);
-    }
-  },
-);
+ipcMain.handle("window:get-bounds", event => {
+  try {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    return window?.getBounds() || null;
+  } catch (error) {
+    logger.error("Failed to get window bounds:", error);
+    return null;
+  }
+});
 
-ipcMain.on("interface:set-window-bounds", (event, bounds) => {
-  const senderWindow = browser?.getWindowFromWebContents(event.sender);
-  if (senderWindow) {
-    senderWindow.setBounds(bounds);
+ipcMain.handle("window:is-maximized", event => {
+  try {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    return window?.isMaximized() || false;
+  } catch (error) {
+    logger.error("Failed to check if window is maximized:", error);
+    return false;
+  }
+});
+
+ipcMain.handle("window:is-minimized", event => {
+  try {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    return window?.isMinimized() || false;
+  } catch (error) {
+    logger.error("Failed to check if window is minimized:", error);
+    return false;
   }
 });

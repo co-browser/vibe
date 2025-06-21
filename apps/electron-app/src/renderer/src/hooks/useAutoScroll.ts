@@ -3,8 +3,14 @@ import React from "react";
 export const useAutoScroll = (dependencies: any[]) => {
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
+  const dependenciesRef = React.useRef(dependencies);
 
+  // Update ref when dependencies change
   React.useEffect(() => {
+    dependenciesRef.current = dependencies;
+  });
+
+  const scrollToBottom = React.useCallback(() => {
     const container = containerRef.current?.parentElement;
     if (!container || !messagesEndRef.current) return;
 
@@ -19,6 +25,11 @@ export const useAutoScroll = (dependencies: any[]) => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
       }, 100);
     }
+  }, []);
+
+  React.useEffect(() => {
+    scrollToBottom();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, dependencies);
 
   return { messagesEndRef, containerRef };

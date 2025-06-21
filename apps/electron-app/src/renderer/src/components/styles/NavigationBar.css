@@ -9,18 +9,18 @@
   background-color: var(--nav-background);
   border-top-left-radius: 8px !important;
   border-top-right-radius: 8px !important;
-  overflow: hidden;
+  overflow: visible;
   box-sizing: border-box;
   -webkit-app-region: no-drag;
   position: relative;
-  z-index: 3;
+  z-index: 2000;
   flex-shrink: 0;
   width: 100%;
 }
 
 /* Omnibox overlay behavior */
 .navigation-bar:focus-within {
-  z-index: 999;
+  z-index: 2001;
   /* Elevate to omnibox overlay level when focused */
 }
 
@@ -132,13 +132,62 @@
   margin-top: 4px;
   max-height: 400px;
   overflow-y: auto;
-  z-index: 1001;
+  z-index: 3000; /* Increased to match autocomplete dropdown */
   /* Above the elevated navigation bar */
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   transform: translateY(-2px);
   opacity: 0;
   animation: omniboxSuggestionsAppear 0.15s ease-out forwards;
+}
+
+/* Ant Design AutoComplete dropdown styling */
+.omnibar-autocomplete-dropdown {
+  z-index: 3000 !important; /* Increased to be above navigation bar */
+  background-color: var(--input-background) !important;
+  border: 2px solid red !important; /* Temporary debug border */
+  border-radius: 12px !important;
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.12),
+    0 0 0 1px rgba(0, 0, 0, 0.05) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  margin-top: 4px !important;
+  max-height: 400px !important;
+  overflow-y: auto !important;
+  /* Debug styles */
+  position: relative !important;
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.omnibar-autocomplete-dropdown .ant-select-dropdown-menu {
+  background-color: transparent !important;
+  border-radius: 12px !important;
+  padding: 4px 0 !important;
+}
+
+.omnibar-autocomplete-dropdown .ant-select-dropdown-menu-item {
+  padding: 12px 16px !important;
+  border-radius: 8px !important;
+  margin: 2px 8px !important;
+  transition: all 0.15s ease !important;
+  background-color: transparent !important;
+  color: var(--text-primary) !important;
+}
+
+.omnibar-autocomplete-dropdown .ant-select-dropdown-menu-item:hover {
+  background-color: var(--button-hover) !important;
+}
+
+.omnibar-autocomplete-dropdown .ant-select-dropdown-menu-item-selected {
+  background-color: rgba(59, 130, 246, 0.1) !important;
+  color: var(--text-primary) !important;
+}
+
+.omnibar-autocomplete-dropdown .ant-select-dropdown-menu-item-active {
+  background-color: var(--button-hover) !important;
 }
 
 @keyframes omniboxSuggestionsAppear {

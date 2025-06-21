@@ -3,6 +3,172 @@ import { createLogger } from "@vibe/shared-types";
 
 const logger = createLogger("password-import");
 
+// CSV parsing utility (simple implementation since we don't have csv-parse dependency)
+function parseCSV(csvContent: string): Record<string, string>[] {
+  const lines = csvContent.split("\n").filter(line => line.trim());
+  if (lines.length === 0) return [];
+
+  const headers = lines[0].split(",").map(h => h.trim().replace(/"/g, ""));
+  const records: Record<string, string>[] = [];
+
+  for (let i = 1; i < lines.length; i++) {
+    const values = lines[i].split(",").map(v => v.trim().replace(/"/g, ""));
+    const record: Record<string, string> = {};
+
+    headers.forEach((header, index) => {
+      record[header] = values[index] || "";
+    });
+
+    records.push(record);
+  }
+
+  return records;
+}
+
+// Mock interfaces for user and browser profiles
+interface UserProfile {
+  saveLoginDetails(
+    server: string,
+    username: string,
+    password: string,
+  ): Promise<void>;
+}
+
+interface BrowserProfile {
+  path: string;
+  name: string;
+}
+
+interface PasswordRecord {
+  originUrl: string;
+  username: string;
+  password: string;
+}
+
+// Mock function to get Chrome passwords (in real implementation, this would decrypt the Chrome database)
+async function getAllPasswords(
+  browserProfile: BrowserProfile,
+  _key: string,
+): Promise<PasswordRecord[]> {
+  // Mock implementation - in reality this would:
+  // 1. Read the Chrome Login Data database
+  // 2. Decrypt passwords using the provided key
+  // 3. Return the decrypted password records
+
+  logger.info(`Reading passwords from Chrome profile: ${browserProfile.path}`);
+
+  // Simulate finding some passwords
+  const mockPasswords: PasswordRecord[] = [
+    {
+      originUrl: "https://example.com",
+      username: "user1@example.com",
+      password: "password123",
+    },
+    {
+      originUrl: "https://github.com",
+      username: "githubuser",
+      password: "githubpass",
+    },
+  ];
+
+  return mockPasswords;
+}
+
+/**
+ * Import Safari passwords from CSV file
+ * @param csvContent - The CSV content as string
+ * @param userProfile - User profile instance to save passwords to
+ * @returns Promise<boolean> - True if any passwords were imported successfully
+ */
+async function importSafariPasswordsFromCSV(
+  csvContent: string,
+  userProfile: UserProfile,
+): Promise<boolean> {
+  try {
+    const records = parseCSV(csvContent);
+    let importCount = 0;
+    let skippedCount = 0;
+
+    for (const record of records) {
+      try {
+        const server = record.URL?.startsWith("http")
+          ? record.URL
+          : `https://${record.URL}`;
+
+        if (!record.Username || !record.Password) {
+          logger.warn(`Skipping empty entry for ${record.Title || server}`);
+          skippedCount++;
+          continue;
+        }
+
+        await userProfile.saveLoginDetails(
+          server,
+          record.Username,
+          record.Password,
+        );
+        logger.info(`Imported password for ${record.Username} at ${server}`);
+
+        if (record.OTPAuth) {
+          logger.info(
+            `Note: OTP authentication is available for ${server} but not yet supported`,
+          );
+        }
+
+        importCount++;
+      } catch (error) {
+        logger.error(
+          `Failed to import password for ${record.Username} at ${record.URL}:`,
+          error,
+        );
+        skippedCount++;
+      }
+    }
+
+    logger.info("Import summary:");
+    logger.info(`- Successfully imported: ${importCount} passwords`);
+    logger.info(`- Skipped/Failed: ${skippedCount} entries`);
+
+    return importCount > 0;
+  } catch (error) {
+    logger.error("Error importing Safari passwords from CSV:", error);
+    return false;
+  }
+}
+
+/**
+ * Migrate Chrome passwords to user profile
+ * @param browserProfile - Chrome browser profile information
+ * @param userProfile - User profile instance to save passwords to
+ * @param key - Encryption key for Chrome password database
+ */
+async function migrateChromePasswords(
+  browserProfile: BrowserProfile,
+  userProfile: UserProfile,
+  key: string,
+): Promise<void> {
+  logger.info("Migrating passwords");
+
+  try {
+    const passwords = await getAllPasswords(browserProfile, key);
+
+    for (const password of passwords) {
+      await userProfile.saveLoginDetails(
+        password.originUrl,
+        password.username,
+        password.password,
+      );
+      logger.info(
+        `Decrypted password for ${password.username} at ${password.originUrl}: ****`,
+      );
+    }
+
+    logger.info(`Successfully migrated ${passwords.length} passwords`);
+  } catch (error) {
+    logger.error("Error migrating Chrome passwords:", error);
+    throw error;
+  }
+}
+
 interface PasswordImportProgress {
   browser: string;
   stage: "scanning" | "importing" | "complete";
@@ -155,7 +321,9 @@ async function importFromFirefox(
     });
     await delay(1700);
 
-    logger.info(`Successfully imported ${passwordCount} passwords from Firefox`);
+    logger.info(
+      `Successfully imported ${passwordCount} passwords from Firefox`,
+    );
     return {
       browser: "Firefox",
       success: true,
@@ -302,3 +470,85 @@ ipcMain.handle("password-import-start", async (event, browser: string) => {
     };
   }
 });
+
+// New IPC handlers for CSV import and Chrome migration
+ipcMain.handle("password-import-csv", async (_event, csvContent: string) => {
+  logger.info("Starting CSV password import");
+
+  try {
+    // Create a mock user profile for demonstration
+    const mockUserProfile: UserProfile = {
+      saveLoginDetails: async (
+        server: string,
+        username: string,
+        _password: string,
+      ) => {
+        // In real implementation, this would save to the actual user profile
+        logger.info(`Saving login details for ${username} at ${server}`);
+        await delay(100); // Simulate async operation
+      },
+    };
+
+    const success = await importSafariPasswordsFromCSV(
+      csvContent,
+      mockUserProfile,
+    );
+
+    return {
+      success,
+      message: success
+        ? "CSV import completed successfully"
+        : "CSV import failed",
+    };
+  } catch (error) {
+    logger.error("CSV import failed:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
+  }
+});
+
+ipcMain.handle(
+  "password-migrate-chrome",
+  async (_event, profilePath: string, encryptionKey: string) => {
+    logger.info("Starting Chrome password migration");
+
+    try {
+      const browserProfile: BrowserProfile = {
+        path: profilePath,
+        name: "Chrome",
+      };
+
+      // Create a mock user profile for demonstration
+      const mockUserProfile: UserProfile = {
+        saveLoginDetails: async (
+          server: string,
+          username: string,
+          _password: string,
+        ) => {
+          // In real implementation, this would save to the actual user profile
+          logger.info(`Saving login details for ${username} at ${server}`);
+          await delay(100); // Simulate async operation
+        },
+      };
+
+      await migrateChromePasswords(
+        browserProfile,
+        mockUserProfile,
+        encryptionKey,
+      );
+
+      return {
+        success: true,
+        message: "Chrome password migration completed successfully",
+      };
+    } catch (error) {
+      logger.error("Chrome migration failed:", error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
+    }
+  },
+);

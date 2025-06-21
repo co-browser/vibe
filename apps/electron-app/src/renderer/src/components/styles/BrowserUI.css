@@ -78,13 +78,12 @@
   align-items: center;
   flex-shrink: 0;
   position: relative;
-  z-index: 10;
+  z-index: 2000;
   box-sizing: border-box;
 
   /* Glassmorphism corner radius - matches GLASSMORPHISM_CONFIG.BORDER_RADIUS */
   border-top-left-radius: 8px !important;
   border-top-right-radius: 8px !important;
-  overflow: hidden;
 
   /* Interaction */
   -webkit-app-region: no-drag;

@@ -1,8 +1,9 @@
-import { BrowserWindow, nativeTheme, app } from "electron";
+import { BrowserWindow, nativeTheme, app, ipcMain } from "electron";
 import { EventEmitter } from "events";
 import { join } from "path";
 import { is } from "@electron-toolkit/utils";
 import { createLogger } from "@vibe/shared-types";
+import { getProfileService } from "../services/profile-service";
 import fs from "fs";
 import path from "path";
 
@@ -13,6 +14,19 @@ interface DetectedBrowser {
   name: string;
   path: string;
   default?: boolean;
+}
+
+/**
+ * Onboarding completion data
+ */
+interface OnboardingData {
+  profileName: string;
+  email?: string;
+  importPasswords: boolean;
+  importHistory: boolean;
+  selectedBrowser?: string;
+  theme: "light" | "dark" | "system";
+  privacyMode: boolean;
 }
 
 /**
@@ -137,6 +151,7 @@ export class OnboardingWindow extends EventEmitter {
   public readonly window: BrowserWindow;
   private parentWindow: BrowserWindow;
   private detectedBrowsers: DetectedBrowser[];
+  private profileService = getProfileService();
 
   constructor(
     parentWindow: BrowserWindow,
@@ -152,6 +167,7 @@ export class OnboardingWindow extends EventEmitter {
     this.id = this.window.id;
 
     this.setupEvents();
+    this.setupIpcHandlers();
     this.loadRenderer().catch(error => {
       logger.error("Failed to load onboarding renderer:", error);
     });
@@ -235,6 +251,75 @@ export class OnboardingWindow extends EventEmitter {
     });
   }
 
+  private setupIpcHandlers(): void {
+    // Handle onboarding completion
+    ipcMain.handle(
+      "onboarding:complete",
+      async (_event, data: OnboardingData) => {
+        try {
+          // Create profile with onboarding data
+          const profile = await this.profileService.createProfile(
+            data.profileName,
+            data.email,
+            {
+              theme: data.theme,
+              language: "en",
+              defaultSearchEngine: "google",
+              autoSavePasswords: data.importPasswords,
+              syncBrowsingHistory: data.importHistory,
+              enableAutocomplete: true,
+              privacyMode: data.privacyMode,
+            },
+          );
+
+          // Import data if requested
+          if (
+            data.selectedBrowser &&
+            (data.importPasswords || data.importHistory)
+          ) {
+            await this.importBrowserData(profile.id, data.selectedBrowser, {
+              passwords: data.importPasswords,
+              history: data.importHistory,
+            });
+          }
+
+          // Close onboarding window
+          this.close();
+
+          return { success: true, profileId: profile.id };
+        } catch (error) {
+          logger.error("Failed to complete onboarding:", error);
+          return {
+            success: false,
+            error: error instanceof Error ? error.message : String(error),
+          };
+        }
+      },
+    );
+
+    // Handle getting detected browsers
+    ipcMain.handle("onboarding:get-browsers", async () => {
+      return this.detectedBrowsers;
+    });
+
+    // Handle browser data preview
+    ipcMain.handle(
+      "onboarding:preview-browser-data",
+      async (_event, browserName: string) => {
+        try {
+          const preview = await this.previewBrowserData(browserName);
+          return { success: true, preview };
+        } catch (error) {
+          logger.error("Failed to preview browser data:", error);
+          return {
+            success: false,
+            error: error instanceof Error ? error.message : String(error),
+          };
+        }
+      },
+    );
+  }
+
   private async loadRenderer(): Promise<void> {
     logger.debug("Loading onboarding renderer...");
 
@@ -259,6 +344,126 @@ export class OnboardingWindow extends EventEmitter {
     }
   }
 
+  private async importBrowserData(
+    profileId: string,
+    browserName: string,
+    data: { passwords: boolean; history: boolean },
+  ): Promise<void> {
+    try {
+      logger.info(
+        `Importing data from ${browserName} for profile ${profileId}`,
+      );
+
+      // This would implement actual browser data import
+      // For now, we'll create some mock data
+      const mockData = {
+        passwords: data.passwords,
+        history: data.history,
+      };
+
+      if (mockData.passwords) {
+        await this.importBrowserPasswords(profileId, browserName);
+      }
+
+      if (mockData.history) {
+        await this.importBrowserHistory(profileId, browserName);
+      }
+
+      logger.info(
+        `Successfully imported ${mockData.passwords ? "passwords" : ""} and ${mockData.history ? "history" : ""}`,
+      );
+    } catch (error) {
+      logger.error(`Failed to import data from ${browserName}:`, error);
+      throw error;
+    }
+  }
+
+  private async importBrowserPasswords(
+    profileId: string,
+    browserName: string,
+  ): Promise<void> {
+    try {
+      logger.info(
+        `Importing passwords from ${browserName} for profile ${profileId}`,
+      );
+
+      // This would implement actual browser password import
+      // For now, we'll create some mock data
+      const mockPasswords = [
+        {
+          url: "https://example.com",
+          username: "user@example.com",
+          password: "encrypted_password_data",
+          title: "Example Site",
+          source: browserName.toLowerCase() as any,
+        },
+      ];
+
+      await this.profileService.importPasswords(profileId, mockPasswords);
+      logger.info(`Successfully imported ${mockPasswords.length} passwords`);
+    } catch (error) {
+      logger.error(`Failed to import passwords from ${browserName}:`, error);
+      throw error;
+    }
+  }
+
+  private async importBrowserHistory(
+    profileId: string,
+    browserName: string,
+  ): Promise<void> {
+    try {
+      logger.info(
+        `Importing history from ${browserName} for profile ${profileId}`,
+      );
+
+      // This would implement actual browser history import
+      // For now, we'll create some mock data
+      const mockHistoryEntries = [
+        {
+          url: "https://example.com",
+          title: "Example Site",
+          visitCount: 5,
+          lastVisit: new Date(),
+          favicon: "https://example.com/favicon.ico",
+        },
+      ];
+
+      for (const entry of mockHistoryEntries) {
+        await this.profileService.addHistoryEntry(profileId, entry);
+      }
+
+      logger.info(
+        `Successfully imported ${mockHistoryEntries.length} history entries`,
+      );
+    } catch (error) {
+      logger.error(`Failed to import history from ${browserName}:`, error);
+      throw error;
+    }
+  }
+
+  private async previewBrowserData(browserName: string): Promise<{
+    passwords: number;
+    history: number;
+    bookmarks: number;
+  }> {
+    try {
+      logger.info(`Previewing data from ${browserName}`);
+
+      // Mock data preview - in a real implementation, this would actually scan the browser
+      const mockPreview = {
+        passwords: Math.floor(Math.random() * 50) + 10,
+        history: Math.floor(Math.random() * 1000) + 100,
+        bookmarks: Math.floor(Math.random() * 100) + 20,
+      };
+
+      logger.info(`Preview for ${browserName}:`, mockPreview);
+      return mockPreview;
+    } catch (error) {
+      logger.error(`Failed to preview data from ${browserName}:`, error);
+      throw error;
+    }
+  }
+
   public close(): void {
     if (!this.window.isDestroyed()) {
       this.window.close();
@@ -267,6 +472,11 @@ export class OnboardingWindow extends EventEmitter {
 
   public destroy(): void {
     if (this.window.isDestroyed()) return;
+
+    // Clean up IPC handlers
+    ipcMain.removeHandler("onboarding:complete");
+    ipcMain.removeHandler("onboarding:get-browsers");
+    ipcMain.removeHandler("onboarding:preview-browser-data");
 
     this.emit("destroy");
     this.removeAllListeners();
@@ -296,4 +506,4 @@ export class OnboardingWindow extends EventEmitter {
 }
 
 // Export the interface for use in other files
-export type { DetectedBrowser };
+export type { DetectedBrowser, OnboardingData };

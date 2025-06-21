@@ -98,10 +98,15 @@ export function ChatPage(): React.JSX.Element {
     <div
       className="chat-container"
       style={{ height: "100%", display: "flex", flexDirection: "column" }}
+      data-context="chat"
     >
       <AgentStatusIndicator isInitializing={isAgentInitializing} />
 
-      <div className="chat-messages-container" style={{ flex: 1 }}>
+      <div
+        className="chat-messages-container"
+        style={{ flex: 1 }}
+        data-context="chat"
+      >
         {showWelcome ? (
           <ChatWelcome onActionClick={handleActionChipClick} />
         ) : (
@@ -115,7 +120,7 @@ export function ChatPage(): React.JSX.Element {
         )}
       </div>
 
-      <div className="chat-input-section">
+      <div className="chat-input-section" data-context="chat">
         <ChatInput
           value={input}
           onChange={handleInputValueChange}

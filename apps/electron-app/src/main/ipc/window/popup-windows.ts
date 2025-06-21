@@ -14,8 +14,8 @@ const logger = createLogger("popup-windows-ipc");
  */
 async function openPopupWindow(
   event: Electron.IpcMainInvokeEvent,
-  windowType: 'onboarding' | 'settings' | 'about',
-  openMethod: 'openOnboardingWindow' | 'openSettingsWindow' | 'openAboutWindow'
+  windowType: "onboarding" | "settings" | "about",
+  openMethod: "openOnboardingWindow" | "openSettingsWindow" | "openAboutWindow",
 ) {
   try {
     const senderWindow = browser?.getWindowFromWebContents(event.sender);
@@ -28,12 +28,16 @@ async function openPopupWindow(
     const applicationWindow =
       browser?.getApplicationWindowFromBrowserWindow(senderWindow);
     if (!applicationWindow) {
-      logger.error(`Cannot open ${windowType} window: ApplicationWindow not found`);
+      logger.error(
+        `Cannot open ${windowType} window: ApplicationWindow not found`,
+      );
       return { success: false, error: "ApplicationWindow not found" };
     }
 
     const popupWindow = applicationWindow[openMethod]();
-    logger.info(`${windowType.charAt(0).toUpperCase() + windowType.slice(1)} window opened successfully`);
+    logger.info(
+      `${windowType.charAt(0).toUpperCase() + windowType.slice(1)} window opened successfully`,
+    );
 
     return {
       success: true,
@@ -49,15 +53,15 @@ async function openPopupWindow(
 }
 
 ipcMain.handle("window:open-onboarding", async event => {
-  return openPopupWindow(event, 'onboarding', 'openOnboardingWindow');
+  return openPopupWindow(event, "onboarding", "openOnboardingWindow");
 });
 
 ipcMain.handle("window:open-settings", async event => {
-  return openPopupWindow(event, 'settings', 'openSettingsWindow');
+  return openPopupWindow(event, "settings", "openSettingsWindow");
 });
 
 ipcMain.handle("window:open-about", async event => {
-  return openPopupWindow(event, 'about', 'openAboutWindow');
+  return openPopupWindow(event, "about", "openAboutWindow");
 });
 
 ipcMain.handle("window:get-popup-windows", async event => {

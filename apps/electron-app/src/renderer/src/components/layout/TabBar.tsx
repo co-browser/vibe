@@ -258,6 +258,7 @@ export const ChromeTabBar: React.FC = () => {
   return (
     <div
       className={`custom-tab-bar-wrapper ${isMacos ? "macos-tabs-container-padded" : ""}`}
+      data-context="tab"
     >
       <Tabs
         darkMode={false}
@@ -271,6 +272,7 @@ export const ChromeTabBar: React.FC = () => {
             onClick={handleNewTab}
             className="add-tab-button"
             aria-label="Add new tab"
+            data-context="tab"
           >
             +
           </button>

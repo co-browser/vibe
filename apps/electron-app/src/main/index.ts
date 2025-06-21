@@ -25,6 +25,7 @@ import {
   isFirstRun,
   openOnboardingForFirstRun,
 } from "@/browser/onboarding-window";
+import { SettingsWindow } from "@/browser/settings-window";
 
 const logger = createLogger("main-process");
 
@@ -142,6 +143,14 @@ async function gracefulShutdown(signal: string): Promise<void> {
         logger.error("Error during agent service termination:", error);
       }
       agentService = null;
+    }
+
+    // Cleanup settings window IPC handlers
+    try {
+      SettingsWindow.cleanupAllHandlers();
+      logger.info("Settings window IPC handlers cleaned up");
+    } catch (error) {
+      logger.error("Error cleaning up settings window IPC handlers:", error);
     }
 
     if (unsubscribeBrowser) {
@@ -501,6 +510,17 @@ app.on("before-quit", async _event => {
     });
   } catch (error) {
     logger.error("Error during shutdown logging:", error);
+  }
+
+  // Clean up settings window IPC handlers
+  try {
+    SettingsWindow.cleanupAllHandlers();
+    logger.info("Settings window IPC handlers cleaned up during app shutdown");
+  } catch (error) {
+    logger.error(
+      "Error cleaning up settings window IPC handlers during app shutdown:",
+      error,
+    );
   }
 
   // Clean up browser resources

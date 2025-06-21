@@ -4,70 +4,8 @@ import ChromeTabBar from "../layout/TabBar";
 import { ChatPage } from "../../pages/chat/ChatPage";
 import { ChatErrorBoundary } from "../ui/error-boundary";
 import { CHAT_PANEL } from "@vibe/shared-types";
-
-/**
- * Layout Provider - Clean state management
- */
-interface LayoutContextType {
-  isChatPanelVisible: boolean;
-  chatPanelWidth: number;
-  setChatPanelVisible: (visible: boolean) => void;
-  setChatPanelWidth: (width: number) => void;
-}
-
-const LayoutContext = React.createContext<LayoutContextType | null>(null);
-
-function useLayout(): LayoutContextType {
-  const context = React.useContext(LayoutContext);
-  if (!context) {
-    throw new Error("useLayout must be used within a LayoutProvider");
-  }
-  return context;
-}
-
-function LayoutProvider({
-  children,
-}: {
-  children: React.ReactNode;
-}): React.JSX.Element {
-  const [isChatPanelVisible, setChatPanelVisible] = useState(false);
-  const [chatPanelWidth, setChatPanelWidth] = useState<number>(
-    CHAT_PANEL.DEFAULT_WIDTH,
-  );
-
-  // Chat panel visibility monitoring using vibe APIs
-  useEffect(() => {
-    const cleanup = window.vibe?.interface?.onChatPanelVisibilityChanged?.(
-      isVisible => {
-        setChatPanelVisible(isVisible);
-      },
-    );
-
-    return cleanup;
-  }, []);
-
-  const contextValue: LayoutContextType = {
-    isChatPanelVisible,
-    chatPanelWidth,
-    setChatPanelVisible,
-    setChatPanelWidth,
-  };
-
-  return (
-    <LayoutContext.Provider value={contextValue}>
-      <div
-        className="browser-layout-root"
-        style={
-          {
-            "--chat-panel-width": `${chatPanelWidth}px`,
-          } as React.CSSProperties
-        }
-      >
-        {children}
-      </div>
-    </LayoutContext.Provider>
-  );
-}
+import { LayoutProvider } from "../../contexts/LayoutContext";
+import { useLayout } from "../../hooks/useLayout";
 
 /**
  * Chat Panel Sidebar

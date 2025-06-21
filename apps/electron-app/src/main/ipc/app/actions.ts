@@ -1,4 +1,8 @@
 import { ipcMain, clipboard } from "electron";
+import {
+  getContextMenuService,
+  ContextMenuOptions,
+} from "../../services/context-menu-service";
 
 /**
  * User action handlers
@@ -13,10 +17,22 @@ ipcMain.on("actions:copy-link", (_event, url: string) => {
   clipboard.writeText(url);
 });
 
-ipcMain.handle("actions:show-context-menu", async () => {
-  // Context menu not implemented - return success for compatibility
-  return { success: true };
-});
+ipcMain.handle(
+  "actions:show-context-menu",
+  async (_event, options: ContextMenuOptions) => {
+    try {
+      const contextMenuService = getContextMenuService();
+      await contextMenuService.showContextMenu(options);
+      return { success: true };
+    } catch (error) {
+      console.error("Failed to show context menu:", error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  },
+);
 
 ipcMain.handle(
   "actions:execute",

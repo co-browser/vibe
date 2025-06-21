@@ -143,7 +143,7 @@ export class TabManager extends EventEmitter {
    */
   public createTab(url?: string): string {
     const key = this.generateTabKey();
-    const targetUrl = url || "https://www.google.com";
+    const targetUrl = url || "";
     const newTabPosition = this.calculateNewTabPosition();
 
     const tabState: TabState = {

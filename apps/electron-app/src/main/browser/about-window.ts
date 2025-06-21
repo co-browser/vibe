@@ -90,7 +90,11 @@ export class AboutWindow extends EventEmitter {
 
     // Handle keyboard shortcuts to close (Escape, Enter, Return)
     this.window.webContents.on("before-input-event", (event, input) => {
-      if (input.key === "Escape" || input.key === "Enter" || input.key === "Return") {
+      if (
+        input.key === "Escape" ||
+        input.key === "Enter" ||
+        input.key === "Return"
+      ) {
         event.preventDefault(); // Prevent the event from bubbling up
         this.close();
       }

@@ -88,6 +88,65 @@ body {
   --glass-background-end: rgba(255, 255, 255, 0.15);
 }
 
+/* Toggle Switch Styles */
+.toggle {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  width: 44px;
+  height: 24px;
+  background-color: #d1d5db;
+  border-radius: 12px;
+  position: relative;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  border: none;
+  outline: none;
+}
+
+.toggle:checked {
+  background-color: #3b82f6;
+}
+
+.toggle::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  background-color: white;
+  border-radius: 50%;
+  transition: transform 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.toggle:checked::before {
+  transform: translateX(20px);
+}
+
+.toggle:focus {
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5);
+}
+
+.toggle:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Dark mode toggle styles */
+.dark .toggle {
+  background-color: #4b5563;
+}
+
+.dark .toggle:checked {
+  background-color: #3b82f6;
+}
+
+.dark .toggle::before {
+  background-color: #f9fafb;
+}
+
 /* Global utility classes */
 .sr-only {
   position: absolute;

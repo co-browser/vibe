@@ -59,24 +59,31 @@ export class ApplicationWindow extends EventEmitter {
   /**
    * Generic helper function for managing popup windows
    */
-  private openPopupWindow<T extends { window: BrowserWindow; show(): void; on(event: string, listener: (...args: any[]) => void): void }>(
-    windowProperty: keyof this,
+  private openPopupWindow<
+    T extends {
+      window: BrowserWindow;
+      show(): void;
+      on(event: string, listener: (...args: any[]) => void): void;
+    },
+  >(
+    getExistingWindow: () => T | null,
+    setWindow: (window: T) => void,
     WindowClass: new (...args: any[]) => T,
     windowType: string,
     ...constructorArgs: any[]
   ): T {
-    const existingWindow = this[windowProperty] as T | null;
-    
+    const existingWindow = getExistingWindow();
+
     if (existingWindow && !existingWindow.window.isDestroyed()) {
       existingWindow.show();
       return existingWindow;
     }
 
     const newWindow = new WindowClass(this.window, ...constructorArgs);
-    (this as any)[windowProperty] = newWindow;
+    setWindow(newWindow);
 
     newWindow.on("destroy", () => {
-      (this as any)[windowProperty] = null;
+      setWindow(null as any);
     });
 
     // Forward window events to renderer
@@ -108,10 +115,13 @@ export class ApplicationWindow extends EventEmitter {
     detectedBrowsers?: DetectedBrowser[],
   ): OnboardingWindow {
     return this.openPopupWindow(
-      'onboardingWindow',
+      () => this.onboardingWindow,
+      window => {
+        this.onboardingWindow = window;
+      },
       OnboardingWindow,
-      'onboarding',
-      detectedBrowsers
+      "onboarding",
+      detectedBrowsers,
     );
   }
 
@@ -120,9 +130,12 @@ export class ApplicationWindow extends EventEmitter {
    */
   public openSettingsWindow(): SettingsWindow {
     return this.openPopupWindow(
-      'settingsWindow',
+      () => this.settingsWindow,
+      window => {
+        this.settingsWindow = window;
+      },
       SettingsWindow,
-      'settings'
+      "settings",
     );
   }
 
@@ -131,9 +144,12 @@ export class ApplicationWindow extends EventEmitter {
    */
   public openAboutWindow(): AboutWindow {
     return this.openPopupWindow(
-      'aboutWindow',
+      () => this.aboutWindow,
+      window => {
+        this.aboutWindow = window;
+      },
       AboutWindow,
-      'about'
+      "about",
     );
   }
 

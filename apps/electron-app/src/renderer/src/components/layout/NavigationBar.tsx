@@ -13,16 +13,19 @@ import {
   ClockCircleOutlined,
   GlobalOutlined,
   SettingOutlined,
+  SafetyCertificateTwoTone,
   LinkOutlined,
 } from "@ant-design/icons";
 import "../styles/NavigationBar.css";
+import { AutoComplete, Input, Tooltip } from "antd";
+import type { InputRef } from "antd";
+import { useLayout } from "../../hooks/useLayout";
+import { GlowingEffect } from "../ui/glowing-effect";
 
-interface Suggestion {
-  id: string;
-  type: "url" | "search" | "history" | "bookmark" | "context";
-  text: string;
-  url?: string;
-  icon: React.ReactNode;
+interface OptionType {
+  value: string;
+  label: string;
+  icon?: React.ReactNode;
   description?: string;
 }
 
@@ -38,11 +41,9 @@ interface TabNavigationState {
  * Enhanced navigation bar component with direct vibe API integration
  */
 const NavigationBar: React.FC = () => {
+  const [value, setValue] = useState<string>("");
+  const [options, setOptions] = useState<OptionType[]>([]);
   const [currentTabKey, setCurrentTabKey] = useState<string>("");
-  const [inputValue, setInputValue] = useState("");
-  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const [selectedIndex, setSelectedIndex] = useState(-1);
   const [navigationState, setNavigationState] = useState<TabNavigationState>({
     canGoBack: false,
     canGoForward: false,
@@ -50,35 +51,45 @@ const NavigationBar: React.FC = () => {
     url: "",
     title: "",
   });
-  const [agentStatus, setAgentStatus] = useState(false);
-  const [chatPanelVisible, setChatPanelVisible] = useState(false);
+  const [agentStatus, setAgentStatus] = useState<boolean>(false);
 
-  const inputRef = useRef<HTMLInputElement>(null);
-  const suggestionsRef = useRef<HTMLDivElement>(null);
+  // Use LayoutContext instead of local state for chat panel
+  const { isChatPanelVisible, setChatPanelVisible } = useLayout();
 
-  // Listen for window opened events
-  const unsubscribeOpened = window.vibe.interface.onPopupWindowOpened(data => {
-    console.log(`${data.type} window opened with ID: ${data.windowId}`);
-  });
+  const inputRef = useRef<InputRef>(null);
 
-  // Listen for window closed events
-  const unsubscribeClosed = window.vibe.interface.onPopupWindowClosed(data => {
-    console.log(`${data.type} window closed`);
-  });
+  // Clean up event listeners on component unmount
+  useEffect(() => {
+    // Listen for window opened events
+    const unsubscribeOpened = window.vibe?.interface?.onPopupWindowOpened?.(
+      (data: any) => {
+        console.log(`${data.type} window opened with ID: ${data.windowId}`);
+      },
+    );
 
-  // Don't forget to cleanup
-  unsubscribeOpened();
-  unsubscribeClosed();
+    // Listen for window closed events
+    const unsubscribeClosed = window.vibe?.interface?.onPopupWindowClosed?.(
+      (data: any) => {
+        console.log(`${data.type} window closed`);
+      },
+    );
+
+    return () => {
+      unsubscribeOpened?.();
+      unsubscribeClosed?.();
+    };
+  }, []);
+
   // Get current active tab
   useEffect(() => {
-    const getCurrentTab = async () => {
+    const getCurrentTab = async (): Promise<void> => {
       try {
         // Check if vibe API is available
         if (!window.vibe?.tabs?.getActiveTabKey) {
           return;
         }
 
-        // ✅ FIX: Use active tab API instead of tabs[0]
+        // Use active tab API instead of tabs[0]
         const activeTabKey = await window.vibe.tabs.getActiveTabKey();
         if (activeTabKey) {
           setCurrentTabKey(activeTabKey);
@@ -86,7 +97,7 @@ const NavigationBar: React.FC = () => {
           // Get the active tab details
           const activeTab = await window.vibe.tabs.getActiveTab();
           if (activeTab) {
-            setInputValue(activeTab.url || "");
+            setValue(activeTab.url || "");
             setNavigationState(prev => ({
               ...prev,
               url: activeTab.url || "",
@@ -111,9 +122,9 @@ const NavigationBar: React.FC = () => {
       return;
     }
 
-    const cleanup = window.vibe.tabs.onTabStateUpdate(tabState => {
+    const cleanup = window.vibe.tabs.onTabStateUpdate((tabState: any) => {
       if (tabState.key === currentTabKey) {
-        setInputValue(tabState.url || "");
+        setValue(tabState.url || "");
         setNavigationState(prev => ({
           ...prev,
           url: tabState.url || "",
@@ -130,7 +141,11 @@ const NavigationBar: React.FC = () => {
 
   // Listen for tab switching events to update current tab
   useEffect(() => {
-    const cleanup = window.vibe.tabs.onTabSwitched(switchData => {
+    if (!window.vibe?.tabs?.onTabSwitched) {
+      return;
+    }
+
+    const cleanup = window.vibe.tabs.onTabSwitched((switchData: any) => {
       // Update to the new active tab
       const newTabKey = switchData.to;
       if (newTabKey && newTabKey !== currentTabKey) {
@@ -139,9 +154,9 @@ const NavigationBar: React.FC = () => {
         // Get the new tab's details
         window.vibe.tabs
           .getTab(newTabKey)
-          .then(newTab => {
+          .then((newTab: any) => {
             if (newTab) {
-              setInputValue(newTab.url || "");
+              setValue(newTab.url || "");
               setNavigationState(prev => ({
                 ...prev,
                 url: newTab.url || "",
@@ -152,7 +167,7 @@ const NavigationBar: React.FC = () => {
               }));
             }
           })
-          .catch(error => {
+          .catch((error: Error) => {
             console.error("Failed to get switched tab details:", error);
           });
       }
@@ -163,10 +178,10 @@ const NavigationBar: React.FC = () => {
 
   // Monitor agent status
   useEffect(() => {
-    const checkAgentStatus = async () => {
+    const checkAgentStatus = async (): Promise<void> => {
       try {
-        const status = await window.vibe.chat.getAgentStatus();
-        setAgentStatus(status);
+        const status = await window.vibe?.chat?.getAgentStatus?.();
+        setAgentStatus(status || false);
       } catch (error) {
         console.error("Failed to check agent status:", error);
       }
@@ -175,30 +190,9 @@ const NavigationBar: React.FC = () => {
     checkAgentStatus();
 
     // Listen for agent status changes
-    const cleanup = window.vibe.chat.onAgentStatusChanged(status => {
-      setAgentStatus(status);
-    });
-
-    return cleanup;
-  }, []);
-
-  // Monitor chat panel visibility
-  useEffect(() => {
-    const getChatPanelState = async () => {
-      try {
-        const state = await window.vibe.interface.getChatPanelState();
-        setChatPanelVisible(state.isVisible);
-      } catch (error) {
-        console.error("Failed to get chat panel state:", error);
-      }
-    };
-
-    getChatPanelState();
-
-    // Listen for chat panel visibility changes
-    const cleanup = window.vibe.interface.onChatPanelVisibilityChanged(
-      isVisible => {
-        setChatPanelVisible(isVisible);
+    const cleanup = window.vibe?.chat?.onAgentStatusChanged?.(
+      (status: boolean) => {
+        setAgentStatus(status);
       },
     );
 
@@ -206,83 +200,95 @@ const NavigationBar: React.FC = () => {
   }, []);
 
   // Validation helpers
-  const isValidURL = (string: string): boolean => {
+  const isValidURL = useCallback((string: string): boolean => {
     try {
       new URL(string.includes("://") ? string : `https://${string}`);
       return true;
     } catch {
       return false;
     }
-  };
+  }, []);
 
-  const isDomain = (string: string): boolean => {
+  const isDomain = useCallback((string: string): boolean => {
     const domainRegex = /^[a-zA-Z0-9][a-zA-Z0-9-_.]*[a-zA-Z0-9]\.[a-zA-Z]{2,}$/;
     return domainRegex.test(string);
-  };
+  }, []);
 
-  const detectInputType = (input: string): "url" | "domain" | "search" => {
-    if (isValidURL(input)) return "url";
-    if (isDomain(input)) return "domain";
-    return "search";
-  };
+  const detectInputType = useCallback(
+    (input: string): "url" | "domain" | "search" => {
+      if (isValidURL(input)) return "url";
+      if (isDomain(input)) return "domain";
+      return "search";
+    },
+    [isValidURL, isDomain],
+  );
 
   // Generate intelligent suggestions using vibe APIs
-  const generateRealSuggestions = useCallback(
-    async (input: string): Promise<Suggestion[]> => {
+  const generateSuggestions = useCallback(
+    async (input: string): Promise<OptionType[]> => {
       if (!input.trim()) return [];
 
-      const suggestions: Suggestion[] = [];
+      console.log("Generating suggestions for:", input);
+      const suggestions: OptionType[] = [];
       const inputType = detectInputType(input);
       const inputLower = input.toLowerCase();
 
       try {
+        // Add Perplexity search suggestions for every keystroke
+        if (input.trim().length > 0) {
+          const perplexitySearchUrl = `https://www.perplexity.ai/?q=${encodeURIComponent(input)}`;
+          suggestions.push({
+            value: perplexitySearchUrl,
+            label: `Search Perplexity: "${input}"`,
+            icon: <SearchOutlined />,
+            description: "AI-powered search with Perplexity",
+          });
+        }
+
         // Add primary suggestion based on input type
         if (inputType === "url") {
           suggestions.push({
-            id: "navigate-url",
-            type: "url",
-            text: input,
-            url: input.includes("://") ? input : `https://${input}`,
+            value: input,
+            label: input,
             icon: <GlobalOutlined />,
             description: "Navigate to URL",
           });
         } else if (inputType === "domain") {
+          const url = `https://${input}`;
           suggestions.push({
-            id: "navigate-domain",
-            type: "url",
-            text: input,
-            url: `https://${input}`,
+            value: url,
+            label: input,
             icon: <GlobalOutlined />,
             description: "Go to website",
           });
         } else {
           // Add search suggestion
           const defaultSearchEngine =
-            (await window.vibe.settings.get("defaultSearchEngine")) || "google";
+            (await window.vibe?.settings?.get?.("defaultSearchEngine")) ||
+            "google";
+          const searchUrl = `https://www.${defaultSearchEngine}.com/search?q=${encodeURIComponent(input)}`;
           suggestions.push({
-            id: "search-query",
-            type: "search",
-            text: `Search for "${input}"`,
-            url: `https://www.${defaultSearchEngine}.com/search?q=${encodeURIComponent(input)}`,
+            value: searchUrl,
+            label: `Search for "${input}"`,
             icon: <SearchOutlined />,
             description: `Search with ${defaultSearchEngine}`,
           });
         }
 
         // Get real browsing history from saved contexts
-        const contexts = await window.vibe.content.getSavedContexts();
+        const contexts =
+          (await window.vibe?.content?.getSavedContexts?.()) || [];
+        console.log("Found contexts:", contexts.length);
         const historyMatches = contexts
           .filter(
-            ctx =>
+            (ctx: any) =>
               (ctx.url && ctx.url.toLowerCase().includes(inputLower)) ||
               (ctx.title && ctx.title.toLowerCase().includes(inputLower)),
           )
           .slice(0, 3)
-          .map((ctx, index) => ({
-            id: `history-${index}`,
-            type: "history" as const,
-            text: ctx.title || ctx.url || "Untitled",
-            url: ctx.url || "",
+          .map((ctx: any) => ({
+            value: ctx.url || "",
+            label: ctx.title || ctx.url || "Untitled",
             icon: <ClockCircleOutlined />,
             description: ctx.url,
           }));
@@ -290,51 +296,50 @@ const NavigationBar: React.FC = () => {
         suggestions.push(...historyMatches);
 
         // Get current tabs for "switch to tab" suggestions
-        const tabs = await window.vibe.tabs.getTabs();
+        const tabs = (await window.vibe?.tabs?.getTabs?.()) || [];
+        console.log("Found tabs:", tabs.length);
         const tabMatches = tabs
           .filter(
-            tab =>
+            (tab: any) =>
               tab.key !== currentTabKey && // Don't suggest current tab
               ((tab.title && tab.title.toLowerCase().includes(inputLower)) ||
                 (tab.url && tab.url.toLowerCase().includes(inputLower))),
           )
           .slice(0, 2)
-          .map((tab, index) => ({
-            id: `tab-${index}`,
-            type: "context" as const,
-            text: `Switch to: ${tab.title || "Untitled"}`,
-            url: tab.key, // Use tab key as URL for tab switching
+          .map((tab: any) => ({
+            value: tab.key, // Use tab key as value for tab switching
+            label: `Switch to: ${tab.title || "Untitled"}`,
             icon: <LinkOutlined />,
             description: tab.url || "No URL",
           }));
 
         suggestions.push(...tabMatches);
+
+        console.log("Generated suggestions:", suggestions.length, suggestions);
       } catch (error) {
         console.error("Failed to generate suggestions:", error);
 
         // Fallback to basic search suggestion
         if (suggestions.length === 0) {
           suggestions.push({
-            id: "fallback-search",
-            type: "search",
-            text: `Search for "${input}"`,
-            url: `https://www.google.com/search?q=${encodeURIComponent(input)}`,
+            value: `https://www.google.com/search?q=${encodeURIComponent(input)}`,
+            label: `Search for "${input}"`,
             icon: <SearchOutlined />,
             description: "Search with Google",
           });
         }
       }
 
-      return suggestions.slice(0, 6); // Limit to 6 suggestions
+      return suggestions.slice(0, 8); // Increased limit to accommodate Perplexity suggestions
     },
     [currentTabKey, detectInputType],
   );
 
   // Navigation handlers using vibe APIs
-  const handleBack = useCallback(async () => {
+  const handleBack = useCallback(async (): Promise<void> => {
     if (currentTabKey && navigationState.canGoBack) {
       try {
-        await window.vibe.page.goBack(currentTabKey);
+        await window.vibe?.page?.goBack?.(currentTabKey);
 
         // Track navigation
         (window as any).umami?.track?.("page-navigated", {
@@ -347,10 +352,10 @@ const NavigationBar: React.FC = () => {
     }
   }, [currentTabKey, navigationState.canGoBack]);
 
-  const handleForward = useCallback(async () => {
+  const handleForward = useCallback(async (): Promise<void> => {
     if (currentTabKey && navigationState.canGoForward) {
       try {
-        await window.vibe.page.goForward(currentTabKey);
+        await window.vibe?.page?.goForward?.(currentTabKey);
 
         // Track navigation
         (window as any).umami?.track?.("page-navigated", {
@@ -363,10 +368,10 @@ const NavigationBar: React.FC = () => {
     }
   }, [currentTabKey, navigationState.canGoForward]);
 
-  const handleReload = useCallback(async () => {
+  const handleReload = useCallback(async (): Promise<void> => {
     if (currentTabKey) {
       try {
-        await window.vibe.page.reload(currentTabKey);
+        await window.vibe?.page?.reload?.(currentTabKey);
 
         // Track navigation
         (window as any).umami?.track?.("page-navigated", {
@@ -379,175 +384,164 @@ const NavigationBar: React.FC = () => {
     }
   }, [currentTabKey]);
 
-  const handleToggleChat = useCallback(async () => {
+  const handleToggleChat = useCallback(async (): Promise<void> => {
     try {
-      const newVisibility = !chatPanelVisible;
-      window.vibe.interface.toggleChatPanel(newVisibility);
+      const newVisibility = !isChatPanelVisible;
+      await window.vibe?.interface?.toggleChatPanel?.(newVisibility);
       setChatPanelVisible(newVisibility);
     } catch (error) {
       console.error("Failed to toggle chat:", error);
     }
-  }, [chatPanelVisible]);
+  }, [isChatPanelVisible, setChatPanelVisible]);
 
-  const openSettings = async () => {
+  const openSettings = useCallback(async (): Promise<void> => {
     try {
-      const result = await window.vibe.interface.openSettingsWindow();
-      if (result.success) {
+      const result = await window.vibe?.interface?.openSettingsWindow?.();
+      if (result?.success) {
         console.log("Settings window opened with ID:", result.windowId);
       } else {
-        console.error("Failed to open settings:", result.error);
+        console.error("Failed to open settings:", result?.error);
       }
     } catch (error) {
       console.error("Error opening settings window:", error);
     }
-  };
-
-  // Telemetry handlers are now passed as props from BrowserUI
+  }, []);
 
   // Input handling
-  const handleInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setInputValue(value);
+  const handleSearch = useCallback(
+    async (searchText: string): Promise<void> => {
+      console.log("handleSearch called with:", searchText);
+      setValue(searchText);
 
-    if (value.trim()) {
-      const newSuggestions = await generateRealSuggestions(value);
-      setSuggestions(newSuggestions);
-      setShowSuggestions(newSuggestions.length > 0);
-
-      // Position suggestions dropdown using fixed positioning
-      if (
-        suggestionsRef.current &&
-        inputRef.current &&
-        newSuggestions.length > 0
-      ) {
-        setTimeout(() => {
-          const inputRect = inputRef.current!.getBoundingClientRect();
-          const suggestionsEl = suggestionsRef.current!;
-
-          suggestionsEl.style.top = `${inputRect.bottom + 4}px`;
-          suggestionsEl.style.left = `${inputRect.left}px`;
-          suggestionsEl.style.width = `${inputRect.width}px`;
-        }, 0);
-      }
-    } else {
-      setSuggestions([]);
-      setShowSuggestions(false);
-    }
-    setSelectedIndex(-1);
-  };
-
-  const handleInputFocus = async () => {
-    if (inputValue.trim()) {
-      const newSuggestions = await generateRealSuggestions(inputValue);
-      setSuggestions(newSuggestions);
-      setShowSuggestions(newSuggestions.length > 0);
-    }
-
-    // Position suggestions dropdown using fixed positioning
-    if (suggestionsRef.current && inputRef.current) {
-      const inputRect = inputRef.current.getBoundingClientRect();
-      const suggestionsEl = suggestionsRef.current;
-
-      suggestionsEl.style.top = `${inputRect.bottom + 4}px`;
-      suggestionsEl.style.left = `${inputRect.left}px`;
-      suggestionsEl.style.width = `${inputRect.width}px`;
-    }
-  };
-
-  const handleInputBlur = () => {
-    // Delay hiding suggestions to allow for clicks
-    setTimeout(() => setShowSuggestions(false), 150);
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (!showSuggestions) return;
-
-    switch (e.key) {
-      case "ArrowDown":
-        e.preventDefault();
-        setSelectedIndex(prev =>
-          prev < suggestions.length - 1 ? prev + 1 : prev,
-        );
-        break;
-      case "ArrowUp":
-        e.preventDefault();
-        setSelectedIndex(prev => (prev > 0 ? prev - 1 : -1));
-        break;
-      case "Enter":
-        e.preventDefault();
-        if (selectedIndex >= 0 && suggestions[selectedIndex]) {
-          handleSuggestionClick(suggestions[selectedIndex]);
-        } else {
-          handleSubmit();
+      // Generate suggestions for any non-empty input (including single characters for Perplexity)
+      if (searchText.trim()) {
+        try {
+          const newOptions = await generateSuggestions(searchText);
+          console.log("Setting options:", newOptions.length, newOptions);
+          setOptions(newOptions);
+        } catch (error) {
+          console.error("Failed to generate suggestions:", error);
+          setOptions([]);
         }
-        break;
-      case "Escape":
-        setShowSuggestions(false);
-        setSelectedIndex(-1);
-        inputRef.current?.blur();
-        break;
-    }
-  };
+      } else {
+        console.log("Clearing options - empty search text");
+        setOptions([]);
+      }
+    },
+    [generateSuggestions],
+  );
 
-  const handleSubmit = async () => {
+  const handleValueChange = useCallback(
+    (newValue: string): void => {
+      console.log("handleValueChange called with:", newValue);
+      setValue(newValue);
+
+      // Always trigger search when value changes (for Perplexity suggestions)
+      if (newValue.trim()) {
+        handleSearch(newValue);
+      } else {
+        setOptions([]);
+      }
+    },
+    [handleSearch],
+  );
+
+  const handleSubmit = useCallback(async (): Promise<void> => {
     if (!currentTabKey) return;
 
     try {
-      let finalUrl = inputValue;
+      let finalUrl = value;
 
-      if (!inputValue.includes("://")) {
-        if (isDomain(inputValue) || isValidURL(inputValue)) {
-          finalUrl = `https://${inputValue}`;
+      if (!value.includes("://")) {
+        if (isDomain(value) || isValidURL(value)) {
+          finalUrl = `https://${value}`;
         } else {
           // Search query
           const searchEngine =
-            (await window.vibe.settings.get("defaultSearchEngine")) || "google";
-          finalUrl = `https://www.${searchEngine}.com/search?q=${encodeURIComponent(inputValue)}`;
+            (await window.vibe?.settings?.get?.("defaultSearchEngine")) ||
+            "google";
+          finalUrl = `https://www.${searchEngine}.com/search?q=${encodeURIComponent(value)}`;
         }
       }
 
-      await window.vibe.page.navigate(currentTabKey, finalUrl);
-      setShowSuggestions(false);
-      inputRef.current?.blur();
+      await window.vibe?.page?.navigate?.(currentTabKey, finalUrl);
+      inputRef.current?.input?.blur();
+      setOptions([]); // Clear options after navigation
 
       // Track navigation
       (window as any).umami?.track?.("page-navigated", {
         action: "url-entered",
         isSearch:
-          !isDomain(inputValue) &&
-          !isValidURL(inputValue) &&
-          !inputValue.includes("://"),
+          !isDomain(value) && !isValidURL(value) && !value.includes("://"),
         timestamp: Date.now(),
       });
     } catch (error) {
       console.error("Failed to navigate:", error);
     }
-  };
+  }, [currentTabKey, value, isDomain, isValidURL]);
 
-  const handleSuggestionClick = async (suggestion: Suggestion) => {
-    try {
-      if (suggestion.type === "context" && suggestion.url) {
-        // Switch to existing tab
-        await window.vibe.tabs.switchToTab(suggestion.url);
-      } else if (suggestion.url && currentTabKey) {
-        // Navigate to URL
-        await window.vibe.page.navigate(currentTabKey, suggestion.url);
-        setInputValue(suggestion.text);
+  const onSelect = useCallback(
+    async (selectedValue: string): Promise<void> => {
+      console.log("Selected:", selectedValue);
+      setValue(selectedValue);
+      setOptions([]); // Clear options after selection
 
-        // Track navigation via suggestion
-        (window as any).umami?.track?.("page-navigated", {
-          action: "suggestion-clicked",
-          suggestionType: suggestion.type,
-          timestamp: Date.now(),
-        });
+      try {
+        if (currentTabKey) {
+          // Check if this is a tab switch (tab keys are usually UUIDs)
+          if (selectedValue.length > 20 && !selectedValue.includes("://")) {
+            // Likely a tab key, switch to that tab
+            await window.vibe?.tabs?.switchToTab?.(selectedValue);
+          } else {
+            // Navigate to URL
+            await window.vibe?.page?.navigate?.(currentTabKey, selectedValue);
+          }
+
+          inputRef.current?.input?.blur();
+        }
+      } catch (error) {
+        console.error("Failed to handle selection:", error);
       }
+    },
+    [currentTabKey],
+  );
 
-      setShowSuggestions(false);
-      inputRef.current?.blur();
-    } catch (error) {
-      console.error("Failed to handle suggestion click:", error);
-    }
-  };
+  const handleKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLInputElement>): void => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        handleSubmit();
+      } else if (event.key === "Tab") {
+        if (options.length > 0) {
+          event.preventDefault();
+          onSelect(options[0].value);
+        }
+      }
+    },
+    [options, handleSubmit, onSelect],
+  );
+
+  // Determine if popover should be open
+  const isPopoverOpen = value.trim().length > 0 && options.length > 0;
+
+  console.log("Popover state:", {
+    value: value,
+    valueTrimmed: value.trim(),
+    optionsLength: options.length,
+    isPopoverOpen: isPopoverOpen,
+    hasValue: value.trim().length > 0,
+    hasOptions: options.length > 0,
+  });
+
+  // Debug: Log when options change
+  useEffect(() => {
+    console.log("Options changed:", options);
+  }, [options]);
+
+  // Debug: Log when value changes
+  useEffect(() => {
+    console.log("Value changed:", value);
+  }, [value]);
 
   return (
     <div className="navigation-bar">
@@ -577,7 +571,8 @@ const NavigationBar: React.FC = () => {
         </button>
         <div id="show-agent-chat-onboarding">
           <button
-            className={`nav-button ${chatPanelVisible ? "active" : ""} ${agentStatus ? "enabled" : ""}`}
+            id="toggle-chat-button"
+            className={`nav-button ${isChatPanelVisible ? "active" : ""} ${agentStatus ? "enabled" : ""}`}
             onClick={handleToggleChat}
             title={
               agentStatus ? "Toggle AI assistant" : "AI assistant not available"
@@ -591,50 +586,64 @@ const NavigationBar: React.FC = () => {
 
       <div className="omnibar-container">
         <div className="omnibar-wrapper">
-          <input
-            ref={inputRef}
-            className="omnibar-input"
-            value={inputValue}
-            onChange={handleInputChange}
-            onFocus={handleInputFocus}
-            onBlur={handleInputBlur}
-            onKeyDown={handleKeyDown}
-            placeholder="Search or enter URL"
-            aria-label="Search or enter URL"
-            spellCheck={false}
-            autoComplete="off"
-          />
-
-          {showSuggestions && suggestions.length > 0 && (
-            <div ref={suggestionsRef} className="omnibar-suggestions">
-              {suggestions.map((suggestion, index) => (
-                <div
-                  key={suggestion.id}
-                  className={`suggestion-item ${index === selectedIndex ? "selected" : ""}`}
-                  onClick={() => handleSuggestionClick(suggestion)}
-                  onMouseEnter={() => setSelectedIndex(index)}
-                >
-                  <div className="suggestion-icon">{suggestion.icon}</div>
-                  <div className="suggestion-content">
-                    <div className="suggestion-text">{suggestion.text}</div>
-                    {suggestion.description && (
-                      <div className="suggestion-description">
-                        {suggestion.description}
-                      </div>
-                    )}
-                  </div>
-                  <div className="suggestion-type">{suggestion.type}</div>
-                </div>
-              ))}
-            </div>
-          )}
+          <div className="relative">
+            <GlowingEffect
+              blur={10}
+              inactiveZone={0.8}
+              proximity={100}
+              spread={30}
+              variant="default"
+              glow={true}
+              disabled={false}
+              movementDuration={1.5}
+              borderWidth={2}
+              className="rounded-lg"
+            />
+            <AutoComplete
+              value={value}
+              options={options}
+              style={{ width: "100%" }}
+              onSearch={handleSearch}
+              onSelect={onSelect}
+              onChange={handleValueChange}
+              filterOption={false}
+              placeholder="Search or enter URL..."
+              open={isPopoverOpen}
+              dropdownStyle={{
+                zIndex: 3000,
+                backgroundColor: "var(--input-background)",
+                border: "1px solid var(--nav-border)",
+                borderRadius: "12px",
+                boxShadow:
+                  "0 8px 24px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.05)",
+                backdropFilter: "blur(20px)",
+                WebkitBackdropFilter: "blur(20px)",
+              }}
+              dropdownClassName="omnibar-autocomplete-dropdown"
+              notFoundContent={null}
+              backfill={false}
+            >
+              <Input
+                ref={inputRef}
+                size="middle"
+                className="relative z-10 bg-white/90 backdrop-blur-sm border-transparent hover:border-transparent focus:border-transparent"
+                prefix={
+                  <Tooltip title="Security info">
+                    <SafetyCertificateTwoTone twoToneColor="#D4D4D8" />
+                  </Tooltip>
+                }
+                onKeyDown={handleKeyDown}
+                onPressEnter={handleSubmit}
+              />
+            </AutoComplete>
+          </div>
         </div>
       </div>
+
       <button
-        className={`nav-button ${chatPanelVisible ? "active" : ""} ${agentStatus ? "enabled" : ""}`}
+        className="nav-button"
         onClick={openSettings}
         title="Open Settings"
-        disabled={!agentStatus}
       >
         <SettingOutlined />
       </button>

@@ -57,7 +57,7 @@ export function AboutPage() {
                 try {
                   window.electronAPI?.closeWindow();
                 } catch (error) {
-                  console.error('Failed to close window:', error);
+                  console.error("Failed to close window:", error);
                   // Fallback: try direct window.close() if IPC fails
                   window.close();
                 }

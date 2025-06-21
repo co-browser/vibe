@@ -1,18 +1,14 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 
-// Define interfaces for password import
-interface PasswordImportProgress {
-  browser: string;
-  stage: string;
-  message: string;
-  progress?: number;
-}
-
-interface PasswordImportResult {
-  browser: string;
-  success: boolean;
-  passwordCount?: number;
-  error?: string;
+// Define interfaces for onboarding data
+interface OnboardingData {
+  profileName: string;
+  email?: string;
+  importPasswords: boolean;
+  importHistory: boolean;
+  selectedBrowser?: string;
+  theme: "light" | "dark" | "system";
+  privacyMode: boolean;
 }
 
 // Define interface for detected browser
@@ -28,174 +24,68 @@ interface OnboardingPageProps {
 }
 
 /**
- * OnboardingPage - Enhanced component with password import functionality
+ * OnboardingPage - Enhanced component with profile service integration
  */
 export function OnboardingPage({
   detectedBrowsers: propDetectedBrowsers,
 }: OnboardingPageProps = {}) {
-  const [currentStep, setCurrentStep] = useState<"welcome" | "password-import">(
-    "welcome",
-  );
-  const [consoleOutput, setConsoleOutput] = useState<string[]>([]);
-  const [isImporting, setIsImporting] = useState(false);
+  const [currentStep, setCurrentStep] = useState<
+    "welcome" | "profile-setup" | "data-import"
+  >("welcome");
   const [detectedBrowsers, setDetectedBrowsers] = useState<DetectedBrowser[]>(
     propDetectedBrowsers || [],
   );
-  const consoleRef = useRef<HTMLDivElement>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
 
-  // Auto-scroll console to bottom when new output is added
-  useEffect(() => {
-    if (consoleRef.current) {
-      consoleRef.current.scrollTop = consoleRef.current.scrollHeight;
-    }
-  }, [consoleOutput]);
+  // Profile setup form data
+  const [profileName, setProfileName] = useState("");
+  const [email, setEmail] = useState("");
+  const [theme, setTheme] = useState<"light" | "dark" | "system">("system");
+  const [privacyMode, setPrivacyMode] = useState(false);
+  const [importPasswords, setImportPasswords] = useState(false);
+  const [importHistory, setImportHistory] = useState(false);
+  const [selectedBrowser, setSelectedBrowser] = useState<string>("");
 
   // Get detected browsers on component mount
   useEffect(() => {
-    // If browsers were passed as props, use them; otherwise try to get them via IPC
     if (!propDetectedBrowsers || propDetectedBrowsers.length === 0) {
-      // Try to get detected browsers from command line arguments first
-      if (window.electronAPI?.getDetectedBrowsers) {
-        const browsers = window.electronAPI.getDetectedBrowsers();
-        setDetectedBrowsers(browsers);
-      }
-
-      // Also listen for detected browsers via IPC as fallback
-      const handleDetectedBrowsers = (browsers: DetectedBrowser[]) => {
-        setDetectedBrowsers(browsers);
+      // Try to get detected browsers via IPC
+      const getBrowsers = async () => {
+        try {
+          const browsers = await window.electronAPI?.invoke(
+            "onboarding:get-browsers",
+          );
+          if (browsers) {
+            setDetectedBrowsers(browsers);
+          }
+        } catch (error) {
+          console.error("Failed to get detected browsers:", error);
+        }
       };
 
-      const ipcHandler = (_, browsers) => {
-        handleDetectedBrowsers(browsers);
-      };
-
-      window.electronAPI?.ipcRenderer?.on(
-        "detected-browsers",
-        ipcHandler,
-      );
-
-      return () => {
-        window.electronAPI?.ipcRenderer?.removeListener(
-          "detected-browsers",
-          ipcHandler,
-        );
-      };
+      getBrowsers();
     }
-    // No cleanup needed when browsers are passed as props
-    return undefined;
   }, [propDetectedBrowsers]);
 
-  // Set up IPC listeners for password import events
-  useEffect(() => {
-    const handleProgress = (progress: PasswordImportProgress) => {
-      addConsoleOutput(progress.message);
-    };
-
-    const handleComplete = (result: PasswordImportResult) => {
-      addConsoleOutput(
-        `✓ Successfully imported ${result.passwordCount} passwords from ${result.browser}`,
-      );
-      addConsoleOutput(`Import completed successfully!`);
-      setIsImporting(false);
-    };
-
-    const handleError = (result: PasswordImportResult) => {
-      addConsoleOutput(
-        `✗ Error importing from ${result.browser}: ${result.error}`,
-      );
-      setIsImporting(false);
-    };
-
-    // Register IPC listeners using the electronAPI
-    const progressCallback = (_: any, progress: PasswordImportProgress) => {
-      handleProgress(progress);
-    };
-
-    const completeCallback = (_: any, result: PasswordImportResult) => {
-      handleComplete(result);
-    };
-
-    const errorCallback = (_: any, result: PasswordImportResult) => {
-      handleError(result);
-    };
-
-    window.electronAPI?.ipcRenderer?.on(
-      "password-import-progress",
-      progressCallback,
-    );
-    window.electronAPI?.ipcRenderer?.on(
-      "password-import-complete",
-      completeCallback,
-    );
-    window.electronAPI?.ipcRenderer?.on("password-import-error", errorCallback);
-
-    // Cleanup listeners on unmount
-    return () => {
-      window.electronAPI?.ipcRenderer?.removeListener(
-        "password-import-progress",
-        progressCallback,
-      );
-      window.electronAPI?.ipcRenderer?.removeListener(
-        "password-import-complete",
-        completeCallback,
-      );
-      window.electronAPI?.ipcRenderer?.removeListener(
-        "password-import-error",
-        errorCallback,
-      );
-    };
-  }, []);
-
-  const addConsoleOutput = (message: string) => {
-    const timestamp = new Date().toLocaleTimeString();
-    setConsoleOutput(prev => [...prev, `[${timestamp}] ${message}`]);
-  };
-
-  const handlePasswordImport = async (browser: string) => {
-    if (isImporting) return;
-
-    setIsImporting(true);
-    addConsoleOutput(`Starting password import from ${browser}...`);
-
-    try {
-      // Use actual IPC call
-      const result = await window.electronAPI?.ipcRenderer?.invoke(
-        "password-import-start",
-        browser,
-      );
-
-      if (!result?.success) {
-        addConsoleOutput(
-          `✗ Failed to start import from ${browser}: ${result?.error || "Unknown error"}`,
-        );
-        setIsImporting(false);
-      }
-      // Success and error handling is done via IPC events above
-    } catch (error) {
-      addConsoleOutput(`✗ Error starting import from ${browser}: ${error}`);
-      setIsImporting(false);
-    }
-  };
-
   const getBrowserIcon = (browserName: string) => {
+    // Return text-based icons instead of emojis
     const iconMap: Record<string, string> = {
-      Safari: "🧭",
-      "Google Chrome": "🌐",
-      "Google Chrome Canary": "🌐",
-      "Google Chrome for Testing": "🌐",
-      Chrome: "🌐",
-      Firefox: "🦊",
-      Brave: "🦁",
-      "Microsoft Edge": "🌐",
-      Edge: "🌐",
-      Opera: "🎭",
-      Arc: "🌙",
-      "Pale Moon": "🌙",
+      Safari: "S",
+      "Google Chrome": "C",
+      "Google Chrome Canary": "C",
+      "Google Chrome for Testing": "C",
+      Chrome: "C",
+      Firefox: "F",
+      Brave: "B",
+      "Microsoft Edge": "E",
+      Edge: "E",
+      Opera: "O",
+      Arc: "A",
+      "Pale Moon": "P",
     };
-    return iconMap[browserName] || "🌐";
+    return iconMap[browserName] || "B";
   };
 
-  // Filter detected browsers to only show supported ones for password import
   const getSupportedBrowsers = () => {
     const supportedBrowserNames = [
       "Safari",
@@ -210,7 +100,6 @@ export function OnboardingPage({
     ];
 
     if (detectedBrowsers.length === 0) {
-      // Fallback to default list if no browsers detected
       return supportedBrowserNames.map(name => ({
         name,
         path: "",
@@ -234,10 +123,69 @@ export function OnboardingPage({
       }));
   };
 
+  const handleCompleteOnboarding = async () => {
+    if (!profileName.trim()) {
+      alert("Please enter a profile name");
+      return;
+    }
+
+    setIsProcessing(true);
+
+    try {
+      const onboardingData: OnboardingData = {
+        profileName: profileName.trim(),
+        email: email.trim() || undefined,
+        importPasswords,
+        importHistory,
+        selectedBrowser: selectedBrowser || undefined,
+        theme,
+        privacyMode,
+      };
+
+      const result = await window.electronAPI?.invoke(
+        "onboarding:complete",
+        onboardingData,
+      );
+
+      if (result?.success) {
+        console.log("Onboarding completed successfully");
+        // Window will be closed by the main process
+      } else {
+        console.error("Onboarding failed:", result?.error);
+        alert(
+          "Failed to complete onboarding: " +
+            (result?.error || "Unknown error"),
+        );
+      }
+    } catch (error) {
+      console.error("Error completing onboarding:", error);
+      alert("An error occurred during onboarding");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleSkipOnboarding = () => {
+    // Create a minimal profile and close
+    handleCompleteOnboarding();
+  };
+
   if (currentStep === "welcome") {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-8">
-        <div className="max-w-2xl w-full bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8">
+        {/* Draggable title bar */}
+        <div
+          className="fixed top-0 left-0 right-0 h-8 bg-gray-100 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 z-10"
+          style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
+        >
+          <div className="flex items-center justify-between h-full px-4">
+            <span className="text-sm text-gray-600 dark:text-gray-400">
+              Welcome to Vibe Browser
+            </span>
+          </div>
+        </div>
+
+        <div className="max-w-2xl w-full bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 mt-8">
           <div className="text-center">
             <div className="mb-8">
               <div className="w-16 h-16 bg-blue-500 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -259,7 +207,7 @@ export function OnboardingPage({
                 Welcome to Vibe Browser
               </h1>
               <p className="text-gray-600 dark:text-gray-300 text-lg">
-                Let's get you started with your new browsing experience
+                Let's set up your browsing experience
               </p>
             </div>
 
@@ -335,10 +283,10 @@ export function OnboardingPage({
                 </div>
                 <div>
                   <h3 className="font-semibold text-gray-900 dark:text-white">
-                    Modern Interface
+                    Secure & Private
                   </h3>
                   <p className="text-gray-600 dark:text-gray-300">
-                    Enjoy a clean, modern interface designed for productivity
+                    Your data is encrypted and stored securely on your device
                   </p>
                 </div>
               </div>
@@ -346,20 +294,16 @@ export function OnboardingPage({
 
             <div className="flex space-x-4 justify-center">
               <button
-                onClick={() => window.close()}
-                className="px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                onClick={handleSkipOnboarding}
+                disabled={isProcessing}
+                className="px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
               >
-                Skip
+                Skip Setup
               </button>
               <button
-                onClick={() => setCurrentStep("password-import")}
-                className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-              >
-                Import Passwords
-              </button>
-              <button
-                onClick={() => window.close()}
-                className="px-6 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
+                onClick={() => setCurrentStep("profile-setup")}
+                disabled={isProcessing}
+                className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50"
               >
                 Get Started
               </button>
@@ -370,11 +314,168 @@ export function OnboardingPage({
     );
   }
 
+  if (currentStep === "profile-setup") {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-8">
+        {/* Draggable title bar */}
+        <div
+          className="fixed top-0 left-0 right-0 h-8 bg-gray-100 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 z-10"
+          style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
+        >
+          <div className="flex items-center justify-between h-full px-4">
+            <span className="text-sm text-gray-600 dark:text-gray-400">
+              Profile Setup
+            </span>
+          </div>
+        </div>
+
+        <div className="max-w-2xl w-full bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 mt-8">
+          <div className="text-center mb-8">
+            <div className="w-16 h-16 bg-blue-500 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg
+                className="w-8 h-8 text-white"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                />
+              </svg>
+            </div>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+              Create Your Profile
+            </h1>
+            <p className="text-gray-600 dark:text-gray-300 text-lg">
+              Set up your personal browsing profile
+            </p>
+          </div>
+
+          <div className="space-y-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Profile Name *
+              </label>
+              <input
+                type="text"
+                value={profileName}
+                onChange={e => setProfileName(e.target.value)}
+                placeholder="Enter your name"
+                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Email (Optional)
+              </label>
+              <input
+                type="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                placeholder="Enter your email"
+                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Theme Preference
+              </label>
+              <div className="grid grid-cols-3 gap-3">
+                <button
+                  onClick={() => setTheme("light")}
+                  className={`p-3 border rounded-lg text-center transition-colors ${
+                    theme === "light"
+                      ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400"
+                      : "border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                  }`}
+                >
+                  Light
+                </button>
+                <button
+                  onClick={() => setTheme("dark")}
+                  className={`p-3 border rounded-lg text-center transition-colors ${
+                    theme === "dark"
+                      ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400"
+                      : "border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                  }`}
+                >
+                  Dark
+                </button>
+                <button
+                  onClick={() => setTheme("system")}
+                  className={`p-3 border rounded-lg text-center transition-colors ${
+                    theme === "system"
+                      ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400"
+                      : "border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                  }`}
+                >
+                  System
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="flex items-center justify-between">
+                <span className="text-gray-700 dark:text-gray-300">
+                  Enable privacy mode
+                </span>
+                <input
+                  type="checkbox"
+                  checked={privacyMode}
+                  onChange={e => setPrivacyMode(e.target.checked)}
+                  className="toggle"
+                />
+              </label>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                Enhanced privacy protection and tracking prevention
+              </p>
+            </div>
+          </div>
+
+          <div className="flex space-x-4 justify-center mt-8">
+            <button
+              onClick={() => setCurrentStep("welcome")}
+              disabled={isProcessing}
+              className="px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
+            >
+              Back
+            </button>
+            <button
+              onClick={() => setCurrentStep("data-import")}
+              disabled={isProcessing || !profileName.trim()}
+              className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50"
+            >
+              Continue
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const supportedBrowsers = getSupportedBrowsers();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-8">
-      <div className="max-w-4xl w-full bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8">
+      {/* Draggable title bar */}
+      <div
+        className="fixed top-0 left-0 right-0 h-8 bg-gray-100 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 z-10"
+        style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
+      >
+        <div className="flex items-center justify-between h-full px-4">
+          <span className="text-sm text-gray-600 dark:text-gray-400">
+            Import Data
+          </span>
+        </div>
+      </div>
+
+      <div className="max-w-4xl w-full bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 mt-8">
         <div className="text-center mb-8">
           <div className="w-16 h-16 bg-blue-500 rounded-full flex items-center justify-center mx-auto mb-4">
             <svg
@@ -387,15 +488,15 @@ export function OnboardingPage({
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 strokeWidth={2}
-                d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1721 9z"
+                d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"
               />
             </svg>
           </div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-            Import Your Passwords
+            Import Your Data
           </h1>
           <p className="text-gray-600 dark:text-gray-300 text-lg">
-            Seamlessly transfer your saved passwords from other browsers
+            Transfer your passwords and browsing history from other browsers
           </p>
           {detectedBrowsers.length > 0 && (
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
@@ -404,128 +505,110 @@ export function OnboardingPage({
           )}
         </div>
 
-        {/* Browser Import Buttons */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
-          {supportedBrowsers.map(browser => (
-            <button
-              key={browser.name}
-              onClick={() => handlePasswordImport(browser.name)}
-              disabled={isImporting || !browser.detected}
-              className={`group relative flex flex-col items-center justify-center p-6 border rounded-xl transition-all duration-200 ${
-                browser.detected
-                  ? "bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 hover:border-blue-300 dark:hover:border-blue-500 hover:shadow-lg"
-                  : "bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-700 opacity-50 cursor-not-allowed"
-              } ${isImporting ? "opacity-50 cursor-not-allowed" : ""}`}
-              style={
-                browser.detected
-                  ? {
-                      background:
-                        "linear-gradient(135deg, var(--glass-background-start), var(--glass-background-end))",
-                      backdropFilter: "blur(10px)",
-                      border: "1px solid rgba(255, 255, 255, 0.2)",
-                    }
-                  : {}
-              }
-            >
-              <div
-                className={`text-3xl mb-2 transition-transform duration-200 ${browser.detected ? "group-hover:scale-110" : ""}`}
-              >
-                {getBrowserIcon(browser.name)}
-              </div>
-              <span
-                className={`text-sm font-medium transition-colors ${
-                  browser.detected
-                    ? "text-gray-700 dark:text-gray-300 group-hover:text-blue-600 dark:group-hover:text-blue-400"
-                    : "text-gray-500 dark:text-gray-600"
-                }`}
-              >
-                {browser.name}
+        <div className="space-y-6 mb-8">
+          <div>
+            <label className="flex items-center justify-between">
+              <span className="text-gray-700 dark:text-gray-300">
+                Import saved passwords
               </span>
-              {!browser.detected && (
-                <span className="text-xs text-gray-400 dark:text-gray-600 mt-1">
-                  Not installed
-                </span>
-              )}
-              {browser.default && (
-                <span className="text-xs text-blue-500 dark:text-blue-400 mt-1">
-                  Default
-                </span>
-              )}
-              {isImporting && browser.detected && (
-                <div className="absolute inset-0 bg-blue-500 bg-opacity-10 rounded-xl flex items-center justify-center">
-                  <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                </div>
-              )}
-            </button>
-          ))}
-        </div>
-
-        {supportedBrowsers.filter(b => b.detected).length === 0 && (
-          <div className="text-center py-8">
-            <p className="text-gray-500 dark:text-gray-400">
-              No supported browsers detected on your system.
-            </p>
+              <input
+                type="checkbox"
+                checked={importPasswords}
+                onChange={e => setImportPasswords(e.target.checked)}
+                className="toggle"
+              />
+            </label>
           </div>
-        )}
 
-        {/* Terminal Console */}
-        <div
-          className="bg-black rounded-lg p-4 mb-6"
-          style={{ minHeight: "200px" }}
-        >
-          <div className="flex items-center mb-2">
-            <div className="flex space-x-2">
-              <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-              <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
-              <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+          <div>
+            <label className="flex items-center justify-between">
+              <span className="text-gray-700 dark:text-gray-300">
+                Import browsing history
+              </span>
+              <input
+                type="checkbox"
+                checked={importHistory}
+                onChange={e => setImportHistory(e.target.checked)}
+                className="toggle"
+              />
+            </label>
+          </div>
+
+          {(importPasswords || importHistory) && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                Select Browser to Import From
+              </label>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {supportedBrowsers.map(browser => (
+                  <button
+                    key={browser.name}
+                    onClick={() =>
+                      setSelectedBrowser(browser.detected ? browser.name : "")
+                    }
+                    disabled={!browser.detected}
+                    className={`group relative flex flex-col items-center justify-center p-6 border rounded-xl transition-all duration-200 ${
+                      selectedBrowser === browser.name
+                        ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
+                        : browser.detected
+                          ? "bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 hover:border-blue-300 dark:hover:border-blue-500 hover:shadow-lg"
+                          : "bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-700 opacity-50 cursor-not-allowed"
+                    }`}
+                  >
+                    <div
+                      className={`w-12 h-12 rounded-full bg-gray-200 dark:bg-gray-600 flex items-center justify-center text-xl font-bold mb-2 ${
+                        selectedBrowser === browser.name
+                          ? "bg-blue-200 dark:bg-blue-800"
+                          : ""
+                      }`}
+                    >
+                      {getBrowserIcon(browser.name)}
+                    </div>
+                    <span
+                      className={`text-sm font-medium transition-colors ${
+                        selectedBrowser === browser.name
+                          ? "text-blue-600 dark:text-blue-400"
+                          : browser.detected
+                            ? "text-gray-700 dark:text-gray-300"
+                            : "text-gray-500 dark:text-gray-600"
+                      }`}
+                    >
+                      {browser.name}
+                    </span>
+                    {!browser.detected && (
+                      <span className="text-xs text-gray-400 dark:text-gray-600 mt-1">
+                        Not installed
+                      </span>
+                    )}
+                    {browser.default && (
+                      <span className="text-xs text-blue-500 dark:text-blue-400 mt-1">
+                        Default
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
             </div>
-            <span className="ml-4 text-gray-400 text-sm font-mono">
-              Password Import Console
-            </span>
-          </div>
-          <div
-            ref={consoleRef}
-            className="bg-black text-green-400 font-mono text-sm h-40 overflow-y-auto p-2 border border-gray-700 rounded"
-          >
-            {consoleOutput.length === 0 ? (
-              <div className="text-gray-500">
-                Ready to import passwords. Select a browser above to begin...
-              </div>
-            ) : (
-              consoleOutput.map((line, index) => (
-                <div key={index} className="mb-1">
-                  {line}
-                </div>
-              ))
-            )}
-            {isImporting && (
-              <div className="flex items-center text-yellow-400">
-                <span className="animate-pulse mr-2">▶</span>
-                Processing...
-              </div>
-            )}
-          </div>
+          )}
         </div>
 
-        {/* Navigation Buttons */}
         <div className="flex space-x-4 justify-center">
           <button
-            onClick={() => setCurrentStep("welcome")}
-            className="px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+            onClick={() => setCurrentStep("profile-setup")}
+            disabled={isProcessing}
+            className="px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
           >
             Back
           </button>
           <button
-            onClick={() => setConsoleOutput([])}
-            className="px-6 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
+            onClick={handleCompleteOnboarding}
+            disabled={
+              isProcessing ||
+              ((importPasswords || importHistory) && !selectedBrowser)
+            }
+            className="px-6 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors disabled:opacity-50"
           >
-            Clear Console
-          </button>
-          <button
-            onClick={() => window.close()}
-            className="px-6 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
-          >
-            Continue
+            {isProcessing ? "Setting up..." : "Complete Setup"}
           </button>
         </div>
       </div>
