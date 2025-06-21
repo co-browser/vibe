@@ -33,7 +33,6 @@ export const SmartLink: React.FC<SmartLinkProps> = ({
         handleTabAdd,
       });
     } else {
-      console.log("No tab context available, opening link externally:", href);
       window.open(href, "_blank");
     }
   };
