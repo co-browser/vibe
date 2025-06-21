@@ -61,19 +61,9 @@ export interface TabState {
   // === SLEEP SYSTEM (Memory Optimization) ===
   /**
    * Tab sleep state for memory management
-   * - true: Tab is sleeping, loads about:blank, preserves state in sleepData
+   * - true: Tab is sleeping, loads about:blank, uses navigation history for restoration
    * - false/undefined: Tab is active, normal operation
    * Automatically sleeps after 30min inactivity, archives after 24hrs
    */
   asleep?: boolean;
-
-  /**
-   * Preserved state during sleep mode
-   * Allows seamless restoration when tab is reactivated
-   */
-  sleepData?: {
-    originalUrl: string; // URL to restore when waking up
-    navHistory?: any[]; // Simplified navigation history
-    navHistoryIndex?: number; // Current position in history
-  };
 }
