@@ -22,7 +22,6 @@ export class TabManager extends EventEmitter {
   private cdpManager?: CDPManager;
   private tabs: Map<string, TabState> = new Map();
   private activeTabKey: string | null = null;
-  private sleepingTabs: Map<string, any> = new Map();
   private cleanupInterval: NodeJS.Timeout | null = null;
   private maintenanceCounter = 0;
   private savedUrls: Set<string> = new Set(); // Track URLs already saved to memory
@@ -447,7 +446,7 @@ export class TabManager extends EventEmitter {
   }
 
   /**
-   * Sleep management
+   * Put tab to sleep using flow-browser approach
    */
   public putTabToSleep(tabKey: string): boolean {
     const tab = this.tabs.get(tabKey);
@@ -461,15 +460,11 @@ export class TabManager extends EventEmitter {
     }
 
     try {
-      const sleepData = {
-        originalUrl: tab.url,
-        navHistory: [],
-        navHistoryIndex: 0,
-      };
+      // Update tab state first (flow-browser approach)
+      this.updateTabState(tabKey);
 
       this.updateTab(tabKey, {
         asleep: true,
-        sleepData,
         url: TAB_CONFIG.SLEEP_MODE_URL,
       });
 
@@ -487,23 +482,39 @@ export class TabManager extends EventEmitter {
   }
 
   /**
-   * Wake up sleeping tab
+   * Wake up sleeping tab using flow-browser approach
    */
   public wakeUpTab(tabKey: string): boolean {
     const tab = this.tabs.get(tabKey);
-    if (!tab || !tab.asleep || !tab.sleepData) return false;
+    if (!tab || !tab.asleep) return false;
 
     try {
+      const view = this.getBrowserView(tabKey);
+      if (!view || view.webContents.isDestroyed()) return false;
+
+      const webContents = view.webContents;
+      const navigationHistory = webContents.navigationHistory;
+
+      // Use navigation history to restore previous URL (flow-browser approach)
+      const activeIndex = navigationHistory.getActiveIndex();
+      const currentEntry = navigationHistory.getEntryAtIndex(activeIndex);
+
+      if (
+        currentEntry &&
+        currentEntry.url === TAB_CONFIG.SLEEP_MODE_URL &&
+        navigationHistory.canGoBack()
+      ) {
+        navigationHistory.goBack();
+        setTimeout(() => {
+          navigationHistory.removeEntryAtIndex(activeIndex);
+          this.updateTabState(tabKey);
+        }, 100);
+      }
+
+      // Update tab state
       this.updateTab(tabKey, {
         asleep: false,
-        url: tab.sleepData.originalUrl,
-        sleepData: undefined,
       });
-
-      const view = this.getBrowserView(tabKey);
-      if (view && view.webContents) {
-        view.webContents.loadURL(tab.sleepData.originalUrl);
-      }
 
       this.logDebug(`Tab ${tabKey} woken up`);
       return true;
@@ -786,7 +797,6 @@ export class TabManager extends EventEmitter {
     }
     this.tabs.clear();
     this.activeTabKey = null;
-    this.sleepingTabs.clear();
     this.savedUrls.clear(); // Clear saved URLs cache
     this.activeSaves.clear(); // Clear active saves tracking
     this.saveQueue.length = 0; // Clear save queue
