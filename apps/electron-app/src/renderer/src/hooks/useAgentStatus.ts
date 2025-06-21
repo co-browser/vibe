@@ -1,15 +1,4 @@
 import { useEffect, useState } from "react";
-// Simple browser-compatible logger for renderer process
-const logger = {
-  info: (msg: string, ...args: any[]) =>
-    console.log(`[AgentStatus] ${msg}`, ...args),
-  warn: (msg: string, ...args: any[]) =>
-    console.warn(`[AgentStatus] ${msg}`, ...args),
-  error: (msg: string, ...args: any[]) =>
-    console.error(`[AgentStatus] ${msg}`, ...args),
-  debug: (msg: string, ...args: any[]) =>
-    console.log(`[AgentStatus] ${msg}`, ...args),
-};
 
 export const useAgentStatus = () => {
   const [isAgentInitializing, setIsAgentInitializing] = useState(true);
@@ -27,8 +16,7 @@ export const useAgentStatus = () => {
       .then((isReady: boolean) => {
         if (isReady) setIsAgentInitializing(false);
       })
-      .catch(error => {
-        logger.warn("Agent status check failed:", error);
+      .catch(() => {
         setTimeout(() => {
           setIsAgentInitializing(false);
         }, 3000);
