@@ -99,12 +99,18 @@ function createEmailMessage(args: any): string {
   const headers = [
     'From: me',
     `To: ${args.to.join(', ')}`,
-    args.cc ? `Cc: ${args.cc.join(', ')}` : '',
     `Subject: ${args.subject}`,
     'MIME-Version: 1.0',
     'Content-Type: text/plain; charset=UTF-8',
-    '',
-  ].filter(Boolean);
+  ];
+
+  // Add CC header only if CC recipients exist
+  if (args.cc && args.cc.length > 0) {
+    headers.push(`Cc: ${args.cc.join(', ')}`);
+  }
+
+  // Add empty line separator between headers and body
+  headers.push('');
 
   return [...headers, args.body].join('\r\n');
 }
