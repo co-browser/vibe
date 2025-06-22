@@ -131,6 +131,52 @@ ipcMain.on("chat:send-message", async (event, message: string) => {
           ] as any,
         };
         event.sender.send("chat:message", toolCallMessage);
+
+        // Track tool usage in Umami
+        if (!event.sender.isDestroyed()) {
+          try {
+            // Validate tool name exists
+            if (!data.toolName || typeof data.toolName !== "string") {
+              logger.warn("Invalid tool name for tracking:", data.toolName);
+              return;
+            }
+
+            // Create sanitized event name (professional naming convention)
+            const sanitizedToolName = data.toolName
+              .replace(/[^a-zA-Z0-9-_]/g, "-")
+              .toLowerCase()
+              .replace(/^-+|-+$/g, "") // Remove leading/trailing dashes
+              .replace(/-+/g, "-"); // Collapse multiple dashes
+
+            const eventName = `tool-${sanitizedToolName}`;
+
+            event.sender
+              .executeJavaScript(
+                `
+                if (window.umami && typeof window.umami.track === 'function') {
+                  window.umami.track('${eventName}', {
+                    timestamp: ${Date.now()}
+                  });
+                }
+              `,
+              )
+              .catch(err => {
+                logger.error("Failed to track tool usage:", {
+                  toolName: data.toolName,
+                  eventName,
+                  error: err.message,
+                });
+              });
+          } catch (trackingError) {
+            logger.error("Tool tracking error:", {
+              toolName: data.toolName,
+              error:
+                trackingError instanceof Error
+                  ? trackingError.message
+                  : String(trackingError),
+            });
+          }
+        }
       } else if (data.type === "observation") {
         // Send observation information to frontend
         const observationMessage: ChatMessage = {
