@@ -169,7 +169,7 @@ function LayoutProvider({
     };
 
     requestInitialState();
-  }, []);
+  }, [isChatPanelVisible]);
 
   useEffect(() => {
     const cleanup = window.vibe?.interface?.onChatPanelVisibilityChanged?.(
