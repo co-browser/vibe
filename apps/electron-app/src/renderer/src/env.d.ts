@@ -4,7 +4,7 @@
 
 /// <reference types="vite/client" />
 
-// Import vibe API types
+// Import vibe API types (local to electron app)
 import type {
   VibeAppAPI,
   VibeActionsAPI,
@@ -17,7 +17,7 @@ import type {
   VibeSettingsAPI,
   VibeSessionAPI,
   VibeUpdateAPI,
-} from "@vibe/shared-types";
+} from "../../types/ipc-interfaces";
 
 /**
  * Complete Vibe API interface
@@ -37,54 +37,56 @@ interface VibeAPI {
 }
 
 /**
- * Window interface extensions for the API
+ * Global Window interface extensions for the API
  */
-interface Window {
-  /**
-   * Main Vibe API - Modern interface
-   */
-  vibe: VibeAPI;
-
-  /**
-   * Legacy API - DEPRECATED, use window.vibe instead
-   */
-  api: {
+declare global {
+  interface Window {
     /**
-     * Initializes the agent with the provided API key
-     * @param apiKey The API key to use for initialization
-     * @returns A promise that resolves to a success object
+     * Main Vibe API - Modern interface
      */
-    initializeAgent: (
-      apiKey: string,
-    ) => Promise<{ success: boolean; error?: string }>;
+    vibe: VibeAPI;
 
     /**
-     * Processes user input through the agent
-     * @param input The user input to process
-     * @returns A promise that resolves to a response object
+     * Legacy API - DEPRECATED, use window.vibe instead
      */
-    processAgentInput: (
-      input: string,
-    ) => Promise<{ success: boolean; response?: string; error?: string }>;
-  };
+    api: {
+      /**
+       * Initializes the agent with the provided API key
+       * @param apiKey The API key to use for initialization
+       * @returns A promise that resolves to a success object
+       */
+      initializeAgent: (
+        apiKey: string,
+      ) => Promise<{ success: boolean; error?: string }>;
 
-  /**
-   * Additional legacy APIs for backward compatibility
-   */
-  electron: {
-    ipcRenderer: {
-      on: (channel: string, listener: (...args: any[]) => void) => void;
-      removeListener: (
-        channel: string,
-        listener: (...args: any[]) => void,
-      ) => void;
-      send: (channel: string, ...args: any[]) => void;
-      invoke: (channel: string, ...args: any[]) => Promise<any>;
+      /**
+       * Processes user input through the agent
+       * @param input The user input to process
+       * @returns A promise that resolves to a response object
+       */
+      processAgentInput: (
+        input: string,
+      ) => Promise<{ success: boolean; response?: string; error?: string }>;
     };
-    platform: string;
-    [key: string]: any;
-  };
-  storeBridge: any;
-  gmailAuth: any;
-  apiKeys: any;
+
+    /**
+     * Additional legacy APIs for backward compatibility
+     */
+    electron: {
+      ipcRenderer: {
+        on: (channel: string, listener: (...args: any[]) => void) => void;
+        removeListener: (
+          channel: string,
+          listener: (...args: any[]) => void,
+        ) => void;
+        send: (channel: string, ...args: any[]) => void;
+        invoke: (channel: string, ...args: any[]) => Promise<any>;
+      };
+      platform: string;
+      [key: string]: any;
+    };
+    storeBridge: any;
+    gmailAuth: any;
+    apiKeys: any;
+  }
 }

@@ -10,20 +10,22 @@ import "@sentry/electron/preload";
 // Import shared vibe types
 import { TabState, createLogger } from "@vibe/shared-types";
 
-// Import vibe API interfaces
-import { VibeAppAPI } from "@vibe/shared-types";
-import { VibeActionsAPI } from "@vibe/shared-types";
+// Import vibe API interfaces (local to electron app)
+import {
+  VibeAppAPI,
+  VibeActionsAPI,
+  VibeBrowserAPI,
+  VibeTabsAPI,
+  VibePageAPI,
+  VibeContentAPI,
+  VibeInterfaceAPI,
+  VibeChatAPI,
+  VibeSettingsAPI,
+  VibeSessionAPI,
+  VibeUpdateAPI,
+} from "../types/ipc-interfaces";
 
 const logger = createLogger("preload");
-import { VibeBrowserAPI } from "@vibe/shared-types";
-import { VibeTabsAPI } from "@vibe/shared-types";
-import { VibePageAPI } from "@vibe/shared-types";
-import { VibeContentAPI } from "@vibe/shared-types";
-import { VibeInterfaceAPI } from "@vibe/shared-types";
-import { VibeChatAPI } from "@vibe/shared-types";
-import { VibeSettingsAPI } from "@vibe/shared-types";
-import { VibeSessionAPI } from "@vibe/shared-types";
-import { VibeUpdateAPI } from "@vibe/shared-types";
 
 /**
  * Validates if a key is a non-empty string

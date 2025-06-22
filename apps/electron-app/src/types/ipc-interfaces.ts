@@ -1,9 +1,10 @@
 /**
- * Vibe API Interfaces
+ * Vibe IPC API Interfaces
  * Defines the IPC interface between main and renderer processes
+ * Local to electron app - these types are only used within this app
  */
 
-import type { ChatPanelState, ChatPanelRecoveryOptions } from "../browser";
+import type { ChatPanelState, ChatPanelRecoveryOptions } from "@vibe/shared-types";
 
 // App API - System-level operations
 export interface VibeAppAPI {
@@ -112,23 +113,4 @@ export interface VibeSessionAPI {
 
 export interface VibeUpdateAPI {
   [key: string]: any;
-}
-
-// Global window interface
-declare global {
-  interface Window {
-    vibe: {
-      app: VibeAppAPI;
-      actions: VibeActionsAPI;
-      browser: VibeBrowserAPI;
-      tabs: VibeTabsAPI;
-      page: VibePageAPI;
-      content: VibeContentAPI;
-      interface: VibeInterfaceAPI;
-      chat: VibeChatAPI;
-      settings: VibeSettingsAPI;
-      session: VibeSessionAPI;
-      update: VibeUpdateAPI;
-    };
-  }
 }

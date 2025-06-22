@@ -1,6 +1,6 @@
 /**
  * Gmail OAuth types and interfaces
- * Shared between main and renderer processes
+ * Local to electron app - these types are only used within this app
  */
 
 /** Gmail OAuth authentication status */

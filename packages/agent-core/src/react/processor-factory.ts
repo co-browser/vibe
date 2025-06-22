@@ -4,14 +4,14 @@ import {
   CoActProcessor,
   MAX_REACT_ITERATIONS,
 } from "./index.js";
-import type { IToolManager, IAgentConfig } from "../interfaces/index.js";
+import type { IToolManager, AgentConfig } from "../types.js";
 import { createLogger } from "@vibe/shared-types";
 
 const logger = createLogger("ProcessorFactory");
 
 export class ProcessorFactory {
   static async create(
-    config: IAgentConfig,
+    config: AgentConfig,
     toolManager: IToolManager,
   ): Promise<ReActProcessor | CoActProcessor> {
     const processorType = config.processorType || "react";

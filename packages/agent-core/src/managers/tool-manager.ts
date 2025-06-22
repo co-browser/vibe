@@ -6,7 +6,7 @@ import type {
   MCPCallResult,
 } from "@vibe/shared-types";
 
-import type { IToolManager } from "../interfaces/index.js";
+import type { IToolManager } from "../types.js";
 import type { ReactObservation } from "../react/types.js";
 import type { CoreMessage } from "ai";
 

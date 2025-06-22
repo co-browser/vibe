@@ -1,7 +1,7 @@
 import type {
   IStreamProcessor,
   CombinedStreamPart,
-} from "../interfaces/index.js";
+} from "../types.js";
 import type { StreamResponse } from "@vibe/shared-types";
 
 export class StreamProcessor implements IStreamProcessor {

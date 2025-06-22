@@ -1,30 +1,6 @@
 /**
- * Content and website-related shared types
+ * Content types shared between agent and MCP systems
  */
-
-export interface WebsiteContext {
-  id: string;
-  url: string;
-  title: string;
-  domain: string;
-  extractedContent: string;
-  summary: string;
-  addedAt: string;
-  metadata?: {
-    originalLength: number;
-    contentType: string;
-    source: string;
-  };
-}
-
-export interface ProcessedWebsiteContext {
-  title: string;
-  url: string;
-  domain: string;
-  summary: string;
-  relevanceScore: number;
-  addedAt: string;
-}
 
 export interface ContentChunk {
   id: string;

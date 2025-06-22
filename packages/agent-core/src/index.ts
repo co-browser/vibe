@@ -13,8 +13,7 @@ export { StreamProcessor } from "./managers/stream-processor.js";
 // React framework
 export * from "./react/index.js";
 
-// Interfaces
-export * from "./interfaces/index.js";
+
 
 // MCP Services
 export { MCPManager } from "./services/mcp-manager.js";
