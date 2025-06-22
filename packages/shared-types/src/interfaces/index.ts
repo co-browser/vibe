@@ -3,6 +3,8 @@
  * Defines the IPC interface between main and renderer processes
  */
 
+import type { ChatPanelState, ChatPanelRecoveryOptions } from "../browser";
+
 // App API - System-level operations
 export interface VibeAppAPI {
   getAppInfo: () => Promise<{
@@ -62,7 +64,38 @@ export interface VibeContentAPI {
 }
 
 export interface VibeInterfaceAPI {
-  [key: string]: any;
+  // Window management
+  minimizeWindow: () => void;
+  maximizeWindow: () => void;
+  closeWindow: () => void;
+  setFullscreen: (fullscreen: boolean) => void;
+  getWindowState: () => Promise<{
+    isMaximized: boolean;
+    isMinimized: boolean;
+    isFullscreen: boolean;
+    bounds: { x: number; y: number; width: number; height: number };
+  }>;
+  moveWindowTo: (x: number, y: number) => void;
+  resizeWindowTo: (width: number, height: number) => void;
+  setWindowBounds: (bounds: {
+    x?: number;
+    y?: number;
+    width?: number;
+    height?: number;
+  }) => void;
+
+  // Chat panel management
+  toggleChatPanel: (isVisible: boolean) => void;
+  getChatPanelState: () => Promise<ChatPanelState>;
+  setChatPanelWidth: (widthPercentage: number) => void;
+  onChatPanelVisibilityChanged: (
+    callback: (isVisible: boolean) => void,
+  ) => () => void;
+  recoverChatPanel: (options?: ChatPanelRecoveryOptions) => Promise<{
+    success: boolean;
+    message?: string;
+    error?: string;
+  }>;
 }
 
 export interface VibeChatAPI {

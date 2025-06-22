@@ -3,6 +3,44 @@
  */
 
 /**
+ * IPC Event Channel Names
+ * Centralized definition for type-safe IPC communication
+ */
+export const IPC_EVENTS = {
+  CHAT_PANEL: {
+    SYNC_STATE: "sync-chat-panel-state",
+    VISIBILITY_CHANGED: "chat-area-visibility-changed",
+    RECOVER: "recover-chat-panel",
+    TOGGLE: "toggle-custom-chat-area",
+  },
+  CHAT: {
+    SEND_MESSAGE: "chat:send-message",
+    MESSAGE: "chat:message",
+    GET_HISTORY: "chat:get-history",
+    CLEAR_HISTORY: "chat:clear-history",
+    GET_AGENT_STATUS: "chat:get-agent-status",
+    INITIALIZE_AGENT: "chat:initialize-agent",
+  },
+  INTERFACE: {
+    GET_CHAT_PANEL_STATE: "interface:get-chat-panel-state",
+    SET_CHAT_PANEL_WIDTH: "interface:set-chat-panel-width",
+    RECOVER_CHAT_PANEL: "interface:recover-chat-panel",
+  },
+} as const;
+
+/**
+ * Chat Panel Recovery System Configuration
+ * Used by both main process (recovery triggers) and renderer process (debouncing)
+ */
+export const CHAT_PANEL_RECOVERY = {
+  DEBOUNCE_MS: 200,
+  HEALTH_CHECK_INTERVAL_MS: 3000,
+  RECOVERY_OVERLAY_MS: 150,
+  POWER_SAVE_BLOCKER: false,
+  FOCUS_DELAY_MS: 500,
+} as const;
+
+/**
  * Chat panel configuration - Fixed width approach
  * Used by both main process (ViewManager) and renderer process (BrowserUI)
  */

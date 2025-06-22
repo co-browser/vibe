@@ -473,6 +473,9 @@ const interfaceAPI: VibeInterfaceAPI = {
   onChatPanelVisibilityChanged: (callback: (isVisible: boolean) => void) => {
     return createEventListener("chat-area-visibility-changed", callback);
   },
+  recoverChatPanel: async () => {
+    return ipcRenderer.invoke("interface:recover-chat-panel");
+  },
 };
 
 // Chat API implementation
