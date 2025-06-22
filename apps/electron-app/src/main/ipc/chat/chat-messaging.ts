@@ -150,15 +150,22 @@ ipcMain.on("chat:send-message", async (event, message: string) => {
 
             const eventName = `tool-${sanitizedToolName}`;
 
+            // Serialize parameters to avoid injection risks
+            const trackingData = JSON.stringify({
+              eventName,
+              timestamp: Date.now(),
+            });
+
             event.sender
               .executeJavaScript(
                 `
+                const data = ${trackingData};
                 if (window.umami && typeof window.umami.track === 'function') {
-                  window.umami.track('${eventName}', {
-                    timestamp: ${Date.now()}
+                  window.umami.track(data.eventName, {
+                    timestamp: data.timestamp
                   });
                 }
-              `,
+                `,
               )
               .catch(err => {
                 logger.error("Failed to track tool usage:", {
@@ -222,15 +229,25 @@ ipcMain.on("chat:send-message", async (event, message: string) => {
 
         // Track agent response completion
         if (!event.sender.isDestroyed()) {
+          // Serialize parameters to avoid injection risks
+          const responseTrackingData = JSON.stringify({
+            eventName: "agent-response-received",
+            responseLength: accumulatedText.length,
+            hasReasoning: accumulatedReasoning.trim().length > 0,
+            partCount: partCount,
+            timestamp: Date.now(),
+          });
+
           event.sender
             .executeJavaScript(
               `
+            const data = ${responseTrackingData};
             if (window.umami && typeof window.umami.track === 'function') {
-              window.umami.track('agent-response-received', {
-                responseLength: ${accumulatedText.length},
-                hasReasoning: ${accumulatedReasoning.trim().length > 0},
-                partCount: ${partCount},
-                timestamp: ${Date.now()}
+              window.umami.track(data.eventName, {
+                responseLength: data.responseLength,
+                hasReasoning: data.hasReasoning,
+                partCount: data.partCount,
+                timestamp: data.timestamp
               });
             }
           `,
