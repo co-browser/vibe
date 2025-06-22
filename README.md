@@ -36,16 +36,17 @@ cd vibe && cp .env.example .env
 pnpm install && pnpm dev
 ```
 
+## Features
+
+Vibe Browser includes intelligent AI-powered features:
+
+- **Memory Awareness**: Intelligent context and memory of all websites you visit
+- **Gmail Integration**: AI-powered email management and automation
+
 <details>
-<summary><strong>🚀 Features Setup</strong></summary>
+<summary><strong>Gmail Setup</strong></summary>
 
-Vibe includes two powerful AI features:
-- **🧠 Memory Awareness**: Intelligent memory of all websites you visit
-- **📧 Gmail Integration**: AI-powered email management
-
-### Gmail Setup
-
-To use Gmail integration, set up Google Cloud credentials:
+To enable Gmail integration, configure Google Cloud credentials:
 
 1. Go to [Google Cloud Console](https://console.cloud.google.com/)
 2. Create a new project or select an existing one
