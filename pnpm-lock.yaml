@@ -321,7 +321,7 @@ importers:
         specifier: ^5.7.2
         version: 5.8.3
 
-  packages/mcp-server-web-rag:
+  packages/mcp-rag:
     dependencies:
       '@llamaindex/openai':
         specifier: ^0.4.4
@@ -341,6 +341,9 @@ importers:
       '@turbopuffer/turbopuffer':
         specifier: ^0.10.2
         version: 0.10.2
+      '@vibe/shared-types':
+        specifier: workspace:*
+        version: link:../shared-types
       '@vibe/tab-extraction-core':
         specifier: workspace:*
         version: link:../tab-extraction-core
