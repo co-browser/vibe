@@ -37,49 +37,29 @@ pnpm install && pnpm dev
 ```
 
 <details>
-<summary><strong>📧 Gmail Feature Setup</strong></summary>
+<summary><strong>🚀 Features Setup</strong></summary>
 
-### Prerequisites
+Vibe includes two powerful AI features:
+- **🧠 Memory Awareness**: Intelligent memory of all websites you visit
+- **📧 Gmail Integration**: AI-powered email management
 
-To use Vibe's Gmail integration, you need to set up Google Cloud credentials.
+### Gmail Setup
 
-### Step 1: Create a Google Cloud Project and obtain credentials
-
-#### a. Create a Google Cloud Project:
+To use Gmail integration, set up Google Cloud credentials:
 
 1. Go to [Google Cloud Console](https://console.cloud.google.com/)
 2. Create a new project or select an existing one
 3. Enable the Gmail API for your project
-
-#### b. Create OAuth 2.0 Credentials:
-
-1. Go to "APIs & Services" > "Credentials"
-2. Click "Create Credentials" > "OAuth client ID"
-3. Choose either "Desktop app" or "Web application" as application type
-4. Give it a name and click "Create"
-5. For Web application, add `http://localhost:3000/oauth2callback` to the authorized redirect URIs
-6. Download the JSON file of your client's OAuth keys
-7. Rename the key file to `gcp-oauth.keys.json`
-
-### Step 2: Run Authentication
-
-You can authenticate in two ways:
-
-#### a. Global Authentication (Recommended):
+4. Go to "APIs & Services" > "Credentials"
+5. Click "Create Credentials" > "OAuth client ID"
+6. Choose either "Desktop app" or "Web application" as application type
+7. Download the JSON file and rename it to `gcp-oauth.keys.json`
+8. Set up authentication:
 
 ```bash
-# First time: Place gcp-oauth.keys.json in your home directory's .gmail-mcp folder
 mkdir -p ~/.gmail-mcp
 mv gcp-oauth.keys.json ~/.gmail-mcp/
 ```
-
-#### b. Project-specific Authentication:
-
-Place the `gcp-oauth.keys.json` file in your project's MCP Gmail package directory.
-
-> [!TIP]
-> 
-> The global authentication method is recommended as it allows you to use the same credentials across multiple projects.
 
 </details>
 
