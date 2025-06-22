@@ -4,7 +4,11 @@
  */
 
 import type { CoreMessage } from "ai";
-import type { StreamResponse, ExtractedPage, AgentConfig } from "@vibe/shared-types";
+import type {
+  StreamResponse,
+  ExtractedPage,
+  AgentConfig,
+} from "@vibe/shared-types";
 import type { ReActStreamPart } from "./react/react-processor.js";
 import type { CoActStreamPart } from "./react/coact-processor.js";
 import type { ReactObservation } from "./react/types.js";

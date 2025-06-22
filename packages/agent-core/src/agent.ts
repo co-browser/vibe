@@ -3,11 +3,7 @@ import {
   CoActProcessor,
   ProcessorFactory,
 } from "./react/index.js";
-import type {
-  IToolManager,
-  IStreamProcessor,
-  AgentConfig,
-} from "./types.js";
+import type { IToolManager, IStreamProcessor, AgentConfig } from "./types.js";
 import type { StreamResponse, ExtractedPage } from "@vibe/shared-types";
 import { createLogger } from "@vibe/shared-types";
 

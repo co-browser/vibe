@@ -10,8 +10,6 @@ import {
   type LayoutContextType,
 } from "@vibe/shared-types";
 
-
-
 // Type guard for chat panel state
 function isChatPanelState(value: unknown): value is { isVisible: boolean } {
   return (

@@ -4,12 +4,12 @@
  */
 
 // Only import the genuinely shared types that are used across packages
-import type { 
-  PageContent, 
-  ExtractedPage, 
+import type {
+  PageContent,
+  ExtractedPage,
   PageMetadata,
   CDPTarget,
-  TabInfo 
+  TabInfo,
 } from "@vibe/shared-types";
 
 // Re-export only the truly shared types that this package needs

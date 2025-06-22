@@ -1,13 +1,13 @@
 /**
  * @vibe/shared-types
- * 
+ *
  * ONLY contains types that are:
  * - Used by multiple packages
- * - Part of public APIs between packages  
+ * - Part of public APIs between packages
  * - Core communication interfaces
- * 
+ *
  * If a type is only used within one package, it should be local to that package.
- * 
+ *
  * Following 2025 monorepo best practices for lean and maintainable code.
  */
 
@@ -25,8 +25,6 @@ export * from "./content";
 
 // Agent types - shared between electron app and agent-core
 export * from "./agent";
-
-
 
 // Constants - shared configuration across packages
 export * from "./constants";

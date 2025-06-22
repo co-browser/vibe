@@ -4,7 +4,10 @@
  * Local to electron app - these types are only used within this app
  */
 
-import type { ChatPanelState, ChatPanelRecoveryOptions } from "@vibe/shared-types";
+import type {
+  ChatPanelState,
+  ChatPanelRecoveryOptions,
+} from "@vibe/shared-types";
 
 // App API - System-level operations
 export interface VibeAppAPI {
