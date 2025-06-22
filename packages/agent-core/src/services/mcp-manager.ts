@@ -1,5 +1,5 @@
 /**
- * MCP Manager - Orchestrator for multiple MCP connections
+ * MCP Manager - Clean orchestrator with proper separation of concerns
  */
 
 import {
@@ -19,23 +19,23 @@ import { MCPToolRouter } from "./mcp-tool-router.js";
 
 const logger = createLogger("McpManager");
 
-export class MCPManager implements IMCPManager {
+/**
+ * Connection Orchestrator - Manages connection lifecycle and health
+ */
+class ConnectionOrchestrator {
   private readonly connections = new Map<string, MCPConnection>();
   private readonly connectionManager = new MCPConnectionManager();
-  private readonly toolRouter = new MCPToolRouter();
 
-  /**
-   * Initialize connections to MCP servers
-   */
-  async initialize(configs: MCPServerConfig[]): Promise<void> {
+  async initializeConnections(
+    configs: MCPServerConfig[],
+  ): Promise<Map<string, MCPConnection>> {
     if (configs.length === 0) {
       logger.warn("No MCP server configurations provided");
-      return;
+      return this.connections;
     }
 
     logger.debug(`Initializing ${configs.length} MCP servers`);
 
-    // Create connections in parallel
     const results = await Promise.allSettled(
       configs.map(async config => {
         const connection =
@@ -45,7 +45,6 @@ export class MCPManager implements IMCPManager {
       }),
     );
 
-    // Store successful connections
     let successCount = 0;
     for (const result of results) {
       if (result.status === "fulfilled") {
@@ -61,104 +60,10 @@ export class MCPManager implements IMCPManager {
     if (successCount === 0) {
       throw new MCPConnectionError("Failed to connect to any MCP servers");
     }
+
+    return this.connections;
   }
 
-  /**
-   * Get all tools from connected servers
-   */
-  async getAllTools(): Promise<Record<string, MCPTool>> {
-    const allTools: Record<string, MCPTool> = {};
-
-    for (const connection of this.connections.values()) {
-      if (connection.isConnected && connection.tools) {
-        Object.assign(allTools, connection.tools);
-      }
-    }
-
-    return allTools;
-  }
-
-  /**
-   * Call a tool on the appropriate server
-   */
-  async callTool<T = unknown>(
-    toolName: string,
-    args: Record<string, unknown>,
-  ): Promise<MCPCallResult<T>> {
-    const startTime = Date.now();
-
-    try {
-      // Find connection
-      const connection = this.toolRouter.findTool(toolName, this.connections);
-      if (!connection) {
-        throw new MCPToolError(`Tool '${toolName}' not found`);
-      }
-
-      // Ensure connection is healthy
-      if (!(await this.ensureConnectionHealth(connection))) {
-        throw new MCPConnectionError(
-          `Connection to ${connection.serverName} unavailable`,
-        );
-      }
-
-      // Execute tool
-      const originalToolName = this.toolRouter.getOriginalToolName(toolName);
-      const result = await connection.client.callTool({
-        name: originalToolName,
-        arguments: args,
-      });
-
-      if (result.isError) {
-        throw new MCPToolError(`Tool failed: ${result.error}`);
-      }
-
-      const executionTime = Date.now() - startTime;
-      return {
-        success: true,
-        data: result.content as T,
-        executionTime,
-      };
-    } catch (error) {
-      const executionTime = Date.now() - startTime;
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-
-      return {
-        success: false,
-        error: errorMessage,
-        executionTime,
-      };
-    }
-  }
-
-  /**
-   * Get connection status
-   */
-  getStatus(): Record<string, MCPConnectionStatus> {
-    const status: Record<string, MCPConnectionStatus> = {};
-
-    for (const [name, connection] of this.connections) {
-      status[name] = {
-        connected: connection.isConnected,
-        toolCount: Object.keys(connection.tools || {}).length,
-        lastCheck: connection.lastHealthCheck,
-        errorCount: connection.connectionAttempts, // connectionAttempts tracks failed attempts only
-      };
-    }
-
-    return status;
-  }
-
-  /**
-   * Get specific connection
-   */
-  getConnection(serverName: string): MCPConnection | null {
-    return this.connections.get(serverName) || null;
-  }
-
-  /**
-   * Health check all connections
-   */
   async performHealthChecks(): Promise<void> {
     const promises = Array.from(this.connections.values()).map(connection =>
       this.connectionManager.testConnection(connection),
@@ -166,25 +71,36 @@ export class MCPManager implements IMCPManager {
     await Promise.allSettled(promises);
   }
 
-  /**
-   * Disconnect all servers
-   */
-  async disconnect(): Promise<void> {
+  async disconnectAll(): Promise<void> {
     const promises = Array.from(this.connections.values()).map(connection =>
       this.connectionManager.closeConnection(connection),
     );
-
     await Promise.allSettled(promises);
     this.connections.clear();
-    this.toolRouter.clearCache();
   }
 
-  /**
-   * Ensure connection is healthy
-   */
-  private async ensureConnectionHealth(
-    connection: MCPConnection,
-  ): Promise<boolean> {
+  getStatus(): Record<string, MCPConnectionStatus> {
+    const status: Record<string, MCPConnectionStatus> = {};
+    for (const [name, connection] of this.connections) {
+      status[name] = {
+        connected: connection.isConnected,
+        toolCount: Object.keys(connection.tools || {}).length,
+        lastCheck: connection.lastHealthCheck,
+        errorCount: connection.connectionAttempts,
+      };
+    }
+    return status;
+  }
+
+  getConnections(): Map<string, MCPConnection> {
+    return this.connections;
+  }
+
+  getConnection(serverName: string): MCPConnection | null {
+    return this.connections.get(serverName) || null;
+  }
+
+  async ensureConnectionHealth(connection: MCPConnection): Promise<boolean> {
     const now = Date.now();
 
     // If recently checked, trust it
@@ -220,18 +136,16 @@ export class MCPManager implements IMCPManager {
     }
   }
 
-  /**
-   * Fetch tools for a connection
-   */
   private async fetchTools(connection: MCPConnection): Promise<void> {
     const result = await connection.client.listTools();
+    const toolRouter = new MCPToolRouter();
 
     if (result?.tools) {
       const tools: Record<string, MCPTool> = {};
 
       for (const tool of result.tools) {
         if (tool?.name) {
-          const toolKey = this.toolRouter.formatToolName(
+          const toolKey = toolRouter.formatToolName(
             connection.serverName,
             tool.name,
           );
@@ -247,5 +161,152 @@ export class MCPManager implements IMCPManager {
 
       connection.tools = tools;
     }
+  }
+}
+
+/**
+ * Tool Registry - Manages tool discovery and lookup
+ */
+class ToolRegistry {
+  private connections: Map<string, MCPConnection> = new Map();
+
+  registerConnections(connections: Map<string, MCPConnection>): void {
+    this.connections = connections;
+  }
+
+  getAllTools(): Record<string, MCPTool> {
+    const allTools: Record<string, MCPTool> = {};
+
+    for (const connection of this.connections.values()) {
+      if (connection.isConnected && connection.tools) {
+        Object.assign(allTools, connection.tools);
+      }
+    }
+
+    return allTools;
+  }
+
+  findToolConnection(
+    toolName: string,
+    toolRouter: MCPToolRouter,
+  ): MCPConnection | null {
+    return toolRouter.findTool(toolName, this.connections);
+  }
+
+  clear(): void {
+    this.connections.clear();
+  }
+}
+
+/**
+ * Tool Invoker - Handles tool execution with proper error handling
+ */
+class ToolInvoker {
+  constructor(
+    private readonly registry: ToolRegistry,
+    private readonly orchestrator: ConnectionOrchestrator,
+    private readonly toolRouter: MCPToolRouter,
+  ) {}
+
+  async invokeTool<T = unknown>(
+    toolName: string,
+    args: Record<string, unknown>,
+  ): Promise<MCPCallResult<T>> {
+    const startTime = Date.now();
+
+    try {
+      // Find connection
+      const connection = this.registry.findToolConnection(
+        toolName,
+        this.toolRouter,
+      );
+      if (!connection) {
+        throw new MCPToolError(`Tool '${toolName}' not found`);
+      }
+
+      // Ensure connection is healthy
+      if (!(await this.orchestrator.ensureConnectionHealth(connection))) {
+        throw new MCPConnectionError(
+          `Connection to ${connection.serverName} unavailable`,
+        );
+      }
+
+      // Execute tool
+      const originalToolName = this.toolRouter.getOriginalToolName(toolName);
+      const result = await connection.client.callTool({
+        name: originalToolName,
+        arguments: args,
+      });
+
+      if (result.isError) {
+        throw new MCPToolError(`Tool failed: ${result.error}`);
+      }
+
+      const executionTime = Date.now() - startTime;
+      return {
+        success: true,
+        data: result.content as T,
+        executionTime,
+      };
+    } catch (error) {
+      const executionTime = Date.now() - startTime;
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+
+      return {
+        success: false,
+        error: errorMessage,
+        executionTime,
+      };
+    }
+  }
+}
+
+/**
+ * MCP Manager - Clean facade orchestrating all MCP operations
+ */
+export class MCPManager implements IMCPManager {
+  private readonly orchestrator = new ConnectionOrchestrator();
+  private readonly toolRegistry = new ToolRegistry();
+  private readonly toolRouter = new MCPToolRouter();
+  private readonly invoker = new ToolInvoker(
+    this.toolRegistry,
+    this.orchestrator,
+    this.toolRouter,
+  );
+
+  async initialize(configs: MCPServerConfig[]): Promise<void> {
+    const connections = await this.orchestrator.initializeConnections(configs);
+    this.toolRegistry.registerConnections(connections);
+  }
+
+  async getAllTools(): Promise<Record<string, MCPTool>> {
+    return this.toolRegistry.getAllTools();
+  }
+
+  async callTool<T = unknown>(
+    toolName: string,
+    args: Record<string, unknown>,
+  ): Promise<MCPCallResult<T>> {
+    logger.debug(`Executing tool: ${toolName} with args:`, args);
+    return this.invoker.invokeTool<T>(toolName, args);
+  }
+
+  getStatus(): Record<string, MCPConnectionStatus> {
+    return this.orchestrator.getStatus();
+  }
+
+  getConnection(serverName: string): MCPConnection | null {
+    return this.orchestrator.getConnection(serverName);
+  }
+
+  async performHealthChecks(): Promise<void> {
+    await this.orchestrator.performHealthChecks();
+  }
+
+  async disconnect(): Promise<void> {
+    await this.orchestrator.disconnectAll();
+    this.toolRegistry.clear();
+    this.toolRouter.clearCache();
   }
 }
