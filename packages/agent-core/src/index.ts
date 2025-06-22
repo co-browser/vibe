@@ -16,5 +16,7 @@ export * from "./react/index.js";
 // Interfaces
 export * from "./interfaces/index.js";
 
-// Services
-export { MCPConnectionService } from "./services/mcp-service.js";
+// MCP Services
+export { MCPManager } from "./services/mcp-manager.js";
+export { MCPConnectionManager } from "./services/mcp-connection-manager.js";
+export { MCPToolRouter } from "./services/mcp-tool-router.js";
