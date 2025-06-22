@@ -20,7 +20,8 @@ import { MCPToolRouter } from "./mcp-tool-router.js";
 const logger = createLogger("McpManager");
 
 /**
- * Connection Orchestrator - Manages connection lifecycle and health
+ * Manages MCP connection lifecycle including initialization, health monitoring, and reconnection.
+ * Maintains the canonical connection map that other components reference.
  */
 class ConnectionOrchestrator {
   private readonly connections = new Map<string, MCPConnection>();
@@ -127,7 +128,7 @@ class ConnectionOrchestrator {
       );
       await this.fetchTools(newConnection);
 
-      // Replace connection
+      // Replace connection in map
       this.connections.set(connection.serverName, newConnection);
       return true;
     } catch (error) {
@@ -165,10 +166,13 @@ class ConnectionOrchestrator {
 }
 
 /**
- * Tool Registry - Manages tool discovery and lookup
+ * Registry that provides access to current tool-to-connection mappings.
+ * Prevents stale connection references by always querying the live connection map.
  */
 class ToolRegistry {
   private connections: Map<string, MCPConnection> = new Map();
+
+  constructor(private readonly toolRouter: MCPToolRouter) {}
 
   registerConnections(connections: Map<string, MCPConnection>): void {
     this.connections = connections;
@@ -186,11 +190,8 @@ class ToolRegistry {
     return allTools;
   }
 
-  findToolConnection(
-    toolName: string,
-    toolRouter: MCPToolRouter,
-  ): MCPConnection | null {
-    return toolRouter.findTool(toolName, this.connections);
+  findCurrentToolConnection(toolName: string): MCPConnection | null {
+    return this.toolRouter.findTool(toolName, this.connections);
   }
 
   clear(): void {
@@ -199,7 +200,7 @@ class ToolRegistry {
 }
 
 /**
- * Tool Invoker - Handles tool execution with proper error handling
+ * Executes MCP tools with automatic health checking and reconnection handling.
  */
 class ToolInvoker {
   constructor(
@@ -215,25 +216,30 @@ class ToolInvoker {
     const startTime = Date.now();
 
     try {
-      // Find connection
-      const connection = this.registry.findToolConnection(
-        toolName,
-        this.toolRouter,
-      );
+      const connection = this.registry.findCurrentToolConnection(toolName);
       if (!connection) {
         throw new MCPToolError(`Tool '${toolName}' not found`);
       }
 
-      // Ensure connection is healthy
-      if (!(await this.orchestrator.ensureConnectionHealth(connection))) {
+      const isHealthy =
+        await this.orchestrator.ensureConnectionHealth(connection);
+      if (!isHealthy) {
         throw new MCPConnectionError(
           `Connection to ${connection.serverName} unavailable`,
         );
       }
 
-      // Execute tool
+      const currentConnection =
+        this.registry.findCurrentToolConnection(toolName);
+      if (!currentConnection) {
+        throw new MCPConnectionError(
+          `Tool connection lost during health check`,
+        );
+      }
+
+      // Execute tool with current connection
       const originalToolName = this.toolRouter.getOriginalToolName(toolName);
-      const result = await connection.client.callTool({
+      const result = await currentConnection.client.callTool({
         name: originalToolName,
         arguments: args,
       });
@@ -263,12 +269,20 @@ class ToolInvoker {
 }
 
 /**
- * MCP Manager - Clean facade orchestrating all MCP operations
+ * Main facade for MCP operations. Coordinates between connection management,
+ * tool discovery, and execution while maintaining a clean external API.
+ *
+ * @example
+ * ```typescript
+ * const manager = new MCPManager();
+ * await manager.initialize(configs);
+ * const result = await manager.callTool("server:tool_name", { arg: "value" });
+ * ```
  */
 export class MCPManager implements IMCPManager {
   private readonly orchestrator = new ConnectionOrchestrator();
-  private readonly toolRegistry = new ToolRegistry();
   private readonly toolRouter = new MCPToolRouter();
+  private readonly toolRegistry = new ToolRegistry(this.toolRouter);
   private readonly invoker = new ToolInvoker(
     this.toolRegistry,
     this.orchestrator,

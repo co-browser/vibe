@@ -14,7 +14,8 @@ export * from "./constants.js";
 import type { MCPServerConfig } from "./types.js";
 
 /**
- * Legacy compatibility interface - use IMCPService from types.ts for new code
+ * Process-level status interface for MCP server monitoring.
+ * Used by Electron main process for tracking spawned MCP server processes.
  */
 export interface MCPServerStatus {
   name: string;
@@ -25,7 +26,9 @@ export interface MCPServerStatus {
 }
 
 /**
- * Legacy MCP Service Interface - use IMCPManager from types.ts for new implementations
+ * Service lifecycle interface for Electron main process MCP management.
+ * Handles spawning, monitoring, and terminating MCP servers as child processes.
+ * For direct MCP operations (tool execution), use IMCPManager.
  */
 export interface IMCPService {
   initialize(): Promise<void>;
