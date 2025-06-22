@@ -10,6 +10,25 @@ import {
   type LayoutContextType,
 } from "@vibe/shared-types";
 
+// Ensure window interface extensions are available
+declare global {
+  interface Window {
+    electron?: {
+      ipcRenderer: {
+        on: (channel: string, listener: (...args: any[]) => void) => void;
+        removeListener: (
+          channel: string,
+          listener: (...args: any[]) => void,
+        ) => void;
+        send: (channel: string, ...args: any[]) => void;
+        invoke: (channel: string, ...args: any[]) => Promise<any>;
+      };
+      platform: string;
+      [key: string]: any;
+    };
+  }
+}
+
 const LayoutContext = React.createContext<LayoutContextType | null>(null);
 
 function useLayout(): LayoutContextType {
@@ -69,17 +88,12 @@ function LayoutProvider({
       }
     };
 
-    if (
-      typeof window !== "undefined" &&
-      (window as any).electron?.ipcRenderer
-    ) {
-      (window as any).electron.ipcRenderer.on(
-        IPC_EVENTS.CHAT_PANEL.SYNC_STATE,
-        handleStateSyncEvent,
-      );
+    if (typeof window !== "undefined" && window.electron?.ipcRenderer) {
+      const ipcRenderer = window.electron.ipcRenderer;
+      ipcRenderer.on(IPC_EVENTS.CHAT_PANEL.SYNC_STATE, handleStateSyncEvent);
 
       return () => {
-        (window as any).electron.ipcRenderer.removeListener(
+        ipcRenderer.removeListener(
           IPC_EVENTS.CHAT_PANEL.SYNC_STATE,
           handleStateSyncEvent,
         );
