@@ -1,18 +1,108 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import NavigationBar from "../layout/NavigationBar";
 import ChromeTabBar from "../layout/TabBar";
 import { ChatPage } from "../../pages/chat/ChatPage";
 import { ChatErrorBoundary } from "../ui/error-boundary";
-import { CHAT_PANEL } from "@vibe/shared-types";
+import {
+  CHAT_PANEL,
+  CHAT_PANEL_RECOVERY,
+  IPC_EVENTS,
+  type LayoutContextType,
+} from "@vibe/shared-types";
 
-/**
- * Layout Provider - Clean state management
- */
-interface LayoutContextType {
-  isChatPanelVisible: boolean;
-  chatPanelWidth: number;
-  setChatPanelVisible: (visible: boolean) => void;
-  setChatPanelWidth: (width: number) => void;
+// Ensure window interface extensions are available
+declare global {
+  interface Window {
+    electron?: {
+      ipcRenderer: {
+        on: (channel: string, listener: (...args: any[]) => void) => void;
+        removeListener: (
+          channel: string,
+          listener: (...args: any[]) => void,
+        ) => void;
+        send: (channel: string, ...args: any[]) => void;
+        invoke: (channel: string, ...args: any[]) => Promise<any>;
+      };
+      platform: string;
+      [key: string]: any;
+    };
+  }
+}
+
+// Type guard for chat panel state
+function isChatPanelState(value: unknown): value is { isVisible: boolean } {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    "isVisible" in value &&
+    typeof (value as any).isVisible === "boolean"
+  );
+}
+
+// Custom hook for chat panel health monitoring
+function useChatPanelHealthCheck(
+  isChatPanelVisible: boolean,
+  setChatPanelKey: React.Dispatch<React.SetStateAction<number>>,
+  setChatPanelVisible: React.Dispatch<React.SetStateAction<boolean>>,
+): void {
+  useEffect(() => {
+    if (!isChatPanelVisible) return;
+
+    const healthCheckInterval = setInterval(async () => {
+      try {
+        const chatPanel = document.querySelector(".chat-panel-sidebar");
+        const chatContent = document.querySelector(".chat-panel-content");
+        const chatBody = document.querySelector(".chat-panel-body");
+
+        if (chatPanel && chatContent && chatBody) {
+          const hasVisibleElements = Array.from(
+            chatBody.querySelectorAll("*"),
+          ).some(el => {
+            const computed = window.getComputedStyle(el);
+            return (
+              computed.display !== "none" && computed.visibility !== "hidden"
+            );
+          });
+
+          if (!hasVisibleElements) {
+            try {
+              const authoritativeState =
+                await window.vibe?.interface?.getChatPanelState?.();
+              if (
+                isChatPanelState(authoritativeState) &&
+                authoritativeState.isVisible
+              ) {
+                setChatPanelKey(prev => prev + 1);
+              }
+            } catch {
+              // Silent fallback
+            }
+          }
+        } else if (isChatPanelVisible) {
+          try {
+            const authoritativeState =
+              await window.vibe?.interface?.getChatPanelState?.();
+            if (
+              isChatPanelState(authoritativeState) &&
+              authoritativeState.isVisible
+            ) {
+              setChatPanelKey(prev => prev + 1);
+            } else {
+              setChatPanelVisible(false);
+            }
+          } catch {
+            // Silent fallback
+          }
+        }
+      } catch {
+        // Silent fallback
+      }
+    }, CHAT_PANEL_RECOVERY.HEALTH_CHECK_INTERVAL_MS);
+
+    return () => {
+      clearInterval(healthCheckInterval);
+    };
+  }, [isChatPanelVisible, setChatPanelKey, setChatPanelVisible]);
 }
 
 const LayoutContext = React.createContext<LayoutContextType | null>(null);
@@ -34,8 +124,91 @@ function LayoutProvider({
   const [chatPanelWidth, setChatPanelWidth] = useState<number>(
     CHAT_PANEL.DEFAULT_WIDTH,
   );
+  const [chatPanelKey, setChatPanelKey] = useState(0);
+  const [isRecovering, setIsRecovering] = useState(false);
 
-  // Chat panel visibility monitoring using vibe APIs
+  const debounceTimeout = useRef<NodeJS.Timeout | null>(null);
+  const pendingState = useRef<boolean | null>(null);
+  const currentVisibilityRef = useRef(isChatPanelVisible);
+
+  useEffect(() => {
+    currentVisibilityRef.current = isChatPanelVisible;
+  }, [isChatPanelVisible]);
+
+  useEffect(() => {
+    const handleStateSyncEvent = (
+      _event: any,
+      receivedState: { isVisible: boolean },
+    ) => {
+      const currentVisibility = currentVisibilityRef.current;
+
+      if (receivedState.isVisible !== currentVisibility) {
+        pendingState.current = receivedState.isVisible;
+
+        if (!debounceTimeout.current) {
+          debounceTimeout.current = setTimeout(() => {
+            const finalState = pendingState.current;
+            setChatPanelVisible(finalState!);
+            setChatPanelKey(prev => prev + 1);
+
+            setIsRecovering(true);
+            setTimeout(
+              () => setIsRecovering(false),
+              CHAT_PANEL_RECOVERY.RECOVERY_OVERLAY_MS,
+            );
+
+            debounceTimeout.current = null;
+            pendingState.current = null;
+          }, CHAT_PANEL_RECOVERY.DEBOUNCE_MS);
+        }
+      }
+    };
+
+    if (typeof window !== "undefined" && window.electron?.ipcRenderer) {
+      const ipcRenderer = window.electron.ipcRenderer;
+      ipcRenderer.on(IPC_EVENTS.CHAT_PANEL.SYNC_STATE, handleStateSyncEvent);
+
+      return () => {
+        ipcRenderer.removeListener(
+          IPC_EVENTS.CHAT_PANEL.SYNC_STATE,
+          handleStateSyncEvent,
+        );
+        if (debounceTimeout.current) {
+          clearTimeout(debounceTimeout.current);
+          debounceTimeout.current = null;
+        }
+      };
+    }
+
+    return undefined;
+  }, []);
+
+  // Use custom hook for health check monitoring
+  useChatPanelHealthCheck(
+    isChatPanelVisible,
+    setChatPanelKey,
+    setChatPanelVisible,
+  );
+
+  useEffect(() => {
+    const requestInitialState = async () => {
+      try {
+        const authoritativeState =
+          await window.vibe?.interface?.getChatPanelState?.();
+        if (isChatPanelState(authoritativeState)) {
+          const isVisible = authoritativeState.isVisible;
+          if (isVisible !== isChatPanelVisible) {
+            setChatPanelVisible(isVisible);
+          }
+        }
+      } catch {
+        // Silent fallback
+      }
+    };
+
+    requestInitialState();
+  }, [isChatPanelVisible]);
+
   useEffect(() => {
     const cleanup = window.vibe?.interface?.onChatPanelVisibilityChanged?.(
       isVisible => {
@@ -51,6 +224,8 @@ function LayoutProvider({
     chatPanelWidth,
     setChatPanelVisible,
     setChatPanelWidth,
+    chatPanelKey,
+    isRecovering,
   };
 
   return (
@@ -69,11 +244,9 @@ function LayoutProvider({
   );
 }
 
-/**
- * Chat Panel Sidebar
- */
 function ChatPanelSidebar(): React.JSX.Element | null {
-  const { isChatPanelVisible, chatPanelWidth } = useLayout();
+  const { isChatPanelVisible, chatPanelWidth, chatPanelKey, isRecovering } =
+    useLayout();
 
   if (!isChatPanelVisible) {
     return null;
@@ -89,10 +262,44 @@ function ChatPanelSidebar(): React.JSX.Element | null {
       }}
     >
       <div className="chat-panel-content">
-        {/* Remove header for cleaner look */}
+        {isRecovering && (
+          <div
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: "rgba(255, 255, 255, 0.9)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 1000,
+              backdropFilter: "blur(2px)",
+            }}
+          >
+            <div style={{ textAlign: "center" }}>
+              <div
+                style={{
+                  width: "32px",
+                  height: "32px",
+                  border: "3px solid #f3f3f3",
+                  borderTop: "3px solid #3498db",
+                  borderRadius: "50%",
+                  animation: "spin 1s linear infinite",
+                  margin: "0 auto 12px auto",
+                }}
+              />
+              <div style={{ fontSize: "14px", color: "#666" }}>
+                🔄 Refreshing chat...
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="chat-panel-body">
-          <ChatErrorBoundary>
-            <ChatPage />
+          <ChatErrorBoundary key={chatPanelKey}>
+            <ChatPage key={chatPanelKey} />
           </ChatErrorBoundary>
         </div>
       </div>
@@ -100,14 +307,10 @@ function ChatPanelSidebar(): React.JSX.Element | null {
   );
 }
 
-/**
- * Browser Content Area - Just the web page content
- */
 function BrowserContentArea(): React.JSX.Element {
   const [isLoading, setIsLoading] = useState(false);
   const [currentUrl, setCurrentUrl] = useState("");
 
-  // Tab state monitoring using vibe APIs
   useEffect(() => {
     const unsubscribe = window.vibe?.tabs?.onTabStateUpdate?.(state => {
       setIsLoading(state.isLoading || false);
@@ -127,9 +330,7 @@ function BrowserContentArea(): React.JSX.Element {
           <span>Loading...</span>
         </div>
       ) : currentUrl ? (
-        <div className="ready-state" style={{ display: "none" }}>
-          {/* Hide placeholder completely until webview renders */}
-        </div>
+        <div className="ready-state" style={{ display: "none" }}></div>
       ) : (
         <div className="ready-state">
           <div className="welcome-message">
@@ -142,18 +343,12 @@ function BrowserContentArea(): React.JSX.Element {
   );
 }
 
-/**
- * Chrome Areas - Tab bar and navigation bar outside content area
- */
 function ChromeAreas(): React.JSX.Element {
   return (
     <>
-      {/* Tab Bar - Full width, outside content area */}
       <div className="tab-bar-container">
         <ChromeTabBar />
       </div>
-
-      {/* Navigation Bar - Full width, outside content area */}
       <div className="navigation-bar-container">
         <NavigationBar />
       </div>
@@ -161,9 +356,6 @@ function ChromeAreas(): React.JSX.Element {
   );
 }
 
-/**
- * Main Content Wrapper - Content + Chat layout
- */
 function MainContentWrapper(): React.JSX.Element {
   return (
     <div className="main-content-wrapper">
@@ -173,9 +365,6 @@ function MainContentWrapper(): React.JSX.Element {
   );
 }
 
-/**
- * Browser Layout - Core layout
- */
 function BrowserLayout(): React.JSX.Element {
   return (
     <div className="browser-window">
@@ -185,14 +374,10 @@ function BrowserLayout(): React.JSX.Element {
   );
 }
 
-/**
- * Main App Component - Clean and lean
- */
 export function MainApp(): React.JSX.Element {
   const [isReady, setIsReady] = useState(false);
   const [vibeAPIReady, setVibeAPIReady] = useState(false);
 
-  // Check if vibe API is available
   useEffect(() => {
     const checkVibeAPI = () => {
       if (
@@ -203,7 +388,6 @@ export function MainApp(): React.JSX.Element {
       ) {
         setVibeAPIReady(true);
       } else {
-        // Retry after a short delay
         setTimeout(checkVibeAPI, 50);
       }
     };
@@ -211,7 +395,6 @@ export function MainApp(): React.JSX.Element {
     checkVibeAPI();
   }, []);
 
-  // Smooth initialization
   useEffect(() => {
     if (vibeAPIReady) {
       setTimeout(() => {

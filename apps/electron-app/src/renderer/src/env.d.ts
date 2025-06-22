@@ -71,7 +71,19 @@ interface Window {
   /**
    * Additional legacy APIs for backward compatibility
    */
-  electron: any;
+  electron: {
+    ipcRenderer: {
+      on: (channel: string, listener: (...args: any[]) => void) => void;
+      removeListener: (
+        channel: string,
+        listener: (...args: any[]) => void,
+      ) => void;
+      send: (channel: string, ...args: any[]) => void;
+      invoke: (channel: string, ...args: any[]) => Promise<any>;
+    };
+    platform: string;
+    [key: string]: any;
+  };
   storeBridge: any;
   gmailAuth: any;
   apiKeys: any;
