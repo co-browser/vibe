@@ -29,6 +29,16 @@ declare global {
   }
 }
 
+// Type guard for chat panel state
+function isChatPanelState(value: unknown): value is { isVisible: boolean } {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    "isVisible" in value &&
+    typeof (value as any).isVisible === "boolean"
+  );
+}
+
 const LayoutContext = React.createContext<LayoutContextType | null>(null);
 
 function useLayout(): LayoutContextType {
@@ -131,8 +141,7 @@ function LayoutProvider({
               const authoritativeState =
                 await window.vibe?.interface?.getChatPanelState?.();
               if (
-                authoritativeState &&
-                "isVisible" in authoritativeState &&
+                isChatPanelState(authoritativeState) &&
                 authoritativeState.isVisible
               ) {
                 setChatPanelKey(prev => prev + 1);
@@ -146,8 +155,7 @@ function LayoutProvider({
             const authoritativeState =
               await window.vibe?.interface?.getChatPanelState?.();
             if (
-              authoritativeState &&
-              "isVisible" in authoritativeState &&
+              isChatPanelState(authoritativeState) &&
               authoritativeState.isVisible
             ) {
               setChatPanelKey(prev => prev + 1);
@@ -173,15 +181,9 @@ function LayoutProvider({
       try {
         const authoritativeState =
           await window.vibe?.interface?.getChatPanelState?.();
-        if (authoritativeState && typeof authoritativeState === "object") {
-          const isVisible =
-            "isVisible" in authoritativeState
-              ? authoritativeState.isVisible
-              : undefined;
-          if (
-            typeof isVisible === "boolean" &&
-            isVisible !== isChatPanelVisible
-          ) {
+        if (isChatPanelState(authoritativeState)) {
+          const isVisible = authoritativeState.isVisible;
+          if (isVisible !== isChatPanelVisible) {
             setChatPanelVisible(isVisible);
           }
         }
