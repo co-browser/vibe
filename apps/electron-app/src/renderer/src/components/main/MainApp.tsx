@@ -39,6 +39,72 @@ function isChatPanelState(value: unknown): value is { isVisible: boolean } {
   );
 }
 
+// Custom hook for chat panel health monitoring
+function useChatPanelHealthCheck(
+  isChatPanelVisible: boolean,
+  setChatPanelKey: React.Dispatch<React.SetStateAction<number>>,
+  setChatPanelVisible: React.Dispatch<React.SetStateAction<boolean>>,
+): void {
+  useEffect(() => {
+    if (!isChatPanelVisible) return;
+
+    const healthCheckInterval = setInterval(async () => {
+      try {
+        const chatPanel = document.querySelector(".chat-panel-sidebar");
+        const chatContent = document.querySelector(".chat-panel-content");
+        const chatBody = document.querySelector(".chat-panel-body");
+
+        if (chatPanel && chatContent && chatBody) {
+          const hasVisibleElements = Array.from(
+            chatBody.querySelectorAll("*"),
+          ).some(el => {
+            const computed = window.getComputedStyle(el);
+            return (
+              computed.display !== "none" && computed.visibility !== "hidden"
+            );
+          });
+
+          if (!hasVisibleElements) {
+            try {
+              const authoritativeState =
+                await window.vibe?.interface?.getChatPanelState?.();
+              if (
+                isChatPanelState(authoritativeState) &&
+                authoritativeState.isVisible
+              ) {
+                setChatPanelKey(prev => prev + 1);
+              }
+            } catch {
+              // Silent fallback
+            }
+          }
+        } else if (isChatPanelVisible) {
+          try {
+            const authoritativeState =
+              await window.vibe?.interface?.getChatPanelState?.();
+            if (
+              isChatPanelState(authoritativeState) &&
+              authoritativeState.isVisible
+            ) {
+              setChatPanelKey(prev => prev + 1);
+            } else {
+              setChatPanelVisible(false);
+            }
+          } catch {
+            // Silent fallback
+          }
+        }
+      } catch {
+        // Silent fallback
+      }
+    }, CHAT_PANEL_RECOVERY.HEALTH_CHECK_INTERVAL_MS);
+
+    return () => {
+      clearInterval(healthCheckInterval);
+    };
+  }, [isChatPanelVisible, setChatPanelKey, setChatPanelVisible]);
+}
+
 const LayoutContext = React.createContext<LayoutContextType | null>(null);
 
 function useLayout(): LayoutContextType {
@@ -117,64 +183,12 @@ function LayoutProvider({
     return undefined;
   }, []);
 
-  useEffect(() => {
-    if (!isChatPanelVisible) return;
-
-    const healthCheckInterval = setInterval(async () => {
-      try {
-        const chatPanel = document.querySelector(".chat-panel-sidebar");
-        const chatContent = document.querySelector(".chat-panel-content");
-        const chatBody = document.querySelector(".chat-panel-body");
-
-        if (chatPanel && chatContent && chatBody) {
-          const hasVisibleElements = Array.from(
-            chatBody.querySelectorAll("*"),
-          ).some(el => {
-            const computed = window.getComputedStyle(el);
-            return (
-              computed.display !== "none" && computed.visibility !== "hidden"
-            );
-          });
-
-          if (!hasVisibleElements) {
-            try {
-              const authoritativeState =
-                await window.vibe?.interface?.getChatPanelState?.();
-              if (
-                isChatPanelState(authoritativeState) &&
-                authoritativeState.isVisible
-              ) {
-                setChatPanelKey(prev => prev + 1);
-              }
-            } catch {
-              // Silent fallback
-            }
-          }
-        } else if (isChatPanelVisible) {
-          try {
-            const authoritativeState =
-              await window.vibe?.interface?.getChatPanelState?.();
-            if (
-              isChatPanelState(authoritativeState) &&
-              authoritativeState.isVisible
-            ) {
-              setChatPanelKey(prev => prev + 1);
-            } else {
-              setChatPanelVisible(false);
-            }
-          } catch {
-            // Silent fallback
-          }
-        }
-      } catch {
-        // Silent fallback
-      }
-    }, CHAT_PANEL_RECOVERY.HEALTH_CHECK_INTERVAL_MS);
-
-    return () => {
-      clearInterval(healthCheckInterval);
-    };
-  }, [isChatPanelVisible]);
+  // Use custom hook for health check monitoring
+  useChatPanelHealthCheck(
+    isChatPanelVisible,
+    setChatPanelKey,
+    setChatPanelVisible,
+  );
 
   useEffect(() => {
     const requestInitialState = async () => {
