@@ -118,7 +118,8 @@ function LayoutProvider({
                 await window.vibe?.interface?.getChatPanelState?.();
               if (
                 authoritativeState &&
-                (authoritativeState as any)?.isVisible
+                "isVisible" in authoritativeState &&
+                authoritativeState.isVisible
               ) {
                 setChatPanelKey(prev => prev + 1);
               }
@@ -130,7 +131,11 @@ function LayoutProvider({
           try {
             const authoritativeState =
               await window.vibe?.interface?.getChatPanelState?.();
-            if (authoritativeState && (authoritativeState as any)?.isVisible) {
+            if (
+              authoritativeState &&
+              "isVisible" in authoritativeState &&
+              authoritativeState.isVisible
+            ) {
               setChatPanelKey(prev => prev + 1);
             } else {
               setChatPanelVisible(false);
@@ -155,7 +160,10 @@ function LayoutProvider({
         const authoritativeState =
           await window.vibe?.interface?.getChatPanelState?.();
         if (authoritativeState && typeof authoritativeState === "object") {
-          const isVisible = (authoritativeState as any)?.isVisible;
+          const isVisible =
+            "isVisible" in authoritativeState
+              ? authoritativeState.isVisible
+              : undefined;
           if (
             typeof isVisible === "boolean" &&
             isVisible !== isChatPanelVisible
