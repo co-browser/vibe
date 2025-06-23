@@ -8,20 +8,20 @@ const logger = createLogger("ConsolidatedIPC");
 
 /**
  * Consolidated IPC System
- * 
+ *
  * Replaces the scattered 20+ IPC files across 7 directories with:
  * - 3 focused handlers (Browser, App, State)
  * - Centralized routing and error handling
  * - Type-safe channel definitions
  * - Standardized logging and debugging
- * 
+ *
  * Reduction: 20+ files → 4 files (80% reduction)
  * Improvement: Better organization, error handling, and maintainability
  */
 
 /**
  * Initialize the consolidated IPC system
- * 
+ *
  * @param browserInstance - The browser instance to make available to handlers
  */
 export function initializeConsolidatedIPC(browserInstance: any): void {
@@ -43,7 +43,9 @@ export function initializeConsolidatedIPC(browserInstance: any): void {
     });
 
     logger.info("✅ IPC Consolidation Phase 3 Complete");
-    logger.info(`📊 Replaced 20+ scattered files with ${stats.handlerCount} focused handlers`);
+    logger.info(
+      `📊 Replaced 20+ scattered files with ${stats.handlerCount} focused handlers`,
+    );
   } catch (error) {
     logger.error("Failed to initialize consolidated IPC system:", error);
     throw error;

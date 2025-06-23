@@ -3,14 +3,14 @@ import { BaseIPCHandler, IPCHandlerMap, IPCListenerMap } from "./ipc-router";
 
 /**
  * State Management IPC Handler
- * 
+ *
  * Consolidates state-related operations:
  * - Chat operations (chat-messaging, chat-history, agent-status)
  * - Session management (session-persistence, state-management, state-sync)
  * - Settings CRUD (settings-crud, settings-management)
  * - MCP status (mcp-status)
  * - Window state (window-state, window-interface, chat-panel)
- * 
+ *
  * Replaces 12 files from chat/, session/, settings/, mcp/, and window/ directories.
  */
 export class StateIPCHandler extends BaseIPCHandler {
@@ -115,7 +115,10 @@ export class StateIPCHandler extends BaseIPCHandler {
     }
   }
 
-  private async sendChatMessage(_event: IpcMainEvent, message: string): Promise<void> {
+  private async sendChatMessage(
+    _event: IpcMainEvent,
+    message: string,
+  ): Promise<void> {
     try {
       if (!message || typeof message !== "string") {
         this.logError("sendChatMessage failed", "Invalid message provided");
@@ -333,7 +336,9 @@ export class StateIPCHandler extends BaseIPCHandler {
     }
   }
 
-  private async getInterfaceWindowState(event: IpcMainInvokeEvent): Promise<any> {
+  private async getInterfaceWindowState(
+    event: IpcMainInvokeEvent,
+  ): Promise<any> {
     try {
       const appWindow = this.getApplicationWindow(event.sender.id);
       const state = {
@@ -429,7 +434,11 @@ export class StateIPCHandler extends BaseIPCHandler {
     }
   }
 
-  private resizeWindow(event: IpcMainEvent, width: number, height: number): void {
+  private resizeWindow(
+    event: IpcMainEvent,
+    width: number,
+    height: number,
+  ): void {
     try {
       if (typeof width !== "number" || typeof height !== "number") {
         this.logError("resizeWindow failed", "Invalid dimensions provided");

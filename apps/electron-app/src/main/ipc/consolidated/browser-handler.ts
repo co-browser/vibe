@@ -3,13 +3,13 @@ import { BaseIPCHandler, IPCHandlerMap, IPCListenerMap } from "./ipc-router";
 
 /**
  * Browser IPC Handler
- * 
+ *
  * Consolidates browser-related IPC operations:
  * - Window management (windows.ts)
  * - Tab operations (tabs.ts)
- * - Navigation (navigation.ts)  
+ * - Navigation (navigation.ts)
  * - Content extraction (content.ts)
- * 
+ *
  * Replaces 5 files from browser/ directory with focused functionality.
  */
 export class BrowserIPCHandler extends BaseIPCHandler {
@@ -99,7 +99,9 @@ export class BrowserIPCHandler extends BaseIPCHandler {
     }
   }
 
-  private async getViewVisibilityStates(event: IpcMainInvokeEvent): Promise<any> {
+  private async getViewVisibilityStates(
+    event: IpcMainInvokeEvent,
+  ): Promise<any> {
     try {
       const appWindow = this.getApplicationWindow(event.sender.id);
       const visibleViews = appWindow.viewManager.getVisibleViews();
@@ -114,7 +116,7 @@ export class BrowserIPCHandler extends BaseIPCHandler {
     try {
       const appWindow = this.getApplicationWindow(event.sender.id);
       const { webContents } = appWindow.window;
-      
+
       if (webContents.isDevToolsOpened()) {
         webContents.closeDevTools();
       } else {
@@ -131,7 +133,7 @@ export class BrowserIPCHandler extends BaseIPCHandler {
       // Simple memory optimization - put inactive tabs to sleep
       const appWindow = this.getApplicationWindow(event.sender.id);
       const inactiveTabs = appWindow.tabManager.getInactiveTabs(5);
-      
+
       let optimizedCount = 0;
       for (const tabKey of inactiveTabs) {
         if (appWindow.tabManager.putTabToSleep(tabKey)) {
@@ -139,7 +141,9 @@ export class BrowserIPCHandler extends BaseIPCHandler {
         }
       }
 
-      this.log(`Memory optimization completed: ${optimizedCount} tabs optimized`);
+      this.log(
+        `Memory optimization completed: ${optimizedCount} tabs optimized`,
+      );
       return { optimizedTabCount: optimizedCount };
     } catch (error) {
       this.logError("optimizeMemory failed", error);
@@ -184,7 +188,10 @@ export class BrowserIPCHandler extends BaseIPCHandler {
 
   // === Tab Operations Implementation ===
 
-  private async createTab(event: IpcMainInvokeEvent, url?: string): Promise<string> {
+  private async createTab(
+    event: IpcMainInvokeEvent,
+    url?: string,
+  ): Promise<string> {
     try {
       const appWindow = this.getApplicationWindow(event.sender.id);
       const tabKey = appWindow.tabManager.createTab(url);
@@ -206,7 +213,10 @@ export class BrowserIPCHandler extends BaseIPCHandler {
     }
   }
 
-  private async getTab(event: IpcMainInvokeEvent, tabKey: string): Promise<any> {
+  private async getTab(
+    event: IpcMainInvokeEvent,
+    tabKey: string,
+  ): Promise<any> {
     try {
       this.validateTabKey(tabKey);
       const appWindow = this.getApplicationWindow(event.sender.id);
@@ -221,7 +231,9 @@ export class BrowserIPCHandler extends BaseIPCHandler {
     }
   }
 
-  private async getActiveTabKey(event: IpcMainInvokeEvent): Promise<string | null> {
+  private async getActiveTabKey(
+    event: IpcMainInvokeEvent,
+  ): Promise<string | null> {
     try {
       const appWindow = this.getApplicationWindow(event.sender.id);
       return appWindow.tabManager.getActiveTabKey();
@@ -251,7 +263,10 @@ export class BrowserIPCHandler extends BaseIPCHandler {
     }
   }
 
-  private async getInactiveTabs(event: IpcMainInvokeEvent, maxCount?: number): Promise<string[]> {
+  private async getInactiveTabs(
+    event: IpcMainInvokeEvent,
+    maxCount?: number,
+  ): Promise<string[]> {
     try {
       const appWindow = this.getApplicationWindow(event.sender.id);
       return appWindow.tabManager.getInactiveTabs(maxCount);
@@ -261,7 +276,11 @@ export class BrowserIPCHandler extends BaseIPCHandler {
     }
   }
 
-  private async updateTab(event: IpcMainInvokeEvent, tabKey: string, _updates: any): Promise<void> {
+  private async updateTab(
+    event: IpcMainInvokeEvent,
+    tabKey: string,
+    _updates: any,
+  ): Promise<void> {
     try {
       this.validateTabKey(tabKey);
       const appWindow = this.getApplicationWindow(event.sender.id);
@@ -273,7 +292,10 @@ export class BrowserIPCHandler extends BaseIPCHandler {
     }
   }
 
-  private async removeTab(event: IpcMainInvokeEvent, tabKey: string): Promise<boolean> {
+  private async removeTab(
+    event: IpcMainInvokeEvent,
+    tabKey: string,
+  ): Promise<boolean> {
     try {
       this.validateTabKey(tabKey);
       const appWindow = this.getApplicationWindow(event.sender.id);
@@ -286,7 +308,10 @@ export class BrowserIPCHandler extends BaseIPCHandler {
     }
   }
 
-  private async switchTab(event: IpcMainInvokeEvent, tabKey: string): Promise<boolean> {
+  private async switchTab(
+    event: IpcMainInvokeEvent,
+    tabKey: string,
+  ): Promise<boolean> {
     try {
       this.validateTabKey(tabKey);
       const appWindow = this.getApplicationWindow(event.sender.id);
@@ -299,7 +324,11 @@ export class BrowserIPCHandler extends BaseIPCHandler {
     }
   }
 
-  private async setTabAgentStatus(event: IpcMainInvokeEvent, tabKey: string, isActive: boolean): Promise<boolean> {
+  private async setTabAgentStatus(
+    event: IpcMainInvokeEvent,
+    tabKey: string,
+    isActive: boolean,
+  ): Promise<boolean> {
     try {
       this.validateTabKey(tabKey);
       const appWindow = this.getApplicationWindow(event.sender.id);
@@ -312,7 +341,10 @@ export class BrowserIPCHandler extends BaseIPCHandler {
     }
   }
 
-  private async reorderTabs(event: IpcMainInvokeEvent, orderedKeys: string[]): Promise<boolean> {
+  private async reorderTabs(
+    event: IpcMainInvokeEvent,
+    orderedKeys: string[],
+  ): Promise<boolean> {
     try {
       if (!Array.isArray(orderedKeys)) {
         throw new Error("orderedKeys must be an array");
@@ -327,7 +359,10 @@ export class BrowserIPCHandler extends BaseIPCHandler {
     }
   }
 
-  private async refreshTabState(event: IpcMainInvokeEvent, tabKey: string): Promise<boolean> {
+  private async refreshTabState(
+    event: IpcMainInvokeEvent,
+    tabKey: string,
+  ): Promise<boolean> {
     try {
       this.validateTabKey(tabKey);
       const appWindow = this.getApplicationWindow(event.sender.id);
@@ -343,11 +378,11 @@ export class BrowserIPCHandler extends BaseIPCHandler {
     try {
       const appWindow = this.getApplicationWindow(event.sender.id);
       const tabs = appWindow.tabManager.getAllTabs();
-      
+
       for (const tab of tabs) {
         appWindow.tabManager.updateTabState(tab.key);
       }
-      
+
       this.log(`Refreshed ${tabs.length} tab states`);
     } catch (error) {
       this.logError("refreshAllTabStates failed", error);
@@ -355,7 +390,10 @@ export class BrowserIPCHandler extends BaseIPCHandler {
     }
   }
 
-  private async putTabToSleep(event: IpcMainInvokeEvent, tabKey: string): Promise<boolean> {
+  private async putTabToSleep(
+    event: IpcMainInvokeEvent,
+    tabKey: string,
+  ): Promise<boolean> {
     try {
       this.validateTabKey(tabKey);
       const appWindow = this.getApplicationWindow(event.sender.id);
@@ -368,7 +406,10 @@ export class BrowserIPCHandler extends BaseIPCHandler {
     }
   }
 
-  private async wakeUpTab(event: IpcMainInvokeEvent, tabKey: string): Promise<boolean> {
+  private async wakeUpTab(
+    event: IpcMainInvokeEvent,
+    tabKey: string,
+  ): Promise<boolean> {
     try {
       this.validateTabKey(tabKey);
       const appWindow = this.getApplicationWindow(event.sender.id);
@@ -383,13 +424,17 @@ export class BrowserIPCHandler extends BaseIPCHandler {
 
   // === Navigation Implementation ===
 
-  private async navigateToUrl(event: IpcMainInvokeEvent, tabKey: string, url: string): Promise<boolean> {
+  private async navigateToUrl(
+    event: IpcMainInvokeEvent,
+    tabKey: string,
+    url: string,
+  ): Promise<boolean> {
     try {
       this.validateTabKey(tabKey);
       if (!url || typeof url !== "string") {
         throw new Error("Invalid URL provided");
       }
-      
+
       const appWindow = this.getApplicationWindow(event.sender.id);
       const success = await appWindow.tabManager.loadUrl(tabKey, url);
       this.log(`Navigate to ${url} in tab ${tabKey}, success: ${success}`);
@@ -400,7 +445,10 @@ export class BrowserIPCHandler extends BaseIPCHandler {
     }
   }
 
-  private async goBack(event: IpcMainInvokeEvent, tabKey: string): Promise<boolean> {
+  private async goBack(
+    event: IpcMainInvokeEvent,
+    tabKey: string,
+  ): Promise<boolean> {
     try {
       this.validateTabKey(tabKey);
       const appWindow = this.getApplicationWindow(event.sender.id);
@@ -413,7 +461,10 @@ export class BrowserIPCHandler extends BaseIPCHandler {
     }
   }
 
-  private async goForward(event: IpcMainInvokeEvent, tabKey: string): Promise<boolean> {
+  private async goForward(
+    event: IpcMainInvokeEvent,
+    tabKey: string,
+  ): Promise<boolean> {
     try {
       this.validateTabKey(tabKey);
       const appWindow = this.getApplicationWindow(event.sender.id);
@@ -426,7 +477,10 @@ export class BrowserIPCHandler extends BaseIPCHandler {
     }
   }
 
-  private async reloadPage(event: IpcMainInvokeEvent, tabKey: string): Promise<boolean> {
+  private async reloadPage(
+    event: IpcMainInvokeEvent,
+    tabKey: string,
+  ): Promise<boolean> {
     try {
       this.validateTabKey(tabKey);
       const appWindow = this.getApplicationWindow(event.sender.id);
@@ -458,7 +512,7 @@ export class BrowserIPCHandler extends BaseIPCHandler {
     try {
       const appWindow = this.getApplicationWindow(event.sender.id);
       const activeTab = appWindow.tabManager.getActiveTab();
-      
+
       if (!activeTab) {
         throw new Error("No active tab to extract content from");
       }
@@ -477,12 +531,15 @@ export class BrowserIPCHandler extends BaseIPCHandler {
     }
   }
 
-  private async getContentContext(_event: IpcMainInvokeEvent, url: string): Promise<any> {
+  private async getContentContext(
+    _event: IpcMainInvokeEvent,
+    url: string,
+  ): Promise<any> {
     try {
       if (!url || typeof url !== "string") {
         throw new Error("Invalid URL provided");
       }
-      
+
       // This would integrate with content context service
       // For now, return placeholder
       return {

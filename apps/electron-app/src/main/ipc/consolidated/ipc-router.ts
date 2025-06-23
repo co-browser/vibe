@@ -5,14 +5,17 @@ const logger = createLogger("IPCRouter");
 
 /**
  * IPC Router - Consolidated IPC Message Handling
- * 
+ *
  * Replaces the scattered 20+ IPC files across 7 directories with a unified system.
  * Provides type safety, centralized routing, and standardized error handling.
  */
 
 // Type definitions for IPC messages
 export interface IPCHandlerMap {
-  [channel: string]: (event: IpcMainInvokeEvent, ...args: any[]) => Promise<any> | any;
+  [channel: string]: (
+    event: IpcMainInvokeEvent,
+    ...args: any[]
+  ) => Promise<any> | any;
 }
 
 export interface IPCListenerMap {
@@ -46,7 +49,9 @@ export abstract class BaseIPCHandler {
     const browser = this.getBrowser();
     const appWindow = browser.getApplicationWindow(webContentsId);
     if (!appWindow) {
-      throw new Error(`ApplicationWindow not found for webContents ID: ${webContentsId}`);
+      throw new Error(
+        `ApplicationWindow not found for webContents ID: ${webContentsId}`,
+      );
     }
     return appWindow;
   }
@@ -73,8 +78,9 @@ export class IPCRouter {
    * Register a handler for specific IPC channels
    */
   registerHandler(handler: BaseIPCHandler): void {
-    const handlerName = (handler as any).handlerName || handler.constructor.name;
-    
+    const handlerName =
+      (handler as any).handlerName || handler.constructor.name;
+
     if (this.handlers.has(handlerName)) {
       throw new Error(`Handler ${handlerName} already registered`);
     }
@@ -115,18 +121,22 @@ export class IPCRouter {
    */
   private registerHandlersForHandler(handler: BaseIPCHandler): void {
     const handlers = handler.getHandlers();
-    
+
     for (const [channel, handlerFunc] of Object.entries(handlers)) {
-      ipcMain.handle(channel, async (event: IpcMainInvokeEvent, ...args: any[]) => {
-        try {
-          const result = await handlerFunc.call(handler, event, ...args);
-          return { success: true, data: result };
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          logger.error(`IPC handler error on channel ${channel}:`, error);
-          return { success: false, error: errorMessage };
-        }
-      });
+      ipcMain.handle(
+        channel,
+        async (event: IpcMainInvokeEvent, ...args: any[]) => {
+          try {
+            const result = await handlerFunc.call(handler, event, ...args);
+            return { success: true, data: result };
+          } catch (error) {
+            const errorMessage =
+              error instanceof Error ? error.message : String(error);
+            logger.error(`IPC handler error on channel ${channel}:`, error);
+            return { success: false, error: errorMessage };
+          }
+        },
+      );
     }
   }
 
@@ -135,7 +145,7 @@ export class IPCRouter {
    */
   private registerListenersForHandler(handler: BaseIPCHandler): void {
     const listeners = handler.getListeners();
-    
+
     for (const [channel, listenerFunc] of Object.entries(listeners)) {
       ipcMain.on(channel, (event: IpcMainEvent, ...args: any[]) => {
         try {
@@ -159,11 +169,11 @@ export class IPCRouter {
     for (const handler of this.handlers.values()) {
       const handlers = handler.getHandlers();
       const listeners = handler.getListeners();
-      
+
       for (const channel of Object.keys(handlers)) {
         ipcMain.removeHandler(channel);
       }
-      
+
       for (const channel of Object.keys(listeners)) {
         ipcMain.removeAllListeners(channel);
       }
@@ -171,10 +181,10 @@ export class IPCRouter {
 
     this.handlers.clear();
     this.isRegistered = false;
-    
+
     // Clean up global reference
     delete (global as any).__vibeAppBrowser;
-    
+
     logger.info("IPC Router cleanup complete");
   }
 

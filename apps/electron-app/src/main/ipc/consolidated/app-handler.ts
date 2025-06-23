@@ -1,9 +1,14 @@
-import { IpcMainInvokeEvent, IpcMainEvent, clipboard, Notification } from "electron";
+import {
+  IpcMainInvokeEvent,
+  IpcMainEvent,
+  clipboard,
+  Notification,
+} from "electron";
 import { BaseIPCHandler, IPCHandlerMap, IPCListenerMap } from "./ipc-router";
 
 /**
  * App Utilities IPC Handler
- * 
+ *
  * Consolidates app-related utility operations:
  * - Clipboard operations (clipboard.ts)
  * - Notifications (notifications.ts)
@@ -11,7 +16,7 @@ import { BaseIPCHandler, IPCHandlerMap, IPCListenerMap } from "./ipc-router";
  * - API key management (api-keys.ts)
  * - App information (app-info.ts)
  * - General actions (actions.ts)
- * 
+ *
  * Replaces 6 files from app/ directory with focused functionality.
  */
 export class AppIPCHandler extends BaseIPCHandler {
@@ -72,7 +77,7 @@ export class AppIPCHandler extends BaseIPCHandler {
         this.logError("writeClipboard failed", "Invalid text provided");
         return;
       }
-      
+
       clipboard.writeText(text);
       this.log("Wrote text to clipboard");
     } catch (error) {
@@ -82,7 +87,11 @@ export class AppIPCHandler extends BaseIPCHandler {
 
   // === Notifications Implementation ===
 
-  private showNotification(_event: IpcMainEvent, title: string, body: string): void {
+  private showNotification(
+    _event: IpcMainEvent,
+    title: string,
+    body: string,
+  ): void {
     try {
       if (!title || typeof title !== "string") {
         this.logError("showNotification failed", "Invalid title provided");
@@ -143,7 +152,10 @@ export class AppIPCHandler extends BaseIPCHandler {
 
   // === API Key Management Implementation ===
 
-  private async getApiKey(_event: IpcMainInvokeEvent, keyName: string): Promise<string | null> {
+  private async getApiKey(
+    _event: IpcMainInvokeEvent,
+    keyName: string,
+  ): Promise<string | null> {
     try {
       if (!keyName || typeof keyName !== "string") {
         throw new Error("Invalid key name provided");
@@ -159,12 +171,16 @@ export class AppIPCHandler extends BaseIPCHandler {
     }
   }
 
-  private async setApiKey(_event: IpcMainInvokeEvent, keyName: string, value: string): Promise<boolean> {
+  private async setApiKey(
+    _event: IpcMainInvokeEvent,
+    keyName: string,
+    value: string,
+  ): Promise<boolean> {
     try {
       if (!keyName || typeof keyName !== "string") {
         throw new Error("Invalid key name provided");
       }
-      
+
       if (!value || typeof value !== "string") {
         throw new Error("Invalid key value provided");
       }
