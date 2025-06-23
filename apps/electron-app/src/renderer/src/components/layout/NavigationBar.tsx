@@ -206,11 +206,11 @@ const NavigationBar: React.FC = () => {
     return domainRegex.test(string);
   };
 
-  const detectInputType = (input: string): "url" | "domain" | "search" => {
+  const detectInputType = useCallback((input: string): "url" | "domain" | "search" => {
     if (isValidURL(input)) return "url";
     if (isDomain(input)) return "domain";
     return "search";
-  };
+  }, []);
 
   // Generate intelligent suggestions using vibe APIs
   const generateRealSuggestions = useCallback(
