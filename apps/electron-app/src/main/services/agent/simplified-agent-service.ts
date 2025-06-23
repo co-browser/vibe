@@ -1,5 +1,10 @@
 import { EventEmitter } from "events";
-import type { AgentConfig, AgentStatus, IAgentService, ExtractedPage } from "@vibe/shared-types";
+import type {
+  AgentConfig,
+  AgentStatus,
+  IAgentService,
+  ExtractedPage,
+} from "@vibe/shared-types";
 import { BaseService, ServiceStatus, ServiceState } from "../base-service";
 import { AgentConfigValidator } from "./agent-config";
 import { AgentWorkerManager } from "./agent-worker-manager";
@@ -9,15 +14,18 @@ const logger = createLogger("SimplifiedAgentService");
 
 /**
  * Simplified Agent Service
- * 
+ *
  * A clean, focused service implementation using composition of specialized modules:
  * - AgentConfigValidator: Configuration validation and management
  * - AgentWorkerManager: Worker lifecycle and communication
- * 
+ *
  * This demonstrates the service layer simplification - reduced from 588 lines
  * to focused responsibilities with clear separation of concerns.
  */
-export class SimplifiedAgentService extends EventEmitter implements IAgentService, BaseService {
+export class SimplifiedAgentService
+  extends EventEmitter
+  implements IAgentService, BaseService
+{
   private workerManager: AgentWorkerManager;
   private currentConfig: AgentConfig | null = null;
   private serviceState: ServiceState = ServiceState.DISCONNECTED;
@@ -44,15 +52,17 @@ export class SimplifiedAgentService extends EventEmitter implements IAgentServic
       const validatedConfig = AgentConfigValidator.validateConfig(config);
       this.currentConfig = validatedConfig;
 
-      logger.info("Initializing agent service with config:", 
-        AgentConfigValidator.sanitizeConfig(validatedConfig));
+      logger.info(
+        "Initializing agent service with config:",
+        AgentConfigValidator.sanitizeConfig(validatedConfig),
+      );
 
       // Initialize worker with validated config
       await this.workerManager.initialize(validatedConfig);
 
       this.serviceState = ServiceState.READY;
       logger.info("Agent service initialized successfully");
-      
+
       this.emit("ready", { config: validatedConfig });
     } catch (error) {
       this.serviceState = ServiceState.ERROR;
@@ -74,7 +84,7 @@ export class SimplifiedAgentService extends EventEmitter implements IAgentServic
       await this.workerManager.terminate();
       this.currentConfig = null;
       this.serviceState = ServiceState.DISCONNECTED;
-      
+
       logger.info("Agent service terminated successfully");
       this.emit("terminated");
     } catch (error) {
@@ -90,11 +100,18 @@ export class SimplifiedAgentService extends EventEmitter implements IAgentServic
     return {
       ready: this.serviceState === ServiceState.READY,
       initialized: this.currentConfig !== null,
-      serviceStatus: this.serviceState as "disconnected" | "initializing" | "ready" | "processing" | "error",
+      serviceStatus: this.serviceState as
+        | "disconnected"
+        | "initializing"
+        | "ready"
+        | "processing"
+        | "error",
       lastActivity: this.startTime,
       isHealthy: this.isHealthy(),
       workerStatus,
-      config: this.currentConfig ? AgentConfigValidator.sanitizeConfig(this.currentConfig) : undefined,
+      config: this.currentConfig
+        ? AgentConfigValidator.sanitizeConfig(this.currentConfig)
+        : undefined,
     };
   }
 
@@ -111,12 +128,17 @@ export class SimplifiedAgentService extends EventEmitter implements IAgentServic
       isHealthy: this.isHealthy(),
       workerStatus,
       managerState,
-      config: this.currentConfig ? AgentConfigValidator.sanitizeConfig(this.currentConfig) : undefined,
+      config: this.currentConfig
+        ? AgentConfigValidator.sanitizeConfig(this.currentConfig)
+        : undefined,
     };
   }
 
   isHealthy(): boolean {
-    return this.serviceState === ServiceState.READY && this.workerManager.isWorkerHealthy();
+    return (
+      this.serviceState === ServiceState.READY &&
+      this.workerManager.isWorkerHealthy()
+    );
   }
 
   // === IAgentService Implementation ===
@@ -132,14 +154,17 @@ export class SimplifiedAgentService extends EventEmitter implements IAgentServic
         { message },
         (_messageId: string, data: any) => {
           this.emit("message-stream", data);
-        }
+        },
       );
 
       this.serviceState = ServiceState.READY;
     } catch (error) {
       this.serviceState = ServiceState.ERROR;
       logger.error("Send message failed:", error);
-      this.emit("error", error instanceof Error ? error : new Error(String(error)));
+      this.emit(
+        "error",
+        error instanceof Error ? error : new Error(String(error)),
+      );
       throw error;
     }
   }
@@ -152,7 +177,10 @@ export class SimplifiedAgentService extends EventEmitter implements IAgentServic
       logger.info("Agent state reset completed");
     } catch (error) {
       logger.error("Agent reset failed:", error);
-      this.emit("error", error instanceof Error ? error : new Error(String(error)));
+      this.emit(
+        "error",
+        error instanceof Error ? error : new Error(String(error)),
+      );
       throw error;
     }
   }
@@ -161,11 +189,16 @@ export class SimplifiedAgentService extends EventEmitter implements IAgentServic
     this.validateServiceReady();
 
     try {
-      await this.workerManager.sendMessage("save-tab-memory", { extractedPage });
+      await this.workerManager.sendMessage("save-tab-memory", {
+        extractedPage,
+      });
       logger.info("Tab memory saved:", extractedPage.title);
     } catch (error) {
       logger.error("Save tab memory failed:", error);
-      this.emit("error", error instanceof Error ? error : new Error(String(error)));
+      this.emit(
+        "error",
+        error instanceof Error ? error : new Error(String(error)),
+      );
       throw error;
     }
   }
@@ -188,7 +221,7 @@ export class SimplifiedAgentService extends EventEmitter implements IAgentServic
     if (this.serviceState === ServiceState.PROCESSING) {
       return {
         canTerminate: false,
-        reason: "Service is currently processing"
+        reason: "Service is currently processing",
       };
     }
 
@@ -203,7 +236,7 @@ export class SimplifiedAgentService extends EventEmitter implements IAgentServic
     uptime?: number;
   } {
     const managerState = this.workerManager.getManagerState();
-    
+
     return {
       hasWorker: managerState.hasWorker,
       hasConfig: this.currentConfig !== null,
@@ -226,7 +259,9 @@ export class SimplifiedAgentService extends EventEmitter implements IAgentServic
 
   private validateServiceReady(): void {
     if (this.serviceState !== ServiceState.READY) {
-      throw new Error(`Service not ready (current state: ${this.serviceState})`);
+      throw new Error(
+        `Service not ready (current state: ${this.serviceState})`,
+      );
     }
 
     if (!this.workerManager.isWorkerHealthy()) {
@@ -235,17 +270,17 @@ export class SimplifiedAgentService extends EventEmitter implements IAgentServic
   }
 
   private setupWorkerEventHandlers(): void {
-    this.workerManager.on("worker-ready", (data) => {
+    this.workerManager.on("worker-ready", data => {
       logger.debug("Worker ready:", data);
     });
 
-    this.workerManager.on("worker-error", (error) => {
+    this.workerManager.on("worker-error", error => {
       logger.error("Worker error:", error);
       this.serviceState = ServiceState.ERROR;
       this.emit("error", error);
     });
 
-    this.workerManager.on("worker-unhealthy", (error) => {
+    this.workerManager.on("worker-unhealthy", error => {
       logger.warn("Worker unhealthy:", error);
       // Don't change service state - just monitor
     });

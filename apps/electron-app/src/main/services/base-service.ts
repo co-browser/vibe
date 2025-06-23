@@ -1,6 +1,6 @@
 /**
  * Base Service Interface
- * 
+ *
  * Provides standardized service lifecycle management and health monitoring.
  * All services should implement this interface for consistent behavior.
  */
@@ -41,11 +41,11 @@ export interface BaseService {
  */
 export enum ServiceState {
   DISCONNECTED = "disconnected",
-  INITIALIZING = "initializing", 
+  INITIALIZING = "initializing",
   READY = "ready",
   PROCESSING = "processing",
   ERROR = "error",
-  TERMINATING = "terminating"
+  TERMINATING = "terminating",
 }
 
 /**

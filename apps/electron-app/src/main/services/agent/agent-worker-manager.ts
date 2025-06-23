@@ -7,7 +7,7 @@ const logger = createLogger("AgentWorkerManager");
 
 /**
  * Agent Worker Manager
- * 
+ *
  * Handles worker lifecycle management, process communication, and health monitoring.
  * Extracted from AgentService for better separation of concerns.
  */
@@ -51,13 +51,13 @@ export class AgentWorkerManager extends EventEmitter {
       this.emit("worker-ready", { config });
     } catch (error) {
       logger.error("Worker initialization failed:", error);
-      
+
       // Cleanup on failure
       if (this.worker) {
         await this.worker.stop().catch(() => {});
         this.worker = null;
       }
-      
+
       this.isHealthy = false;
       this.emit("worker-error", error);
       throw error;
@@ -89,7 +89,11 @@ export class AgentWorkerManager extends EventEmitter {
   /**
    * Send streaming message to worker
    */
-  async sendStreamingMessage(type: string, data: any, streamHandler: (messageId: string, data: any) => void): Promise<void> {
+  async sendStreamingMessage(
+    type: string,
+    data: any,
+    streamHandler: (messageId: string, data: any) => void,
+  ): Promise<void> {
     if (!this.worker) {
       throw new Error("Worker not initialized");
     }
@@ -147,7 +151,7 @@ export class AgentWorkerManager extends EventEmitter {
 
     try {
       const workerStatus = this.worker.getConnectionStatus();
-      
+
       // Worker must be connected
       if (!workerStatus.connected) {
         return false;
@@ -160,7 +164,10 @@ export class AgentWorkerManager extends EventEmitter {
 
       // Check if recent health check was successful (within last 2 minutes)
       const now = Date.now();
-      if (workerStatus.lastHealthCheck > 0 && now - workerStatus.lastHealthCheck > 120000) {
+      if (
+        workerStatus.lastHealthCheck > 0 &&
+        now - workerStatus.lastHealthCheck > 120000
+      ) {
         return false;
       }
 
@@ -231,7 +238,7 @@ export class AgentWorkerManager extends EventEmitter {
       await Promise.race([
         this.worker.stop(),
         new Promise((_, reject) =>
-          setTimeout(() => reject(new Error("Worker shutdown timeout")), 10000)
+          setTimeout(() => reject(new Error("Worker shutdown timeout")), 10000),
         ),
       ]);
 

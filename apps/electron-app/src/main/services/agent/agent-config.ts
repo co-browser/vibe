@@ -2,7 +2,7 @@ import type { AgentConfig } from "@vibe/shared-types";
 
 /**
  * Agent Configuration Management
- * 
+ *
  * Handles validation, sanitization, and default configuration for the agent service.
  * Extracted from AgentService for better separation of concerns.
  */
@@ -29,8 +29,14 @@ export class AgentConfigValidator {
     }
 
     // Validate required fields
-    if (!config.openaiApiKey || typeof config.openaiApiKey !== "string" || config.openaiApiKey.trim().length === 0) {
-      throw new Error("Invalid config: openaiApiKey is required and must be a non-empty string");
+    if (
+      !config.openaiApiKey ||
+      typeof config.openaiApiKey !== "string" ||
+      config.openaiApiKey.trim().length === 0
+    ) {
+      throw new Error(
+        "Invalid config: openaiApiKey is required and must be a non-empty string",
+      );
     }
 
     // Validate optional fields
@@ -38,13 +44,24 @@ export class AgentConfigValidator {
       throw new Error("Invalid config: model must be a string");
     }
 
-    if (config.temperature !== undefined && 
-        (typeof config.temperature !== "number" || config.temperature < 0 || config.temperature > 2)) {
-      throw new Error("Invalid config: temperature must be a number between 0 and 2");
+    if (
+      config.temperature !== undefined &&
+      (typeof config.temperature !== "number" ||
+        config.temperature < 0 ||
+        config.temperature > 2)
+    ) {
+      throw new Error(
+        "Invalid config: temperature must be a number between 0 and 2",
+      );
     }
 
-    if (config.processorType && !["react", "coact"].includes(config.processorType)) {
-      throw new Error('Invalid config: processorType must be "react" or "coact"');
+    if (
+      config.processorType &&
+      !["react", "coact"].includes(config.processorType)
+    ) {
+      throw new Error(
+        'Invalid config: processorType must be "react" or "coact"',
+      );
     }
 
     // Return validated and normalized config
@@ -85,7 +102,11 @@ export class AgentConfigValidator {
    * Create default configuration with required API key
    */
   static createDefaultConfig(openaiApiKey: string): AgentConfig {
-    if (!openaiApiKey || typeof openaiApiKey !== "string" || openaiApiKey.trim().length === 0) {
+    if (
+      !openaiApiKey ||
+      typeof openaiApiKey !== "string" ||
+      openaiApiKey.trim().length === 0
+    ) {
       throw new Error("OpenAI API key is required");
     }
 

@@ -6,7 +6,7 @@ const logger = createLogger("ServiceRegistry");
 
 /**
  * Service Registry
- * 
+ *
  * Centrally manages all application services, providing:
  * - Service registration and dependency injection
  * - Lifecycle management (initialize/terminate)
@@ -29,7 +29,7 @@ export class ServiceRegistry extends EventEmitter {
 
     this.services.set(name, service);
     this.serviceStates.set(name, ServiceState.DISCONNECTED);
-    
+
     logger.info(`Service registered: ${name}`);
     this.emit("service-registered", { name, service });
   }
@@ -39,7 +39,7 @@ export class ServiceRegistry extends EventEmitter {
    */
   get<T extends BaseService>(name: string): T | null {
     const service = this.services.get(name);
-    return service as T || null;
+    return (service as T) || null;
   }
 
   /**
@@ -107,12 +107,12 @@ export class ServiceRegistry extends EventEmitter {
     try {
       this.serviceStates.set(name, ServiceState.INITIALIZING);
       logger.info(`Initializing service: ${name}`);
-      
+
       await service.initialize(config);
-      
+
       this.serviceStates.set(name, ServiceState.READY);
       logger.info(`Service initialized successfully: ${name}`);
-      
+
       this.emit("service-initialized", { name, service });
     } catch (error) {
       this.serviceStates.set(name, ServiceState.ERROR);
@@ -167,7 +167,10 @@ export class ServiceRegistry extends EventEmitter {
     }
 
     const currentState = this.serviceStates.get(name);
-    if (currentState === ServiceState.DISCONNECTED || currentState === ServiceState.TERMINATING) {
+    if (
+      currentState === ServiceState.DISCONNECTED ||
+      currentState === ServiceState.TERMINATING
+    ) {
       logger.warn(`Service '${name}' already terminated`);
       return;
     }
@@ -175,12 +178,12 @@ export class ServiceRegistry extends EventEmitter {
     try {
       this.serviceStates.set(name, ServiceState.TERMINATING);
       logger.info(`Terminating service: ${name}`);
-      
+
       await service.terminate();
-      
+
       this.serviceStates.set(name, ServiceState.DISCONNECTED);
       logger.info(`Service terminated successfully: ${name}`);
-      
+
       this.emit("service-terminated", { name, service });
     } catch (error) {
       this.serviceStates.set(name, ServiceState.ERROR);
@@ -195,7 +198,7 @@ export class ServiceRegistry extends EventEmitter {
   getHealthStatus(): Record<string, boolean> {
     const status: Record<string, boolean> = {};
     const serviceNames = Array.from(this.services.keys());
-    
+
     for (const name of serviceNames) {
       const service = this.services.get(name)!;
       try {
@@ -205,7 +208,7 @@ export class ServiceRegistry extends EventEmitter {
         logger.error(`Error checking health for service '${name}':`, error);
       }
     }
-    
+
     return status;
   }
 
@@ -215,11 +218,11 @@ export class ServiceRegistry extends EventEmitter {
   getDetailedStatus(): Record<string, ServiceStatus> {
     const status: Record<string, ServiceStatus> = {};
     const serviceNames = Array.from(this.services.keys());
-    
+
     for (const name of serviceNames) {
       const service = this.services.get(name)!;
       const state = this.serviceStates.get(name)!;
-      
+
       try {
         status[name] = {
           ...service.getStatus(),
@@ -231,11 +234,11 @@ export class ServiceRegistry extends EventEmitter {
           initialized: false,
           serviceStatus: "error",
           serviceState: state,
-          error: error instanceof Error ? error.message : String(error)
+          error: error instanceof Error ? error.message : String(error),
         };
       }
     }
-    
+
     return status;
   }
 
