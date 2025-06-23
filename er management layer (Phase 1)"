@@ -1,0 +1,675 @@
+[33mcommit ac115c7a4fb19ff7169455f7a3cded59a34bfe68[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mcursor-refactor-window[m[33m, [m[1;31morigin/cursor-refactor-window[m[33m)[m
+Author: Ryan MacArthur <mac@cobrowser.xyz>
+Date:   Mon Jun 23 12:09:19 2025 +0000
+
+    feat: Consolidate IPC system into unified handlers (Phase 3)
+
+[33mcommit 436572c7e0a50ed39e1e98ef9e04d254c59b52a6[m
+Author: Ryan MacArthur <mac@cobrowser.xyz>
+Date:   Mon Jun 23 12:08:23 2025 +0000
+
+    refactor: Create modular service architecture (Phase 2)
+
+[33mcommit 395138e2d994321933f1ec21bedc247eb84e5a4f[m
+Author: Ryan MacArthur <mac@cobrowser.xyz>
+Date:   Mon Jun 23 12:00:41 2025 +0000
+
+    feat: Implement simplified main process architecture (Phase 4)
+
+[33mcommit a777a1ae5c482b31be084ec08fb9ceefa7135fff[m[33m ([m[1;31morigin/feat/password-import[m[33m, [m[1;32mmain[m[33m)[m
+Merge: 454f507 6585058
+Author: Michel <74599230+michiosw@users.noreply.github.com>
+Date:   Fri Jun 20 19:30:03 2025 +0200
+
+    Merge pull request #25 from co-browser/fix/rag-server
+    
+    Refactor server startup logic and improve shutdown handling and logging
+
+[33mcommit 65850586f084e98692bb6be06f51f40d259dc421[m[33m ([m[1;31morigin/fix/rag-server[m[33m)[m
+Merge: 67e7cc1 454f507
+Author: tumberger <89775310+tumberger@users.noreply.github.com>
+Date:   Fri Jun 20 17:26:08 2025 +0200
+
+    Merge branch 'main' into fix/rag-server
+
+[33mcommit 67e7cc17d3257b9635b88bfddbc057bf9e8a3215[m
+Author: tumberger <jens.ernstberger@gmail.com>
+Date:   Fri Jun 20 17:22:57 2025 +0200
+
+    fix coderabbit
+
+[33mcommit e378d28c6991d236fa221f69976dd1144d74f660[m
+Author: tumberger <jens.ernstberger@gmail.com>
+Date:   Fri Jun 20 17:12:33 2025 +0200
+
+    fix duplicated server code
+
+[33mcommit 454f507a3e9f126007de928e44dc36afe51e6da1[m
+Merge: d6a48e6 a540eed
+Author: Michel <74599230+michiosw@users.noreply.github.com>
+Date:   Fri Jun 20 17:08:26 2025 +0200
+
+    Merge pull request #20 from co-browser/feat/rag-mcp-server
+    
+    Add RAG MCP server, unify extraction model, enhance agent-core and tests
+
+[33mcommit a540eed7c6335a2d7cee27978da49ad6c023fdc1[m[33m ([m[1;31morigin/feat/rag-mcp-server[m[33m)[m
+Author: Michel Osswald <michel-osswald@live.de>
+Date:   Fri Jun 20 17:03:35 2025 +0200
+
+    fix: update pnpm version in workflows to match package.json (10.12.1)
+
+[33mcommit d0a3fbe979ef8516c5db3a49daf656ec4ae22e40[m
+Merge: d0eee75 d6a48e6
+Author: Michel Osswald <michel-osswald@live.de>
+Date:   Fri Jun 20 17:01:18 2025 +0200
+
+    Merge branch 'main' into feat/rag-mcp-server
+
+[33mcommit d6a48e677f12ee77c992907878d7d91f2f9fe6ce[m[33m ([m[1;33mtag: [m[1;33mv0.1.1[m[33m)[m
+Author: Michel Osswald <michel-osswald@live.de>
+Date:   Fri Jun 20 16:42:18 2025 +0200
+
+    chore(release): v0.1.1 [skip ci]
+
+[33mcommit fd67577fbd7191728ec3ab6c40a645996edc2483[m
+Merge: 4e7c146 24e4eb3
+Author: Michel <74599230+michiosw@users.noreply.github.com>
+Date:   Fri Jun 20 16:23:52 2025 +0200
+
+    Merge pull request #24 from co-browser/feat/rewrote-release
+    
+    feat: add GitHub Actions workflows for pull requests and pushes
+
+[33mcommit 24e4eb3bea54aa57cff83115fc2929808d8bb37c[m[33m ([m[1;31morigin/feat/rewrote-release[m[33m)[m
+Author: Michel Osswald <michel-osswald@live.de>
+Date:   Fri Jun 20 16:18:33 2025 +0200
+
+    chore: add changelog template and configuration
+    
+    - Introduced a new CHANGELOG template for structured release notes.
+    - Added configuration file for changelog generation, specifying style, repository info, and commit grouping options.
+
+[33mcommit adc93e10f22e05638b064a15fe5c8d3d4a3b19f2[m
+Author: Michel Osswald <michel-osswald@live.de>
+Date:   Fri Jun 20 16:10:01 2025 +0200
+
+    chore: update Slack notification channel in workflow
+    
+    - Changed the Slack notification channel from "general" to "vibe-notis" to enhance organization and monitoring of notifications.
+
+[33mcommit b1a7a654c2cc56497a5a66215935fef0649d166b[m
+Author: Michel Osswald <michel-osswald@live.de>
+Date:   Fri Jun 20 16:04:59 2025 +0200
+
+    chore: update Slack notification channel and log API response
+    
+    - Changed the Slack notification channel from "general" to "vibe-notis" for better organization.monitoring of notifications.
+
+[33mcommit 3cf0df72e2d46fc627576a56eef1def816378db9[m
+Author: Michel Osswald <michel-osswald@live.de>
+Date:   Fri Jun 20 16:00:10 2025 +0200
+
+    fix: update status logic in GitHub Actions workflows
+    
+    - Refined the status determination logic in both `pr.yml` and `push.yml` to return 'success' only when both linting and testing results are successful; otherwise, it returns 'failure'. This change improves clarity in workflow notifications.
+
+[33mcommit d0eee75129f1b30baf7b8e9a74504686098796da[m
+Author: tumberger <jens.ernstberger@gmail.com>
+Date:   Fri Jun 20 15:55:59 2025 +0200
+
+    fix coderabbit suggestions
+
+[33mcommit 879345b970228f7afed917fe7e817a5a295e2856[m
+Author: Michel Osswald <michel-osswald@live.de>
+Date:   Fri Jun 20 15:54:37 2025 +0200
+
+    feat: add GitHub Actions workflows for pull requests and pushes
+    
+    - Introduced `pr.yml` for pull request workflows, including linting, type checking, and testing steps.
+    - Added `push.yml` for main branch pushes, mirroring the linting and testing processes.
+    - Created `slack-notifications.yml` for sending Slack notifications based on workflow results.
+    - Removed the outdated `release.yml` workflow to streamline CI/CD processes.
+
+[33mcommit 23b1189501b012dc8b4dc964a2139fc04132c7f3[m
+Merge: 613d670 4e7c146
+Author: tumberger <jens.ernstberger@gmail.com>
+Date:   Fri Jun 20 15:29:51 2025 +0200
+
+    resolve merge conflicts: update release workflow to pnpm 10.12.1
+
+[33mcommit 613d670a86589e547347a11db2ce0e98d09a595b[m
+Author: tumberger <jens.ernstberger@gmail.com>
+Date:   Fri Jun 20 14:12:18 2025 +0200
+
+    format
+
+[33mcommit 940c151b531df3754c30f500b9d565b8ca963f85[m
+Author: tumberger <jens.ernstberger@gmail.com>
+Date:   Fri Jun 20 14:11:38 2025 +0200
+
+    fix pnpm version actions + update fast chunking and embedding
+
+[33mcommit 4e7c1465b0038e65087edeca559312b52769399d[m
+Merge: c4a8068 9d0d662
+Author: Michel <74599230+michiosw@users.noreply.github.com>
+Date:   Fri Jun 20 13:53:23 2025 +0200
+
+    Merge pull request #23 from co-browser/fix/releaser-remove-dry-run
+    
+    Fix/releaser remove dry run
+
+[33mcommit 9d0d6625302c6cf04bac473b5ae07f13d8aea6f5[m[33m ([m[1;31morigin/fix/releaser-remove-dry-run[m[33m)[m
+Author: Michel Osswald <michel-osswald@live.de>
+Date:   Fri Jun 20 13:52:37 2025 +0200
+
+    chore(release): update release workflow to generate and commit VERSION and CHANGELOG files
+    
+    - Added logic to create a VERSION file with the release version.
+    - Enhanced CHANGELOG.md management by prepending new release notes and ensuring it is created if missing.
+    - Updated commit process to only commit if there are changes to the VERSION and CHANGELOG files.
+
+[33mcommit c4a806858951470aec98b6c8cab652cb125888f2[m
+Merge: f996c1e 3099b21
+Author: Michel <74599230+michiosw@users.noreply.github.com>
+Date:   Fri Jun 20 13:46:52 2025 +0200
+
+    Merge pull request #22 from co-browser/fix/releaser
+    
+    chore: update actions/cache version in release workflow
+
+[33mcommit 3099b21d94ce59f22617b08bf21df5bb0d79127b[m[33m ([m[1;31morigin/fix/releaser[m[33m)[m
+Author: Michel Osswald <michel-osswald@live.de>
+Date:   Fri Jun 20 13:43:39 2025 +0200
+
+    chore: update actions/cache version in release workflow
+    
+    - Changed the actions/cache version from a specific commit hash to the latest v4 for improved stability and performance in the release workflow.
+
+[33mcommit f996c1ebaf96c2cca11c98d6b8590a3b9d6c2cf1[m
+Merge: 1123315 59508ea
+Author: mac <ryan.macarthur@gmail.com>
+Date:   Fri Jun 20 13:40:37 2025 +0200
+
+    Merge pull request #21 from co-browser/fix/releaser
+    
+    Restructure release workflow with manual triggers, job timeouts, and updates
+
+[33mcommit 59508ead19e9bd3299712e3f392c77411eda574b[m
+Author: Michel Osswald <michel-osswald@live.de>
+Date:   Fri Jun 20 13:35:23 2025 +0200
+
+    feat: enhance release workflow with manual trigger and improved job structure
+    
+    - Added a manual trigger for the release workflow to allow for on-demand execution.
+    - Reorganized jobs to include a dedicated check for release necessity before creating a release PR.
+    - Updated steps for dependency installation and semantic release checks to improve clarity and efficiency.
+    - Enhanced notification formatting for Discord to provide clearer release information.
+
+[33mcommit 112331529d8d2bc194a3dd8f672cafd82e740516[m
+Merge: f9f2039 35cdccd
+Author: Michel <74599230+michiosw@users.noreply.github.com>
+Date:   Fri Jun 20 10:36:37 2025 +0200
+
+    Merge pull request #18 from co-browser/feature/gmail-mcp-server
+    
+    Feat: gmail mcp server
+
+[33mcommit 35cdccda850f749e6edd40f6ce4f14066b977986[m[33m ([m[1;31morigin/feature/gmail-mcp-server[m[33m)[m
+Author: Michel Osswald <michel-osswald@live.de>
+Date:   Fri Jun 20 10:32:00 2025 +0200
+
+    feat: enhance release workflow with automatic PR creation and version management
+    
+    - Added a new job to create a release PR when commits are pushed to the main branch, utilizing semantic release for versioning.
+    - Implemented logic to handle pull request events for merging releases, ensuring proper versioning and changelog updates.
+    - Updated notification steps to reflect changes in the release process, improving clarity in release communications.
+
+[33mcommit 57c7095623d3d5469197cea6bc3cb5234cf77d18[m
+Author: Michel Osswald <michel-osswald@live.de>
+Date:   Fri Jun 20 10:24:38 2025 +0200
+
+    feat: add path utilities for improved file resolution in Node.js
+    
+    - Introduced new path utility functions: findWorkspaceRoot, findFileUpwards, and getMonorepoPackagePath to enhance file and package path resolution.
+    - Updated MCPManager to utilize these utilities for more reliable path handling in development and production environments.
+    - Enhanced .env file loading logic to search upwards in the directory tree, improving configuration management.
+
+[33mcommit da1919d9a0902a6e25ebc5bbfd475c4d0d1bcd90[m
+Author: Michel Osswald <michel-osswald@live.de>
+Date:   Thu Jun 19 20:34:35 2025 +0200
+
+    feat: add automatic token refresh for Gmail OAuth client
+    
+    - Implemented a mechanism to automatically refresh and save OAuth tokens when they are updated.
+    - Enhanced error handling to log failures during the token saving process, improving reliability in credential management.
+
+[33mcommit f878ac8a3be2796cf1a5353963563c3f70b67db9[m
+Author: Michel Osswald <michel-osswald@live.de>
+Date:   Thu Jun 19 20:32:02 2025 +0200
+
+    fix: prevent infinite recursion in body extraction for Gmail tools
+    
+    - Updated the extractBody function to include a depth parameter, limiting the maximum parsing depth to 10.
+    - Added a warning log when the maximum depth is reached, enhancing error handling during MIME parsing.
+
+[33mcommit 041fe2399defea951973eac449a2caeac7b9de2e[m
+Author: Michel Osswald <michel-osswald@live.de>
+Date:   Thu Jun 19 20:24:07 2025 +0200
+
+    feat: implement restart logic for MCP servers with attempt tracking
+    
+    - Added functionality to track restart attempts for MCP servers, limiting retries to a maximum of three.
+    - Enhanced logging to provide detailed output on restart attempts and status, improving visibility into server recovery processes.
+    - Reset restart attempts upon successful server startup to ensure accurate tracking.
+
+[33mcommit ee464b1842744505e0101c63373f5f54f35e8aa3[m
+Author: Michel Osswald <michel-osswald@live.de>
+Date:   Thu Jun 19 20:22:26 2025 +0200
+
+    fix: enhance PATH configuration for cross-platform compatibility in MCPManager
+    
+    - Updated the PATH environment variable setup to provide a Windows-specific path when running on the win32 platform, ensuring proper executable resolution across different operating systems.
+
+[33mcommit 75f29b79294697a1793b7e22aac56ad2689d99ef[m
+Author: Michel Osswald <michel-osswald@live.de>
+Date:   Thu Jun 19 20:20:24 2025 +0200
+
+    feat: implement health check for MCP server readiness
+    
+    - Added a health check mechanism to verify the MCP server's status during startup.
+    - Updated logging to provide clearer output on server readiness and error states.
+    - Simplified output logging to focus on errors and debug information, enhancing overall error handling.
+
+[33mcommit 9fa750acf114f4dc7dfff5182b3baea12451f0ac[m
+Author: Michel Osswald <michel-osswald@live.de>
+Date:   Thu Jun 19 20:17:24 2025 +0200
+
+    fix: improve error handling for missing worker process file in MCPWorker
+    
+    - Updated the MCPWorker class to throw an error with a clear message when the worker process file is not found, replacing the previous warning and placeholder creation logic. This change enhances error visibility and ensures proper handling during development.
+
+[33mcommit 58dd6b2c1944fa31611aae79be38d9fef44457e7[m
+Author: Michel Osswald <michel-osswald@live.de>
+Date:   Thu Jun 19 20:15:52 2025 +0200
+
+    feat: add path validation for OAuth and credentials configuration in Gmail tools
+    
+    - Introduced a validatePath function to ensure environment variable paths for OAuth and credentials are within allowed directories.
+    - Updated OAUTH_PATH and CREDENTIALS_PATH to use the new validation logic, enhancing security and preventing invalid configurations.
+
+[33mcommit 3771a65a8a6534f15b5cd41c527fbab8dbfe37db[m
+Author: Michel Osswald <michel-osswald@live.de>
+Date:   Thu Jun 19 20:14:21 2025 +0200
+
+    fix: improve error handling and logging for MCP service initialization
+    
+    - Updated the onFatalError callback to include a space for clarity.
+    - Enhanced logging to warn when the MCP service fails to initialize, indicating potential impact on functionality.
+
+[33mcommit 15157aca17b44019707527ff05fd5c0a5f4dca59[m
+Author: Michel Osswald <michel-osswald@live.de>
+Date:   Thu Jun 19 20:12:06 2025 +0200
+
+    fix: correct variable declaration for server port in Gmail MCP server
+    
+    - Moved the PORT constant declaration to the appropriate location in src/index.ts to avoid redeclaration and ensure proper server configuration.
+
+[33mcommit b5c8290f2ea47d724a4bd8344ccc211aa4f0a478[m
+Author: Michel Osswald <michel-osswald@live.de>
+Date:   Thu Jun 19 20:10:46 2025 +0200
+
+    feat: enhance Gmail tools with type safety and argument validation
+
+[33mcommit b8b20af54ac2370222eedc89f46aaa484755a2f0[m
+Author: tumberger <jens.ernstberger@gmail.com>
+Date:   Thu Jun 19 19:44:07 2025 +0200
+
+    implement mcp client in agent
+
+[33mcommit 45a9f280c8b6fb902d14e0612a1fc4a5cb769db6[m
+Author: tumberger <jens.ernstberger@gmail.com>
+Date:   Thu Jun 19 19:42:08 2025 +0200
+
+    perplexity based chunking / contextual chunkign
+
+[33mcommit b7425c39b635d3e3fde9fb24b999c4e2d786d2c0[m
+Author: Michel Osswald <michel-osswald@live.de>
+Date:   Thu Jun 19 19:40:58 2025 +0200
+
+    chore: remove tsbuildinfo files from git tracking
+
+[33mcommit 16707741dfe9a3e30dbe1e86bda857be6e771ee5[m
+Author: Michel Osswald <michel-osswald@live.de>
+Date:   Thu Jun 19 19:39:33 2025 +0200
+
+    chore: update .gitignore to exclude TypeScript build info files
+    
+    - Added *.tsbuildinfo to .gitignore to prevent TypeScript build information files from being tracked in the repository.
+
+[33mcommit a2e2f2c63507088838274744a9b911de2d8025ba[m
+Author: Michel Osswald <michel-osswald@live.de>
+Date:   Thu Jun 19 19:37:22 2025 +0200
+
+    feat: integrate Gmail MCP server with utility process architecture
+    
+    - Move Gmail MCP to packages/mcp-gmail following monorepo conventions
+    - Implement MCPService → MCPWorker → mcp-manager-process utility chain
+    - Mirror existing AgentService architecture for consistency
+    - Add centralized MCP configuration in shared-types
+    - Integrate MCP builds into Turbo pipeline
+    
+    Technical improvements:
+    - Fix environment variable propagation (PATH, LOG_LEVEL) to utility processes
+    - Add cross-platform Node.js executable resolution with proper error handling
+    - Create IPC handlers for MCP status monitoring
+    - Standardize static imports to eliminate Vite warnings
+    - Improve logging levels and suppress harmless DevTools console errors
+    
+    The Gmail MCP server now runs consistently in utility processes for both
+    development and production, providing foundation for additional MCP integrations
+
+[33mcommit 03077803c8e5135c02dcec76acf362481a536f72[m
+Author: tumberger <jens.ernstberger@gmail.com>
+Date:   Thu Jun 19 14:49:05 2025 +0200
+
+    update mcp tool to expose based on type
+
+[33mcommit 0d0b7ad9800036c167ec1e57e677c8f0934f9f42[m
+Author: Michel Osswald <michel-osswald@live.de>
+Date:   Thu Jun 19 14:37:50 2025 +0200
+
+    refactor: streamline tool configuration in Gmail MCP server
+    
+    - Replaced the use of reduce with Object.fromEntries for constructing the tools object, improving code clarity and performance.
+
+[33mcommit 1d9e171685753d5747e71f59255670812323f57c[m
+Author: Michel Osswald <michel-osswald@live.de>
+Date:   Thu Jun 19 14:34:45 2025 +0200
+
+    chore: update dependencies in package.json and package-lock.json
+    
+    - Upgraded various dependencies including @modelcontextprotocol/sdk, express, google-auth-library, googleapis, zod, and typescript to their latest versions for improved performance and security.
+    - Adjusted devDependencies for @types/express and @types/node to ensure compatibility with the updated packages.
+
+[33mcommit 2d59449637103a7d9bb65163e4d9381efa067bb0[m
+Author: Michel Osswald <michel-osswald@live.de>
+Date:   Thu Jun 19 14:13:19 2025 +0200
+
+    feat: enhance Gmail MCP server with improved connection handling and graceful shutdown
+    
+    - Updated the server to use HTTP with active connection tracking for better resource management.
+    - Implemented graceful shutdown logic to ensure all active connections are properly closed before server termination.
+    - Refactored Gmail tools to improve error handling and streamline email operations.
+    - Adjusted package.json to reflect changes in entry point and development scripts.
+
+[33mcommit 18cacba1a7dfb5b53333ddeee10518b174061d8e[m
+Merge: d600589 f9f2039
+Author: Michel <74599230+michiosw@users.noreply.github.com>
+Date:   Thu Jun 19 13:46:44 2025 +0200
+
+    Merge branch 'main' into feature/gmail-mcp-server
+
+[33mcommit af46934beb9703a3ccb07961806a4c60d9e5dbc0[m
+Author: tumberger <jens.ernstberger@gmail.com>
+Date:   Thu Jun 19 13:38:31 2025 +0200
+
+    bump pnpm to 10.X establish consistent typing for ExtractedPage and simplify extraction
+
+[33mcommit d6005897e16428c3452551846ab882b64dd3612e[m
+Author: Michel Osswald <michel-osswald@live.de>
+Date:   Thu Jun 19 13:27:03 2025 +0200
+
+    feat: enhance GmailOAuthService with improved security and CORS handling
+    
+    - Re-enabled sandboxing and web security for better security during OAuth flow.
+    - Configured session permissions to allow Google OAuth domains to bypass CORS restrictions.
+    - Improved error handling for navigation failures and certificate errors, ensuring a smoother OAuth experience.
+    - Added additional validation for Google OAuth certificates to enhance security.
+
+[33mcommit 51190b40d5c70029fa3939710516357f433b0ac0[m
+Author: Michel Osswald <michel-osswald@live.de>
+Date:   Thu Jun 19 13:01:24 2025 +0200
+
+    feat: Gmail MCP server with essential configuration and tools
+    
+    - Added .env.example for server configuration and .gitignore for ignoring unnecessary files.
+    - Created package.json and package-lock.json for dependency management.
+    - Implemented TypeScript configuration in tsconfig.json.
+    - Developed core server functionality in src/index.ts and src/server.ts, including request handling and logging.
+    - Introduced Gmail tools for email operations in src/tools.ts, supporting sending, drafting, searching, reading, and deleting emails.
+    - Added logging helper in src/helpers/logs.ts for structured logging.
+
+[33mcommit 607c452ffac0fc65516930e99d0c30627e9839ad[m
+Author: tumberger <jens.ernstberger@gmail.com>
+Date:   Thu Jun 19 13:36:39 2025 +0200
+
+    add package for mcp server rag turbopuffer
+
+[33mcommit f9f20397fb38110a2eed62e4646b0d657d5aaa4d[m
+Merge: d88795e 428a808
+Author: mac <ryan.macarthur@gmail.com>
+Date:   Thu Jun 19 09:50:58 2025 +0200
+
+    Merge pull request #16 from co-browser/1-feature-complete-gmail-integration-with-oauth-setup-and-email-sending-mcp-server
+    
+    feat: Gmail OAuth flow with improved error handling and UI integration
+
+[33mcommit 428a808caa3d58177bd22ec969e0ec1ae6268295[m
+Author: Michel Osswald <michel-osswald@live.de>
+Date:   Wed Jun 18 17:15:24 2025 +0200
+
+    refactor: enhance bounds calculation in GmailOAuthService for clarity
+    
+    - Improved the readability of the bounds height calculation by breaking it into multiple lines.
+    - Maintained existing functionality while enhancing code clarity for future maintenance.
+
+[33mcommit 0d5d107ef1f62bbe66f884a8a976dce920d7b5bc[m
+Author: Michel Osswald <michel-osswald@live.de>
+Date:   Wed Jun 18 17:14:43 2025 +0200
+
+    refactor: update bounds calculation in GmailOAuthService for improved layout management
+    
+    - Replaced hardcoded values with constants from GLASSMORPHISM_CONFIG and BROWSER_CHROME to enhance maintainability and readability.
+    - Adjusted the bounds calculation to ensure proper alignment and spacing based on configuration settings.
+
+[33mcommit f799b0266a9985adcd6a2b131bf46e1b14a51f41[m
+Author: Michel Osswald <michel-osswald@live.de>
+Date:   Wed Jun 18 17:12:15 2025 +0200
+
+    feat: add public cleanup method for GmailOAuthService
+    
+    - Introduced a public cleanup method to facilitate graceful shutdown and external process handling.
+    - Updated the app's quit event listeners to utilize the new cleanup method, enhancing security by ensuring proper OAuth flow termination.
+
+[33mcommit cfb13b2bb1e924267aa5519904d8d278a237280b[m
+Author: Michel Osswald <michel-osswald@live.de>
+Date:   Wed Jun 18 17:10:38 2025 +0200
+
+    refactor: improve Gmail OAuth cleanup logic and state management
+    
+    - Simplified the cleanup process for the OAuth browser view by ensuring viewManager-dependent operations are only executed when viewManager is available.
+    - Always clear all stored OAuth flow states after the cleanup to prevent stale data.
+    - Enhanced error handling during the cleanup process for better reliability.
+
+[33mcommit ed51fdd6a3ad22b243735ae6cc3f98a4b86d4c88[m
+Author: Michel Osswald <michel-osswald@live.de>
+Date:   Wed Jun 18 16:30:35 2025 +0200
+
+    Fix Gmail OAuth implementation and formatting issues
+
+[33mcommit 5a8fa7400ef5725911eb8af6c30c63b46644cf3a[m
+Author: Michel Osswald <michel-osswald@live.de>
+Date:   Wed Jun 18 16:22:38 2025 +0200
+
+    refactor: streamline Gmail OAuth flow with ViewManager integration
+    
+    - Updated the GmailOAuthService to manage OAuth flows per window, preventing race conditions.
+    - Removed the setViewManager method and replaced it with direct ViewManager usage in the startAuth method.
+    - Enhanced cleanup logic to restore previous active views after OAuth completion.
+    - Updated the GmailAuthButton and TabBar components to utilize the new GMAIL_CONFIG constants for better maintainability.
+    - Improved error handling and logging during the OAuth process for better user feedback.
+
+[33mcommit 1f8318298564f0d61bdc84428ef2e5014b2da0a2[m
+Author: Michel Osswald <michel-osswald@live.de>
+Date:   Tue Jun 17 15:44:20 2025 +0200
+
+    linting
+
+[33mcommit 2a0d4c6fc662587f27e2f1fb1fef64768588a273[m
+Author: Michel Osswald <michel-osswald@live.de>
+Date:   Tue Jun 17 15:42:55 2025 +0200
+
+    feat: enhance Gmail OAuth flow with tab management and UI updates
+    
+    - Introduced handling for OAuth tab events, allowing dynamic updates to the tab bar during authentication.
+    - Added support for restoring the previous active view after OAuth completion.
+    - Updated the GmailAuthButton component to refresh authentication status via IPC events.
+    - Improved favicon handling for OAuth tabs and ensured they are not closable.
+    - Enhanced error and success response handling in the Gmail service for better user feedback.
+
+[33mcommit d9103fc58a2bcb0b7138994ae4165a93620a78f8[m
+Author: Michel Osswald <michel-osswald@live.de>
+Date:   Sat Jun 14 01:34:42 2025 +0200
+
+    feat: implement Gmail OAuth integration with ViewManager support
+    
+    - Added Gmail OAuth handlers in the IPC for authentication checks and flow initiation.
+    - Integrated ViewManager for managing OAuth browser views.
+    - Enhanced error handling and logging during the authentication process.
+    - Updated Gmail service to support secure credential storage and token revocation.
+    - Introduced new types and constants for Gmail OAuth configuration and responses.
+    - Improved UI components for better user experience during authentication.
+
+[33mcommit d88795efe7cbe0a1911f386a39031e74b16b967a[m
+Merge: 5a2472c f4b501f
+Author: Michel <74599230+michiosw@users.noreply.github.com>
+Date:   Wed Jun 18 11:28:03 2025 +0200
+
+    Merge pull request #13 from co-browser/add-acme-changes
+    
+    feat: remove python dependencies and services
+
+[33mcommit f4b501f761c5f2fef8970ec6590c11b401fb005e[m[33m ([m[1;31morigin/add-acme-changes[m[33m)[m
+Author: Michel Osswald <michel-osswald@live.de>
+Date:   Wed Jun 18 10:51:36 2025 +0200
+
+    Remove unnecessary empty constructor from ToolManager
+
+[33mcommit 778b68eb1ac47b2709abb9b66b5cfc48545cc2fd[m
+Author: Michel Osswald <michel-osswald@live.de>
+Date:   Wed Jun 18 10:47:42 2025 +0200
+
+    Remove phantom createAgent export to clean up API surface
+
+[33mcommit b9f67bf64b30e2c78e5edc4f38531812a8005f4f[m
+Author: Michel Osswald <michel-osswald@live.de>
+Date:   Wed Jun 18 10:46:08 2025 +0200
+
+    Fix ToolManager getTools to return empty array instead of undefined
+
+[33mcommit 7ce2411355e48d18153635d083646188772761b5[m
+Author: Michel Osswald <michel-osswald@live.de>
+Date:   Wed Jun 18 10:42:21 2025 +0200
+
+    Fix GitHub Actions output naming consistency
+
+[33mcommit fe1d9212e369cf7640661e94305a3976c6791362[m
+Author: Michel Osswald <michel-osswald@live.de>
+Date:   Wed Jun 18 10:36:39 2025 +0200
+
+    Remove unused dist-py packaging from electron-builder config
+
+[33mcommit a1e0ae0506faec78664c9ab72e34abe861c2c7c6[m
+Merge: e5ed097 065208d
+Author: Michel <74599230+michiosw@users.noreply.github.com>
+Date:   Wed Jun 18 10:33:55 2025 +0200
+
+    Merge pull request #15 from co-browser/coderabbitai/docstrings/2XM8lHxxrBxVzcvxxek22f
+    
+    📝 Add docstrings to `add-acme-changes`
+
+[33mcommit 065208dbe928cda77d6de8f9766d20d0921d1a3a[m[33m ([m[1;31morigin/coderabbitai/docstrings/2XM8lHxxrBxVzcvxxek22f[m[33m)[m
+Author: coderabbitai[bot] <136622811+coderabbitai[bot]@users.noreply.github.com>
+Date:   Wed Jun 18 08:32:39 2025 +0000
+
+    📝 Add docstrings to `add-acme-changes`
+    
+    Docstrings generation was requested by @michiosw.
+    
+    * https://github.com/co-browser/vibe/pull/13#issuecomment-2983196959
+    
+    The following files were modified:
+    
+    * `apps/electron-app/src/main/browser/session.ts`
+    * `apps/electron-app/src/main/index.ts`
+    * `scripts/dev.js`
+
+[33mcommit e5ed097eae9c8cfda93468a612e4203d9015cec6[m
+Author: Michel Osswald <michel-osswald@live.de>
+Date:   Wed Jun 18 10:10:42 2025 +0200
+
+    Clean up MCP dependencies and fix agent connection errors
+
+[33mcommit 5c998f4c3a1727d70b24b673499f808e278d5067[m
+Author: Michel Osswald <michel-osswald@live.de>
+Date:   Wed Jun 18 09:54:45 2025 +0200
+
+    fix: re-initialize AgentService with IPC integration and error handling
+
+[33mcommit 78679dab8bdf96ea4cbf07cebdb1cd1d9ab070e1[m
+Author: mac <ryan.macarthur@gmail.com>
+Date:   Tue Jun 17 17:02:53 2025 +0200
+
+    Delete .vscode/settings.json
+
+[33mcommit 033e117be4d45f23911a01f91480e6a0c8e1b0ec[m
+Author: Ryan MacArthur <ryan.macarthur@gmail.com>
+Date:   Tue Jun 17 03:31:40 2025 +0200
+
+    feat: remove python dependencies and services
+    
+    ci
+    vibe-llm-rag
+    mcp-service-manager
+    
+    at this commit the agent doesnt work at all but ill add a community commit that has basic versions of above in ts
+
+[33mcommit 5a2472ce8b2af23f0f46de69789a338ea3bf8d99[m
+Merge: 706cd51 92e4fd5
+Author: tumberger <89775310+tumberger@users.noreply.github.com>
+Date:   Sat Jun 14 20:46:47 2025 +0200
+
+    Merge pull request #4 from co-browser/fix/mcp-dev-env-bootstrap
+    
+    fix: process manager to differentiate between development and product…
+
+[33mcommit 92e4fd5b0c045a198e73ea00e69ee35dd7fcc7b6[m[33m ([m[1;31morigin/fix/mcp-dev-env-bootstrap[m[33m)[m
+Author: Michel Osswald <michel-osswald@live.de>
+Date:   Sat Jun 14 01:46:27 2025 +0200
+
+    fix: process manager to differentiate between development and production environments
+
+[33mcommit 706cd5157a8a299441db1ce52826ade1a43dfd19[m[33m ([m[1;33mtag: [m[1;33mv0.1.0[m[33m)[m
+Author: semantic-release-bot <semantic-release-bot@martynus.net>
+Date:   Fri Jun 13 13:57:45 2025 +0000
+
+    chore(release): 0.1.0 [skip ci]
+    
+    ## [0.1.0](https://github.com/co-browser/vibe/compare/v0.0.0...v0.1.0) (2025-06-13)
+    
+    ### Features
+    
+    * initial alpha release ([c8bb820](https://github.com/co-browser/vibe/commit/c8bb8209f73f6a9c72a7d9896c292fe7e991039c))
+
+[33mcommit c8bb8209f73f6a9c72a7d9896c292fe7e991039c[m
+Author: Michel Osswald <michel-osswald@live.de>
+Date:   Fri Jun 13 15:53:42 2025 +0200
+
+    feat: initial alpha release
+
+[33mcommit ded579ec5930f34a5679ac8e032a4d5002f5df39[m[33m ([m[1;33mtag: [m[1;33mv0.0.0[m[33m)[m
+Author: Michel Osswald <michel-osswald@live.de>
+Date:   Fri Jun 13 15:53:03 2025 +0200
+
+    initial commit

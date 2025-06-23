@@ -1,7 +1,6 @@
 import { BrowserWindow, WebContents, app, session } from "electron";
 import { EventEmitter } from "events";
 
-import { WindowManager } from "@/browser/window-manager";
 import { ApplicationWindow } from "@/browser/application-window";
 import { CDPManager } from "../services/cdp-service";
 import { setupApplicationMenu } from "@/menu";
@@ -10,31 +9,29 @@ import { createLogger } from "@vibe/shared-types";
 const logger = createLogger("Browser");
 
 /**
- * Main Browser controller
+ * Simplified Browser controller
  *
  * Coordinates window, tab, and view management
- * Provides unified API for browser operations
+ * Simplified from original 5-layer architecture (Browser → ApplicationWindow → WindowManager → TabManager → ViewManager)
+ * to 3-layer architecture (Browser → Window → View)
  */
 export class Browser extends EventEmitter {
-  private windowManager: any = null;
   private cdpManager!: CDPManager;
   private _isDestroyed: boolean = false;
 
-  // ApplicationWindow management
+  // ApplicationWindow management (maps webContents.id → ApplicationWindow for IPC routing)
   private applicationWindows: Map<number, ApplicationWindow> = new Map();
+  private mainWindow: ApplicationWindow | null = null;
 
   constructor() {
     super();
-    this.initializeManagers();
+    this.initializeServices();
     this.setupMenu();
+    this.setupContentSecurityPolicy();
   }
 
-  private initializeManagers(): void {
-    this.windowManager = new WindowManager(this);
+  private initializeServices(): void {
     this.cdpManager = new CDPManager();
-
-    // Set up Content Security Policy
-    this.setupContentSecurityPolicy();
   }
 
   /**
@@ -80,6 +77,12 @@ export class Browser extends EventEmitter {
     // Listen for destroy event to clean up
     appWindow.once("destroy", () => {
       this.destroyWindowById(appWindow.window.webContents.id);
+      // Clear main window reference if this was the main window
+      if (this.mainWindow === appWindow) {
+        const remainingWindows = Array.from(this.applicationWindows.values());
+        this.mainWindow =
+          remainingWindows.length > 0 ? remainingWindows[0] : null;
+      }
     });
 
     return appWindow;
@@ -113,45 +116,52 @@ export class Browser extends EventEmitter {
 
   /**
    * Creates a new browser window with initial tab
+   * Simplified from WindowManager delegation to direct creation
    */
   public async createWindow(): Promise<BrowserWindow> {
     await app.whenReady();
-    const window = await this.windowManager.createWindow();
 
-    // Create initial tab for the new window (use webContents ID for lookup)
-    const appWindow = this.getApplicationWindow(window.webContents.id);
+    // Create ApplicationWindow directly (no WindowManager layer)
+    const appWindow = this.createApplicationWindow();
 
-    if (appWindow) {
-      appWindow.tabManager.createTab("https://www.google.com");
-    } else {
-      logger.error(
-        "❌ Failed to find ApplicationWindow for webContents ID:",
-        window.webContents.id,
-      );
+    // Set as main window if first window
+    if (!this.mainWindow) {
+      this.mainWindow = appWindow;
     }
 
-    return window;
+    // Create initial tab
+    appWindow.tabManager.createTab("https://www.google.com");
+
+    return appWindow.window;
   }
 
   /**
    * Gets the main window
    */
   public getMainWindow(): BrowserWindow | null {
-    return this.windowManager?.getMainWindow() || null;
+    return this.mainWindow?.window || null;
   }
 
   /**
    * Gets all windows
    */
   public getAllWindows(): BrowserWindow[] {
-    return this.windowManager?.getAllWindows() || [];
+    return Array.from(this.applicationWindows.values()).map(
+      appWindow => appWindow.window,
+    );
   }
 
   /**
    * Gets window by ID
    */
   public getWindowById(windowId: number): BrowserWindow | null {
-    return this.windowManager?.getWindowById(windowId) || null;
+    const appWindows = Array.from(this.applicationWindows.values());
+    for (const appWindow of appWindows) {
+      if (appWindow.window.id === windowId) {
+        return appWindow.window;
+      }
+    }
+    return null;
   }
 
   /**
@@ -160,7 +170,13 @@ export class Browser extends EventEmitter {
   public getWindowFromWebContents(
     webContents: WebContents,
   ): BrowserWindow | null {
-    return this.windowManager?.getWindowFromWebContents(webContents) || null;
+    const appWindows = Array.from(this.applicationWindows.values());
+    for (const appWindow of appWindows) {
+      if (appWindow.window.webContents === webContents) {
+        return appWindow.window;
+      }
+    }
+    return null;
   }
 
   /**
@@ -183,45 +199,36 @@ export class Browser extends EventEmitter {
   public destroy(): void {
     if (this._isDestroyed) return;
 
-    logger.debug("🧹 Browser: Starting cleanup process...");
+    logger.debug("Starting browser cleanup process...");
     this._isDestroyed = true;
 
     // Clean up all ApplicationWindows
     logger.debug(
-      "🧹 Browser: Destroying",
+      "Destroying",
       this.applicationWindows.size,
       "ApplicationWindows",
     );
-    for (const [webContentsId, appWindow] of this.applicationWindows) {
+    const appWindowsArray = Array.from(this.applicationWindows.entries());
+    for (const [webContentsId, appWindow] of appWindowsArray) {
       try {
-        logger.debug("🧹 Browser: Destroying ApplicationWindow", webContentsId);
+        logger.debug("Destroying ApplicationWindow", webContentsId);
         appWindow.destroy();
       } catch (error) {
         logger.warn("Error destroying ApplicationWindow:", error);
       }
     }
     this.applicationWindows.clear();
-
-    // Clean up WindowManager
-    if (this.windowManager) {
-      logger.debug("🧹 Browser: Destroying WindowManager");
-      try {
-        this.windowManager.destroy();
-      } catch (error) {
-        logger.warn("Error destroying WindowManager:", error);
-      }
-      this.windowManager = null;
-    }
+    this.mainWindow = null;
 
     // Clean up CDPManager
     if (this.cdpManager) {
-      logger.debug("🧹 Browser: Cleaning up CDPManager");
+      logger.debug("Cleaning up CDPManager");
       // CDPManager cleanup will happen when the process exits
     }
 
     this.emit("destroy");
     this.removeAllListeners();
 
-    logger.debug("🧹 Browser: Cleanup complete");
+    logger.debug("Browser cleanup complete");
   }
 }
