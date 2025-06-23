@@ -7,7 +7,7 @@ import {
 
 /**
  * Simplified View Management
- * 
+ *
  * Handles WebContentsView creation, bounds management, and visibility control.
  * Simplified from the original ViewManager by removing complex state management
  * and focusing on core view operations.
@@ -104,14 +104,20 @@ export class ViewManager {
     let viewWidth = windowWidth - GLASSMORPHISM_CONFIG.PADDING * 2;
     if (this.isChatPanelVisible) {
       const chatPanelWidth = CHAT_PANEL.DEFAULT_WIDTH;
-      viewWidth = Math.max(1, windowWidth - chatPanelWidth - GLASSMORPHISM_CONFIG.PADDING * 2);
+      viewWidth = Math.max(
+        1,
+        windowWidth - chatPanelWidth - GLASSMORPHISM_CONFIG.PADDING * 2,
+      );
     }
 
     const bounds = {
       x: GLASSMORPHISM_CONFIG.PADDING,
       y: chromeHeight + GLASSMORPHISM_CONFIG.PADDING,
       width: viewWidth,
-      height: Math.max(1, windowHeight - chromeHeight - GLASSMORPHISM_CONFIG.PADDING * 2),
+      height: Math.max(
+        1,
+        windowHeight - chromeHeight - GLASSMORPHISM_CONFIG.PADDING * 2,
+      ),
     };
 
     if (bounds.width > 0 && bounds.height > 0) {
@@ -132,7 +138,8 @@ export class ViewManager {
    * Toggles chat panel visibility
    */
   public toggleChatPanel(isVisible?: boolean): void {
-    this.isChatPanelVisible = isVisible !== undefined ? isVisible : !this.isChatPanelVisible;
+    this.isChatPanelVisible =
+      isVisible !== undefined ? isVisible : !this.isChatPanelVisible;
     this.updateAllViewBounds();
   }
 

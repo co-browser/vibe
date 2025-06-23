@@ -80,7 +80,8 @@ export class Browser extends EventEmitter {
       // Clear main window reference if this was the main window
       if (this.mainWindow === appWindow) {
         const remainingWindows = Array.from(this.applicationWindows.values());
-        this.mainWindow = remainingWindows.length > 0 ? remainingWindows[0] : null;
+        this.mainWindow =
+          remainingWindows.length > 0 ? remainingWindows[0] : null;
       }
     });
 
@@ -119,10 +120,10 @@ export class Browser extends EventEmitter {
    */
   public async createWindow(): Promise<BrowserWindow> {
     await app.whenReady();
-    
+
     // Create ApplicationWindow directly (no WindowManager layer)
     const appWindow = this.createApplicationWindow();
-    
+
     // Set as main window if first window
     if (!this.mainWindow) {
       this.mainWindow = appWindow;
@@ -145,7 +146,9 @@ export class Browser extends EventEmitter {
    * Gets all windows
    */
   public getAllWindows(): BrowserWindow[] {
-    return Array.from(this.applicationWindows.values()).map(appWindow => appWindow.window);
+    return Array.from(this.applicationWindows.values()).map(
+      appWindow => appWindow.window,
+    );
   }
 
   /**
@@ -164,7 +167,9 @@ export class Browser extends EventEmitter {
   /**
    * Gets window from web contents
    */
-  public getWindowFromWebContents(webContents: WebContents): BrowserWindow | null {
+  public getWindowFromWebContents(
+    webContents: WebContents,
+  ): BrowserWindow | null {
     const appWindows = Array.from(this.applicationWindows.values());
     for (const appWindow of appWindows) {
       if (appWindow.window.webContents === webContents) {
@@ -198,7 +203,11 @@ export class Browser extends EventEmitter {
     this._isDestroyed = true;
 
     // Clean up all ApplicationWindows
-    logger.debug("Destroying", this.applicationWindows.size, "ApplicationWindows");
+    logger.debug(
+      "Destroying",
+      this.applicationWindows.size,
+      "ApplicationWindows",
+    );
     const appWindowsArray = Array.from(this.applicationWindows.entries());
     for (const [webContentsId, appWindow] of appWindowsArray) {
       try {
