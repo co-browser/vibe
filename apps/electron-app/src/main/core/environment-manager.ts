@@ -1,6 +1,10 @@
 import { app } from "electron";
 import { config } from "dotenv";
-import { createLogger, MAIN_PROCESS_CONFIG, findFileUpwards } from "@vibe/shared-types";
+import {
+  createLogger,
+  MAIN_PROCESS_CONFIG,
+  findFileUpwards,
+} from "@vibe/shared-types";
 import {
   init,
   browserWindowSessionIntegration,
@@ -11,14 +15,14 @@ const logger = createLogger("EnvironmentManager");
 
 /**
  * Environment Manager - Centralized Environment Setup
- * 
+ *
  * Handles all environment-related configuration:
  * - Environment variable loading (.env files)
  * - Command line argument setup
  * - Sentry initialization
  * - Log level configuration
  * - Development vs production setup
- * 
+ *
  * Replaces scattered environment setup from main process.
  */
 export class EnvironmentManager {
@@ -136,7 +140,10 @@ export class EnvironmentManager {
         "enable-features",
         "NetworkService,NetworkServiceInProcess",
       );
-      app.commandLine.appendSwitch("enable-blink-features", "MojoJS,MojoJSTest");
+      app.commandLine.appendSwitch(
+        "enable-blink-features",
+        "MojoJS,MojoJSTest",
+      );
 
       logger.info("Command line arguments configured");
     } catch (error) {
@@ -153,7 +160,10 @@ export class EnvironmentManager {
       init({
         dsn: "https://21ac611f0272b8931073fa7ecc36c600@o4509464945623040.ingest.de.sentry.io/4509464948899920",
         debug: !isProd,
-        integrations: [browserWindowSessionIntegration(), childProcessIntegration()],
+        integrations: [
+          browserWindowSessionIntegration(),
+          childProcessIntegration(),
+        ],
         tracesSampleRate: isProd ? 0.1 : 1.0,
         tracePropagationTargets: ["localhost"],
         onFatalError: () => {
@@ -162,7 +172,9 @@ export class EnvironmentManager {
         },
       });
 
-      logger.info(`Sentry initialized for ${isProd ? "production" : "development"}`);
+      logger.info(
+        `Sentry initialized for ${isProd ? "production" : "development"}`,
+      );
     } catch (error) {
       logger.error("Failed to initialize Sentry:", error);
       // Continue without Sentry
@@ -185,7 +197,9 @@ export class EnvironmentManager {
 
     // Check for important environment variables
     if (!info.hasOpenAIKey) {
-      logger.warn("OPENAI_API_KEY not found in environment - some features will be disabled");
+      logger.warn(
+        "OPENAI_API_KEY not found in environment - some features will be disabled",
+      );
     }
 
     // Log app information

@@ -7,13 +7,13 @@ const logger = createLogger("ServiceManager");
 
 /**
  * Service Manager - Centralized Service Lifecycle Management
- * 
+ *
  * Simplifies and centralizes the management of all application services:
  * - AgentService (AI agent functionality)
  * - MCPService (Model Context Protocol)
  * - Memory monitoring
  * - Clean initialization and shutdown
- * 
+ *
  * Replaces scattered service initialization logic from main process.
  */
 export class ServiceManager {
@@ -189,12 +189,16 @@ export class ServiceManager {
 
   private async initializeAgentService(): Promise<void> {
     if (!process.env.OPENAI_API_KEY) {
-      logger.warn("OPENAI_API_KEY not found, skipping agent service initialization");
+      logger.warn(
+        "OPENAI_API_KEY not found, skipping agent service initialization",
+      );
       return;
     }
 
     try {
-      logger.info("Initializing AgentService with utility process isolation...");
+      logger.info(
+        "Initializing AgentService with utility process isolation...",
+      );
 
       // Create AgentService instance
       this.agentService = new AgentService();
@@ -219,7 +223,9 @@ export class ServiceManager {
         processorType: "react",
       });
 
-      logger.info("AgentService initialized successfully with utility process isolation");
+      logger.info(
+        "AgentService initialized successfully with utility process isolation",
+      );
     } catch (error) {
       logger.error("AgentService initialization failed:", error);
       logger.warn("Application will continue without agent service");

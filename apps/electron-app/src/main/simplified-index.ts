@@ -1,12 +1,12 @@
 /**
  * Simplified Main Process Entry Point
- * 
+ *
  * Replaces the complex 578-line main/index.ts with a clean, modular approach:
  * - AppManager handles application lifecycle
  * - ServiceManager handles service initialization
  * - EnvironmentManager handles configuration
  * - Consolidated IPC system
- * 
+ *
  * Reduction: 578 lines → ~50 lines (91% reduction)
  * Improvement: Better separation of concerns, easier testing, cleaner error handling
  */
@@ -56,7 +56,7 @@ async function createInitialWindow(): Promise<void> {
 
   try {
     const mainWindow = await appManager.createInitialWindow();
-    
+
     if (mainWindow) {
       // Initialize updater service
       const isProd = process.env.NODE_ENV === "production";

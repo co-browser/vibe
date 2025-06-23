@@ -11,13 +11,13 @@ const logger = createLogger("AppManager");
 
 /**
  * App Manager - Simplified Application Lifecycle Management
- * 
+ *
  * Centralizes and simplifies the main process initialization and lifecycle:
  * - Clean service management through ServiceManager
  * - Consolidated IPC system integration
  * - Simplified window management
  * - Graceful shutdown handling
- * 
+ *
  * Replaces the complex 578-line main/index.ts with focused, modular approach.
  */
 export class AppManager {
@@ -233,7 +233,7 @@ export class AppManager {
 
   private setupErrorHandling(): void {
     // Graceful error handling without showing dialogs in development
-    process.on("uncaughtException", (error) => {
+    process.on("uncaughtException", error => {
       logger.error("Uncaught exception:", error);
       if (!this.isShuttingDown) {
         // Log only, don't exit in development
@@ -243,8 +243,9 @@ export class AppManager {
       }
     });
 
-    process.on("unhandledRejection", (reason) => {
-      const error = reason instanceof Error ? reason : new Error(String(reason));
+    process.on("unhandledRejection", reason => {
+      const error =
+        reason instanceof Error ? reason : new Error(String(reason));
       logger.error("Unhandled rejection:", error);
       if (!this.isShuttingDown && app.isPackaged) {
         this.shutdown("UNHANDLED_REJECTION");
