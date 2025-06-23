@@ -1,0 +1,240 @@
+{
+  "timestamp": "2025-06-23T12:57:58.685Z",
+  "environment": {
+    "node": "v22.16.0",
+    "platform": "linux",
+    "arch": "x64"
+  },
+  "results": [
+    {
+      "timestamp": "2025-06-23T12:57:58.648Z",
+      "type": "info",
+      "message": "🚀 Starting Production Test Suite for Vibe Electron App"
+    },
+    {
+      "timestamp": "2025-06-23T12:57:58.650Z",
+      "type": "test",
+      "message": "Starting test: Package Artifacts Exist"
+    },
+    {
+      "timestamp": "2025-06-23T12:57:58.650Z",
+      "type": "info",
+      "message": "✓ Found vibe-0.1.0.AppImage (108.9MB)"
+    },
+    {
+      "timestamp": "2025-06-23T12:57:58.650Z",
+      "type": "info",
+      "message": "✓ Found vibe_0.1.0_amd64.deb (77.8MB)"
+    },
+    {
+      "timestamp": "2025-06-23T12:57:58.651Z",
+      "type": "info",
+      "message": "✓ Found vibe_0.1.0_amd64.snap (91.9MB)"
+    },
+    {
+      "timestamp": "2025-06-23T12:57:58.651Z",
+      "type": "info",
+      "message": "✓ AppImage has executable permissions"
+    },
+    {
+      "timestamp": "2025-06-23T12:57:58.651Z",
+      "type": "pass",
+      "message": "✅ PASSED: Package Artifacts Exist"
+    },
+    {
+      "timestamp": "2025-06-23T12:57:58.651Z",
+      "type": "test",
+      "message": "Starting test: AppImage Structure"
+    },
+    {
+      "timestamp": "2025-06-23T12:57:58.651Z",
+      "type": "info",
+      "message": "✓ Found vibe"
+    },
+    {
+      "timestamp": "2025-06-23T12:57:58.651Z",
+      "type": "info",
+      "message": "✓ Found resources"
+    },
+    {
+      "timestamp": "2025-06-23T12:57:58.651Z",
+      "type": "info",
+      "message": "✓ Found resources/app.asar"
+    },
+    {
+      "timestamp": "2025-06-23T12:57:58.651Z",
+      "type": "info",
+      "message": "✓ Main executable has correct permissions"
+    },
+    {
+      "timestamp": "2025-06-23T12:57:58.651Z",
+      "type": "pass",
+      "message": "✅ PASSED: AppImage Structure"
+    },
+    {
+      "timestamp": "2025-06-23T12:57:58.651Z",
+      "type": "test",
+      "message": "Starting test: Protocol Registration"
+    },
+    {
+      "timestamp": "2025-06-23T12:57:58.652Z",
+      "type": "info",
+      "message": "✓ Protocol registered: vibe"
+    },
+    {
+      "timestamp": "2025-06-23T12:57:58.652Z",
+      "type": "info",
+      "message": "✓ Protocol name: vibe-protocol"
+    },
+    {
+      "timestamp": "2025-06-23T12:57:58.652Z",
+      "type": "pass",
+      "message": "✅ PASSED: Protocol Registration"
+    },
+    {
+      "timestamp": "2025-06-23T12:57:58.652Z",
+      "type": "test",
+      "message": "Starting test: Deep-link URL Validation"
+    },
+    {
+      "timestamp": "2025-06-23T12:57:58.653Z",
+      "type": "info",
+      "message": "✓ Valid deep-link URL: vibe://auth?token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1..."
+    },
+    {
+      "timestamp": "2025-06-23T12:57:58.653Z",
+      "type": "info",
+      "message": "✓ Valid deep-link URL: vibe://open?page=chat&tabId=abc123..."
+    },
+    {
+      "timestamp": "2025-06-23T12:57:58.653Z",
+      "type": "info",
+      "message": "✓ Valid deep-link URL: vibe://auth?token=invalid..."
+    },
+    {
+      "timestamp": "2025-06-23T12:57:58.653Z",
+      "type": "info",
+      "message": "✓ Valid deep-link URL: vibe://open?page=settings..."
+    },
+    {
+      "timestamp": "2025-06-23T12:57:58.653Z",
+      "type": "pass",
+      "message": "✅ PASSED: Deep-link URL Validation"
+    },
+    {
+      "timestamp": "2025-06-23T12:57:58.653Z",
+      "type": "test",
+      "message": "Starting test: Authentication Components"
+    },
+    {
+      "timestamp": "2025-06-23T12:57:58.653Z",
+      "type": "info",
+      "message": "✓ Found auth component: AuthGuard.tsx"
+    },
+    {
+      "timestamp": "2025-06-23T12:57:58.653Z",
+      "type": "info",
+      "message": "✓ Found auth component: UserProfile.tsx"
+    },
+    {
+      "timestamp": "2025-06-23T12:57:58.653Z",
+      "type": "info",
+      "message": "✓ Found auth component: PrivyAuthProvider.tsx"
+    },
+    {
+      "timestamp": "2025-06-23T12:57:58.653Z",
+      "type": "info",
+      "message": "✓ Found auth component: useAuthSync.ts"
+    },
+    {
+      "timestamp": "2025-06-23T12:57:58.653Z",
+      "type": "info",
+      "message": "✓ Found auth component: useDeepLinkAuth.ts"
+    },
+    {
+      "timestamp": "2025-06-23T12:57:58.653Z",
+      "type": "info",
+      "message": "✓ Found auth component: auth-verification.ts"
+    },
+    {
+      "timestamp": "2025-06-23T12:57:58.653Z",
+      "type": "info",
+      "message": "✓ Found auth component: deep-link-service.ts"
+    },
+    {
+      "timestamp": "2025-06-23T12:57:58.653Z",
+      "type": "pass",
+      "message": "✅ PASSED: Authentication Components"
+    },
+    {
+      "timestamp": "2025-06-23T12:57:58.653Z",
+      "type": "test",
+      "message": "Starting test: Environment Configuration"
+    },
+    {
+      "timestamp": "2025-06-23T12:57:58.653Z",
+      "type": "info",
+      "message": "✓ Found required env var: VITE_PRIVY_APP_ID"
+    },
+    {
+      "timestamp": "2025-06-23T12:57:58.653Z",
+      "type": "pass",
+      "message": "✅ PASSED: Environment Configuration"
+    },
+    {
+      "timestamp": "2025-06-23T12:57:58.653Z",
+      "type": "test",
+      "message": "Starting test: Main Process Services"
+    },
+    {
+      "timestamp": "2025-06-23T12:57:58.653Z",
+      "type": "info",
+      "message": "✓ Validated service: deep-link-service.ts"
+    },
+    {
+      "timestamp": "2025-06-23T12:57:58.653Z",
+      "type": "info",
+      "message": "✓ Validated service: auth-verification.ts"
+    },
+    {
+      "timestamp": "2025-06-23T12:57:58.653Z",
+      "type": "pass",
+      "message": "✅ PASSED: Main Process Services"
+    },
+    {
+      "timestamp": "2025-06-23T12:57:58.653Z",
+      "type": "test",
+      "message": "Starting test: Dashboard Connectivity"
+    },
+    {
+      "timestamp": "2025-06-23T12:57:58.670Z",
+      "type": "info",
+      "message": "✓ Test dashboard is accessible at http://localhost:3001"
+    },
+    {
+      "timestamp": "2025-06-23T12:57:58.678Z",
+      "type": "info",
+      "message": "✓ API endpoint accessible: /api/auth/status (401)"
+    },
+    {
+      "timestamp": "2025-06-23T12:57:58.685Z",
+      "type": "info",
+      "message": "✓ API endpoint accessible: /api/auth/login (405)"
+    },
+    {
+      "timestamp": "2025-06-23T12:57:58.685Z",
+      "type": "pass",
+      "message": "✅ PASSED: Dashboard Connectivity"
+    },
+    {
+      "timestamp": "2025-06-23T12:57:58.685Z",
+      "type": "info",
+      "message": "\n📊 Test Results: 8/8 tests passed"
+    },
+    {
+      "timestamp": "2025-06-23T12:57:58.685Z",
+      "type": "success",
+      "message": "🎉 All tests passed! Production build is ready."
+    }
+  ]
+}

@@ -11,10 +11,11 @@ import { Messages } from "@/components/chat/Messages";
 import { ChatWelcome } from "@/components/chat/ChatWelcome";
 import { AgentStatusIndicator } from "@/components/chat/StatusIndicator";
 import { ChatInput } from "@/components/chat/ChatInput";
+import { AuthGuard } from "@/components/auth/AuthGuard";
 
 import "@/components/styles/ChatView.css";
 
-export function ChatPage(): React.JSX.Element {
+function ProtectedChatContent(): React.JSX.Element {
   const { tabContext } = useAppStore(state => ({
     tabContext: state.requestedTabContext,
   }));
@@ -126,5 +127,13 @@ export function ChatPage(): React.JSX.Element {
         />
       </div>
     </div>
+  );
+}
+
+export function ChatPage(): React.JSX.Element {
+  return (
+    <AuthGuard>
+      <ProtectedChatContent />
+    </AuthGuard>
   );
 }

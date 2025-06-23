@@ -23,6 +23,12 @@ import { setAgentServiceInstance as setAgentStatusInstance } from "@/ipc/chat/ag
 import { setAgentServiceInstance as setChatMessagingInstance } from "@/ipc/chat/chat-messaging";
 import { setAgentServiceInstance as setTabAgentInstance } from "@/utils/tab-agent";
 import {
+  setupAuthIPC,
+  setupAuthCleanup,
+  cleanupAuthIPC,
+} from "@/ipc/auth/auth-ipc";
+import { DeepLinkService } from "@/services/deep-link-service";
+import {
   createLogger,
   MAIN_PROCESS_CONFIG,
   findFileUpwards,
@@ -78,6 +84,9 @@ let agentService: AgentService | null = null;
 
 // Global MCP service instance
 let mcpService: MCPService | null = null;
+
+// Global deep-link service instance
+let deepLinkService: DeepLinkService | null = null;
 
 // Track shutdown state
 let isShuttingDown = false;
@@ -195,6 +204,9 @@ async function gracefulShutdown(signal: string): Promise<void> {
     if (unsubscribeVibe) {
       unsubscribeVibe();
     }
+
+    // Cleanup authentication IPC handlers
+    cleanupAuthIPC();
 
     // Destroy browser instance (will clean up its own menu)
     if (browser) {
@@ -344,6 +356,10 @@ function initializeApp(): boolean {
   // Initialize the Browser
   browser = new Browser();
 
+  // Initialize deep-link service for auto-login from web dashboard
+  deepLinkService = new DeepLinkService();
+  deepLinkService.initialize();
+
   // Setup chat panel recovery system
   setupChatPanelRecovery();
 
@@ -361,6 +377,10 @@ function initializeApp(): boolean {
 
   // Register IPC handlers
   unsubscribeVibe = registerAllIpcHandlers(browser);
+
+  // Setup authentication IPC and cleanup
+  setupAuthIPC();
+  setupAuthCleanup();
 
   // Initialize memory monitoring
   memoryMonitor = setupMemoryMonitoring();

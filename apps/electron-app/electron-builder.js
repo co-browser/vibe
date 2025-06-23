@@ -1,5 +1,13 @@
 module.exports = {
   productName: "vibe",
+  
+  // Deep-link protocol configuration
+  protocols: [{
+    name: "vibe-protocol",
+    schemes: ["vibe"],
+    role: "Editor"
+  }],
+  
   directories: {
     buildResources: "build",
   },

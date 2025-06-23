@@ -3,6 +3,8 @@ import NavigationBar from "../layout/NavigationBar";
 import ChromeTabBar from "../layout/TabBar";
 import { ChatPage } from "../../pages/chat/ChatPage";
 import { ChatErrorBoundary } from "../ui/error-boundary";
+import { useAuthSync } from "../../hooks/useAuthSync";
+import { useDeepLinkAuth } from "../../hooks/useDeepLinkAuth";
 import {
   CHAT_PANEL,
   CHAT_PANEL_RECOVERY,
@@ -377,6 +379,12 @@ function BrowserLayout(): React.JSX.Element {
 export function MainApp(): React.JSX.Element {
   const [isReady, setIsReady] = useState(false);
   const [vibeAPIReady, setVibeAPIReady] = useState(false);
+
+  // Sync authentication state with main process
+  useAuthSync();
+
+  // Handle deep-link authentication
+  useDeepLinkAuth();
 
   useEffect(() => {
     const checkVibeAPI = () => {

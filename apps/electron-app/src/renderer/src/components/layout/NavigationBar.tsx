@@ -14,6 +14,7 @@ import {
   GlobalOutlined,
   LinkOutlined,
 } from "@ant-design/icons";
+import { UserProfile } from "../auth/UserProfile";
 import "../styles/NavigationBar.css";
 
 interface Suggestion {
@@ -206,16 +207,18 @@ const NavigationBar: React.FC = () => {
     return domainRegex.test(string);
   };
 
-  const detectInputType = (input: string): "url" | "domain" | "search" => {
-    if (isValidURL(input)) return "url";
-    if (isDomain(input)) return "domain";
-    return "search";
-  };
-
   // Generate intelligent suggestions using vibe APIs
   const generateRealSuggestions = useCallback(
     async (input: string): Promise<Suggestion[]> => {
       if (!input.trim()) return [];
+
+      const detectInputType = (
+        inputToCheck: string,
+      ): "url" | "domain" | "search" => {
+        if (isValidURL(inputToCheck)) return "url";
+        if (isDomain(inputToCheck)) return "domain";
+        return "search";
+      };
 
       const suggestions: Suggestion[] = [];
       const inputType = detectInputType(input);
@@ -313,7 +316,7 @@ const NavigationBar: React.FC = () => {
 
       return suggestions.slice(0, 6); // Limit to 6 suggestions
     },
-    [currentTabKey, detectInputType],
+    [currentTabKey],
   );
 
   // Navigation handlers using vibe APIs
@@ -574,6 +577,10 @@ const NavigationBar: React.FC = () => {
             </div>
           )}
         </div>
+      </div>
+
+      <div className="nav-user-section">
+        <UserProfile />
       </div>
     </div>
   );

@@ -2,6 +2,7 @@ import { ipcMain } from "electron";
 import type { ChatMessage, IAgentProvider } from "@vibe/shared-types";
 import { createLogger } from "@vibe/shared-types";
 import { mainStore } from "@/store/store";
+import { requireAuth } from "../auth/auth-verification";
 
 const logger = createLogger("chat-messaging");
 
@@ -29,6 +30,17 @@ function getAgentService(): IAgentProvider | null {
 }
 
 ipcMain.on("chat:send-message", async (event, message: string) => {
+  // Check authentication before allowing agent access
+  if (!requireAuth(event.sender.id)) {
+    logger.warn("Unauthorized chat message attempt");
+    event.sender.send("chat:message", {
+      type: "error",
+      error:
+        "Authentication required. Please sign in to access agent capabilities.",
+    });
+    return;
+  }
+
   const agentService = getAgentService();
 
   if (typeof message !== "string" || message.trim().length === 0) {

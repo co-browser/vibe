@@ -313,4 +313,13 @@
   box-shadow: 0 0 0 2px var(--input-focus);
 }
 
+/* User profile section */
+.nav-user-section {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin-left: 12px;
+  -webkit-app-region: no-drag;
+}
+
 /* Additional dark mode removed - using light theme exclusively */
