@@ -1,29 +1,29 @@
 import React, { useState, useEffect, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { 
-  Lightbulb, 
-  ChevronDown, 
-  ChevronRight, 
-  Wrench, 
+import {
+  Lightbulb,
+  ChevronDown,
+  ChevronRight,
+  Wrench,
   Globe,
   CheckCircle,
   XCircle,
-  Loader2
+  Loader2,
 } from "lucide-react";
 import { Tooltip } from "antd";
 import { markdownComponents } from "../ui/markdown-components";
 
 /**
  * Unified UI Components - Consolidated Display Components
- * 
+ *
  * Consolidates multiple UI components into a single module:
  * - ReasoningDisplay
- * - ToolCallDisplay  
+ * - ToolCallDisplay
  * - BrowserProgressDisplay
  * - StatusIndicator
  * - FaviconPill
- * 
+ *
  * Benefits:
  * - Reduced bundle size through shared components
  * - Consistent styling and behavior
@@ -65,10 +65,12 @@ const CollapsibleDisplay: React.FC<CollapsibleContentProps> = ({
   const [manuallyToggled, setManuallyToggled] = useState(false);
 
   const isCollapsed = controlledCollapsed ?? internalCollapsed;
-  const onToggle = controlledToggle ?? (() => {
-    setInternalCollapsed(!internalCollapsed);
-    setManuallyToggled(true);
-  });
+  const onToggle =
+    controlledToggle ??
+    (() => {
+      setInternalCollapsed(!internalCollapsed);
+      setManuallyToggled(true);
+    });
 
   // Auto-collapse logic for live content
   useEffect(() => {
@@ -101,18 +103,15 @@ const CollapsibleDisplay: React.FC<CollapsibleContentProps> = ({
     return undefined;
   }, [contentComplete, isCollapsed, manuallyToggled]);
 
-  const displayTitle = isLive && !contentComplete ? (activeTitle || title) : title;
+  const displayTitle =
+    isLive && !contentComplete ? activeTitle || title : title;
   const iconClassName = `${className}__icon ${isLive && !contentComplete ? `${className}__icon--active` : ""}`;
 
   return (
     <div className={`${className}__container`}>
       <div className={`${className}__header`} onClick={onToggle}>
-        <div className={iconClassName}>
-          {icon}
-        </div>
-        <span className={`${className}__label`}>
-          {displayTitle}
-        </span>
+        <div className={iconClassName}>{icon}</div>
+        <span className={`${className}__label`}>{displayTitle}</span>
         {isCollapsed ? (
           <ChevronRight className={`${className}__chevron`} />
         ) : (
@@ -182,7 +181,7 @@ export const ToolCallDisplay: React.FC<ToolCallDisplayProps> = ({
 }) => {
   const formatArgs = useCallback(() => {
     if (!toolArgs) return "No arguments";
-    
+
     try {
       return JSON.stringify(toolArgs, null, 2);
     } catch {
@@ -206,9 +205,7 @@ export const ToolCallDisplay: React.FC<ToolCallDisplayProps> = ({
         {toolArgs && (
           <div className="tool-call__args">
             <strong>Arguments:</strong>
-            <pre className="tool-call__args-content">
-              {formatArgs()}
-            </pre>
+            <pre className="tool-call__args-content">{formatArgs()}</pre>
           </div>
         )}
       </div>
@@ -237,7 +234,7 @@ export const BrowserProgressDisplay: React.FC<BrowserProgressDisplayProps> = ({
       {...props}
     >
       <div className="browser-progress__content">
-        {progressText.split('\n').map((line, index) => (
+        {progressText.split("\n").map((line, index) => (
           <div key={index} className="browser-progress__line">
             {line}
           </div>
@@ -296,8 +293,8 @@ export const StatusIndicator: React.FC<StatusIndicatorProps> = ({
 
   const sizeClasses = {
     sm: "w-3 h-3",
-    md: "w-4 h-4", 
-    lg: "w-5 h-5"
+    md: "w-4 h-4",
+    lg: "w-5 h-5",
   };
 
   return (
@@ -339,7 +336,7 @@ export const FaviconPill: React.FC<FaviconPillProps> = ({
   const sizeClasses = {
     sm: "w-4 h-4 text-xs",
     md: "w-6 h-6 text-sm",
-    lg: "w-8 h-8 text-base"
+    lg: "w-8 h-8 text-base",
   };
 
   const content = (
@@ -440,14 +437,11 @@ export const TabContextDisplay: React.FC<TabContextDisplayProps> = ({
   return (
     <div className="tab-context-display">
       {sharedLoadingEntry && (
-        <FaviconPill
-          tooltipTitle="Loading tabs..."
-          size="md"
-        >
+        <FaviconPill tooltipTitle="Loading tabs..." size="md">
           {renderTabStack(sharedLoadingEntry.loadingTabs || [], true)}
         </FaviconPill>
       )}
-      
+
       {completedTabs.map(tab => (
         <FaviconPill
           key={tab.key}
@@ -457,7 +451,7 @@ export const TabContextDisplay: React.FC<TabContextDisplayProps> = ({
           size="sm"
         />
       ))}
-      
+
       {regularTabs.map(tab => (
         <FaviconPill
           key={tab.key}
@@ -467,7 +461,7 @@ export const TabContextDisplay: React.FC<TabContextDisplayProps> = ({
           size="sm"
         />
       ))}
-      
+
       {hasMoreTabs && (
         <div className="tab-context__more">
           <span className="tab-context__more-count">+{moreTabsCount}</span>

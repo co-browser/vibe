@@ -1,26 +1,26 @@
-import React, { 
-  useState, 
-  useEffect, 
-  useRef, 
-  useCallback, 
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
   useMemo,
   useContext,
-  createContext
+  createContext,
 } from "react";
 import type { ChatMessage } from "@vibe/shared-types";
 
 /**
  * Unified Hooks - Consolidated Hook System
- * 
+ *
  * Consolidates multiple hooks into optimized, focused functionality:
  * - useAgentStatus
- * - useAutoScroll  
+ * - useAutoScroll
  * - useChatInput
  * - useChatEvents
  * - useTabContext
  * - useBrowserProgress
  * - useStreamingContent
- * 
+ *
  * Benefits:
  * - Reduced hook overhead through consolidation
  * - Better performance with shared state
@@ -71,7 +71,9 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | null>(null);
 
-export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
   // Centralized state management
   const [agentStatus, setAgentStatus] = useState<AgentStatus>({
     isActive: false,
@@ -90,7 +92,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   });
 
   const [tabContext, setTabContext] = useState<TabContextItem[]>([]);
-  
+
   const [browserProgress, setBrowserProgress] = useState<BrowserProgress>({
     isActive: false,
     currentAction: "",
@@ -105,14 +107,16 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       try {
         // Agent status monitoring
         if (window.vibe?.chat) {
-          const agentCleanup = window.vibe.chat.onAgentStatusChanged((status: any) => {
-            setAgentStatus(prev => ({
-              ...prev,
-              isActive: status.isActive || false,
-              isProcessing: status.isProcessing || false,
-              lastActivity: status.lastActivity || Date.now(),
-            }));
-          });
+          const agentCleanup = window.vibe.chat.onAgentStatusChanged(
+            (status: any) => {
+              setAgentStatus(prev => ({
+                ...prev,
+                isActive: status.isActive || false,
+                isProcessing: status.isProcessing || false,
+                lastActivity: status.lastActivity || Date.now(),
+              }));
+            },
+          );
           cleanupFunctions.push(agentCleanup);
 
           // Initial agent status
@@ -126,20 +130,20 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
         // Tab context monitoring
         if (window.vibe?.tabs) {
-          const tabCleanup = window.vibe.tabs.onTabStateUpdate((tabState: any) => {
-            setTabContext(prev => {
-              const existing = prev.find(tab => tab.key === tabState.key);
-              if (existing) {
-                return prev.map(tab => 
-                  tab.key === tabState.key 
-                    ? { ...tab, ...tabState }
-                    : tab
-                );
-              } else {
-                return [...prev, tabState];
-              }
-            });
-          });
+          const tabCleanup = window.vibe.tabs.onTabStateUpdate(
+            (tabState: any) => {
+              setTabContext(prev => {
+                const existing = prev.find(tab => tab.key === tabState.key);
+                if (existing) {
+                  return prev.map(tab =>
+                    tab.key === tabState.key ? { ...tab, ...tabState } : tab,
+                  );
+                } else {
+                  return [...prev, tabState];
+                }
+              });
+            },
+          );
           cleanupFunctions.push(tabCleanup);
 
           // Initial tab context
@@ -149,16 +153,17 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
         // Browser progress monitoring (simplified)
         if (window.vibe?.browser) {
-          const progressCleanup = window.vibe.browser.onProgressUpdate?.((progress: any) => {
-            setBrowserProgress({
-              isActive: progress.isActive || false,
-              currentAction: progress.action || "",
-              progressText: progress.text || "",
-            });
-          });
+          const progressCleanup = window.vibe.browser.onProgressUpdate?.(
+            (progress: any) => {
+              setBrowserProgress({
+                isActive: progress.isActive || false,
+                currentAction: progress.action || "",
+                progressText: progress.text || "",
+              });
+            },
+          );
           if (progressCleanup) cleanupFunctions.push(progressCleanup);
         }
-
       } catch (error) {
         console.error("Failed to initialize app context listeners:", error);
       }
@@ -171,17 +176,18 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     };
   }, []);
 
-  const contextValue = useMemo(() => ({
-    agentStatus,
-    chatState,
-    tabContext,
-    browserProgress,
-  }), [agentStatus, chatState, tabContext, browserProgress]);
+  const contextValue = useMemo(
+    () => ({
+      agentStatus,
+      chatState,
+      tabContext,
+      browserProgress,
+    }),
+    [agentStatus, chatState, tabContext, browserProgress],
+  );
 
   return (
-    <AppContext.Provider value={contextValue}>
-      {children}
-    </AppContext.Provider>
+    <AppContext.Provider value={contextValue}>{children}</AppContext.Provider>
   );
 };
 
@@ -205,7 +211,7 @@ export const useAppContext = () => {
 // eslint-disable-next-line react-refresh/only-export-components
 export const useAgentStatus = () => {
   const { agentStatus } = useAppContext();
-  
+
   const initializeAgent = useCallback(async () => {
     try {
       await window.vibe?.chat?.initializeAgent?.();
@@ -233,19 +239,19 @@ export const useAutoScroll = (dependencies: any[] = []) => {
   // Check if user is near bottom
   const checkScrollPosition = useCallback(() => {
     if (!containerRef.current) return;
-    
+
     const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
     const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
     const nearBottom = distanceFromBottom < 100;
-    
+
     setIsNearBottom(nearBottom);
     setShouldAutoScroll(nearBottom);
   }, []);
 
   // Scroll to bottom
   const scrollToBottom = useCallback((smooth = true) => {
-    messagesEndRef.current?.scrollIntoView({ 
-      behavior: smooth ? "smooth" : "instant" 
+    messagesEndRef.current?.scrollIntoView({
+      behavior: smooth ? "smooth" : "instant",
     });
   }, []);
 
@@ -303,12 +309,15 @@ export const useChatInput = () => {
     }
   }, [input, isComposing]);
 
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey && !isComposing) {
-      e.preventDefault();
-      handleSubmit();
-    }
-  }, [handleSubmit, isComposing]);
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === "Enter" && !e.shiftKey && !isComposing) {
+        e.preventDefault();
+        handleSubmit();
+      }
+    },
+    [handleSubmit, isComposing],
+  );
 
   const focusInput = useCallback(() => {
     textareaRef.current?.focus();
@@ -338,15 +347,24 @@ export const useTabContext = () => {
     const completedTabs = tabContext.filter(tab => !tab.isLoading && tab.title);
     const regularTabs = tabContext.filter(tab => !tab.isLoading && !tab.title);
 
-    const sharedLoadingEntry = loadingTabs.length > 0 ? {
-      loadingTabs,
-      type: "shared-loading"
-    } : undefined;
+    const sharedLoadingEntry =
+      loadingTabs.length > 0
+        ? {
+            loadingTabs,
+            type: "shared-loading",
+          }
+        : undefined;
 
     const hasMoreTabs = completedTabs.length + regularTabs.length > 5;
     const visibleCompleted = completedTabs.slice(0, 3);
-    const visibleRegular = regularTabs.slice(0, Math.max(0, 5 - visibleCompleted.length));
-    const moreTabsCount = Math.max(0, (completedTabs.length + regularTabs.length) - 5);
+    const visibleRegular = regularTabs.slice(
+      0,
+      Math.max(0, 5 - visibleCompleted.length),
+    );
+    const moreTabsCount = Math.max(
+      0,
+      completedTabs.length + regularTabs.length - 5,
+    );
 
     // Determine global status
     let globalStatus: "loading" | "connected" | "disconnected" = "disconnected";
@@ -354,10 +372,10 @@ export const useTabContext = () => {
 
     if (loadingTabs.length > 0) {
       globalStatus = "loading";
-      globalStatusTitle = `Loading ${loadingTabs.length} tab${loadingTabs.length > 1 ? 's' : ''}`;
+      globalStatusTitle = `Loading ${loadingTabs.length} tab${loadingTabs.length > 1 ? "s" : ""}`;
     } else if (completedTabs.length > 0 || regularTabs.length > 0) {
       globalStatus = "connected";
-      globalStatusTitle = `${completedTabs.length + regularTabs.length} tab${completedTabs.length + regularTabs.length > 1 ? 's' : ''} available`;
+      globalStatusTitle = `${completedTabs.length + regularTabs.length} tab${completedTabs.length + regularTabs.length > 1 ? "s" : ""} available`;
     }
 
     return {
@@ -377,12 +395,12 @@ export const useTabContext = () => {
 };
 
 /**
- * Browser Progress Hook - Consolidated from useBrowserProgressTracking  
+ * Browser Progress Hook - Consolidated from useBrowserProgressTracking
  */
 // eslint-disable-next-line react-refresh/only-export-components
 export const useBrowserProgress = () => {
   const { browserProgress } = useAppContext();
-  
+
   const clearProgress = useCallback(() => {
     // Implementation would depend on how progress clearing works
   }, []);
@@ -399,12 +417,12 @@ export const useBrowserProgress = () => {
 // eslint-disable-next-line react-refresh/only-export-components
 export const useStreamingContent = () => {
   const { chatState } = useAppContext();
-  
+
   return chatState.streamingContent;
 };
 
 /**
- * Chat Events Hook - Consolidated from useChatEvents  
+ * Chat Events Hook - Consolidated from useChatEvents
  */
 // eslint-disable-next-line react-refresh/only-export-components
 export const useChatEvents = () => {
@@ -443,7 +461,10 @@ export const useChatEvents = () => {
 export const useChat = () => {
   const { chatState } = useAppContext();
   const input = useChatInput();
-  const scroll = useAutoScroll([chatState.messages, chatState.streamingContent]);
+  const scroll = useAutoScroll([
+    chatState.messages,
+    chatState.streamingContent,
+  ]);
   const events = useChatEvents();
   const streaming = useStreamingContent();
 
@@ -471,5 +492,4 @@ export const UnifiedHooks = {
   useChat,
 };
 
- 
 export default UnifiedHooks;
