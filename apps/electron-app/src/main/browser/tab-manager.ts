@@ -1,4 +1,4 @@
-import type { TabState } from "@vibe/shared-types";
+import type { TabState } from "../../types/browser";
 import {
   TAB_CONFIG,
   GLASSMORPHISM_CONFIG,

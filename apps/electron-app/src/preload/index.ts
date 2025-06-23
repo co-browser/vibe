@@ -8,7 +8,8 @@ import { electronAPI } from "@electron-toolkit/preload";
 import "@sentry/electron/preload";
 
 // Import shared vibe types
-import { TabState, createLogger } from "@vibe/shared-types";
+import { createLogger } from "@vibe/shared-types";
+import type { TabState } from "../types/browser";
 
 // Import vibe API interfaces (local to electron app)
 import {

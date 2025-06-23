@@ -18,13 +18,6 @@ export interface ChatMessage {
   }>;
 }
 
-export interface ChatState {
-  messages: ChatMessage[];
-  isLoading: boolean;
-  isAgentReady: boolean;
-  error: string | null;
-}
-
 export interface AgentProgress {
   type:
     | "thinking"
@@ -58,9 +51,4 @@ export interface StreamResponse {
   toolCallId?: string;
   content?: string;
   result?: any;
-}
-
-export interface ProgressEvent {
-  type: "thinking" | "extracting" | "responding";
-  message: string;
 }

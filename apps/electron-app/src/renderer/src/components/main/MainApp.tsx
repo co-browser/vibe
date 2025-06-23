@@ -7,8 +7,8 @@ import {
   CHAT_PANEL,
   CHAT_PANEL_RECOVERY,
   IPC_EVENTS,
-  type LayoutContextType,
 } from "@vibe/shared-types";
+import type { LayoutContextType } from "../../../../types/browser";
 
 // Type guard for chat panel state
 function isChatPanelState(value: unknown): value is { isVisible: boolean } {

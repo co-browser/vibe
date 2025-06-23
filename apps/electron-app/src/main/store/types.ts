@@ -4,7 +4,7 @@
  */
 
 import { ChatMessage } from "@vibe/shared-types";
-import { TabState } from "@vibe/shared-types";
+import type { TabState } from "../../types/browser";
 // Remove: WebsiteContext import (now handled by MCP)
 
 /**

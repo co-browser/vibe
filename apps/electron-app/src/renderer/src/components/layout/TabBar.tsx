@@ -5,7 +5,7 @@
 import React, { useMemo, useEffect } from "react";
 import { Tabs } from "@sinm/react-chrome-tabs";
 import "@sinm/react-chrome-tabs/css/chrome-tabs.css";
-import type { TabState } from "@vibe/shared-types";
+import type { TabState } from "../../../../types/browser";
 import { GMAIL_CONFIG } from "@vibe/shared-types";
 import "../styles/TabBar.css";
 

@@ -1,5 +1,6 @@
 import { WebContents } from "electron";
-import type { CDPMetadata, CDPTarget } from "@vibe/shared-types";
+import type { CDPTarget } from "@vibe/shared-types";
+import type { CDPMetadata } from "../../types/browser";
 import { truncateUrl } from "@vibe/shared-types";
 import { createLogger } from "@vibe/shared-types";
 

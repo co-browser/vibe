@@ -1,6 +1,6 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import type { ExtractedPage } from '@vibe/tab-extraction-core';
+import type { ExtractedPage } from '@vibe/shared-types';
 
 interface TestResult {
   success: boolean;

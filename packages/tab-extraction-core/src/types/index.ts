@@ -9,18 +9,21 @@ import type {
   ExtractedPage,
   PageMetadata,
   CDPTarget,
-  TabInfo,
 } from "@vibe/shared-types";
 
 // Re-export only the truly shared types that this package needs
-export type { PageContent, ExtractedPage, PageMetadata, CDPTarget, TabInfo };
+export type { PageContent, ExtractedPage, PageMetadata, CDPTarget };
 
 // Local types specific to tab-extraction-core
-export interface ExtractionConfig {
-  timeout: number;
-  retries: number;
-  userAgent?: string;
+export interface TabInfo {
+  id: string;
+  url: string;
+  title: string;
+  cdpTargetId: string;
+  isActive: boolean;
 }
+
+// ExtractionConfig is defined in config/extraction.ts - import from there if needed
 
 export interface ExtractionResult {
   success: boolean;

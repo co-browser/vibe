@@ -17,11 +17,9 @@ export * from "./chat";
 // Browser types - shared between electron app and tab-extraction-core
 export * from "./browser";
 
-// Tab types - shared between electron app and tab-extraction-core
-export * from "./tabs";
+// Tab types moved to local packages
 
-// Content types - shared between tab-extraction-core and agent-core
-export * from "./content";
+// Content types moved to local packages
 
 // Agent types - shared between electron app and agent-core
 export * from "./agent";
