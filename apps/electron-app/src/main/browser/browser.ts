@@ -54,8 +54,8 @@ export class Browser extends EventEmitter {
       // Allow Vite dev server in development
       const isDev = process.env.NODE_ENV === "development";
       const cspPolicy = isDev
-        ? "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' http://localhost:5173 ws://localhost:5173 http://127.0.0.1:8000 ws://127.0.0.1:8000 https:; object-src 'none';"
-        : "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' http://127.0.0.1:8000 ws://127.0.0.1:8000 https:;";
+        ? "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' http://localhost:5173 ws://localhost:5173 http://127.0.0.1:8000 ws://127.0.0.1:8000 https:; frame-src 'self' https://auth.privy.io https://*.privy.io; object-src 'none';"
+        : "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' http://127.0.0.1:8000 ws://127.0.0.1:8000 https:; frame-src 'self' https://auth.privy.io https://*.privy.io;";
 
       callback({
         responseHeaders: {

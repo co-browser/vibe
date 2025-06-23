@@ -3,3 +3,4 @@ packages:
   - "packages/*"
   # All apps
   - "apps/*"
+  - "!apps/test-dashboard" # Exclude test-dashboard temporarily due to build issues

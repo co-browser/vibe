@@ -75,7 +75,7 @@ export class ApplicationWindow extends EventEmitter {
         sandbox: false,
         nodeIntegration: false,
         contextIsolation: true,
-        webSecurity: true,
+        webSecurity: false, // Disabled for Privy authentication to work
         allowRunningInsecureContent: false,
       },
     };

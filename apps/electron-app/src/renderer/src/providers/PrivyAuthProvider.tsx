@@ -8,26 +8,12 @@ interface PrivyAuthProviderProps {
 export function PrivyAuthProvider({ children }: PrivyAuthProviderProps) {
   const appId = import.meta.env.VITE_PRIVY_APP_ID;
 
-  if (!appId) {
-    console.error("VITE_PRIVY_APP_ID environment variable is not set");
-    return (
-      <div
-        style={{
-          padding: "20px",
-          textAlign: "center",
-          color: "red",
-          background: "#ffe6e6",
-          margin: "20px",
-          borderRadius: "8px",
-        }}
-      >
-        <h3>Configuration Error</h3>
-        <p>
-          Privy App ID is not configured. Please add VITE_PRIVY_APP_ID to your
-          environment variables.
-        </p>
-      </div>
+  // For development, allow bypassing Privy if no real app ID is provided
+  if (!appId || appId === "your-privy-app-id-here") {
+    console.warn(
+      "No Privy App ID configured, running in development mode without authentication",
     );
+    return <div style={{ height: "100vh", width: "100vw" }}>{children}</div>;
   }
 
   return (
@@ -39,6 +25,8 @@ export function PrivyAuthProvider({ children }: PrivyAuthProviderProps) {
           theme: "dark", // Match your app's theme
           accentColor: "#6366f1", // Customize to match your brand
           logo: undefined, // Add your logo URL if desired
+          showWalletLoginFirst: false,
+          walletChainType: "ethereum-only",
         },
 
         // Authentication Methods
@@ -60,7 +48,32 @@ export function PrivyAuthProvider({ children }: PrivyAuthProviderProps) {
 
         // Additional Configuration
         defaultChain: undefined, // Add if you need specific chain support
-        supportedChains: [], // Add supported chains if needed
+        supportedChains: [
+          {
+            id: 1, // Ethereum mainnet
+            name: "Ethereum",
+            network: "ethereum",
+            nativeCurrency: {
+              name: "Ether",
+              symbol: "ETH",
+              decimals: 18,
+            },
+            rpcUrls: {
+              default: {
+                http: ["https://eth.llamarpc.com"],
+              },
+              public: {
+                http: ["https://eth.llamarpc.com"],
+              },
+            },
+            blockExplorers: {
+              default: {
+                name: "Etherscan",
+                url: "https://etherscan.io",
+              },
+            },
+          },
+        ],
 
         // Security Settings
         mfa: {

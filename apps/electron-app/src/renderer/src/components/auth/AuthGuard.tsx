@@ -37,8 +37,13 @@ interface LoginPromptProps {
 }
 
 function LoginPrompt({ onLogin }: LoginPromptProps) {
+  const handleLogin = () => {
+    console.log("🔐 Login button clicked, triggering Privy authentication...");
+    onLogin();
+  };
+
   return (
-    <div className="auth-login-prompt">
+    <div className="auth-login-prompt chat-panel-auth">
       <div className="login-container">
         <div className="login-header">
           <h2>🤖 Access Required</h2>
@@ -64,7 +69,7 @@ function LoginPrompt({ onLogin }: LoginPromptProps) {
           </div>
         </div>
 
-        <button onClick={onLogin} className="login-button">
+        <button onClick={handleLogin} className="login-button">
           Sign In to Continue
         </button>
 

@@ -3,10 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <title>AI-Powered Browser</title>
-    <!-- Security headers - relaxed for development -->
+    <!-- Security headers - configured for Privy authentication -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' ws: wss: http: https: https://analytics.cobrowser.xyz; font-src 'self' data:; object-src 'none'; frame-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+      content="default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https:; connect-src 'self' ws: wss: http: https: https://analytics.cobrowser.xyz; font-src 'self' data: https://fonts.gstatic.com; object-src 'none'; frame-src 'self' https://auth.privy.io https://*.privy.io; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
     />
     <meta http-equiv="X-Content-Type-Options" content="nosniff" />
     <meta http-equiv="X-XSS-Protection" content="1; mode=block" />

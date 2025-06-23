@@ -30,6 +30,54 @@
   color: var(--text-primary, #ffffff);
 }
 
+/* Chat panel specific authentication styles */
+.auth-login-prompt.chat-panel-auth {
+  height: 100%;
+  padding: 16px;
+  background: transparent;
+  align-items: flex-start;
+  justify-content: flex-start;
+}
+
+.chat-panel-auth .login-container {
+  max-width: none;
+  width: 100%;
+  margin-top: 20px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 12px;
+  padding: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.chat-panel-auth .login-header h2 {
+  font-size: 20px;
+  margin-bottom: 6px;
+}
+
+.chat-panel-auth .login-header p {
+  font-size: 14px;
+  margin-bottom: 20px;
+}
+
+.chat-panel-auth .login-features {
+  gap: 10px;
+  margin-bottom: 24px;
+}
+
+.chat-panel-auth .feature-item {
+  font-size: 13px;
+}
+
+.chat-panel-auth .login-button {
+  padding: 10px 20px;
+  font-size: 14px;
+  margin-bottom: 16px;
+}
+
+.chat-panel-auth .login-security-note {
+  font-size: 11px;
+}
+
 .login-container {
   max-width: 400px;
   width: 100%;
@@ -115,4 +163,28 @@
   to {
     transform: rotate(360deg);
   }
+}
+
+/* Privy modal fixes for Electron */
+[data-privy-modal] {
+  z-index: 10000 !important;
+  position: fixed !important;
+}
+
+[data-privy-modal-backdrop] {
+  z-index: 9999 !important;
+  position: fixed !important;
+  background-color: rgba(0, 0, 0, 0.5) !important;
+}
+
+/* Ensure Privy iframe content is visible */
+iframe[src*="privy.io"] {
+  z-index: 10001 !important;
+  position: relative !important;
+}
+
+/* Fix for any invisible Privy modals */
+div[id*="privy"],
+div[class*="privy"] {
+  z-index: 10000 !important;
 }

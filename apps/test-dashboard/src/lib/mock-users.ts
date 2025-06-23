@@ -90,7 +90,8 @@ export async function createUser(userData: CreateUserData): Promise<User | null>
     usersByEmail.set(userData.email, userId);
 
     // Return user without password hash
-    const { passwordHash: _, ...userWithoutPassword } = user;
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { passwordHash: _passwordHash, ...userWithoutPassword } = user;
     return userWithoutPassword;
   } catch (error) {
     console.error('Error creating user:', error);
@@ -123,6 +124,7 @@ export async function authenticateUser(credentials: LoginCredentials): Promise<U
     user.lastLogin = new Date();
 
     // Return user without password hash
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { passwordHash: _, ...userWithoutPassword } = user;
     return userWithoutPassword;
   } catch (error) {
@@ -141,6 +143,7 @@ export function getUserById(userId: string): User | null {
   }
 
   // Return user without password hash
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { passwordHash: _, ...userWithoutPassword } = user;
   return userWithoutPassword;
 }
@@ -173,7 +176,7 @@ export async function updateUser(userId: string, updates: Partial<CreateUserData
       if (usersByEmail.has(updates.email)) {
         return null;
       }
-      
+
       // Update email mapping
       usersByEmail.delete(user.email);
       usersByEmail.set(updates.email, userId);
@@ -193,6 +196,7 @@ export async function updateUser(userId: string, updates: Partial<CreateUserData
     }
 
     // Return user without password hash
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { passwordHash: _, ...userWithoutPassword } = user;
     return userWithoutPassword;
   } catch (error) {
@@ -213,7 +217,7 @@ export function deleteUser(userId: string): boolean {
 
     users.delete(userId);
     usersByEmail.delete(user.email);
-    
+
     return true;
   } catch (error) {
     console.error('Error deleting user:', error);
@@ -226,12 +230,13 @@ export function deleteUser(userId: string): boolean {
  */
 export function getAllUsers(): User[] {
   const allUsers: User[] = [];
-  
-  for (const user of users.values()) {
+
+  for (const user of Array.from(users.values())) {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { passwordHash: _, ...userWithoutPassword } = user;
     allUsers.push(userWithoutPassword);
   }
-  
+
   return allUsers.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
 }
 
@@ -278,7 +283,7 @@ export function cleanupExpiredSessions(): void {
   const now = Date.now();
   const expiredTokens: string[] = [];
 
-  for (const [token, session] of sessionTokens.entries()) {
+  for (const [token, session] of Array.from(sessionTokens.entries())) {
     const isExpired = now - session.createdAt.getTime() > 24 * 60 * 60 * 1000;
     if (isExpired) {
       expiredTokens.push(token);

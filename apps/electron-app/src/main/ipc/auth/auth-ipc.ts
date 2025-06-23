@@ -124,11 +124,13 @@ export function setupAuthIPC(): void {
  */
 export function setupAuthCleanup(): void {
   // Import here to avoid circular dependencies
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const {
-    setupAuthCleanup: setupVerificationCleanup,
-  } = require("./auth-verification");
-  setupVerificationCleanup();
+  import("./auth-verification")
+    .then(({ setupAuthCleanup: setupVerificationCleanup }) => {
+      setupVerificationCleanup();
+    })
+    .catch(error => {
+      logger.error("Failed to load auth-verification module:", error);
+    });
 }
 
 /**

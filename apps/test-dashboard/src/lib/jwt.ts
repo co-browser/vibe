@@ -1,7 +1,7 @@
 import jwt from 'jsonwebtoken';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-key';
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
+const JWT_SECRET: string = process.env.JWT_SECRET || 'fallback-secret-key';
+const JWT_EXPIRES_IN: string = process.env.JWT_EXPIRES_IN || '24h';
 
 export interface JWTPayload {
   userId: string;
@@ -38,7 +38,7 @@ export function generateAuthToken(user: User): string {
     expiresIn: JWT_EXPIRES_IN,
     issuer: 'vibe-test-dashboard',
     audience: 'vibe-desktop-app',
-  });
+  } as jwt.SignOptions);
 }
 
 /**
@@ -52,8 +52,7 @@ export function validateAuthToken(token: string): JWTPayload | null {
     }) as JWTPayload;
 
     return decoded;
-  } catch (error) {
-    console.error('JWT validation failed:', error);
+  } catch {
     return null;
   }
 }
@@ -75,14 +74,13 @@ export function generateRefreshToken(userId: string): string {
 export function validateRefreshToken(token: string): { userId: string } | null {
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as any;
-    
+
     if (decoded.type !== 'refresh') {
       return null;
     }
 
     return { userId: decoded.userId };
-  } catch (error) {
-    console.error('Refresh token validation failed:', error);
+  } catch {
     return null;
   }
 }
@@ -108,10 +106,10 @@ export function isTokenExpired(token: string): boolean {
     if (!decoded || !decoded.exp) {
       return true;
     }
-    
+
     const currentTime = Math.floor(Date.now() / 1000);
     return decoded.exp < currentTime;
-  } catch (error) {
+  } catch {
     return true;
   }
 }
@@ -125,9 +123,9 @@ export function getTokenExpiration(token: string): Date | null {
     if (!decoded || !decoded.exp) {
       return null;
     }
-    
+
     return new Date(decoded.exp * 1000);
-  } catch (error) {
+  } catch {
     return null;
   }
 }

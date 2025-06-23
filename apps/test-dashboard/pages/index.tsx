@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import Head from 'next/head';
+import React, { useState, useEffect } from "react";
+import Head from "next/head";
 
 interface User {
   id: string;
@@ -30,17 +30,17 @@ export default function Dashboard() {
   });
 
   const [loginForm, setLoginForm] = useState({
-    email: '',
-    password: '',
+    email: "",
+    password: "",
     loading: false,
-    error: '',
+    error: "",
   });
 
   const [deepLinkData, setDeepLinkData] = useState<DeepLinkData | null>(null);
   const [deepLinkForm, setDeepLinkForm] = useState({
-    page: 'chat',
-    tabId: '',
-    url: '',
+    page: "chat",
+    tabId: "",
+    url: "",
     loading: false,
   });
 
@@ -51,7 +51,7 @@ export default function Dashboard() {
 
   const checkAuthStatus = async () => {
     try {
-      const response = await fetch('/api/auth/status');
+      const response = await fetch("/api/auth/status");
       const data = await response.json();
 
       if (data.authenticated) {
@@ -68,7 +68,7 @@ export default function Dashboard() {
         });
       }
     } catch (error) {
-      console.error('Auth status check failed:', error);
+      console.error("Auth status check failed:", error);
       setAuth({
         authenticated: false,
         user: null,
@@ -79,13 +79,13 @@ export default function Dashboard() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoginForm(prev => ({ ...prev, loading: true, error: '' }));
+    setLoginForm(prev => ({ ...prev, loading: true, error: "" }));
 
     try {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           email: loginForm.email,
@@ -102,30 +102,30 @@ export default function Dashboard() {
           loading: false,
         });
         setLoginForm({
-          email: '',
-          password: '',
+          email: "",
+          password: "",
           loading: false,
-          error: '',
+          error: "",
         });
       } else {
         setLoginForm(prev => ({
           ...prev,
           loading: false,
-          error: data.error || 'Login failed',
+          error: data.error || "Login failed",
         }));
       }
-    } catch (error) {
+    } catch {
       setLoginForm(prev => ({
         ...prev,
         loading: false,
-        error: 'Network error. Please try again.',
+        error: "Network error. Please try again.",
       }));
     }
   };
 
   const handleLogout = async () => {
     try {
-      await fetch('/api/auth/logout', { method: 'POST' });
+      await fetch("/api/auth/logout", { method: "POST" });
       setAuth({
         authenticated: false,
         user: null,
@@ -133,7 +133,7 @@ export default function Dashboard() {
       });
       setDeepLinkData(null);
     } catch (error) {
-      console.error('Logout failed:', error);
+      console.error("Logout failed:", error);
     }
   };
 
@@ -141,10 +141,10 @@ export default function Dashboard() {
     setDeepLinkForm(prev => ({ ...prev, loading: true }));
 
     try {
-      const response = await fetch('/api/auth/generate-token', {
-        method: 'POST',
+      const response = await fetch("/api/auth/generate-token", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           page: deepLinkForm.page || undefined,
@@ -160,8 +160,8 @@ export default function Dashboard() {
       } else {
         alert(`Error: ${data.error}`);
       }
-    } catch (error) {
-      alert('Failed to generate deep-link');
+    } catch {
+      alert("Failed to generate deep-link");
     } finally {
       setDeepLinkForm(prev => ({ ...prev, loading: false }));
     }
@@ -185,7 +185,10 @@ export default function Dashboard() {
     <div className="min-h-screen bg-gray-50">
       <Head>
         <title>Vibe Test Dashboard - Authentication & Deep-Link Testing</title>
-        <meta name="description" content="Test dashboard for Vibe desktop app authentication" />
+        <meta
+          name="description"
+          content="Test dashboard for Vibe desktop app authentication"
+        />
         <link rel="icon" href="/favicon.ico" />
       </Head>
 
@@ -215,7 +218,9 @@ export default function Dashboard() {
                     type="email"
                     className="input"
                     value={loginForm.email}
-                    onChange={(e) => setLoginForm(prev => ({ ...prev, email: e.target.value }))}
+                    onChange={e =>
+                      setLoginForm(prev => ({ ...prev, email: e.target.value }))
+                    }
                     required
                     disabled={loginForm.loading}
                     placeholder="Enter your email"
@@ -228,7 +233,12 @@ export default function Dashboard() {
                     type="password"
                     className="input"
                     value={loginForm.password}
-                    onChange={(e) => setLoginForm(prev => ({ ...prev, password: e.target.value }))}
+                    onChange={e =>
+                      setLoginForm(prev => ({
+                        ...prev,
+                        password: e.target.value,
+                      }))
+                    }
                     required
                     disabled={loginForm.loading}
                     placeholder="Enter your password"
@@ -246,7 +256,7 @@ export default function Dashboard() {
                   className="btn-primary w-full"
                   disabled={loginForm.loading}
                 >
-                  {loginForm.loading ? 'Logging in...' : 'Login'}
+                  {loginForm.loading ? "Logging in..." : "Login"}
                 </button>
               </form>
 
@@ -272,14 +282,19 @@ export default function Dashboard() {
                   </h2>
                   <div className="space-y-1 text-gray-600">
                     <p>Email: {auth.user?.email}</p>
-                    <p>Role: <span className="badge-info">{auth.user?.role}</span></p>
-                    <p>User ID: <code className="text-xs bg-gray-100 px-2 py-1 rounded">{auth.user?.id}</code></p>
+                    <p>
+                      Role:{" "}
+                      <span className="badge-info">{auth.user?.role}</span>
+                    </p>
+                    <p>
+                      User ID:{" "}
+                      <code className="text-xs bg-gray-100 px-2 py-1 rounded">
+                        {auth.user?.id}
+                      </code>
+                    </p>
                   </div>
                 </div>
-                <button
-                  onClick={handleLogout}
-                  className="btn-secondary"
-                >
+                <button onClick={handleLogout} className="btn-secondary">
                   Logout
                 </button>
               </div>
@@ -297,7 +312,12 @@ export default function Dashboard() {
                   <select
                     className="input"
                     value={deepLinkForm.page}
-                    onChange={(e) => setDeepLinkForm(prev => ({ ...prev, page: e.target.value }))}
+                    onChange={e =>
+                      setDeepLinkForm(prev => ({
+                        ...prev,
+                        page: e.target.value,
+                      }))
+                    }
                   >
                     <option value="">Default</option>
                     <option value="chat">Chat</option>
@@ -312,7 +332,12 @@ export default function Dashboard() {
                     type="text"
                     className="input"
                     value={deepLinkForm.tabId}
-                    onChange={(e) => setDeepLinkForm(prev => ({ ...prev, tabId: e.target.value }))}
+                    onChange={e =>
+                      setDeepLinkForm(prev => ({
+                        ...prev,
+                        tabId: e.target.value,
+                      }))
+                    }
                     placeholder="e.g., abc123"
                   />
                 </div>
@@ -323,7 +348,12 @@ export default function Dashboard() {
                     type="url"
                     className="input"
                     value={deepLinkForm.url}
-                    onChange={(e) => setDeepLinkForm(prev => ({ ...prev, url: e.target.value }))}
+                    onChange={e =>
+                      setDeepLinkForm(prev => ({
+                        ...prev,
+                        url: e.target.value,
+                      }))
+                    }
                     placeholder="https://example.com"
                   />
                 </div>
@@ -334,41 +364,50 @@ export default function Dashboard() {
                 className="btn-primary"
                 disabled={deepLinkForm.loading}
               >
-                {deepLinkForm.loading ? 'Generating...' : 'Generate Deep-Link'}
+                {deepLinkForm.loading ? "Generating..." : "Generate Deep-Link"}
               </button>
 
               {deepLinkData && (
                 <div className="mt-6 p-4 bg-gray-50 rounded-lg">
                   <div className="flex justify-between items-start mb-4">
-                    <h3 className="font-semibold text-gray-900">Generated Deep-Link</h3>
-                    <span className="badge-success">Valid for {deepLinkData.expiresIn}</span>
+                    <h3 className="font-semibold text-gray-900">
+                      Generated Deep-Link
+                    </h3>
+                    <span className="badge-success">
+                      Valid for {deepLinkData.expiresIn}
+                    </span>
                   </div>
 
                   <div className="space-y-3">
                     <div>
-                      <label className="text-sm font-medium text-gray-700">Deep-Link URL:</label>
+                      <label className="text-sm font-medium text-gray-700">
+                        Deep-Link URL:
+                      </label>
                       <div className="mt-1 p-2 bg-white border rounded text-xs font-mono break-all">
                         {deepLinkData.deepLinkUrl}
                       </div>
                     </div>
 
                     <div>
-                      <label className="text-sm font-medium text-gray-700">JWT Token:</label>
+                      <label className="text-sm font-medium text-gray-700">
+                        JWT Token:
+                      </label>
                       <div className="mt-1 p-2 bg-white border rounded text-xs font-mono break-all">
                         {deepLinkData.token}
                       </div>
                     </div>
 
                     <div className="flex space-x-3">
-                      <button
-                        onClick={openDesktopApp}
-                        className="btn-success"
-                      >
+                      <button onClick={openDesktopApp} className="btn-success">
                         🚀 Open Desktop App
                       </button>
-                      
+
                       <button
-                        onClick={() => navigator.clipboard.writeText(deepLinkData.deepLinkUrl)}
+                        onClick={() =>
+                          navigator.clipboard.writeText(
+                            deepLinkData.deepLinkUrl,
+                          )
+                        }
                         className="btn-secondary"
                       >
                         📋 Copy URL
@@ -376,7 +415,8 @@ export default function Dashboard() {
                     </div>
 
                     <p className="text-xs text-gray-500">
-                      Generated at: {new Date(deepLinkData.generatedAt).toLocaleString()}
+                      Generated at:{" "}
+                      {new Date(deepLinkData.generatedAt).toLocaleString()}
                     </p>
                   </div>
                 </div>
@@ -391,31 +431,46 @@ export default function Dashboard() {
 
               <div className="space-y-4 text-gray-700">
                 <div>
-                  <h3 className="font-semibold text-gray-900">1. Generate Deep-Link</h3>
-                  <p>Use the form above to generate a secure deep-link with optional navigation parameters.</p>
+                  <h3 className="font-semibold text-gray-900">
+                    1. Generate Deep-Link
+                  </h3>
+                  <p>
+                    Use the form above to generate a secure deep-link with
+                    optional navigation parameters.
+                  </p>
                 </div>
 
                 <div>
-                  <h3 className="font-semibold text-gray-900">2. Test Across Platforms</h3>
+                  <h3 className="font-semibold text-gray-900">
+                    2. Test Across Platforms
+                  </h3>
                   <ul className="list-disc list-inside space-y-1 ml-4">
-                    <li>Windows: Should register <code>vibe://</code> protocol</li>
+                    <li>
+                      Windows: Should register <code>vibe://</code> protocol
+                    </li>
                     <li>macOS: Should handle protocol in dock/applications</li>
                     <li>Linux: Should register protocol handler</li>
                   </ul>
                 </div>
 
                 <div>
-                  <h3 className="font-semibold text-gray-900">3. Security Features</h3>
+                  <h3 className="font-semibold text-gray-900">
+                    3. Security Features
+                  </h3>
                   <ul className="list-disc list-inside space-y-1 ml-4">
                     <li>JWT tokens expire in 1 hour</li>
-                    <li>Rate limiting: 10 tokens/minute, 5 auth attempts/15min</li>
+                    <li>
+                      Rate limiting: 10 tokens/minute, 5 auth attempts/15min
+                    </li>
                     <li>Secure token validation with issuer/audience checks</li>
                     <li>Session management with automatic cleanup</li>
                   </ul>
                 </div>
 
                 <div>
-                  <h3 className="font-semibold text-gray-900">4. Production Checklist</h3>
+                  <h3 className="font-semibold text-gray-900">
+                    4. Production Checklist
+                  </h3>
                   <ul className="list-disc list-inside space-y-1 ml-4">
                     <li>✅ JWT secret configured</li>
                     <li>✅ Token expiration (1-24 hours)</li>
