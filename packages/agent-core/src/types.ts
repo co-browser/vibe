@@ -8,6 +8,7 @@ import type {
   StreamResponse,
   ExtractedPage,
   AgentConfig,
+  MCPTool,
 } from "@vibe/shared-types";
 import type { ReActStreamPart } from "./react/react-processor.js";
 import type { CoActStreamPart } from "./react/coact-processor.js";
@@ -19,10 +20,10 @@ export type CombinedStreamPart = ReActStreamPart | CoActStreamPart;
 
 // Tool Manager Interface - only used within agent-core
 export interface IToolManager {
-  getTools(): Promise<any>;
+  getTools(): Promise<Record<string, MCPTool> | undefined>;
   executeTools(
     toolName: string,
-    args: any,
+    args: Record<string, unknown>,
     toolCallId: string,
   ): Promise<ReactObservation>;
   formatToolsForReact(): Promise<string>;
