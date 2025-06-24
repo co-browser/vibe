@@ -24,6 +24,8 @@ import { VibeChatAPI } from "@vibe/shared-types";
 import { VibeSettingsAPI } from "@vibe/shared-types";
 import { VibeSessionAPI } from "@vibe/shared-types";
 import { VibeUpdateAPI } from "@vibe/shared-types";
+import { VibeProfileAPI } from "@vibe/shared-types";
+import type { ProfileData } from "@vibe/shared-types";
 
 /**
  * Validates if a key is a non-empty string
@@ -713,6 +715,41 @@ const sessionAPI: VibeSessionAPI = {
   },
 };
 
+const profileAPI: VibeProfileAPI = {
+  getStatus: () => ipcRenderer.invoke("profile:get-status"),
+  initialize: () => ipcRenderer.invoke("profile:initialize"),
+  createProfile: (
+    profileData: Omit<ProfileData, "id" | "createdAt" | "updatedAt">,
+  ) => ipcRenderer.invoke("profile:create-profile", profileData),
+  getProfile: () => ipcRenderer.invoke("profile:get-profile"),
+  updateProfile: (updates: Partial<ProfileData>) =>
+    ipcRenderer.invoke("profile:update-profile", updates),
+  clearProfile: () => ipcRenderer.invoke("profile:clear-profile"),
+  setApiKey: (service: string, key: string) =>
+    ipcRenderer.invoke("profile:set-api-key", service, key),
+  getApiKey: (service: string) =>
+    ipcRenderer.invoke("profile:get-api-key", service),
+  deleteApiKey: (service: string) =>
+    ipcRenderer.invoke("profile:delete-api-key", service),
+  setPassword: (domain: string, password: string) =>
+    ipcRenderer.invoke("profile:set-password", domain, password),
+  getPassword: (domain: string) =>
+    ipcRenderer.invoke("profile:get-password", domain),
+  addBrowsingHistory: (url: string, title: string) =>
+    ipcRenderer.invoke("profile:add-browsing-history", url, title),
+  getBrowsingHistory: (limit?: number) =>
+    ipcRenderer.invoke("profile:get-browsing-history", limit),
+  setPreference: (key: string, value: any) =>
+    ipcRenderer.invoke("profile:set-preference", key, value),
+  getPreference: (key: string) =>
+    ipcRenderer.invoke("profile:get-preference", key),
+  onApiKeyChanged: (callback: (data: { service: string; key: string }) => void) => {
+    const listener = (_event: IpcRendererEvent, data: { service: string; key: string }) => callback(data);
+    ipcRenderer.on("profile:api-key-changed", listener);
+    return () => ipcRenderer.removeListener("profile:api-key-changed", listener);
+  },
+};
+
 const vibeAPI = {
   app: appAPI,
   actions: actionsAPI,
@@ -725,6 +762,7 @@ const vibeAPI = {
   settings: settingsAPI,
   session: sessionAPI,
   update: updateAPI,
+  profile: profileAPI,
 };
 
 // Expose APIs to the renderer process

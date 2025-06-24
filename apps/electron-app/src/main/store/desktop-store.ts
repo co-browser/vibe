@@ -170,7 +170,7 @@ export const NewUserStore = async (
     // Create a random password using system time and other randomness
     const timestamp = Date.now().toString();
     const randomBytes = crypto.randomBytes(32);
-    const randomHex = randomBytes.toString('hex');
+    const randomHex = randomBytes.toString("hex");
     const randomHex = Array.from(randomBytes, byte =>
       byte.toString(16).padStart(2, "0"),
     ).join("");
