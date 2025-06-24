@@ -30,3 +30,6 @@ export type Store = {
 
 export type { AppState } from "./types";
 export { mainStore } from "./store";
+
+// Export desktop store functionality
+export * from "./desktop-store";
