@@ -90,6 +90,11 @@ export const setSecureItem = (key: string, value: string): void => {
 };
 
 export const deleteSecureItem = (key: string) => {
+  const available = safeStorage.isEncryptionAvailable();
+  if (!available) {
+    logger.error("safeStorage is not available");
+    return;
+  }
   const items = store.get(VibeDict.EncryptedData, {});
   delete items[key];
   store.set(VibeDict.EncryptedData, items);
@@ -164,7 +169,8 @@ export const NewUserStore = async (
 
     // Create a random password using system time and other randomness
     const timestamp = Date.now().toString();
-    const randomBytes = crypto.getRandomValues(new Uint8Array(32));
+    const randomBytes = crypto.randomBytes(32);
+    const randomHex = randomBytes.toString('hex');
     const randomHex = Array.from(randomBytes, byte =>
       byte.toString(16).padStart(2, "0"),
     ).join("");
