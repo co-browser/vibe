@@ -27,6 +27,7 @@ export type IDesktopVibeMap = {
   [VibeDict.DevTools]: boolean;
   [VibeDict.Theme]: string;
   [VibeDict.EncryptedData]: Record<string, string>;
+  [VibeDict.Language]: string;
   [VibeDict.DisableKeyboardShortcuts]: {
     disableAllShortcuts: boolean;
   };
@@ -137,6 +138,12 @@ export const NewUserStore = async (
   let randomPassword: string | null = null;
 
   try {
+    // Touch ID is only available on macOS
+    if (process.platform !== "darwin") {
+      logger.info("Touch ID is not supported on this platform");
+      return false;
+    }
+
     // Check if Touch ID is available
     if (!systemPreferences.canPromptTouchID()) {
       logger.warn("Touch ID is not available on this system");
