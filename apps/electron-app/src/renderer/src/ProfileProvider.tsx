@@ -82,7 +82,8 @@ export function ProfileProvider({ children }: Props) {
   const setApiKey = (service: string, key: string) =>
     window.vibe.profile.setApiKey(service, key);
   const getApiKey = (service: string) => window.vibe.profile.getApiKey(service);
-  const deleteApiKey = (service: string) => window.vibe.profile.deleteApiKey(service);
+  const deleteApiKey = (service: string) =>
+    window.vibe.profile.deleteApiKey(service);
   const setPassword = (domain: string, password: string) =>
     window.vibe.profile.setPassword(domain, password);
   const getPassword = (domain: string) =>
@@ -101,15 +102,17 @@ export function ProfileProvider({ children }: Props) {
   };
 
   useEffect(() => {
-    const unsubscribe = window.vibe.profile.onApiKeyChanged(({ service, key }) => {
-      if (profile) {
-        setProfile({
-          ...profile,
-          apiKeys: { ...profile.apiKeys, [service]: key },
-          updatedAt: Date.now(),
-        });
-      }
-    });
+    const unsubscribe = window.vibe.profile.onApiKeyChanged(
+      ({ service, key }) => {
+        if (profile) {
+          setProfile({
+            ...profile,
+            apiKeys: { ...profile.apiKeys, [service]: key },
+            updatedAt: Date.now(),
+          });
+        }
+      },
+    );
     return unsubscribe;
   }, [profile]);
 

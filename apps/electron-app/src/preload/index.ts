@@ -743,10 +743,16 @@ const profileAPI: VibeProfileAPI = {
     ipcRenderer.invoke("profile:set-preference", key, value),
   getPreference: (key: string) =>
     ipcRenderer.invoke("profile:get-preference", key),
-  onApiKeyChanged: (callback: (data: { service: string; key: string }) => void) => {
-    const listener = (_event: IpcRendererEvent, data: { service: string; key: string }) => callback(data);
+  onApiKeyChanged: (
+    callback: (data: { service: string; key: string }) => void,
+  ) => {
+    const listener = (
+      _event: IpcRendererEvent,
+      data: { service: string; key: string },
+    ) => callback(data);
     ipcRenderer.on("profile:api-key-changed", listener);
-    return () => ipcRenderer.removeListener("profile:api-key-changed", listener);
+    return () =>
+      ipcRenderer.removeListener("profile:api-key-changed", listener);
   },
 };
 

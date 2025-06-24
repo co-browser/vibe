@@ -142,7 +142,9 @@ export interface VibeUpdateAPI {
 export interface VibeProfileAPI {
   getStatus: () => Promise<ProfileStatus>;
   initialize: () => Promise<ProfileStatus>;
-  createProfile: (profileData: Omit<ProfileData, "id" | "createdAt" | "updatedAt">) => Promise<ProfileData>;
+  createProfile: (
+    profileData: Omit<ProfileData, "id" | "createdAt" | "updatedAt">,
+  ) => Promise<ProfileData>;
   getProfile: () => Promise<ProfileData | null>;
   updateProfile: (updates: Partial<ProfileData>) => Promise<ProfileData>;
   clearProfile: () => Promise<void>;
@@ -152,10 +154,14 @@ export interface VibeProfileAPI {
   setPassword: (domain: string, password: string) => Promise<void>;
   getPassword: (domain: string) => Promise<string | undefined>;
   addBrowsingHistory: (url: string, title: string) => Promise<void>;
-  getBrowsingHistory: (limit?: number) => Promise<Array<{ url: string; title: string; timestamp: number }>>;
+  getBrowsingHistory: (
+    limit?: number,
+  ) => Promise<Array<{ url: string; title: string; timestamp: number }>>;
   setPreference: (key: string, value: any) => Promise<void>;
   getPreference: (key: string) => Promise<any>;
-  onApiKeyChanged: (callback: (data: { service: string; key: string }) => void) => () => void;
+  onApiKeyChanged: (
+    callback: (data: { service: string; key: string }) => void,
+  ) => () => void;
 }
 
 // Global window interface
