@@ -8,7 +8,7 @@ This directory contains the store implementation for the Vibe Electron app, prov
 - `store.ts` - Main store interface and operations
 - `types.ts` - TypeScript type definitions for the app state
 - `index.ts` - Main exports for the store
-- `desktop-store.ts` - **NEW** Persistent desktop storage using electron-store
+- `desktop-store.ts` - **NEW** Persistent desktop storage using hardware-backed encryption
 
 ## Desktop Store (`desktop-store.ts`)
 
@@ -24,35 +24,35 @@ The desktop store provides persistent storage for application settings and data 
 ### Usage
 
 ```typescript
-import { 
-  setUpdateSettings, 
-  getUpdateSettings, 
-  setSecureItem, 
-  getSecureItem 
-} from '@/store';
+import {
+  setUpdateSettings,
+  getUpdateSettings,
+  setSecureItem,
+  getSecureItem,
+} from "@/store";
 
 // Store update settings
 setUpdateSettings({ useTestFeedUrl: true });
 const settings = getUpdateSettings();
 
 // Store encrypted data
-setSecureItem('api-key', 'your-secret-api-key');
-const apiKey = getSecureItem('api-key');
+setSecureItem("api-key", "your-secret-api-key");
+const apiKey = getSecureItem("api-key");
 ```
 
 ### Available Store Keys
 
-| Key | Type | Description | Default |
-|-----|------|-------------|---------|
-| `UpdateSettings` | `IDesktopVibeUpdateSettings` | App update configuration | `{ useTestFeedUrl: false }` |
-| `Theme` | `string` | Application theme | `'system'` |
-| `Language` | `string` | Application language | `'en'` |
-| `DevTools` | `boolean` | Developer tools enabled | `false` |
-| `WinBounds` | `Electron.Rectangle` | Window position and size | `undefined` |
-| `EncryptedData` | `Record<string, string>` | Encrypted key-value pairs | `{}` |
+| Key                        | Type                               | Description               | Default                          |
+| -------------------------- | ---------------------------------- | ------------------------- | -------------------------------- |
+| `UpdateSettings`           | `IDesktopVibeUpdateSettings`       | App update configuration  | `{ useTestFeedUrl: false }`      |
+| `Theme`                    | `string`                           | Application theme         | `'system'`                       |
+| `Language`                 | `string`                           | Application language      | `'en'`                           |
+| `DevTools`                 | `boolean`                          | Developer tools enabled   | `false`                          |
+| `WindowBounds`             | `Electron.Rectangle`               | Window position and size  | `undefined`                      |
+| `EncryptedData`            | `Record<string, string>`           | Encrypted key-value pairs | `{}`                             |
 | `DisableKeyboardShortcuts` | `{ disableAllShortcuts: boolean }` | Keyboard shortcuts config | `{ disableAllShortcuts: false }` |
-| `ASCFile` | `string` | ASC file path | `''` |
-| `UpdateBuildNumber` | `string` | Current build number | `''` |
+| `ASCFile`                  | `string`                           | ASC file path             | `''`                             |
+| `UpdateBuildNumber`        | `string`                           | Current build number      | `''`                             |
 
 ### Secure Storage Functions
 
@@ -79,8 +79,8 @@ The desktop store is designed to work alongside the existing Zustand store. The 
 
 ```typescript
 // In your application code
-import { mainStore } from '@/store';
-import { getTheme, setTheme } from '@/store';
+import { mainStore } from "@/store";
+import { getTheme, setTheme } from "@/store";
 
 // Get theme from persistent storage
 const theme = getTheme();
@@ -88,4 +88,4 @@ const theme = getTheme();
 // Update both in-memory and persistent storage
 mainStore.setState({ theme });
 setTheme(theme);
-``` 
+```
