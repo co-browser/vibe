@@ -1,5 +1,6 @@
 import { safeStorage, systemPreferences } from "electron";
 import Store from "electron-store";
+import { Entry } from "@napi-rs/keyring";
 import { createLogger } from "@vibe/shared-types";
 
 const logger = createLogger("DesktopStore");
@@ -131,8 +132,10 @@ export const setASCFile = (ascFile: string) =>
   store.set(VibeDict.ASCFile, ascFile);
 
 export const NewUserStore = async (
-  reason: string = "Securely Encrypt Local Data",
+  reason: string = "Authenticate to access secure storage",
 ): Promise<boolean> => {
+  let randomPassword: string | null = null;
+
   try {
     // Check if Touch ID is available
     if (!systemPreferences.canPromptTouchID()) {
@@ -158,10 +161,20 @@ export const NewUserStore = async (
     const randomHex = Array.from(randomBytes, byte =>
       byte.toString(16).padStart(2, "0"),
     ).join("");
-    const randomPassword = `${timestamp}-${randomHex}-${Math.random().toString(36).substring(2)}`;
+    randomPassword = `${timestamp}-${randomHex}-${Math.random().toString(36).substring(2)}`;
 
-    // Store the password securely in our encrypted storage
-    setSecureItem("master_password", randomPassword);
+    // Store the password in the system keychain
+    const entry = new Entry("xyz.cobrowser.vibe", "encrypted_store");
+    entry.setPassword(randomPassword);
+    const storedPassword = entry.getPassword();
+
+    if (!storedPassword) {
+      logger.error("Failed to store password in keychain");
+      return false;
+    }
+
+    // Store the password reference in our VibeDict
+    setSecureItem("keychain_password", storedPassword);
 
     // Also store a flag indicating Touch ID was used for initialization
     setSecureItem("touch_id_initialized", "true");
@@ -173,5 +186,97 @@ export const NewUserStore = async (
   } catch (error) {
     logger.error("Error in NewUserStore:", error);
     return false;
+  } finally {
+    // Clear sensitive data from memory
+    if (randomPassword) {
+      // Overwrite the string with zeros to clear it from memory
+      randomPassword = "0".repeat(randomPassword.length);
+      randomPassword = null;
+    }
   }
+};
+
+export const UserDataRecover = async (): Promise<boolean> => {
+  try {
+    // Get the password from the system keychain
+    const entry = new Entry("xyz.cobrowser.vibe", "encrypted_store");
+    const password = entry.getPassword();
+
+    if (!password) {
+      logger.error("No password found in system keychain");
+      return false;
+    }
+
+    // Get all encrypted data from the store
+    const encryptedData = store.get(VibeDict.EncryptedData, {});
+
+    if (Object.keys(encryptedData).length === 0) {
+      logger.info("No encrypted data found to recover");
+      return true;
+    }
+
+    // Decrypt all encrypted data using the keychain password
+    const decryptedData: Record<string, string> = {};
+
+    for (const [key, encryptedValue] of Object.entries(encryptedData)) {
+      try {
+        // Skip the keychain_password key as it's the reference, not encrypted data
+        if (key === "keychain_password") {
+          continue;
+        }
+
+        // Decrypt the value using the keychain password
+        const decryptedValue = safeStorage.decryptString(
+          Buffer.from(encryptedValue, "hex"),
+        );
+        decryptedData[key] = decryptedValue;
+
+        logger.debug(`Successfully decrypted data for key: ${key}`);
+      } catch (decryptError) {
+        logger.error(`Failed to decrypt data for key ${key}:`, decryptError);
+        // Continue with other keys even if one fails
+      }
+    }
+
+    // Store the decrypted data in a format that Electron can use
+    // We'll store it in a special decrypted_data key for easy access
+    if (Object.keys(decryptedData).length > 0) {
+      setSecureItem("decrypted_data", JSON.stringify(decryptedData));
+
+      // Also set up individual keys for easier access
+      for (const [key, value] of Object.entries(decryptedData)) {
+        setSecureItem(`recovered_${key}`, value);
+      }
+
+      logger.info(
+        `Successfully recovered ${Object.keys(decryptedData).length} encrypted data items`,
+      );
+      return true;
+    } else {
+      logger.warn("No data was successfully decrypted");
+      return false;
+    }
+  } catch (error) {
+    logger.error("Error in UserDataRecover:", error);
+    return false;
+  }
+};
+
+// Helper function to get recovered data
+export const getRecoveredData = (key: string): string | undefined => {
+  return getSecureItem(`recovered_${key}`);
+};
+
+// Helper function to get all recovered data
+export const getAllRecoveredData = (): Record<string, string> => {
+  const decryptedDataJson = getSecureItem("decrypted_data");
+  if (decryptedDataJson) {
+    try {
+      return JSON.parse(decryptedDataJson);
+    } catch (error) {
+      logger.error("Failed to parse recovered data:", error);
+      return {};
+    }
+  }
+  return {};
 };
