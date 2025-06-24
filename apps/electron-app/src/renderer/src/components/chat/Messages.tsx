@@ -55,11 +55,17 @@ export const Messages: React.FC<MessagesProps> = ({
 
   // Fetch tabs to check for current tab
   React.useEffect(() => {
+    let mounted = true;
+
     const fetchTabs = async () => {
       try {
         const allTabs =
           (await window.electron?.ipcRenderer.invoke("tabs:get-all")) || [];
-        setTabs(allTabs);
+
+        // Only update state if component is still mounted
+        if (mounted) {
+          setTabs(allTabs);
+        }
       } catch (error) {
         console.error("Failed to fetch tabs:", error);
       }
@@ -75,6 +81,7 @@ export const Messages: React.FC<MessagesProps> = ({
     window.electron?.ipcRenderer.on("update-tab-state", handleTabUpdate);
 
     return () => {
+      mounted = false;
       window.electron?.ipcRenderer.removeListener(
         "update-tab-state",
         handleTabUpdate,
@@ -236,6 +243,14 @@ export const Messages: React.FC<MessagesProps> = ({
           const isLatestGroup = index === groupedMessages.length - 1;
           const isEditing = editingMessageId === group.userMessage.id;
 
+          // Compute tab context data outside of JSX
+          const tabContextData = getTabContextData(
+            typeof group.userMessage.content === "string"
+              ? group.userMessage.content
+              : "",
+          );
+          const hasTabContext = tabContextData.tabs.length > 0;
+
           return (
             <div key={group.id} className="message-group">
               <div className="user-message">
@@ -287,19 +302,12 @@ export const Messages: React.FC<MessagesProps> = ({
                       )}
                     </div>
                   </div>
-                  {(() => {
-                    const tabContextData = getTabContextData(
-                      typeof group.userMessage.content === "string"
-                        ? group.userMessage.content
-                        : "",
-                    );
-                    return tabContextData.tabs.length > 0 ? (
-                      <TabContextBar
-                        tabs={tabContextData.tabs}
-                        isCurrentTabAuto={tabContextData.isCurrentTabAuto}
-                      />
-                    ) : null;
-                  })()}
+                  {hasTabContext && (
+                    <TabContextBar
+                      tabs={tabContextData.tabs}
+                      isCurrentTabAuto={tabContextData.isCurrentTabAuto}
+                    />
+                  )}
                   <div className="user-message-content">
                     {isEditing ? (
                       <textarea

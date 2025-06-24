@@ -94,48 +94,68 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         setShowSuggestions(false);
       }
 
-      console.log("[ChatInput] State after change:", {
-        showSuggestions,
-        suggestionsCount: currentSuggestions.length,
+      // Log using state setter pattern to avoid dependency
+      setShowSuggestions(prevShow => {
+        setCurrentSuggestions(prevSuggestions => {
+          console.log("[ChatInput] State after change:", {
+            showSuggestions: prevShow,
+            suggestionsCount: prevSuggestions.length,
+          });
+          return prevSuggestions;
+        });
+        return prevShow;
       });
     },
-    [onChange, getSuggestions, showSuggestions, currentSuggestions.length],
+    [onChange, getSuggestions],
   );
+
+  // Memoize a stable reference for getting current value
+  const valueRef = React.useRef(value);
+  React.useEffect(() => {
+    valueRef.current = value;
+  }, [value]);
 
   // Handle suggestion selection
   const handleSuggestionSelect = useCallback(
     (alias: string) => {
-      // Find the full tab info
-      const suggestion = currentSuggestions.find(s => s.alias === alias);
-      if (suggestion) {
-        // Check if tab is already selected
-        const isAlreadySelected = selectedTabs.some(
-          t => t.tabKey === suggestion.tabKey,
-        );
-        if (!isAlreadySelected) {
-          setSelectedTabs([
-            ...selectedTabs,
-            {
-              tabKey: suggestion.tabKey,
-              alias: suggestion.alias,
-              title: suggestion.title,
-              url: suggestion.url,
-              favicon: suggestion.favicon,
-            },
-          ]);
+      // Use functional updates to avoid dependencies
+      setCurrentSuggestions(prevSuggestions => {
+        const suggestion = prevSuggestions.find(s => s.alias === alias);
+        if (suggestion) {
+          setSelectedTabs(prevSelected => {
+            // Check if tab is already selected
+            const isAlreadySelected = prevSelected.some(
+              t => t.tabKey === suggestion.tabKey,
+            );
+            if (!isAlreadySelected) {
+              return [
+                ...prevSelected,
+                {
+                  tabKey: suggestion.tabKey,
+                  alias: suggestion.alias,
+                  title: suggestion.title,
+                  url: suggestion.url,
+                  favicon: suggestion.favicon,
+                },
+              ];
+            }
+            return prevSelected;
+          });
         }
-      }
+        return prevSuggestions;
+      });
 
-      // Remove the @ from input
-      const lastAtIndex = value.lastIndexOf("@");
+      // Remove the @ from input using ref to avoid dependency
+      const currentValue = valueRef.current;
+      const lastAtIndex = currentValue.lastIndexOf("@");
       if (lastAtIndex !== -1) {
-        const beforeAt = value.substring(0, lastAtIndex);
+        const beforeAt = currentValue.substring(0, lastAtIndex);
         onChange(beforeAt);
       }
 
       setShowSuggestions(false);
     },
-    [value, onChange, currentSuggestions, selectedTabs],
+    [onChange],
   );
 
   const handleAction = (): void => {

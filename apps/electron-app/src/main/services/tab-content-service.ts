@@ -252,8 +252,7 @@ export class TabContentService {
     this.contentCache.clear();
     if (this.cdpConnector) {
       try {
-        // CDP connector disconnect method doesn't require parameters in this context
-        // The connector manages its own connections internally
+        await this.cdpConnector.disconnectAll();
       } catch (error) {
         logger.error("Error disconnecting CDP connector:", error);
       }

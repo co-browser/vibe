@@ -37,7 +37,7 @@ export const TabAliasSuggestions: React.FC<TabAliasSuggestionsProps> = ({
 
   // Handle keyboard navigation
   useEffect(() => {
-    if (!show) return;
+    if (!show || !containerRef.current) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       // Only handle events if the suggestions dropdown is visible
@@ -78,8 +78,15 @@ export const TabAliasSuggestions: React.FC<TabAliasSuggestionsProps> = ({
     };
 
     // Use capture phase to intercept events before other handlers
+    // This ensures we can prevent default browser behavior (like Tab navigation)
+    // before other components handle the event. The global listener is necessary
+    // because the input field is outside this component's DOM tree.
     window.addEventListener("keydown", handleKeyDown, true);
-    return () => window.removeEventListener("keydown", handleKeyDown, true);
+
+    // Cleanup function to remove the event listener
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown, true);
+    };
   }, [show, suggestions, selectedIndex, onSelect]);
 
   // Scroll selected item into view
@@ -92,11 +99,18 @@ export const TabAliasSuggestions: React.FC<TabAliasSuggestionsProps> = ({
     }
   }, [selectedIndex]);
 
+  // Utility function to escape regex special characters
+  const escapeRegExp = (string: string): string => {
+    return string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  };
+
   // Highlight matching text
   const highlightText = (text: string, term: string) => {
     if (!term) return text;
 
-    const regex = new RegExp(`(${term})`, "gi");
+    // Escape special regex characters to prevent regex injection
+    const escapedTerm = escapeRegExp(term);
+    const regex = new RegExp(`(${escapedTerm})`, "gi");
     const parts = text.split(regex);
 
     return parts.map((part, index) =>
@@ -116,24 +130,8 @@ export const TabAliasSuggestions: React.FC<TabAliasSuggestionsProps> = ({
       return <img src={suggestion.favicon} alt="" />;
     }
 
-    // Extract domain from URL
-    try {
-      const domain = new URL(suggestion.url).hostname;
-      if (domain.includes("github")) return "🐙";
-      if (domain.includes("notion")) return "📝";
-      if (domain.includes("gmail") || domain.includes("mail")) return "📧";
-      if (domain.includes("slack")) return "💬";
-      if (domain.includes("docs.google")) return "📄";
-      if (domain.includes("sheets.google")) return "📊";
-      if (domain.includes("drive.google")) return "📁";
-      if (domain.includes("youtube")) return "📺";
-      if (domain.includes("twitter") || domain.includes("x.com")) return "𝕏";
-      if (domain.includes("linkedin")) return "💼";
-      if (domain.includes("stackoverflow")) return "🤔";
-      return domain.charAt(0).toUpperCase();
-    } catch {
-      return suggestion.title.charAt(0).toUpperCase();
-    }
+    // Fallback to first letter of title
+    return suggestion.title.charAt(0).toUpperCase();
   };
 
   if (!show) {

@@ -32,10 +32,6 @@ export class TabAliasService extends EventEmitter {
     "this",
   ]);
 
-  constructor() {
-    super();
-  }
-
   /**
    * Parse a user prompt to extract @alias mentions
    */
@@ -167,21 +163,59 @@ export class TabAliasService extends EventEmitter {
     // Store custom alias
     this.customAliases.set(tabKey, customAlias);
 
-    // Force update of the tab alias
-    const alias = this.aliases.get(tabKey);
-    if (alias) {
-      // Trigger re-evaluation with the custom alias
-      this.updateTabAlias({
-        key: tabKey,
-        url: alias.hostname, // This will be re-parsed
-        title: "",
-        isLoading: false,
-        canGoBack: false,
-        canGoForward: false,
-      } as TabState);
-    }
+    // Update the alias using cached information
+    this.updateTabAliasFromCache(tabKey);
 
     return true;
+  }
+
+  /**
+   * Update tab alias using cached information, typically after custom alias changes
+   */
+  private updateTabAliasFromCache(tabKey: string): void {
+    const existingAlias = this.aliases.get(tabKey);
+    if (!existingAlias) {
+      logger.warn(`No existing alias found for tab ${tabKey}`);
+      return;
+    }
+
+    const customAlias = this.customAliases.get(tabKey);
+    const baseAlias = customAlias || existingAlias.hostname;
+
+    // Handle alias conflicts
+    let finalAlias = baseAlias;
+    let conflictSuffix = 0;
+
+    // Check if this alias is already taken by another tab
+    const existingTabKey = this.aliasToTab.get(finalAlias);
+    if (existingTabKey && existingTabKey !== tabKey) {
+      // Find an available suffix
+      conflictSuffix = 1;
+      while (this.aliasToTab.has(`${baseAlias}-${conflictSuffix}`)) {
+        conflictSuffix++;
+      }
+      finalAlias = `${baseAlias}-${conflictSuffix}`;
+    }
+
+    // Clean up old alias if it changed
+    if (existingAlias.alias !== finalAlias) {
+      this.aliasToTab.delete(existingAlias.alias);
+    }
+
+    // Update the existing alias
+    const updatedAlias: TabAlias = {
+      ...existingAlias,
+      alias: finalAlias,
+      customAlias,
+      conflictSuffix: conflictSuffix || undefined,
+    };
+
+    // Update mappings
+    this.aliases.set(tabKey, updatedAlias);
+    this.aliasToTab.set(finalAlias, tabKey);
+
+    this.emit("alias-updated", updatedAlias);
+    logger.debug(`Updated alias for tab ${tabKey}: @${finalAlias}`);
   }
 
   /**
