@@ -13,10 +13,7 @@ import {
   ClockCircleOutlined,
   GlobalOutlined,
   LinkOutlined,
-  UserOutlined,
-  LogoutOutlined,
 } from "@ant-design/icons";
-import { usePrivy, useLogin } from "@privy-io/react-auth";
 import "../styles/NavigationBar.css";
 
 interface Suggestion {
@@ -57,68 +54,6 @@ const NavigationBar: React.FC = () => {
 
   const inputRef = useRef<HTMLInputElement>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
-
-  // Privy authentication
-  const { ready, authenticated, user, logout, getAccessToken } = usePrivy();
-  const [isAuthenticating, setIsAuthenticating] = useState(false);
-
-  // Use the login hook with callbacks
-  const { login } = useLogin({
-    onComplete: async params => {
-      console.log("Login successful", params);
-      setIsAuthenticating(false);
-
-      // Restore browser view visibility after successful auth
-      if (currentTabKey && window.vibe?.browser?.setViewVisibility) {
-        await window.vibe.browser.setViewVisibility(currentTabKey, true);
-      }
-    },
-    onError: async error => {
-      console.error("Login failed or cancelled:", error);
-      setIsAuthenticating(false);
-
-      // Restore view visibility on error
-      if (currentTabKey && window.vibe?.browser?.setViewVisibility) {
-        await window.vibe.browser.setViewVisibility(currentTabKey, true);
-      }
-    },
-  });
-
-  // Handle login - temporarily hide BrowserView to show Privy modal
-  const handleLogin = useCallback(async () => {
-    if (!ready || isAuthenticating) return;
-
-    setIsAuthenticating(true);
-
-    // Hide all browser views immediately to show Privy modal
-    if (currentTabKey && window.vibe?.browser?.setViewVisibility) {
-      await window.vibe.browser.setViewVisibility(currentTabKey, false);
-    }
-
-    // Call login - callbacks will handle success/error
-    login();
-  }, [ready, isAuthenticating, login, currentTabKey]);
-
-  // Send auth token to main process when authenticated
-  useEffect(() => {
-    const updateAuthToken = async () => {
-      if (ready && authenticated) {
-        try {
-          const token = await getAccessToken();
-          if (token && window.vibe?.app?.setAuthToken) {
-            await window.vibe.app.setAuthToken(token);
-          }
-        } catch (error) {
-          console.error("Failed to set auth token:", error);
-        }
-      } else if (ready && !authenticated && window.vibe?.app?.setAuthToken) {
-        // Clear token when logged out
-        await window.vibe.app.setAuthToken(null);
-      }
-    };
-
-    updateAuthToken();
-  }, [ready, authenticated, getAccessToken]);
 
   // Get current active tab
   useEffect(() => {
@@ -600,26 +535,6 @@ const NavigationBar: React.FC = () => {
         >
           <RobotOutlined />
         </button>
-        {ready && (
-          <button
-            className={`nav-button ${authenticated ? "active" : ""} ${isAuthenticating ? "loading" : ""}`}
-            onClick={authenticated ? logout : handleLogin}
-            title={
-              authenticated
-                ? `Logged in as ${user?.email || "User"}`
-                : "Login with Privy"
-            }
-            disabled={isAuthenticating}
-          >
-            {isAuthenticating ? (
-              <ReloadOutlined spin />
-            ) : authenticated ? (
-              <LogoutOutlined />
-            ) : (
-              <UserOutlined />
-            )}
-          </button>
-        )}
       </div>
 
       <div className="omnibar-container">
