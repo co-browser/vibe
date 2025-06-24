@@ -8,6 +8,7 @@ import "antd/dist/reset.css";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { init } from "@sentry/electron/renderer";
+import { PrivyProvider } from "@privy-io/react-auth";
 import App from "./App";
 
 init({ debug: true });
@@ -15,6 +16,16 @@ init({ debug: true });
 // Create the root element and render the application
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <App />
+    <PrivyProvider
+      appId={import.meta.env.VITE_PRIVY_APP_ID || ""}
+      config={{
+        loginMethods: ["email", "google"],
+        appearance: {
+          theme: "light",
+        },
+      }}
+    >
+      <App />
+    </PrivyProvider>
   </StrictMode>,
 );

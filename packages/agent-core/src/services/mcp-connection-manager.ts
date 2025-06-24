@@ -34,7 +34,22 @@ export class MCPConnectionManager implements IMCPConnectionManager {
     // Create transport with proper URL validation
     let transport: StreamableHTTPClientTransport;
     try {
-      transport = new StreamableHTTPClientTransport(new URL(serverUrl));
+      const transportOptions: any = {};
+
+      // Add auth header for cloud RAG server
+      if (config.name === "rag" && !serverUrl.includes("localhost")) {
+        const authToken = (global as any).privyAuthToken;
+        if (authToken) {
+          transportOptions.headers = {
+            Authorization: `Bearer ${authToken}`,
+          };
+        }
+      }
+
+      transport = new StreamableHTTPClientTransport(
+        new URL(serverUrl),
+        transportOptions,
+      );
     } catch (error) {
       throw new MCPConnectionError(
         `Invalid server URL: ${serverUrl}`,

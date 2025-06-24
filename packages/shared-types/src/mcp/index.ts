@@ -130,10 +130,21 @@ export function createMCPServerConfig(
 
   // Build environment-specific configuration
   const env: Record<string, string> = {};
+  let url = baseConfig.url;
+  let port = baseConfig.port;
 
   switch (name) {
     case "rag":
       if (envVars) {
+        // Check for cloud RAG server URL
+        if (envVars.RAG_SERVER_URL) {
+          const cloudUrl = new URL(envVars.RAG_SERVER_URL);
+          url = cloudUrl.origin;
+          port =
+            parseInt(cloudUrl.port) ||
+            (cloudUrl.protocol === "https:" ? 443 : 80);
+        }
+
         Object.assign(env, {
           ...(envVars.TURBOPUFFER_API_KEY && {
             TURBOPUFFER_API_KEY: envVars.TURBOPUFFER_API_KEY,
@@ -157,6 +168,8 @@ export function createMCPServerConfig(
 
   return {
     ...baseConfig,
+    url,
+    port,
     env,
   };
 }
