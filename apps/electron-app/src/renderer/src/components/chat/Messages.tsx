@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import type { Message as AiSDKMessage } from "@ai-sdk/react";
 import { useAutoScroll } from "../../hooks/useAutoScroll";
 import { createMessageContentRenderer } from "../../utils/messageContentRenderer";
@@ -8,6 +8,9 @@ import { GmailAuthButton } from "@/components/auth/GmailAuthButton";
 import { useTabContext } from "@/hooks/useTabContextUtils";
 import { TabContextItem } from "@/types/tabContext";
 import { Edit3, Check, X } from "lucide-react";
+import { TabReferencePill } from "./TabReferencePill";
+import { useTabAliases } from "@/hooks/useTabAliases";
+import { TabContextBar } from "./TabContextBar";
 
 export interface GroupedMessage {
   id: string;
@@ -37,6 +40,8 @@ export const Messages: React.FC<MessagesProps> = ({
     streamingContent || {};
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState<string>("");
+  const { getSuggestions, parsePrompt } = useTabAliases();
+  const [tabs, setTabs] = useState<any[]>([]);
 
   const { messagesEndRef, containerRef } = useAutoScroll([
     groupedMessages,
@@ -47,6 +52,140 @@ export const Messages: React.FC<MessagesProps> = ({
     groupedMessages,
     isAiGenerating,
   );
+
+  // Fetch tabs to check for current tab
+  React.useEffect(() => {
+    const fetchTabs = async () => {
+      try {
+        const allTabs =
+          (await window.electron?.ipcRenderer.invoke("tabs:get-all")) || [];
+        setTabs(allTabs);
+      } catch (error) {
+        console.error("Failed to fetch tabs:", error);
+      }
+    };
+
+    fetchTabs();
+
+    // Listen for tab updates
+    const handleTabUpdate = () => {
+      fetchTabs();
+    };
+
+    window.electron?.ipcRenderer.on("update-tab-state", handleTabUpdate);
+
+    return () => {
+      window.electron?.ipcRenderer.removeListener(
+        "update-tab-state",
+        handleTabUpdate,
+      );
+    };
+  }, []);
+
+  /**
+   * Render message text with tab references as pills
+   */
+  const renderMessageWithTabPills = useMemo(() => {
+    const allSuggestions = getSuggestions("");
+
+    return (content: string) => {
+      const parsed = parsePrompt(content);
+
+      if (parsed.aliasPositions.length === 0) {
+        return <>{content}</>;
+      }
+
+      const parts: React.ReactNode[] = [];
+      let lastIndex = 0;
+
+      parsed.aliasPositions.forEach((pos, idx) => {
+        // Add text before this alias
+        if (pos.start > lastIndex) {
+          parts.push(
+            <span key={`text-${idx}`}>
+              {content.substring(lastIndex, pos.start)}
+            </span>,
+          );
+        }
+
+        // Find matching tab info
+        const suggestion = allSuggestions.find(
+          s => s.alias.toLowerCase() === pos.alias.toLowerCase(),
+        );
+
+        // Add the tab pill
+        parts.push(
+          <TabReferencePill
+            key={`pill-${idx}`}
+            alias={pos.alias}
+            url={suggestion?.url}
+            title={suggestion?.title}
+          />,
+        );
+
+        lastIndex = pos.end;
+      });
+
+      // Add any remaining text
+      if (lastIndex < content.length) {
+        parts.push(<span key="text-end">{content.substring(lastIndex)}</span>);
+      }
+
+      return <>{parts}</>;
+    };
+  }, [getSuggestions, parsePrompt]);
+
+  // Get tab context data for a message
+  const getTabContextData = (messageContent: string) => {
+    const parsed = parsePrompt(messageContent);
+    const allSuggestions = getSuggestions("");
+    const tabsData: Array<{
+      favicon?: string;
+      title: string;
+      url: string;
+      alias: string;
+      tabKey?: string;
+    }> = [];
+    let isCurrentTabAuto = false;
+
+    // Check if message has @mentions
+    if (parsed.extractedAliases.length > 0) {
+      parsed.extractedAliases.forEach(alias => {
+        const suggestion = allSuggestions.find(
+          s => s.alias.toLowerCase() === alias.toLowerCase(),
+        );
+        if (suggestion) {
+          const tab = tabs.find((t: any) => t.key === suggestion.tabKey);
+          tabsData.push({
+            favicon: tab?.favicon,
+            title: suggestion.title,
+            url: suggestion.url,
+            alias: suggestion.alias,
+            tabKey: suggestion.tabKey,
+          });
+        }
+      });
+    } else {
+      // No @mentions - check if current tab was auto-included
+      const currentTab = tabs.find((tab: any) => tab.visible);
+      if (currentTab && messageContent.trim().length > 0) {
+        const alias =
+          allSuggestions.find(s => s.tabKey === currentTab.key)?.alias ||
+          currentTab.url?.replace(/^https?:\/\/(www\.)?/, "").split("/")[0] ||
+          "current";
+        tabsData.push({
+          favicon: currentTab.favicon,
+          title: currentTab.title || "Untitled",
+          url: currentTab.url || "",
+          alias: alias,
+          tabKey: currentTab.key,
+        });
+        isCurrentTabAuto = true;
+      }
+    }
+
+    return { tabs: tabsData, isCurrentTabAuto };
+  };
 
   const {
     globalStatus,
@@ -148,6 +287,19 @@ export const Messages: React.FC<MessagesProps> = ({
                       )}
                     </div>
                   </div>
+                  {(() => {
+                    const tabContextData = getTabContextData(
+                      typeof group.userMessage.content === "string"
+                        ? group.userMessage.content
+                        : "",
+                    );
+                    return tabContextData.tabs.length > 0 ? (
+                      <TabContextBar
+                        tabs={tabContextData.tabs}
+                        isCurrentTabAuto={tabContextData.isCurrentTabAuto}
+                      />
+                    ) : null;
+                  })()}
                   <div className="user-message-content">
                     {isEditing ? (
                       <textarea
@@ -161,7 +313,7 @@ export const Messages: React.FC<MessagesProps> = ({
                     ) : (
                       <span className="user-message-text">
                         {typeof group.userMessage.content === "string"
-                          ? group.userMessage.content
+                          ? renderMessageWithTabPills(group.userMessage.content)
                           : JSON.stringify(group.userMessage.content)}
                       </span>
                     )}
