@@ -89,6 +89,11 @@ export const setSecureItem = (key: string, value: string): void => {
 };
 
 export const deleteSecureItem = (key: string) => {
+  const available = safeStorage.isEncryptionAvailable();
+  if (!available) {
+    logger.error("safeStorage is not available");
+    return;
+  }
   const items = store.get(VibeDict.EncryptedData, {});
   delete items[key];
   store.set(VibeDict.EncryptedData, items);
