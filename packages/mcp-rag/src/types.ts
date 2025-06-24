@@ -1,8 +1,9 @@
 /**
- * RAG (Retrieval Augmented Generation) related types and interfaces
+ * RAG (Retrieval Augmented Generation) types
+ * Local to mcp-rag package - these types are only used within this package
  */
 
-import type { MCPServerConfig } from "../mcp/index.js";
+import type { MCPServerConfig } from "@vibe/shared-types";
 
 // RAG Server Configuration (extends base MCP config)
 export interface RAGServerConfig extends MCPServerConfig {

@@ -8,15 +8,7 @@ import path from 'path';
 import os from 'os';
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
-
-// Tool type definition
-interface GmailTool {
-  name: string;
-  description: string;
-  inputSchema: any;
-  zodSchema: z.ZodSchema<any>;
-  execute: (args: any) => Promise<string>;
-}
+import type { GmailTool } from './types.js';
 
 // Configuration
 const CONFIG_DIR = path.join(os.homedir(), '.gmail-mcp');

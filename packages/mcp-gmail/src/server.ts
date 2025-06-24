@@ -13,15 +13,7 @@ import type {
 import { type Request, type Response } from 'express';
 import { randomUUID } from 'node:crypto';
 import { GmailTools } from './tools.js';
-
-// Tool type definition (should match the one in tools.ts)
-interface GmailTool {
-  name: string;
-  description: string;
-  inputSchema: any;
-  zodSchema: { safeParse: (args: any) => { success: boolean; data?: any; error?: { message: string } } };
-  execute: (args: any) => Promise<string>;
-}
+import type { GmailTool } from './types.js';
 
 // Simple console logger - MCP Gmail runs as child process
 const log = {

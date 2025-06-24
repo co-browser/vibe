@@ -3,13 +3,8 @@ dotenv.config();
 
 import OpenAI from 'openai';
 import type { ChatCompletionTool, ChatCompletionMessageParam } from 'openai/resources/index.js';
+import type { MCPTool } from '@vibe/shared-types';
 import { RAGTestClient } from './mcp-client.js';
-
-interface MCPTool {
-  name: string;
-  description: string;
-  inputSchema: any;
-}
 
 export class RAGAgent {
   private llm: OpenAI;

@@ -23,7 +23,7 @@ import { v4 as uuidv4 } from "uuid";
 import fetch from "node-fetch";
 import { JSDOM } from "jsdom";
 import { parse } from "node-html-parser";
-import type { ExtractedPage } from "@vibe/tab-extraction-core";
+import type { ExtractedPage } from "@vibe/shared-types";
 import { createLogger } from "@vibe/shared-types";
 
 const REGION = "gcp-europe-west3";

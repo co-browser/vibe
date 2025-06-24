@@ -3,11 +3,7 @@ import {
   CoActProcessor,
   ProcessorFactory,
 } from "./react/index.js";
-import type {
-  IToolManager,
-  IStreamProcessor,
-  IAgentConfig,
-} from "./interfaces/index.js";
+import type { IToolManager, IStreamProcessor, AgentConfig } from "./types.js";
 import type { StreamResponse, ExtractedPage } from "@vibe/shared-types";
 import { createLogger } from "@vibe/shared-types";
 
@@ -19,7 +15,7 @@ export class Agent {
   constructor(
     private toolManager: IToolManager,
     private streamProcessor: IStreamProcessor,
-    private config: IAgentConfig,
+    private config: AgentConfig,
   ) {}
 
   private async getProcessor(): Promise<ReActProcessor | CoActProcessor> {

@@ -10,13 +10,15 @@ import {
   GMAIL_CONFIG,
   GLASSMORPHISM_CONFIG,
   BROWSER_CHROME,
+} from "@vibe/shared-types";
+import {
   type GmailAuthStatus,
   type GmailAuthResult,
   type GmailClearResult,
   type GmailOAuthKeys,
   type GmailOAuthCredentials,
   type GmailTokens,
-} from "@vibe/shared-types";
+} from "../../types/gmail";
 import type { ViewManagerState } from "../browser/view-manager";
 
 const logger = createLogger("GmailService");

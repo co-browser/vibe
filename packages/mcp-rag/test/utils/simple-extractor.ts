@@ -1,4 +1,4 @@
-import type { ExtractedPage } from "@vibe/tab-extraction-core";
+import type { ExtractedPage } from "@vibe/shared-types";
 import fetch from "node-fetch";
 import { JSDOM } from "jsdom";
 

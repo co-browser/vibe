@@ -89,10 +89,3 @@ export interface MCPConnectionStatus {
   lastCheck?: number;
   errorCount?: number;
 }
-
-// Configuration validation
-export interface MCPConfigValidator {
-  validateServerConfig(config: unknown): config is MCPServerConfig;
-  validateToolName(toolName: string): boolean;
-  validateToolArgs(args: unknown): boolean;
-}
