@@ -1,19 +1,19 @@
-import { safeStorage, systemPreferences } from 'electron';
-import Store from 'electron-store';
+import { safeStorage, systemPreferences } from "electron";
+import Store from "electron-store";
 import { createLogger } from "@vibe/shared-types";
 
 const logger = createLogger("DesktopStore");
 
 export enum VibeDict {
-  UpdateSettings = 'updateSettings',
-  Theme = 'theme',
-  EncryptedData = 'EncryptedData',
-  Language = 'language',
-  DisableKeyboardShortcuts = 'disableKeyboardShortcuts',
-  ASCFile = 'ascFile',
-  UpdateBuildNumber = 'updateBuildNumber',
-  WinBounds = 'winBounds',
-  DevTools = 'devTools',
+  UpdateSettings = "updateSettings",
+  Theme = "theme",
+  EncryptedData = "EncryptedData",
+  Language = "language",
+  DisableKeyboardShortcuts = "disableKeyboardShortcuts",
+  ASCFile = "ascFile",
+  UpdateBuildNumber = "updateBuildNumber",
+  WindowBounds = "windowBounds",
+  DevTools = "devTools",
 }
 
 export type IDesktopVibeUpdateSettings = {
@@ -21,7 +21,7 @@ export type IDesktopVibeUpdateSettings = {
 };
 
 export type IDesktopVibeMap = {
-  [VibeDict.WinBounds]: Electron.Rectangle;
+  [VibeDict.WindowBounds]: Electron.Rectangle;
   [VibeDict.UpdateSettings]: IDesktopVibeUpdateSettings;
   [VibeDict.DevTools]: boolean;
   [VibeDict.Theme]: string;
@@ -33,7 +33,7 @@ export type IDesktopVibeMap = {
   [VibeDict.UpdateBuildNumber]: string;
 };
 
-const store = new Store<IDesktopVibeMap>({ name: 'cobrowser' });
+const store = new Store<IDesktopVibeMap>({ name: "cobrowser" });
 
 export const instance = store;
 
@@ -55,14 +55,14 @@ export const setUpdateSettings = (
 export const getSecureItem = (key: string) => {
   const available = safeStorage.isEncryptionAvailable();
   if (!available) {
-    logger.error('safeStorage is not available');
+    logger.error("safeStorage is not available");
     return undefined;
   }
   const item = store.get(VibeDict.EncryptedData, {});
   const value = item[key];
   if (value) {
     try {
-      const result = safeStorage.decryptString(Buffer.from(value, 'hex'));
+      const result = safeStorage.decryptString(Buffer.from(value, "hex"));
       return result;
     } catch {
       logger.error(`failed to decrypt ${key}`);
@@ -75,12 +75,12 @@ export const getSecureItem = (key: string) => {
 export const setSecureItem = (key: string, value: string): void => {
   const available = safeStorage.isEncryptionAvailable();
   if (!available) {
-    logger.error('safeStorage is not available');
+    logger.error("safeStorage is not available");
     return;
   }
   try {
     const items = store.get(VibeDict.EncryptedData, {});
-    items[key] = safeStorage.encryptString(value).toString('hex');
+    items[key] = safeStorage.encryptString(value).toString("hex");
     store.set(VibeDict.EncryptedData, items);
   } catch {
     logger.error(`failed to encrypt ${key}`);
@@ -98,38 +98,45 @@ export const setUpdateBuildNumber = (buildNumber: string) => {
 };
 
 export const getUpdateBuildNumber = () =>
-  store.get(VibeDict.UpdateBuildNumber, '');
+  store.get(VibeDict.UpdateBuildNumber, "");
 
 export const clearUpdateBuildNumber = () => {
   store.delete(VibeDict.UpdateBuildNumber);
 };
 
 // Additional utility functions for other store keys
-export const getTheme = () => store.get(VibeDict.Theme, 'system');
+export const getTheme = () => store.get(VibeDict.Theme, "system");
 export const setTheme = (theme: string) => store.set(VibeDict.Theme, theme);
 
-export const getLanguage = () => store.get(VibeDict.Language, 'en');
-export const setLanguage = (language: string) => store.set(VibeDict.Language, language);
+export const getLanguage = () => store.get(VibeDict.Language, "en");
+export const setLanguage = (language: string) =>
+  store.set(VibeDict.Language, language);
 
 export const getDevTools = () => store.get(VibeDict.DevTools, false);
-export const setDevTools = (enabled: boolean) => store.set(VibeDict.DevTools, enabled);
+export const setDevTools = (enabled: boolean) =>
+  store.set(VibeDict.DevTools, enabled);
 
-export const getWinBounds = () => store.get(VibeDict.WinBounds);
-export const setWinBounds = (bounds: Electron.Rectangle) => store.set(VibeDict.WinBounds, bounds);
+export const getWindowBounds = () => store.get(VibeDict.WindowBounds);
+export const setWindowBounds = (bounds: Electron.Rectangle) =>
+  store.set(VibeDict.WindowBounds, bounds);
 
-export const getKeyboardShortcutsDisabled = () => 
+export const getKeyboardShortcutsDisabled = () =>
   store.get(VibeDict.DisableKeyboardShortcuts, { disableAllShortcuts: false });
-export const setKeyboardShortcutsDisabled = (disabled: { disableAllShortcuts: boolean }) => 
-  store.set(VibeDict.DisableKeyboardShortcuts, disabled);
+export const setKeyboardShortcutsDisabled = (disabled: {
+  disableAllShortcuts: boolean;
+}) => store.set(VibeDict.DisableKeyboardShortcuts, disabled);
 
-export const getASCFile = () => store.get(VibeDict.ASCFile, '');
-export const setASCFile = (ascFile: string) => store.set(VibeDict.ASCFile, ascFile);
+export const getASCFile = () => store.get(VibeDict.ASCFile, "");
+export const setASCFile = (ascFile: string) =>
+  store.set(VibeDict.ASCFile, ascFile);
 
-export const NewUserStore = async (reason: string = 'Securely Encrypt Local Data'): Promise<boolean> => {
+export const NewUserStore = async (
+  reason: string = "Securely Encrypt Local Data",
+): Promise<boolean> => {
   try {
     // Check if Touch ID is available
     if (!systemPreferences.canPromptTouchID()) {
-      logger.warn('Touch ID is not available on this system');
+      logger.warn("Touch ID is not available on this system");
       return false;
     }
 
@@ -138,27 +145,33 @@ export const NewUserStore = async (reason: string = 'Securely Encrypt Local Data
       await systemPreferences.promptTouchID(reason);
       // If we reach here, authentication was successful
     } catch (authError) {
-      logger.warn('Touch ID authentication failed or was cancelled:', authError);
+      logger.warn(
+        "Touch ID authentication failed or was cancelled:",
+        authError,
+      );
       return false;
     }
 
     // Create a random password using system time and other randomness
     const timestamp = Date.now().toString();
     const randomBytes = crypto.getRandomValues(new Uint8Array(32));
-    const randomHex = Array.from(randomBytes, byte => byte.toString(16).padStart(2, '0')).join('');
+    const randomHex = Array.from(randomBytes, byte =>
+      byte.toString(16).padStart(2, "0"),
+    ).join("");
     const randomPassword = `${timestamp}-${randomHex}-${Math.random().toString(36).substring(2)}`;
 
     // Store the password securely in our encrypted storage
-    setSecureItem('master_password', randomPassword);
+    setSecureItem("master_password", randomPassword);
 
     // Also store a flag indicating Touch ID was used for initialization
-    setSecureItem('touch_id_initialized', 'true');
+    setSecureItem("touch_id_initialized", "true");
 
-    logger.info('New user store initialized successfully with Touch ID authentication');
+    logger.info(
+      "New user store initialized successfully with Touch ID authentication",
+    );
     return true;
-
   } catch (error) {
-    logger.error('Error in NewUserStore:', error);
+    logger.error("Error in NewUserStore:", error);
     return false;
   }
-}; 
+};
