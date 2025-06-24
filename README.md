@@ -46,22 +46,34 @@ Vibe Browser includes intelligent AI-powered features:
 <details>
 <summary><strong>Gmail Setup</strong></summary>
 
-To enable Gmail integration, configure Google Cloud credentials:
 
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Create a new project or select an existing one
-3. Enable the Gmail API for your project
-4. Go to "APIs & Services" > "Credentials"
-5. Click "Create Credentials" > "OAuth client ID"
-6. Choose either "Desktop app" or "Web application" as application type
-7. Download the JSON file and rename it to `gcp-oauth.keys.json`
-8. Set up authentication:
+#### Gmail Setup
 
-```bash
-mkdir -p ~/.gmail-mcp
-mv gcp-oauth.keys.json ~/.gmail-mcp/
-```
+To enable Gmail integration, configure your Google Cloud credentials by following either the Console or gcloud path below.
 
+| Option 1: Console (Web) Setup | Option 2: gcloud (CLI) Setup |
+|:------------------------------:|:-----------------------------:|
+| <span style="color: green;">Use the Google Cloud Console for a guided, web-based setup.</span> | <span style="color: blue;">Use the gcloud command-line tool for a faster, scriptable setup.</span> |
+| | |
+| **1. Select or Create Project** | **1. Login and Select Project** |
+| • Go to the [Google Cloud Project Selector](https://console.cloud.google.com/projectselector2/home/dashboard)• Choose an existing project or click CREATE PROJECT | • Authenticate with Google Cloud:<br>```gcloud auth login```<br>• To create a new project, run:<br>```gcloud projects create YOUR_PROJECT_ID```<br>• Set your active project:<br>```gcloud config set project YOUR_PROJECT_ID```<br> |
+| | |
+| **2. Enable Gmail API** | **2. Enable Gmail API** |
+| • Navigate to the [Gmail API Library page](https://console.cloud.google.com/apis/library/gmail.googleapis.com)• Ensure your project is selected and click Enable | • Run the following command:<br>```gcloud services enable gmail.googleapis.com```<br> |
+| | |
+| **3. Create OAuth Credentials** | **3. Create OAuth Credentials** |
+| • Go to the [Credentials page](https://console.cloud.google.com/apis/credentials)• Click + CREATE CREDENTIALS > OAuth client ID• Set Application type to Desktop app• Click Create, then DOWNLOAD JSON | Creating OAuth credentials for a Desktop App is best done through the web console. Please follow Step 3 from the Console (Web) Setup above to download the JSON key file. |
+
+## Final Step (for both paths)
+
+After downloading the credentials file:
+
+1. Rename the downloaded file to `gcp-oauth.keys.json`
+2. Move it to the application's configuration directory:
+   ```bash
+   mkdir -p ~/.gmail-mcp
+   mv gcp-oauth.keys.json ~/.gmail-mcp/
+   ``` 
 </details>
 
 ## Demo
