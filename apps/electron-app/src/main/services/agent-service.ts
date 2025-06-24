@@ -584,4 +584,40 @@ export class AgentService extends EventEmitter implements IAgentService {
       throw error;
     }
   }
+
+  /**
+   * Update authentication token for cloud MCP services
+   */
+  async updateAuthToken(token: string | null): Promise<void> {
+    if (!this.worker) {
+      throw new Error("Agent service not initialized");
+    }
+
+    if (!["ready", "processing"].includes(this.status)) {
+      throw new Error(`Agent service not ready: ${this.status}`);
+    }
+
+    try {
+      console.log(
+        "[AgentService] Updating auth token:",
+        token ? "present" : "null",
+      );
+
+      // Send token update to worker process
+      await this.worker.sendMessage("update-auth-token", { token });
+
+      this.lastActivityTime = Date.now();
+      console.log("[AgentService] Auth token updated successfully");
+
+      // Emit token update event
+      this.emit("auth-token-updated", {
+        hasToken: !!token,
+        timestamp: this.lastActivityTime,
+      });
+    } catch (error) {
+      console.error("[AgentService] Failed to update auth token:", error);
+      this.lastActivityTime = Date.now();
+      throw error;
+    }
+  }
 }

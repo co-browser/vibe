@@ -23,6 +23,10 @@ createRoot(document.getElementById("root")!).render(
         appearance: {
           theme: "light",
         },
+        // Enable authentication persistence
+        embeddedWallets: {
+          createOnLogin: "all-users",
+        },
       }}
     >
       <App />

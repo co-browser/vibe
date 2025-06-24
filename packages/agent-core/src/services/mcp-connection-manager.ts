@@ -22,6 +22,15 @@ import {
 const logger = createLogger("McpConnectionManager");
 
 export class MCPConnectionManager implements IMCPConnectionManager {
+  private authToken: string | null = null;
+
+  /**
+   * Set the auth token for cloud connections
+   */
+  setAuthToken(token: string | null): void {
+    this.authToken = token;
+  }
+
   /**
    * Creates a new MCP connection with proper error handling and timeouts
    */
@@ -36,14 +45,14 @@ export class MCPConnectionManager implements IMCPConnectionManager {
     try {
       const transportOptions: any = {};
 
-      // Add auth header for cloud RAG server
-      if (config.name === "rag" && !serverUrl.includes("localhost")) {
-        const authToken = (global as any).privyAuthToken;
-        if (authToken) {
-          transportOptions.headers = {
-            Authorization: `Bearer ${authToken}`,
-          };
-        }
+      // Add auth header for RAG server (both cloud and local)
+      if (config.name === "rag" && this.authToken) {
+        transportOptions.requestInit = {
+          headers: {
+            Authorization: `Bearer ${this.authToken}`,
+          },
+        };
+        logger.debug(`Adding auth header for RAG server connection`);
       }
 
       transport = new StreamableHTTPClientTransport(

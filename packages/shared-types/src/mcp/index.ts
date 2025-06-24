@@ -55,13 +55,7 @@ export const MCP_SERVERS_BASE: Record<string, Omit<MCPServerConfig, "env">> = {
     mcpEndpoint: "/mcp",
     // Gmail MCP server loads its own configuration from ~/.gmail-mcp/
   },
-  rag: {
-    name: "rag",
-    port: 3000,
-    url: "http://localhost:3000",
-    healthEndpoint: "/health",
-    mcpEndpoint: "/mcp",
-  },
+  // RAG server is now cloud-only and managed separately
   // Future MCP servers can be added here:
   // github: {
   //   name: "github",
@@ -125,37 +119,33 @@ export function createMCPServerConfig(
   name: string,
   envVars?: Record<string, string>,
 ): MCPServerConfig | undefined {
+  // Special handling for cloud-only RAG server
+  if (name === "rag") {
+    if (!envVars?.RAG_SERVER_URL) {
+      return undefined; // RAG requires cloud URL
+    }
+
+    const cloudUrl = new URL(envVars.RAG_SERVER_URL);
+    return {
+      name: "rag",
+      url: cloudUrl.origin,
+      port:
+        parseInt(cloudUrl.port) || (cloudUrl.protocol === "https:" ? 443 : 80),
+      healthEndpoint: "/health",
+      mcpEndpoint: "/mcp",
+      env: {}, // Cloud RAG doesn't need environment variables
+    };
+  }
+
   const baseConfig = getMCPServerBaseConfig(name);
   if (!baseConfig) return undefined;
 
   // Build environment-specific configuration
   const env: Record<string, string> = {};
-  let url = baseConfig.url;
-  let port = baseConfig.port;
+  const url = baseConfig.url;
+  const port = baseConfig.port;
 
   switch (name) {
-    case "rag":
-      if (envVars) {
-        // Check for cloud RAG server URL
-        if (envVars.RAG_SERVER_URL) {
-          const cloudUrl = new URL(envVars.RAG_SERVER_URL);
-          url = cloudUrl.origin;
-          port =
-            parseInt(cloudUrl.port) ||
-            (cloudUrl.protocol === "https:" ? 443 : 80);
-        }
-
-        Object.assign(env, {
-          ...(envVars.TURBOPUFFER_API_KEY && {
-            TURBOPUFFER_API_KEY: envVars.TURBOPUFFER_API_KEY,
-          }),
-          ENABLE_PPL_CHUNKING: envVars.ENABLE_PPL_CHUNKING || "false",
-          FAST_MODE: envVars.FAST_MODE || "true",
-          VERBOSE_LOGS: envVars.VERBOSE_LOGS || "false",
-        });
-      }
-      break;
-
     case "gmail":
       // Gmail MCP server manages its own configuration
       // No environment variables needed from agent

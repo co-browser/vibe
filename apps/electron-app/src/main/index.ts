@@ -458,11 +458,15 @@ async function initializeServices(): Promise<void> {
               logger.info("AgentService ready:", data);
             });
 
+            // Get auth token if available
+            const authToken = (global as any).privyAuthToken || null;
+
             // Initialize with configuration
             await agentService.initialize({
               openaiApiKey: process.env.OPENAI_API_KEY!,
               model: "gpt-4o-mini",
               processorType: "react",
+              authToken: authToken,
             });
 
             // Inject agent service into IPC handlers

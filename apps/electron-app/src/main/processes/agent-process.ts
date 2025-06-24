@@ -36,12 +36,17 @@ interface PingData {
   timestamp?: number;
 }
 
+interface UpdateAuthTokenData {
+  token: string | null;
+}
+
 // ============================================================================
 // PROCESS STATE
 // ============================================================================
 
 let agent: Agent | null = null;
 let isProcessing = false;
+let authToken: string | null = null;
 
 // ============================================================================
 // INFRASTRUCTURE UTILITIES
@@ -164,6 +169,7 @@ class MessageHandlers {
       processorType: MessageValidator.validateProcessorType(
         config.processorType,
       ),
+      authToken: authToken, // Pass auth token if available
     });
 
     console.log(
@@ -288,6 +294,36 @@ class MessageHandlers {
     console.log("[AgentWorker] Tab memory saved successfully");
     IPCMessenger.sendResponse(message.id, { success: true });
   }
+
+  static async handleUpdateAuthToken(message: BaseMessage): Promise<void> {
+    const data = message.data as UpdateAuthTokenData;
+    const oldToken = authToken;
+    authToken = data.token;
+
+    console.log(
+      "[AgentWorker] Auth token updated:",
+      authToken ? "present" : "null",
+    );
+
+    // If agent is initialized, update its MCP connections
+    if (agent) {
+      try {
+        await agent.updateMCPConnections(authToken);
+        console.log(
+          "[AgentWorker] MCP connections updated with new auth token",
+        );
+      } catch (error) {
+        console.error("[AgentWorker] Failed to update MCP connections:", error);
+        // Don't fail the token update, just log the error
+      }
+    }
+
+    IPCMessenger.sendResponse(message.id, {
+      success: true,
+      hadToken: !!oldToken,
+      hasToken: !!authToken,
+    });
+  }
 }
 
 // ============================================================================
@@ -335,6 +371,10 @@ async function handleMessageWithErrorHandling(
 
       case "save-tab-memory":
         await MessageHandlers.handleSaveTabMemory(message);
+        break;
+
+      case "update-auth-token":
+        await MessageHandlers.handleUpdateAuthToken(message);
         break;
 
       default:

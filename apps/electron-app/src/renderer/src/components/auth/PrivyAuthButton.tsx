@@ -8,6 +8,16 @@ export const PrivyAuthButton: React.FC = () => {
   const { ready, authenticated, user, logout, getAccessToken } = usePrivy();
   const [isAuthenticating, setIsAuthenticating] = useState(false);
 
+  // Log Privy state on mount and changes
+  useEffect(() => {
+    console.log("PrivyAuthButton - Privy state changed:", {
+      ready,
+      authenticated,
+      userEmail: user?.email || "none",
+      hasUser: !!user,
+    });
+  }, [ready, authenticated, user]);
+
   // Helper to restore browser view visibility
   const restoreViewVisibility = async () => {
     try {
@@ -37,18 +47,43 @@ export const PrivyAuthButton: React.FC = () => {
   // Send auth token to main process when authenticated
   useEffect(() => {
     const updateAuthToken = async () => {
-      if (ready && authenticated) {
+      console.log(
+        "updateAuthToken effect - ready:",
+        ready,
+        "authenticated:",
+        authenticated,
+      );
+
+      if (!ready) {
+        console.log("Privy not ready yet, waiting...");
+        return;
+      }
+
+      if (authenticated) {
         try {
+          console.log("User is authenticated, getting access token...");
           const token = await getAccessToken();
+          console.log(
+            "Got access token from Privy:",
+            token ? `present (${token.substring(0, 20)}...)` : "null",
+          );
           if (token && window.vibe?.app?.setAuthToken) {
             await window.vibe.app.setAuthToken(token);
+            console.log("Auth token sent to main process");
+          } else if (!token) {
+            console.error(
+              "No token received from getAccessToken despite being authenticated",
+            );
           }
         } catch (error) {
-          console.error("Failed to set auth token:", error);
+          console.error("Failed to get/set auth token:", error);
         }
-      } else if (ready && !authenticated && window.vibe?.app?.setAuthToken) {
+      } else {
         // Clear token when logged out
-        await window.vibe.app.setAuthToken(null);
+        console.log("User not authenticated, clearing auth token");
+        if (window.vibe?.app?.setAuthToken) {
+          await window.vibe.app.setAuthToken(null);
+        }
       }
     };
 
@@ -72,9 +107,23 @@ export const PrivyAuthButton: React.FC = () => {
     login();
   };
 
-  const handleClick = (): void => {
+  const handleClick = async (): Promise<void> => {
     if (isAuthenticating) return;
+
+    console.log("PrivyAuthButton clicked - current state:", {
+      authenticated,
+      ready,
+      user: user?.email,
+    });
+
     if (authenticated) {
+      // Try to get token before logout to debug
+      try {
+        const token = await getAccessToken();
+        console.log("Current token before logout:", token ? "present" : "null");
+      } catch (e) {
+        console.error("Failed to get token before logout:", e);
+      }
       logout();
     } else {
       handleLogin();

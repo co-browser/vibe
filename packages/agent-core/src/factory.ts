@@ -13,6 +13,11 @@ export class AgentFactory {
     // Create MCP manager for multiple server connections
     const mcpManager = new MCPManager();
 
+    // Store auth token for later use
+    if (config.authToken) {
+      (mcpManager as any).authToken = config.authToken;
+    }
+
     // Initialize MCP connections in background if environment variables are available
     if (typeof process !== "undefined" && process.env) {
       // Create environment variables object for MCP server configuration
@@ -48,6 +53,6 @@ export class AgentFactory {
     const streamProcessor = new StreamProcessor();
 
     // Create and return configured Agent with multi-MCP implementation
-    return new Agent(toolManager, streamProcessor, config);
+    return new Agent(toolManager, streamProcessor, config, mcpManager);
   }
 }

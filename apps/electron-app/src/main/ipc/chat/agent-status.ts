@@ -22,7 +22,7 @@ export function setAgentServiceInstance(service: IAgentProvider): void {
 /**
  * Get the current agent service instance
  */
-function getAgentService(): IAgentProvider | null {
+export function getAgentService(): IAgentProvider | null {
   return agentServiceInstance;
 }
 
@@ -92,3 +92,30 @@ ipcMain.handle("chat:initialize-agent", async () => {
     };
   }
 });
+
+ipcMain.handle(
+  "agent:update-auth-token",
+  async (_event, token: string | null) => {
+    try {
+      const agentService = getAgentService();
+
+      if (!agentService) {
+        throw new Error("AgentService not available");
+      }
+
+      logger.info("Updating agent auth token:", token ? "present" : "null");
+      await agentService.updateAuthToken(token);
+
+      return {
+        success: true,
+        message: "Auth token updated successfully",
+      };
+    } catch (error) {
+      logger.error("Failed to update auth token:", error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
+    }
+  },
+);

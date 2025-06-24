@@ -20,6 +20,18 @@ ipcMain.handle("app:set-auth-token", async (_event, token: string | null) => {
   authToken = token;
   // Make token available globally for MCP connections
   global.privyAuthToken = token;
+
+  // Forward token update to agent service
+  try {
+    const { getAgentService } = await import("../chat/agent-status.js");
+    const agentService = getAgentService();
+    if (agentService) {
+      await agentService.updateAuthToken(token);
+    }
+  } catch (error) {
+    console.error("Failed to update agent auth token:", error);
+  }
+
   return { success: true };
 });
 

@@ -20,6 +20,7 @@ export class Agent {
     private toolManager: IToolManager,
     private streamProcessor: IStreamProcessor,
     private config: IAgentConfig,
+    private mcpManager?: any, // MCPManager instance for dynamic updates
   ) {}
 
   private async getProcessor(): Promise<ReActProcessor | CoActProcessor> {
@@ -88,5 +89,21 @@ export class Agent {
     const endTime = performance.now();
     logger.debug(`Tab memory saved in ${(endTime - startTime).toFixed(2)}ms`);
     return result;
+  }
+
+  async updateMCPConnections(authToken: string | null): Promise<void> {
+    if (!this.mcpManager) {
+      logger.warn("No MCP manager available for connection updates");
+      return;
+    }
+
+    try {
+      // Update auth token and manage RAG connections dynamically
+      await (this.mcpManager as any).updateAuthToken(authToken);
+      logger.info("MCP connections updated with new auth token");
+    } catch (error) {
+      logger.error("Failed to update MCP connections:", error);
+      throw error;
+    }
   }
 }
