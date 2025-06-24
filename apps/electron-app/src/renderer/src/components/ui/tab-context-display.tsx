@@ -17,6 +17,17 @@ export const TabContextDisplay: React.FC<TabContextDisplayProps> = ({
   hasMoreTabs,
   moreTabsCount,
 }) => {
+  const MAX_VISIBLE_TABS = 5;
+  const visibleCompletedTabs = completedTabs.slice(0, MAX_VISIBLE_TABS);
+  const remainingSlots = MAX_VISIBLE_TABS - visibleCompletedTabs.length;
+  const visibleRegularTabs = regularTabs.slice(0, remainingSlots);
+  const hiddenTabsCount =
+    completedTabs.length -
+    visibleCompletedTabs.length +
+    regularTabs.length -
+    visibleRegularTabs.length +
+    (hasMoreTabs ? moreTabsCount : 0);
+
   return (
     <div className="favicon-pills">
       {sharedLoadingEntry && (
@@ -96,7 +107,7 @@ export const TabContextDisplay: React.FC<TabContextDisplayProps> = ({
         </FaviconPill>
       )}
 
-      {completedTabs.map((tab, index) => {
+      {visibleCompletedTabs.map((tab, index) => {
         const statusTitle = (tab as any).isFallback
           ? "Tab processed with warnings"
           : "Tab successfully processed";
@@ -112,7 +123,7 @@ export const TabContextDisplay: React.FC<TabContextDisplayProps> = ({
         );
       })}
 
-      {regularTabs.map((tab, index) => (
+      {visibleRegularTabs.map((tab, index) => (
         <FaviconPill
           key={tab.key}
           favicon={tab.favicon}
@@ -122,9 +133,9 @@ export const TabContextDisplay: React.FC<TabContextDisplayProps> = ({
         />
       ))}
 
-      {hasMoreTabs && (
-        <FaviconPill tooltipTitle={`${moreTabsCount} more tabs`}>
-          <div className="favicon-pill favicon-more">+{moreTabsCount}</div>
+      {hiddenTabsCount > 0 && (
+        <FaviconPill tooltipTitle={`${hiddenTabsCount} more tabs`}>
+          <div className="favicon-pill favicon-more">+{hiddenTabsCount}</div>
         </FaviconPill>
       )}
     </div>

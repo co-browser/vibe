@@ -1,11 +1,15 @@
-import React from "react";
+import React, { useState, useCallback } from "react";
 import { TextInput } from "@/components/ui/text-input";
 import { ActionButton } from "@/components/ui/action-button";
 import { StatusIndicator } from "@/components/ui/status-indicator";
 import { TabContextDisplay } from "@/components/ui/tab-context-display";
 import { GmailAuthButton } from "@/components/auth/GmailAuthButton";
+import { TabAliasSuggestions } from "./TabAliasSuggestions";
+import { TabContextBar } from "./TabContextBar";
 import { useTabContext } from "@/hooks/useTabContextUtils";
+import { useTabAliases } from "@/hooks/useTabAliases";
 import { TabContextItem } from "@/types/tabContext";
+import "@/components/styles/TabAliasSuggestions.css";
 
 interface ChatInputProps {
   value: string;
@@ -37,16 +41,129 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     moreTabsCount,
   } = useTabContext(tabContext);
 
+  const { getSuggestions } = useTabAliases();
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [currentSuggestions, setCurrentSuggestions] = useState<any[]>([]);
+  const [selectedTabs, setSelectedTabs] = useState<
+    Array<{
+      tabKey: string;
+      alias: string;
+      title: string;
+      url: string;
+      favicon?: string;
+    }>
+  >([]);
+
+  // Handle input changes and detect @ mentions
+  const handleInputChange = useCallback(
+    (newValue: string) => {
+      onChange(newValue);
+
+      // Check if we should show suggestions
+      const lastAtIndex = newValue.lastIndexOf("@");
+      console.log("[ChatInput] Input changed:", {
+        newValue,
+        lastAtIndex,
+        isAtEnd: lastAtIndex === newValue.length - 1,
+      });
+
+      if (lastAtIndex !== -1 && lastAtIndex === newValue.length - 1) {
+        // Just typed @, show all suggestions
+        const suggestions = getSuggestions("");
+        console.log("[ChatInput] Just typed @, suggestions:", suggestions);
+        setCurrentSuggestions(suggestions);
+        setShowSuggestions(true);
+      } else if (lastAtIndex !== -1) {
+        // Check if we're in the middle of typing an alias
+        const textAfterAt = newValue.substring(lastAtIndex + 1);
+        const spaceIndex = textAfterAt.indexOf(" ");
+
+        if (spaceIndex === -1) {
+          // Still typing the alias
+          const suggestions = getSuggestions(textAfterAt);
+          console.log("[ChatInput] Typing after @:", {
+            textAfterAt,
+            suggestions,
+          });
+          setCurrentSuggestions(suggestions);
+          setShowSuggestions(suggestions.length > 0);
+        } else {
+          setShowSuggestions(false);
+        }
+      } else {
+        setShowSuggestions(false);
+      }
+
+      console.log("[ChatInput] State after change:", {
+        showSuggestions,
+        suggestionsCount: currentSuggestions.length,
+      });
+    },
+    [onChange, getSuggestions, showSuggestions, currentSuggestions.length],
+  );
+
+  // Handle suggestion selection
+  const handleSuggestionSelect = useCallback(
+    (alias: string) => {
+      // Find the full tab info
+      const suggestion = currentSuggestions.find(s => s.alias === alias);
+      if (suggestion) {
+        // Check if tab is already selected
+        const isAlreadySelected = selectedTabs.some(
+          t => t.tabKey === suggestion.tabKey,
+        );
+        if (!isAlreadySelected) {
+          setSelectedTabs([
+            ...selectedTabs,
+            {
+              tabKey: suggestion.tabKey,
+              alias: suggestion.alias,
+              title: suggestion.title,
+              url: suggestion.url,
+              favicon: suggestion.favicon,
+            },
+          ]);
+        }
+      }
+
+      // Remove the @ from input
+      const lastAtIndex = value.lastIndexOf("@");
+      if (lastAtIndex !== -1) {
+        const beforeAt = value.substring(0, lastAtIndex);
+        onChange(beforeAt);
+      }
+
+      setShowSuggestions(false);
+    },
+    [value, onChange, currentSuggestions, selectedTabs],
+  );
+
   const handleAction = (): void => {
     if (isSending) {
       onStop();
     } else {
-      onSend();
+      // Add selected tabs to the message before sending
+      if (selectedTabs.length > 0) {
+        const tabMentions = selectedTabs.map(t => `@${t.alias}`).join(" ");
+        const messageWithTabs = value.trim()
+          ? `${value} ${tabMentions}`
+          : tabMentions;
+        onChange(messageWithTabs);
+        // Clear selected tabs after adding to message
+        setSelectedTabs([]);
+        // Use setTimeout to ensure the onChange propagates before sending
+        setTimeout(() => onSend(), 0);
+      } else {
+        onSend();
+      }
     }
   };
 
-  const canSend = !disabled && value.trim().length > 0;
+  const canSend =
+    !disabled && (value.trim().length > 0 || selectedTabs.length > 0);
   const buttonDisabled = !isSending && !canSend;
+  const characterCount = value.length;
+  const showCharacterCount = characterCount > 500;
 
   return (
     <div className="chat-input-container">
@@ -67,18 +184,47 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         </div>
         <GmailAuthButton />
       </div>
+      {selectedTabs.length > 0 && (
+        <TabContextBar
+          tabs={selectedTabs}
+          isCurrentTabAuto={false}
+          editable={true}
+          onRemoveTab={tabKey => {
+            setSelectedTabs(selectedTabs.filter(t => t.tabKey !== tabKey));
+          }}
+        />
+      )}
 
-      <div className="chat-input-field-section">
+      <div
+        className="chat-input-field-section"
+        style={{ position: "relative" }}
+      >
+        <TabAliasSuggestions
+          suggestions={currentSuggestions}
+          onSelect={handleSuggestionSelect}
+          show={showSuggestions}
+        />
         <TextInput
           value={value}
-          onChange={onChange}
+          onChange={handleInputChange}
           onEnter={handleAction}
-          placeholder="Summarize, analyze and act on anything"
+          onKeyDown={event => {
+            if (showSuggestions && event.key === "Escape") {
+              event.preventDefault();
+              setShowSuggestions(false);
+              return true;
+            }
+            return false;
+          }}
+          placeholder="Type @ to reference tabs"
           disabled={disabled}
           autoFocus
           rows={1}
           className="chat-input-field"
         />
+        {showCharacterCount && (
+          <span className="character-count">{characterCount}</span>
+        )}
         <ActionButton
           variant={isSending ? "stop" : "send"}
           onClick={handleAction}
