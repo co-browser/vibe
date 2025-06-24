@@ -4,7 +4,9 @@ interface TextInputProps {
   value: string;
   onChange: (value: string) => void;
   onEnter?: () => void;
-  onKeyDown?: (event: KeyboardEvent<HTMLTextAreaElement>) => boolean | void;
+  onKeyDown?: (
+    event: KeyboardEvent<HTMLTextAreaElement>,
+  ) => boolean | undefined;
   placeholder?: string;
   disabled?: boolean;
   autoFocus?: boolean;

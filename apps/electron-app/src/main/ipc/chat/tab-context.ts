@@ -8,6 +8,28 @@ const logger = createLogger("TabContextIPC");
 // Store orchestrator instances per window
 const orchestrators = new Map<number, TabContextOrchestrator>();
 
+async function getOrCreateOrchestrator(
+  senderId: number,
+  appWindow: any,
+): Promise<TabContextOrchestrator | null> {
+  try {
+    let orchestrator = orchestrators.get(senderId);
+    if (!orchestrator) {
+      orchestrator = new TabContextOrchestrator(
+        appWindow.tabManager,
+        appWindow.viewManager,
+        browser?.getCDPManager(),
+      );
+      await orchestrator.initialize();
+      orchestrators.set(senderId, orchestrator);
+    }
+    return orchestrator;
+  } catch (error) {
+    logger.error("Failed to create or initialize orchestrator:", error);
+    return null;
+  }
+}
+
 /**
  * Tab context IPC handlers for the @tabName feature
  */
@@ -40,16 +62,25 @@ ipcMain.handle(
         };
       }
 
-      // Get or create orchestrator for this window
-      let orchestrator = orchestrators.get(event.sender.id);
+      const orchestrator = await getOrCreateOrchestrator(
+        event.sender.id,
+        appWindow,
+      );
       if (!orchestrator) {
-        orchestrator = new TabContextOrchestrator(
-          appWindow.tabManager,
-          appWindow.viewManager,
-          browser?.getCDPManager(),
-        );
-        await orchestrator.initialize();
-        orchestrators.set(event.sender.id, orchestrator);
+        return {
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+          ],
+          parsedPrompt: {
+            originalPrompt: userPrompt,
+            cleanPrompt: userPrompt,
+            extractedAliases: [],
+            aliasPositions: [],
+          },
+          includedTabs: [],
+          errors: ["Failed to initialize tab context"],
+        };
       }
 
       // Process the prompt
@@ -89,17 +120,13 @@ ipcMain.handle("tab:get-aliases", async event => {
       return {};
     }
 
-    // Get or create orchestrator for this window
-    let orchestrator = orchestrators.get(event.sender.id);
+    const orchestrator = await getOrCreateOrchestrator(
+      event.sender.id,
+      appWindow,
+    );
     if (!orchestrator) {
-      orchestrator = new TabContextOrchestrator(
-        appWindow.tabManager,
-        appWindow.viewManager,
-        browser?.getCDPManager(),
-      );
-      await orchestrator.initialize();
-      orchestrators.set(event.sender.id, orchestrator);
-      logger.info("Created new orchestrator for alias request");
+      logger.error("Failed to get or create orchestrator for alias request");
+      return {};
     }
 
     const mapping = orchestrator.getAliasMapping();

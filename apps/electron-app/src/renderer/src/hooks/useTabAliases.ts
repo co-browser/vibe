@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import type { ParsedPrompt, TabState } from "@vibe/shared-types";
+import type { IpcRendererEvent } from "electron";
 
 interface TabAliasSuggestion {
   alias: string;
@@ -88,13 +89,6 @@ export function useTabAliases(): UseTabAliasesReturn {
    */
   const getSuggestions = useCallback(
     (partial: string): TabAliasSuggestion[] => {
-      console.log("[useTabAliases] getSuggestions called:", {
-        partial,
-        tabsCount: tabs.length,
-        tabs: tabs.map(t => ({ key: t.key, title: t.title, url: t.url })),
-        aliases,
-      });
-
       if (!partial || partial.length === 0) {
         // Return all available aliases
         const allSuggestions = tabs.map((tab: TabState) => {
@@ -107,10 +101,6 @@ export function useTabAliases(): UseTabAliasesReturn {
             favicon: tab.favicon,
           };
         });
-        console.log(
-          "[useTabAliases] Returning all suggestions:",
-          allSuggestions,
-        );
         return allSuggestions;
       }
 
@@ -130,10 +120,6 @@ export function useTabAliases(): UseTabAliasesReturn {
           suggestion.alias.toLowerCase().startsWith(lowerPartial),
         );
 
-      console.log(
-        "[useTabAliases] Returning filtered suggestions:",
-        filteredSuggestions,
-      );
       return filteredSuggestions;
     },
     [tabs, aliases],
@@ -202,10 +188,9 @@ export function useTabAliases(): UseTabAliasesReturn {
       try {
         const allTabs =
           (await window.electron?.ipcRenderer.invoke("tabs:get-all")) || [];
-        console.log("[useTabAliases] Fetched tabs from main process:", allTabs);
         setTabs(allTabs);
-      } catch (error) {
-        console.error("Failed to fetch tabs:", error);
+      } catch {
+        // Tab fetching failed - tabs will remain empty
       }
     };
 
@@ -249,10 +234,9 @@ export function useTabAliases(): UseTabAliasesReturn {
       try {
         const aliasMapping =
           (await window.electron?.ipcRenderer.invoke("tab:get-aliases")) || {};
-        console.log("[useTabAliases] Fetched alias mapping:", aliasMapping);
         setAliases(aliasMapping);
-      } catch (error) {
-        console.error("Failed to fetch aliases:", error);
+      } catch {
+        // Alias fetching failed - aliases will remain empty
       }
     };
 
@@ -264,7 +248,7 @@ export function useTabAliases(): UseTabAliasesReturn {
    */
   useEffect(() => {
     const handleAliasUpdate = (
-      _event: any,
+      _event: IpcRendererEvent,
       data: { tabKey: string; alias: string },
     ) => {
       setAliases(prev => ({
@@ -300,7 +284,6 @@ function getDefaultAlias(url: string): string {
   try {
     const urlObj = new URL(url);
     const hostname = urlObj.hostname.replace("www.", "").toLowerCase();
-    console.log("[useTabAliases] Generated default alias:", { url, hostname });
     return hostname;
   } catch {
     return "unknown";

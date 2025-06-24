@@ -78,54 +78,63 @@ ipcMain.on("chat:send-message", async (event, message: string) => {
   let systemPromptAddition = "";
 
   try {
-    const orchestrator = getTabContextOrchestrator(event.sender.id);
-    if (orchestrator) {
-      // Process the prompt with tab context
-      const tabResult = await orchestrator.processPromptWithTabContext(
-        message.trim(),
-        "You are a helpful AI assistant integrated with a web browser. You can access and analyze content from browser tabs when referenced with @aliases.",
-        chatHistory,
+    // Validate sender before using it
+    if (!event.sender || event.sender.isDestroyed()) {
+      logger.warn(
+        "Invalid or destroyed sender, skipping tab context processing",
       );
-
-      // Always use the clean prompt (without @ mentions)
-      processedMessage = tabResult.parsedPrompt.cleanPrompt;
-
-      if (tabResult.includedTabs.length > 0) {
-        // Extract properly formatted tab context from the orchestrator's messages
-        const tabContextSystemMessage = tabResult.messages.find(
-          msg => msg.role === "system" && msg.content.includes("TAB CONTEXTS:"),
+      processedMessage = message.trim();
+    } else {
+      const orchestrator = getTabContextOrchestrator(event.sender.id);
+      if (orchestrator) {
+        // Process the prompt with tab context
+        const tabResult = await orchestrator.processPromptWithTabContext(
+          message.trim(),
+          "You are a helpful AI assistant integrated with a web browser. You can access and analyze content from browser tabs when referenced with @aliases.",
+          chatHistory,
         );
 
-        if (tabContextSystemMessage) {
-          // Use the properly formatted system message content
-          systemPromptAddition = "\n\n" + tabContextSystemMessage.content;
+        // Always use the clean prompt (without @ mentions)
+        processedMessage = tabResult.parsedPrompt.cleanPrompt;
+
+        if (tabResult.includedTabs.length > 0) {
+          // Extract properly formatted tab context from the orchestrator's messages
+          const tabContextSystemMessage = tabResult.messages.find(
+            msg =>
+              msg.role === "system" && msg.content.includes("TAB CONTEXTS:"),
+          );
+
+          if (tabContextSystemMessage) {
+            // Use the properly formatted system message content
+            systemPromptAddition = "\n\n" + tabContextSystemMessage.content;
+          }
+
+          logger.info("Processed tab context", {
+            extractedAliases: tabResult.parsedPrompt.extractedAliases,
+            includedTabs: tabResult.includedTabs.length,
+            errors: tabResult.errors,
+            systemPromptAdditionLength: systemPromptAddition.length,
+          });
         }
 
-        logger.info("Processed tab context", {
-          extractedAliases: tabResult.parsedPrompt.extractedAliases,
-          includedTabs: tabResult.includedTabs.length,
+        // If there are errors (e.g., tab not found), include them in the system context
+        if (tabResult.errors && tabResult.errors.length > 0) {
+          const errorMessage =
+            "\n\n[ERRORS: " + tabResult.errors.join("; ") + "]";
+          systemPromptAddition = (systemPromptAddition || "") + errorMessage;
+
+          logger.warn("Tab context errors", {
+            errors: tabResult.errors,
+            extractedAliases: tabResult.parsedPrompt.extractedAliases,
+          });
+        }
+
+        // Send tab context info to renderer for UI feedback
+        event.sender.send("chat:tab-context", {
+          includedTabs: tabResult.includedTabs,
           errors: tabResult.errors,
-          systemPromptAdditionLength: systemPromptAddition.length,
         });
       }
-
-      // If there are errors (e.g., tab not found), include them in the system context
-      if (tabResult.errors && tabResult.errors.length > 0) {
-        const errorMessage =
-          "\n\n[ERRORS: " + tabResult.errors.join("; ") + "]";
-        systemPromptAddition = (systemPromptAddition || "") + errorMessage;
-
-        logger.warn("Tab context errors", {
-          errors: tabResult.errors,
-          extractedAliases: tabResult.parsedPrompt.extractedAliases,
-        });
-      }
-
-      // Send tab context info to renderer for UI feedback
-      event.sender.send("chat:tab-context", {
-        includedTabs: tabResult.includedTabs,
-        errors: tabResult.errors,
-      });
     }
   } catch (error) {
     logger.error("Failed to process tab context:", error);
