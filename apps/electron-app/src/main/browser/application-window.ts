@@ -187,9 +187,9 @@ export class ApplicationWindow extends EventEmitter {
         }
       }
     } else {
-      const htmlPath = join(__dirname, "../renderer/index.html");
-      logger.debug("🔧 ApplicationWindow: Loading HTML file:", htmlPath);
-      this.window.loadFile(htmlPath);
+      // Use custom protocol for production to enable secure context
+      logger.debug("🔧 ApplicationWindow: Loading with vibe:// protocol");
+      this.window.loadURL("vibe://localhost/index.html");
     }
   }
 

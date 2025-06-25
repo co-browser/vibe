@@ -9,7 +9,10 @@ import {
   shell,
   powerMonitor,
   powerSaveBlocker,
+  protocol,
+  net,
 } from "electron";
+import { join } from "path";
 import { optimizer } from "@electron-toolkit/utils";
 import { config } from "dotenv";
 
@@ -87,6 +90,19 @@ let unsubscribeVibe: (() => void) | null = null;
 const unsubscribeStore: (() => void) | null = null;
 const unsubscribeBrowser: (() => void) | null = null;
 let memoryMonitor: ReturnType<typeof setupMemoryMonitoring> | null = null;
+
+// Register custom protocol as secure for WebCrypto API support
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: "vibe",
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      corsEnabled: true,
+    },
+  },
+]);
 
 // Configure remote debugging for browser integration
 app.commandLine.appendSwitch(
@@ -509,6 +525,14 @@ async function initializeServices(): Promise<void> {
 
 // Main application initialization
 app.whenReady().then(() => {
+  // Register the custom protocol handler for secure context
+  protocol.handle("vibe", request => {
+    const url = new URL(request.url);
+    const normalizedPath = url.pathname.replace(/^\//, ""); // Remove leading slash
+    const filePath = join(__dirname, "../renderer", normalizedPath);
+    return net.fetch(`file://${filePath}`);
+  });
+
   if (isProd) {
     //updater.init();
   }
