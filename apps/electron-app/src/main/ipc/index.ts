@@ -11,6 +11,7 @@ import "@/ipc/app/actions";
 import "@/ipc/app/gmail";
 import "@/ipc/app/api-keys";
 import "@/ipc/app/password-import";
+import "@/ipc/app/onboarding";
 
 // Chat APIs - direct imports (register themselves)
 import "@/ipc/chat/chat-messaging";

@@ -552,3 +552,12 @@ ipcMain.handle(
     }
   },
 );
+
+// Export functions for use by other modules
+export {
+  importFromChrome,
+  importFromSafari,
+  importFromFirefox,
+  importFromBrave,
+  importFromArc,
+};

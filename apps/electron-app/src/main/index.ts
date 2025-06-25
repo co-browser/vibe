@@ -26,11 +26,9 @@ import {
   childProcessIntegration,
 } from "@sentry/electron/main";
 import AppUpdater from "./services/update-service";
-import {
-  isFirstRun,
-  openOnboardingForFirstRun,
-} from "@/browser/onboarding-window";
+import { openOnboardingForFirstRun } from "@/browser/onboarding-window";
 import { SettingsWindow } from "@/browser/settings-window";
+import { getOnboardingService } from "@/services/onboarding-service";
 
 // Set consistent log level for all processes
 if (!process.env.LOG_LEVEL) {
@@ -267,15 +265,24 @@ async function createInitialWindow(): Promise<void> {
     mainWindow.webContents.openDevTools({ mode: "detach" });
   }
 
-  // Check if this is the first run and open onboarding if needed
-  const firstRun = isFirstRun();
-  if (firstRun) {
-    logger.info("First run detected - will open onboarding window");
+  // Initialize onboarding service and check if onboarding is needed
+  try {
+    const onboardingService = getOnboardingService();
+    const onboardingResult = await onboardingService.initialize();
 
-    // Wait a bit for the main window to be fully ready
-    setTimeout(() => {
-      openOnboardingForFirstRun(browser, detectedBrowsers);
-    }, 2000); // 2 second delay to ensure everything is loaded
+    if (onboardingResult.needsOnboarding) {
+      logger.info("Onboarding needed - will open onboarding window");
+
+      // Wait a bit for the main window to be fully ready
+      setTimeout(() => {
+        openOnboardingForFirstRun(browser, detectedBrowsers);
+      }, 2000); // 2 second delay to ensure everything is loaded
+    } else {
+      logger.info("No onboarding needed - app ready to use");
+    }
+  } catch (error) {
+    logger.error("Error during onboarding initialization:", error);
+    // Continue with app startup even if onboarding fails
   }
 }
 
