@@ -44,6 +44,9 @@ export default defineConfig({
     },
   },
   preload: {
+        optimizeDeps: {
+      exclude: ['@duckdb/duckdb-wasm'],
+    },
     plugins: [externalizeDepsPlugin()],
     resolve: {
       alias: {
