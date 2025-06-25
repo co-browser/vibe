@@ -2,6 +2,7 @@ import { safeStorage, systemPreferences } from "electron";
 import Store from "electron-store";
 import { Entry } from "@napi-rs/keyring";
 import { createLogger } from "@vibe/shared-types";
+import { randomBytes } from "crypto";
 
 const logger = createLogger("DesktopStore");
 
@@ -169,9 +170,8 @@ export const NewUserStore = async (
 
     // Create a random password using system time and other randomness
     const timestamp = Date.now().toString();
-    const randomBytes = crypto.randomBytes(32);
-    const randomHex = randomBytes.toString('hex');
-    const randomHex = Array.from(randomBytes, byte =>
+    const randomBytesBuffer = randomBytes(32);
+    const randomHex = Array.from(randomBytesBuffer, (byte: number) =>
       byte.toString(16).padStart(2, "0"),
     ).join("");
     randomPassword = `${timestamp}-${randomHex}-${Math.random().toString(36).substring(2)}`;
