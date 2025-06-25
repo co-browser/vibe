@@ -41,3 +41,6 @@ export * from "./mcp";
 
 // RAG types
 export * from "./rag";
+
+// Tab alias types
+export * from "./tab-aliases";
