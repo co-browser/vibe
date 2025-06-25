@@ -2,6 +2,7 @@ import { ipcMain } from "electron";
 import type { ChatMessage, IAgentProvider } from "@vibe/shared-types";
 import { createLogger } from "@vibe/shared-types";
 import { mainStore } from "@/store/store";
+import { getTabContextOrchestrator } from "./tab-context";
 
 const logger = createLogger("chat-messaging");
 
@@ -72,13 +73,81 @@ ipcMain.on("chat:send-message", async (event, message: string) => {
     historyCount: chatHistory.length,
   });
 
+  // Process tab context (auto-includes current tab if no @ mentions)
+  let processedMessage = message.trim();
+  let systemPromptAddition = "";
+
+  try {
+    // Validate sender before using it
+    if (!event.sender || event.sender.isDestroyed()) {
+      logger.warn(
+        "Invalid or destroyed sender, skipping tab context processing",
+      );
+      processedMessage = message.trim();
+    } else {
+      const orchestrator = getTabContextOrchestrator(event.sender.id);
+      if (orchestrator) {
+        // Process the prompt with tab context
+        const tabResult = await orchestrator.processPromptWithTabContext(
+          message.trim(),
+          "You are a helpful AI assistant integrated with a web browser. You can access and analyze content from browser tabs when referenced with @aliases.",
+          chatHistory,
+        );
+
+        // Always use the clean prompt (without @ mentions)
+        processedMessage = tabResult.parsedPrompt.cleanPrompt;
+
+        if (tabResult.includedTabs.length > 0) {
+          // Extract properly formatted tab context from the orchestrator's messages
+          const tabContextSystemMessage = tabResult.messages.find(
+            msg =>
+              msg.role === "system" && msg.content.includes("TAB CONTEXTS:"),
+          );
+
+          if (tabContextSystemMessage) {
+            // Use the properly formatted system message content
+            systemPromptAddition = "\n\n" + tabContextSystemMessage.content;
+          }
+
+          logger.info("Processed tab context", {
+            extractedAliases: tabResult.parsedPrompt.extractedAliases,
+            includedTabs: tabResult.includedTabs.length,
+            errors: tabResult.errors,
+            systemPromptAdditionLength: systemPromptAddition.length,
+          });
+        }
+
+        // If there are errors (e.g., tab not found), include them in the system context
+        if (tabResult.errors && tabResult.errors.length > 0) {
+          const errorMessage =
+            "\n\n[ERRORS: " + tabResult.errors.join("; ") + "]";
+          systemPromptAddition = (systemPromptAddition || "") + errorMessage;
+
+          logger.warn("Tab context errors", {
+            errors: tabResult.errors,
+            extractedAliases: tabResult.parsedPrompt.extractedAliases,
+          });
+        }
+
+        // Send tab context info to renderer for UI feedback
+        event.sender.send("chat:tab-context", {
+          includedTabs: tabResult.includedTabs,
+          errors: tabResult.errors,
+        });
+      }
+    }
+  } catch (error) {
+    logger.error("Failed to process tab context:", error);
+    // Continue with original message if tab processing fails
+  }
+
   try {
     let partCount = 0;
     let accumulatedText = "";
     let accumulatedReasoning = "";
     let currentReasoningMessageId: string | null = null;
 
-    // Create user message
+    // Create user message (show original message in UI)
     const userMessage: ChatMessage = {
       id: `user-${Date.now()}`,
       role: "user",
@@ -159,12 +228,14 @@ ipcMain.on("chat:send-message", async (event, message: string) => {
             event.sender
               .executeJavaScript(
                 `
-                const data = ${trackingData};
-                if (window.umami && typeof window.umami.track === 'function') {
-                  window.umami.track(data.eventName, {
-                    timestamp: data.timestamp
-                  });
-                }
+                (function() {
+                  const toolTrackingData = ${trackingData};
+                  if (window.umami && typeof window.umami.track === 'function') {
+                    window.umami.track(toolTrackingData.eventName, {
+                      timestamp: toolTrackingData.timestamp
+                    });
+                  }
+                })();
                 `,
               )
               .catch(err => {
@@ -241,15 +312,17 @@ ipcMain.on("chat:send-message", async (event, message: string) => {
           event.sender
             .executeJavaScript(
               `
-            const data = ${responseTrackingData};
-            if (window.umami && typeof window.umami.track === 'function') {
-              window.umami.track(data.eventName, {
-                responseLength: data.responseLength,
-                hasReasoning: data.hasReasoning,
-                partCount: data.partCount,
-                timestamp: data.timestamp
-              });
-            }
+            (function() {
+              const responseData = ${responseTrackingData};
+              if (window.umami && typeof window.umami.track === 'function') {
+                window.umami.track(responseData.eventName, {
+                  responseLength: responseData.responseLength,
+                  hasReasoning: responseData.hasReasoning,
+                  partCount: responseData.partCount,
+                  timestamp: responseData.timestamp
+                });
+              }
+            })();
           `,
             )
             .catch(err => {
@@ -326,8 +399,25 @@ ipcMain.on("chat:send-message", async (event, message: string) => {
     // Set up stream listener before sending message
     agentService.on("message-stream", streamHandler);
 
-    // Send message to agent service and handle via events
-    await agentService.sendMessage(message.trim());
+    // Send message to agent service
+    // Use the exact format that the ReAct system prompt expects for tab content
+    let messageToSend = processedMessage;
+
+    if (systemPromptAddition) {
+      // The ReAct system prompt expects tab content in a specific format within the user message
+      // Extract just the formatted tab content (without the "TAB CONTEXTS:" prefix)
+      const formattedTabContent = systemPromptAddition.replace(
+        /^[\s\n]*TAB CONTEXTS:[^\n]*\n+/,
+        "",
+      );
+
+      // Combine user question with tab content in the format expected by system prompt
+      messageToSend = `${processedMessage}
+
+${formattedTabContent}`;
+    }
+
+    await agentService.sendMessage(messageToSend);
   } catch (error) {
     logger.error("Chat processing error:", error);
     if (!event.sender.isDestroyed()) {
