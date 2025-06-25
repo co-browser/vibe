@@ -7,6 +7,9 @@ import { EventEmitter } from "events";
 import { utilityProcess, type UtilityProcess } from "electron";
 import path from "path";
 import fs from "fs";
+import { createLogger } from "@vibe/shared-types";
+
+const logger = createLogger("AgentWorker");
 
 interface PendingMessage {
   resolve: (value: any) => void;
@@ -37,9 +40,9 @@ export class AgentWorker extends EventEmitter {
     try {
       await this.createWorkerProcess();
       this.startHealthMonitoring();
-      console.log("[AgentWorker] Worker process started successfully");
+      logger.info("Worker process started successfully");
     } catch (error) {
-      console.error("[AgentWorker] Failed to start worker:", error);
+      logger.error("Failed to start worker:", error);
       throw error;
     }
   }
@@ -106,13 +109,8 @@ export class AgentWorker extends EventEmitter {
       }
 
       // Add debugging for message structure (only for non-ping messages)
-      if (type !== "ping" || process.env.LOG_LEVEL === "debug") {
-        console.log(
-          "[AgentWorker] Sending message to worker:",
-          type,
-          "ID:",
-          messageId,
-        );
+      if (type !== "ping") {
+        logger.debug("Sending message to worker:", type, "ID:", messageId);
       }
 
       this.workerProcess!.postMessage(message);
@@ -142,7 +140,7 @@ export class AgentWorker extends EventEmitter {
       this.lastHealthCheck = Date.now();
       return true;
     } catch (error) {
-      console.warn("[AgentWorker] Health check failed:", error);
+      logger.warn("Health check failed:", error);
       return false;
     }
   }
@@ -176,7 +174,7 @@ export class AgentWorker extends EventEmitter {
       const isHealthy = await this.performHealthCheck();
 
       if (!isHealthy && this.isConnected) {
-        console.warn("[AgentWorker] Worker failed health check");
+        logger.warn("Worker failed health check");
         this.emit("unhealthy", new Error("Worker failed health check"));
 
         // Mark as disconnected and potentially restart
@@ -187,9 +185,7 @@ export class AgentWorker extends EventEmitter {
       }
     }, this.healthCheckIntervalMs);
 
-    if (process.env.LOG_LEVEL === "debug") {
-      console.log("[AgentWorker] Health monitoring started");
-    }
+    logger.debug("Health monitoring started");
   }
 
   /**
@@ -199,7 +195,7 @@ export class AgentWorker extends EventEmitter {
     if (this.healthCheckInterval) {
       clearInterval(this.healthCheckInterval);
       this.healthCheckInterval = null;
-      console.log("[AgentWorker] Health monitoring stopped");
+      logger.info("Health monitoring stopped");
     }
   }
 
@@ -215,11 +211,9 @@ export class AgentWorker extends EventEmitter {
       throw new Error(`Worker process file not found: ${workerPath}`);
     }
 
-    if (process.env.LOG_LEVEL === "debug") {
-      console.log("[AgentWorker] Creating utility process:", workerPath);
-      console.log("[AgentWorker] Current __dirname:", __dirname);
-      console.log("[AgentWorker] Resolved worker path:", workerPath);
-    }
+    logger.debug("Creating utility process:", workerPath);
+    logger.debug("Current __dirname:", __dirname);
+    logger.debug("Resolved worker path:", workerPath);
 
     // Create utility process using Electron's utilityProcess.fork()
     this.workerProcess = utilityProcess.fork(workerPath, [], {
@@ -238,20 +232,18 @@ export class AgentWorker extends EventEmitter {
     if (this.workerProcess.stdout) {
       this.workerProcess.stdout.on("data", data => {
         const output = data.toString();
-        // Only log important messages or in debug mode
-        if (
-          output.includes("ERROR") ||
-          output.includes("WARN") ||
-          process.env.LOG_LEVEL === "debug"
-        ) {
-          console.log("[AgentWorker] Worker stdout:", output);
+        // Only log important messages
+        if (output.includes("ERROR") || output.includes("WARN")) {
+          logger.info("Worker stdout:", output);
+        } else {
+          logger.debug("Worker stdout:", output);
         }
       });
     }
 
     if (this.workerProcess.stderr) {
       this.workerProcess.stderr.on("data", data => {
-        console.error("[AgentWorker] Worker stderr:", data.toString());
+        logger.error("Worker stderr:", data.toString());
       });
     }
 
@@ -285,16 +277,16 @@ export class AgentWorker extends EventEmitter {
       this.workerProcess!.on("message", readyHandler);
     });
 
-    console.log("[AgentWorker] Worker process connected and ready");
+    logger.info("Worker process connected and ready");
   }
 
   /**
    * Handle messages from worker process
    */
   private handleWorkerMessage(message: any): void {
-    // Only log non-ping messages unless debug mode
-    if (message.type !== "response" || process.env.LOG_LEVEL === "debug") {
-      console.log("[AgentWorker] Received message from worker:", message.type);
+    // Only log non-ping messages
+    if (message.type !== "response") {
+      logger.debug("Received message from worker:", message.type);
     }
 
     // Handle different message types
@@ -316,9 +308,7 @@ export class AgentWorker extends EventEmitter {
       this.emit("stream", message.id, message.data);
     } else if (message.type === "ready") {
       // Ready signal - enhanced detection for health monitoring
-      if (process.env.LOG_LEVEL === "debug") {
-        console.log("[AgentWorker] Worker ready signal received");
-      }
+      logger.debug("Worker ready signal received");
       this.lastHealthCheck = Date.now();
 
       if (!this.isConnected) {
@@ -329,15 +319,10 @@ export class AgentWorker extends EventEmitter {
         });
       }
     } else if (message.type === "pong") {
-      // Health check response - no logging needed unless debug
-      if (process.env.LOG_LEVEL === "debug") {
-        console.log("[AgentWorker] Health check pong received");
-      }
+      // Health check response
+      logger.debug("Health check pong received");
     } else {
-      console.warn(
-        "[AgentWorker] Unknown message type from worker:",
-        message.type,
-      );
+      logger.warn("Unknown message type from worker:", message.type);
     }
   }
 
@@ -345,7 +330,7 @@ export class AgentWorker extends EventEmitter {
    * Handle worker process exit with restart logic
    */
   private handleWorkerExit(code: number): void {
-    console.warn(`[AgentWorker] Worker process exited with code ${code}`);
+    logger.warn(`Worker process exited with code ${code}`);
     this.isConnected = false;
 
     // Stop health monitoring
@@ -369,7 +354,7 @@ export class AgentWorker extends EventEmitter {
     ) {
       this.attemptRestart();
     } else if (this.restartCount >= this.maxRestarts) {
-      console.error("[AgentWorker] Max restart attempts reached");
+      logger.error("Max restart attempts reached");
       this.emit("error", new Error("Worker process repeatedly crashed"));
     }
   }
@@ -383,8 +368,8 @@ export class AgentWorker extends EventEmitter {
     this.isRestarting = true;
     this.restartCount++;
 
-    console.log(
-      `[AgentWorker] Auto-restarting worker (attempt ${this.restartCount}/${this.maxRestarts})`,
+    logger.info(
+      `Auto-restarting worker (attempt ${this.restartCount}/${this.maxRestarts})`,
     );
 
     try {
@@ -403,14 +388,11 @@ export class AgentWorker extends EventEmitter {
       // Reset restart flag on success
       this.isRestarting = false;
 
-      console.log("[AgentWorker] Worker successfully restarted");
+      logger.info("Worker successfully restarted");
       this.emit("restarted", { restartCount: this.restartCount });
     } catch (error) {
       this.isRestarting = false;
-      console.error(
-        `[AgentWorker] Restart attempt ${this.restartCount} failed:`,
-        error,
-      );
+      logger.error(`Restart attempt ${this.restartCount} failed:`, error);
 
       // Try again if we haven't hit the limit
       if (this.restartCount < this.maxRestarts) {

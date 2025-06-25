@@ -158,3 +158,4 @@ tmp/
 temp/
 tmp-build/
 *.tsbuildinfo
+apps/electron-app/debug-app.sh

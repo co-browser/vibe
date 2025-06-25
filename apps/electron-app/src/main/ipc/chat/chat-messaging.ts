@@ -41,7 +41,7 @@ ipcMain.on("chat:send-message", async (event, message: string) => {
   }
 
   if (!agentService) {
-    console.error("[ChatIPC] Agent service not available");
+    logger.error("Agent service not available");
     event.sender.send("chat:message", {
       type: "error",
       error: "AgentService not initialized",
@@ -52,10 +52,7 @@ ipcMain.on("chat:send-message", async (event, message: string) => {
   // Check if agent service is ready
   const serviceStatus = agentService.getStatus();
   if (!serviceStatus.ready) {
-    console.error(
-      "[ChatIPC] Agent service not ready:",
-      serviceStatus.serviceStatus,
-    );
+    logger.error("Agent service not ready:", serviceStatus.serviceStatus);
     event.sender.send("chat:message", {
       type: "error",
       error: `AgentService not ready: ${serviceStatus.serviceStatus}`,
@@ -97,7 +94,7 @@ ipcMain.on("chat:send-message", async (event, message: string) => {
       partCount++;
 
       if (event.sender.isDestroyed()) {
-        console.warn("[ChatIPC] Renderer destroyed, stopping stream handling");
+        logger.warn("Renderer destroyed, stopping stream handling");
         return;
       }
 

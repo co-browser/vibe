@@ -12,7 +12,10 @@ import {
   type MCPServerConfig,
   findWorkspaceRoot,
   getMonorepoPackagePath,
+  createLogger,
 } from "@vibe/shared-types";
+
+const logger = createLogger("MCPManager");
 
 interface MCPServer {
   name: string;
@@ -33,7 +36,7 @@ class MCPManager {
 
   private async initialize() {
     try {
-      console.log("[MCPManager] Initializing MCP manager");
+      logger.info("Initializing MCP manager");
 
       // Always start MCP servers as child processes (consistent dev/prod behavior)
       const envVars: Record<string, string> = {};
@@ -43,9 +46,7 @@ class MCPManager {
         }
       }
       const serverConfigs = getAllMCPServerConfigs(envVars);
-      console.log(
-        `[MCPManager] Found ${serverConfigs.length} server configurations`,
-      );
+      logger.info(`Found ${serverConfigs.length} server configurations`);
 
       for (const config of serverConfigs) {
         await this.startMCPServer(config);
@@ -54,22 +55,18 @@ class MCPManager {
       // Signal ready to parent process
       if (process.parentPort) {
         process.parentPort.postMessage({ type: "ready" });
-        console.log("[MCPManager] Ready signal sent to parent");
+        logger.info("Ready signal sent to parent");
       }
     } catch (error) {
-      console.error("[MCPManager] Initialization failed:", error);
+      logger.error("Initialization failed:", error);
       process.exit(1);
     }
   }
 
   private async startMCPServer(config: MCPServerConfig): Promise<void> {
-    console.log(
-      `[MCPManager] Starting ${config.name} MCP server on port ${config.port}`,
-    );
-    if (process.env.LOG_LEVEL === "debug") {
-      console.log(`[MCPManager] Current working directory: ${process.cwd()}`);
-      console.log(`[MCPManager] __dirname: ${__dirname}`);
-    }
+    logger.info(`Starting ${config.name} MCP server on port ${config.port}`);
+    logger.debug(`Current working directory: ${process.cwd()}`);
+    logger.debug(`__dirname: ${__dirname}`);
 
     // Determine paths based on environment
     const isDev = process.env.NODE_ENV === "development";
@@ -114,8 +111,8 @@ class MCPManager {
           ];
         } else {
           // Last resort: try process.cwd()
-          console.warn(
-            "[MCPManager] Package and workspace root not found, falling back to process.cwd()",
+          logger.warn(
+            "Package and workspace root not found, falling back to process.cwd()",
           );
           possiblePaths = [
             path.join(
@@ -168,23 +165,18 @@ class MCPManager {
     }
 
     if (!mcpPath) {
-      console.error(
-        `[MCPManager] MCP server not found. Tried paths:`,
-        possiblePaths,
-      );
+      logger.error(`MCP server not found. Tried paths:`, possiblePaths);
       // For development, we'll continue without the server
       if (isDev) {
-        console.warn(
-          `[MCPManager] Continuing in development mode without ${config.name} server`,
+        logger.warn(
+          `Continuing in development mode without ${config.name} server`,
         );
         return;
       }
       throw new Error(`MCP server not found: ${config.name}`);
     }
 
-    if (process.env.LOG_LEVEL === "debug") {
-      console.log(`[MCPManager] Found MCP server at: ${mcpPath}`);
-    }
+    logger.debug(`Found MCP server at: ${mcpPath}`);
 
     // Use node for JavaScript files, tsx for TypeScript (with proper path resolution)
     let command: string = "";
@@ -194,9 +186,7 @@ class MCPManager {
       // For JavaScript files, use node (PATH should be available now)
       command = "node";
       args = [mcpPath];
-      if (process.env.LOG_LEVEL === "debug") {
-        console.log(`[MCPManager] Using Node.js: node (from PATH)`);
-      }
+      logger.debug(`Using Node.js: node (from PATH)`);
     } else if (mcpPath.endsWith(".ts")) {
       // Try to find tsx in node_modules
       const tsxPath = path.resolve(process.cwd(), "node_modules/.bin/tsx");
@@ -204,7 +194,7 @@ class MCPManager {
         command = tsxPath;
         args = [mcpPath];
       } else {
-        console.warn(`[MCPManager] tsx not found, trying global tsx`);
+        logger.warn(`tsx not found, trying global tsx`);
         command = "tsx";
         args = [mcpPath];
       }
@@ -212,10 +202,8 @@ class MCPManager {
       throw new Error(`Unsupported file type: ${mcpPath}`);
     }
 
-    if (process.env.LOG_LEVEL === "debug") {
-      console.log(`[MCPManager] Spawning command: ${command}`);
-      console.log(`[MCPManager] With args:`, args);
-    }
+    logger.debug(`Spawning command: ${command}`);
+    logger.debug(`With args:`, args);
 
     const serverProcess = spawn(command, args, {
       stdio: ["pipe", "pipe", "pipe"],
@@ -247,24 +235,26 @@ class MCPManager {
     serverProcess.stdout?.on("data", data => {
       const output = data.toString();
 
-      // Log output if debug level or contains errors
-      if (output.includes("ERROR") || process.env.LOG_LEVEL === "debug") {
-        console.log(`[MCP-${config.name}]:`, output);
+      // Log output if contains errors/warnings
+      if (output.includes("ERROR") || output.includes("WARN")) {
+        logger.info(`[MCP-${config.name}]:`, output);
+      } else {
+        logger.debug(`[MCP-${config.name}]:`, output);
       }
     });
 
     serverProcess.stderr?.on("data", data => {
-      console.error(`[MCP-${config.name} error]:`, data.toString());
+      logger.error(`[MCP-${config.name} error]:`, data.toString());
     });
 
     serverProcess.on("error", error => {
-      console.error(`[MCP-${config.name}] Failed to start:`, error);
+      logger.error(`[MCP-${config.name}] Failed to start:`, error);
       server.status = "error";
       this.notifyServerStatus(config.name, "error");
     });
 
     serverProcess.on("exit", code => {
-      console.log(`[MCP-${config.name}] Exited with code ${code}`);
+      logger.info(`[MCP-${config.name}] Exited with code ${code}`);
       server.status = "stopped";
       this.servers.delete(config.name);
       this.notifyServerStatus(config.name, "stopped");
@@ -273,13 +263,13 @@ class MCPManager {
       if (code !== 0 && code !== null) {
         const attempts = this.restartAttempts.get(config.name) || 0;
         if (attempts >= this.maxRestartAttempts) {
-          console.error(
+          logger.error(
             `[MCP-${config.name}] Max restart attempts (${this.maxRestartAttempts}) reached - stopping restart attempts`,
           );
           return;
         }
         this.restartAttempts.set(config.name, attempts + 1);
-        console.log(
+        logger.info(
           `[MCP-${config.name}] Attempting restart after crash (attempt ${attempts + 1}/${this.maxRestartAttempts})`,
         );
         setTimeout(() => this.startMCPServer(config), 2000);
@@ -338,9 +328,7 @@ class MCPManager {
         lastHealthCheck = now;
 
         if (isHealthy) {
-          console.log(
-            `[MCPManager] Server ${name} health check passed - marking as ready`,
-          );
+          logger.info(`Server ${name} health check passed - marking as ready`);
           server.status = "ready";
           // Reset restart attempts on successful startup
           this.restartAttempts.delete(name);
@@ -353,8 +341,8 @@ class MCPManager {
     }
 
     if (server.status !== "ready") {
-      console.warn(
-        `[MCPManager] Server ${name} did not become ready within timeout - health checks failed`,
+      logger.warn(
+        `Server ${name} did not become ready within timeout - health checks failed`,
       );
       server.status = "error";
       this.notifyServerStatus(name, "error");
@@ -371,10 +359,10 @@ class MCPManager {
   }
 
   async stopAllServers(): Promise<void> {
-    console.log("[MCPManager] Stopping all MCP servers");
+    logger.info("Stopping all MCP servers");
 
     for (const [name, server] of this.servers) {
-      console.log(`[MCPManager] Stopping ${name} server`);
+      logger.info(`Stopping ${name} server`);
       server.process.kill("SIGTERM");
     }
 
@@ -388,7 +376,7 @@ const manager = new MCPManager();
 
 // Handle IPC messages from parent
 process.parentPort?.on("message", async (message: any) => {
-  console.log("[MCPManager] Received message:", message.type);
+  logger.debug("Received message:", message.type);
 
   switch (message.type) {
     case "stop":
@@ -396,26 +384,26 @@ process.parentPort?.on("message", async (message: any) => {
       process.exit(0);
       break;
     default:
-      console.warn("[MCPManager] Unknown message type:", message.type);
+      logger.warn("Unknown message type:", message.type);
   }
 });
 
 // Handle process lifecycle
 process.on("SIGTERM", async () => {
-  console.log("[MCPManager] Received SIGTERM, shutting down");
+  logger.info("Received SIGTERM, shutting down");
   await manager.stopAllServers();
   process.exit(0);
 });
 
 process.on("uncaughtException", error => {
-  console.error("[MCPManager] Uncaught exception:", error);
+  logger.error("Uncaught exception:", error);
   process.exit(1);
 });
 
 process.on("unhandledRejection", reason => {
-  console.error("[MCPManager] Unhandled promise rejection:", reason);
+  logger.error("Unhandled promise rejection:", reason);
   process.exit(1);
 });
 
-console.log("[MCPManager] MCP manager process started");
-console.log("[MCPManager] Parent port available:", !!process.parentPort);
+logger.info("MCP manager process started");
+logger.debug("Parent port available:", !!process.parentPort);

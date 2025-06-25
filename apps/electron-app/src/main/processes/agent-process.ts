@@ -5,6 +5,9 @@
 
 import { AgentFactory, Agent } from "@vibe/agent-core";
 import type { ExtractedPage } from "@vibe/shared-types";
+import { createLogger } from "@vibe/shared-types";
+
+const logger = createLogger("AgentWorker");
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -61,7 +64,7 @@ class IPCMessenger {
         data,
       });
     } else {
-      console.warn("[AgentWorker] No IPC channel available for response");
+      logger.warn("No IPC channel available for response");
     }
   }
 
@@ -172,9 +175,7 @@ class MessageHandlers {
       authToken: authToken, // Pass auth token if available
     });
 
-    console.log(
-      "[AgentWorker] Agent initialized successfully in utility process",
-    );
+    logger.info("Agent initialized successfully in utility process");
 
     IPCMessenger.sendResponse(message.id, { success: true });
   }
@@ -187,8 +188,8 @@ class MessageHandlers {
     );
 
     isProcessing = true;
-    console.log(
-      "[AgentWorker] Processing chat message:",
+    logger.info(
+      "Processing chat message:",
       userMessage.substring(0, 100) + "...",
     );
 
@@ -207,7 +208,7 @@ class MessageHandlers {
       }
     }
 
-    console.log("[AgentWorker] Chat stream completed");
+    logger.info("Chat stream completed");
 
     if (streamError) {
       IPCMessenger.sendResponse(message.id, {
@@ -244,21 +245,21 @@ class MessageHandlers {
       timestamp: Date.now(),
     };
 
-    console.log("[AgentWorker] Status requested:", statusResponse);
+    logger.debug("Status requested:", statusResponse);
     IPCMessenger.sendResponse(message.id, statusResponse);
   }
 
   static async handleReset(message: BaseMessage): Promise<void> {
-    console.log("[AgentWorker] Reset requested");
+    logger.info("Reset requested");
 
     if (agent) {
       agent.reset();
-      console.log("[AgentWorker] Agent processor and tool caches cleared");
+      logger.info("Agent processor and tool caches cleared");
     }
 
     isProcessing = false;
 
-    console.log("[AgentWorker] Agent state reset completed");
+    logger.info("Agent state reset completed");
 
     IPCMessenger.sendResponse(message.id, {
       success: true,
@@ -268,10 +269,7 @@ class MessageHandlers {
   }
 
   static async handlePing(message: BaseMessage): Promise<void> {
-    // Only log in debug mode to reduce noise
-    if (process.env.LOG_LEVEL === "debug") {
-      console.log("[AgentWorker] Health check ping received");
-    }
+    logger.debug("Health check ping received");
 
     IPCMessenger.sendResponse(message.id, {
       type: "pong",
@@ -287,11 +285,11 @@ class MessageHandlers {
       message.data,
     );
 
-    console.log("[AgentWorker] Saving tab memory:", extractedPage.title);
+    logger.info("Saving tab memory:", extractedPage.title);
 
     await agent!.saveTabMemory(extractedPage);
 
-    console.log("[AgentWorker] Tab memory saved successfully");
+    logger.info("Tab memory saved successfully");
     IPCMessenger.sendResponse(message.id, { success: true });
   }
 
@@ -300,20 +298,15 @@ class MessageHandlers {
     const oldToken = authToken;
     authToken = data.token;
 
-    console.log(
-      "[AgentWorker] Auth token updated:",
-      authToken ? "present" : "null",
-    );
+    logger.info("Auth token updated:", authToken ? "present" : "null");
 
     // If agent is initialized, update its MCP connections
     if (agent) {
       try {
         await agent.updateMCPConnections(authToken);
-        console.log(
-          "[AgentWorker] MCP connections updated with new auth token",
-        );
+        logger.info("MCP connections updated with new auth token");
       } catch (error) {
-        console.error("[AgentWorker] Failed to update MCP connections:", error);
+        logger.error("Failed to update MCP connections:", error);
         // Don't fail the token update, just log the error
       }
     }
@@ -338,13 +331,13 @@ async function handleMessageWithErrorHandling(
   try {
     message = MessageValidator.validateMessage(messageWrapper);
   } catch (error) {
-    console.error("[AgentWorker] Message validation error:", error);
+    logger.error("Message validation error:", error);
     return;
   }
 
-  // Only log non-ping messages unless debug mode
-  if (message.type !== "ping" || process.env.LOG_LEVEL === "debug") {
-    console.log("[AgentWorker] Processing message:", message.type);
+  // Only log non-ping messages
+  if (message.type !== "ping") {
+    logger.debug("Processing message:", message.type);
   }
 
   try {
@@ -378,7 +371,7 @@ async function handleMessageWithErrorHandling(
         break;
 
       default:
-        console.log("[AgentWorker] Unknown message type:", message.type);
+        logger.warn("Unknown message type:", message.type);
         IPCMessenger.sendError(
           message.id,
           `Unknown message type: ${message.type}`,
@@ -386,7 +379,7 @@ async function handleMessageWithErrorHandling(
         break;
     }
   } catch (error) {
-    console.error(`[AgentWorker] Error handling ${message.type}:`, error);
+    logger.error(`Error handling ${message.type}:`, error);
 
     const errorMessage =
       error instanceof Error ? error.message : "Unknown error";
@@ -418,37 +411,34 @@ process.parentPort?.on("message", handleMessageWithErrorHandling);
 
 // Process error handlers
 process.on("error", error => {
-  console.error("[AgentWorker] Process error:", error);
+  logger.error("Process error:", error);
 });
 
 process.on("uncaughtException", error => {
-  console.error("[AgentWorker] Uncaught exception:", error);
+  logger.error("Uncaught exception:", error);
   process.exit(1);
 });
 
 process.on("unhandledRejection", (reason, _promise) => {
-  console.error("[AgentWorker] Unhandled promise rejection:", reason);
+  logger.error("Unhandled promise rejection:", reason);
   process.exit(1);
 });
 
 // Signal ready state
-console.log("[AgentWorker] Worker process started and ready");
-console.log(
-  "[AgentWorker] process.parentPort available:",
-  !!process.parentPort,
-);
-console.log(
-  "[AgentWorker] process.parentPort.postMessage available:",
+logger.info("Worker process started and ready");
+logger.debug("process.parentPort available:", !!process.parentPort);
+logger.debug(
+  "process.parentPort.postMessage available:",
   !!process.parentPort?.postMessage,
 );
 
 if (process.parentPort?.postMessage) {
   try {
     process.parentPort.postMessage({ type: "ready" });
-    console.log("[AgentWorker] Ready signal sent successfully");
+    logger.debug("Ready signal sent successfully");
   } catch (error) {
-    console.error("[AgentWorker] Failed to send ready signal:", error);
+    logger.error("Failed to send ready signal:", error);
   }
 } else {
-  console.log("[AgentWorker] No IPC channel available (running standalone)");
+  logger.info("No IPC channel available (running standalone)");
 }

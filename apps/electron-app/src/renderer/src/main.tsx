@@ -9,6 +9,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { init } from "@sentry/electron/renderer";
 import { PrivyProvider } from "@privy-io/react-auth";
+import { APP_CONFIG } from "@vibe/shared-types";
 import App from "./App";
 
 init({ debug: true });
@@ -17,7 +18,7 @@ init({ debug: true });
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <PrivyProvider
-      appId={import.meta.env.VITE_PRIVY_APP_ID || ""}
+      appId={APP_CONFIG.PRIVY_APP_ID}
       config={{
         loginMethods: ["email", "google"],
         appearance: {
