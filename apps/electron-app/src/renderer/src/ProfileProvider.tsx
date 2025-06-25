@@ -62,10 +62,15 @@ export function ProfileProvider({ children }: Props) {
   };
 
   const updateProfile = async (updates: Partial<ProfileData>) => {
-    const p = await window.vibe.profile.updateProfile(updates);
-    setProfile(p);
-    setStatus(prev => ({ ...prev, lastActivity: Date.now() }));
-    return p;
+    try {
+      const p = await window.vibe.profile.updateProfile(updates);
+      setProfile(p);
+      setStatus(prev => ({ ...prev, lastActivity: Date.now() }));
+      return p;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to update profile");
+      throw e;
+    }
   };
 
   const clearProfile = async () => {
