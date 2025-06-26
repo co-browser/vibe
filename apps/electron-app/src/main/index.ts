@@ -9,10 +9,7 @@ import {
   shell,
   powerMonitor,
   powerSaveBlocker,
-  protocol,
-  net,
 } from "electron";
-import { join } from "path";
 import { optimizer } from "@electron-toolkit/utils";
 import { config } from "dotenv";
 
@@ -25,24 +22,18 @@ import { setMCPServiceInstance } from "@/ipc/mcp/mcp-status";
 import { setAgentServiceInstance as setAgentStatusInstance } from "@/ipc/chat/agent-status";
 import { setAgentServiceInstance as setChatMessagingInstance } from "@/ipc/chat/chat-messaging";
 import { setAgentServiceInstance as setTabAgentInstance } from "@/utils/tab-agent";
-import { initializeStorage } from "@/store/initialize-storage";
-import { getStorageService } from "@/store/storage-service";
-import { createLogger, MAIN_PROCESS_CONFIG } from "@vibe/shared-types";
-import { findFileUpwards } from "@vibe/shared-types/utils/path";
-
+import { useUserProfileStore } from "@/store/user-profile-store";
+import {
+  createLogger,
+  MAIN_PROCESS_CONFIG,
+  findFileUpwards,
+} from "@vibe/shared-types";
 import {
   init,
   browserWindowSessionIntegration,
   childProcessIntegration,
 } from "@sentry/electron/main";
 import AppUpdater from "./services/update-service";
-import log from "electron-log";
-
-// Configure electron-log to write to file
-log.transports.file.level = "info";
-log.transports.file.fileName = "main.log";
-log.transports.console.level =
-  process.env.NODE_ENV === "development" ? "info" : "error";
 
 // Set consistent log level for all processes
 if (!process.env.LOG_LEVEL) {
@@ -72,82 +63,13 @@ init({
 
 // Simple logging only for now
 
-// Load environment variables only in development
-// In production, environment variables should be set via LSEnvironment or system
-let envPath: string | null = null;
-if (!app.isPackaged) {
-  envPath = findFileUpwards(__dirname, ".env");
-  if (envPath) {
-    config({ path: envPath });
-    logger.info(`Loaded environment variables from: ${envPath}`);
-  } else {
-    logger.warn(".env file not found in directory tree");
-  }
+// Load environment variables
+const envPath = findFileUpwards(__dirname, ".env");
+if (envPath) {
+  config({ path: envPath });
 } else {
-  logger.info("Running in packaged mode, skipping .env file loading");
+  logger.warn(".env file not found in directory tree");
 }
-
-// ---------------------------------------------------------------------------
-// 🛠  Local RAG server toggle
-// ---------------------------------------------------------------------------
-// 1. In packaged (production) builds we *never* want to start the local RAG
-//    server unless the user explicitly opts-in.  Finder launches inherit a
-//    sparse environment which can accidentally pick up a lingering
-//    USE_LOCAL_RAG_SERVER=TRUE from a previous shell or system-wide export.
-// 2. To avoid surprises we forcibly set the variable to "false" for packaged
-//    apps **unless** the user passes `--enable-local-rag` on the command line.
-
-const userEnabledLocalRag = process.argv.includes("--enable-local-rag");
-
-if (app.isPackaged) {
-  if (userEnabledLocalRag) {
-    process.env.USE_LOCAL_RAG_SERVER = "true";
-    logger.info("User flag detected – enabling local RAG server");
-  } else {
-    if (process.env.USE_LOCAL_RAG_SERVER !== "false") {
-      logger.info(
-        `Overriding USE_LOCAL_RAG_SERVER (${process.env.USE_LOCAL_RAG_SERVER}) → false for packaged build`,
-      );
-    }
-    process.env.USE_LOCAL_RAG_SERVER = "false";
-  }
-} else {
-  // Development: if not set, default to false to avoid unintended server spin-up
-  if (!process.env.USE_LOCAL_RAG_SERVER) {
-    process.env.USE_LOCAL_RAG_SERVER = "false";
-  }
-}
-// ---------------------------------------------------------------------------
-
-// Handle USE_LOCAL_GMAIL_AUTH for production builds
-// Similar to RAG server, we force it to false unless explicitly enabled
-if (app.isPackaged) {
-  if (process.env.USE_LOCAL_GMAIL_AUTH !== "true") {
-    process.env.USE_LOCAL_GMAIL_AUTH = "false";
-    logger.info("Setting USE_LOCAL_GMAIL_AUTH to false for packaged build");
-  }
-} else {
-  // Development: if not set, default to false
-  if (!process.env.USE_LOCAL_GMAIL_AUTH) {
-    process.env.USE_LOCAL_GMAIL_AUTH = "false";
-  }
-}
-
-// Debug: Log environment state after loading
-logger.debug("Main Process Environment:", {
-  USE_LOCAL_RAG_SERVER: process.env.USE_LOCAL_RAG_SERVER || "undefined",
-  USE_LOCAL_GMAIL_AUTH: process.env.USE_LOCAL_GMAIL_AUTH || "undefined",
-  NODE_ENV: process.env.NODE_ENV || "undefined",
-  PATH: process.env.PATH
-    ? `${process.env.PATH.substring(0, 100)}...`
-    : "undefined",
-  OPENAI_API_KEY: process.env.OPENAI_API_KEY ? "present" : "not set",
-  envFileFound: !!envPath,
-  isPackaged: app.isPackaged,
-  LaunchMethod: process.env.PATH?.includes("/usr/local/bin")
-    ? "terminal"
-    : "finder/dock",
-});
 
 // Global browser instance
 export let browser: Browser | null = null;
@@ -160,26 +82,12 @@ let mcpService: MCPService | null = null;
 
 // Track shutdown state
 let isShuttingDown = false;
-let browserDestroyed = false;
 
 // Cleanup functions
 let unsubscribeVibe: (() => void) | null = null;
 const unsubscribeStore: (() => void) | null = null;
 const unsubscribeBrowser: (() => void) | null = null;
 let memoryMonitor: ReturnType<typeof setupMemoryMonitoring> | null = null;
-
-// Register custom protocol as secure for WebCrypto API support
-protocol.registerSchemesAsPrivileged([
-  {
-    scheme: "vibe",
-    privileges: {
-      standard: true,
-      secure: true,
-      supportFetchAPI: true,
-      corsEnabled: true,
-    },
-  },
-]);
 
 // Configure remote debugging for browser integration
 app.commandLine.appendSwitch(
@@ -250,9 +158,6 @@ async function gracefulShutdown(signal: string): Promise<void> {
   logger.info(`Graceful shutdown triggered by: ${signal}`);
 
   try {
-    // No need to encrypt on shutdown - new storage encrypts on write
-    logger.info("Shutting down - storage automatically encrypted");
-
     // Clean up resources
     if (memoryMonitor) {
       memoryMonitor.triggerGarbageCollection();
@@ -293,10 +198,8 @@ async function gracefulShutdown(signal: string): Promise<void> {
     }
 
     // Destroy browser instance (will clean up its own menu)
-    if (browser && !browserDestroyed) {
-      browserDestroyed = true;
-      await browser.destroy();
-      browser = null;
+    if (browser) {
+      browser.destroy();
     }
 
     // Close all windows
@@ -468,32 +371,14 @@ function initializeApp(): boolean {
     memoryMonitor.setBrowserInstance(browser);
   }
 
-  // Use before-quit for better control over shutdown process
-  app.on("before-quit", async event => {
-    if (!isShuttingDown) {
-      event.preventDefault();
-      await gracefulShutdown("before-quit");
-      app.quit(); // Trigger quit again after cleanup
-    }
-  });
-
-  app.on("will-quit", event => {
-    // Only allow quit if shutdown is complete
-    if (!isShuttingDown) {
-      event.preventDefault();
-      gracefulShutdown("will-quit");
-      return;
-    }
-
+  app.on("will-quit", _event => {
     // Force close any remaining resources
-    if (browser && !browserDestroyed) {
-      browserDestroyed = true;
+    if (browser) {
       browser = null;
     }
 
     // Force exit after a timeout if process doesn't exit cleanly
     setTimeout(() => {
-      logger.warn("Force exiting after timeout");
       process.exit(0);
     }, 2000);
   });
@@ -510,6 +395,12 @@ function initializeApp(): boolean {
  */
 async function initializeServices(): Promise<void> {
   try {
+    // Initialize user profile store
+    logger.info("Initializing user profile store");
+    const userProfileStore = useUserProfileStore.getState();
+    await userProfileStore.loadProfiles();
+    logger.info("User profile store initialized");
+
     // Initialize simple analytics instead of complex telemetry system
     logger.info("Using simplified analytics system");
 
@@ -548,122 +439,63 @@ async function initializeServices(): Promise<void> {
       // MCP service failed to initialize - this may impact functionality
       logger.warn("Application will continue without MCP service");
     }
-    // Wait for MCP service to be ready before initializing agent
-    if (mcpService) {
-      const mcpStatus = mcpService.getStatus();
-      if (mcpStatus.serviceStatus !== "ready") {
-        logger.info(
-          "Waiting for MCP service to be ready before initializing agent...",
-        );
-        await Promise.race([
-          new Promise<void>(resolve => {
-            const checkReady = () => {
-              if (!mcpService) {
-                resolve();
-                return;
-              }
-              const status = mcpService.getStatus();
-              if (status.serviceStatus === "ready") {
-                resolve();
-              }
-            };
 
-            // Check immediately in case it's already ready
-            checkReady();
+    if (process.env.OPENAI_API_KEY) {
+      // Initialize agent service after MCP is ready
+      await new Promise(resolve => {
+        setTimeout(async () => {
+          try {
+            logger.info(
+              "Initializing AgentService with utility process isolation",
+            );
 
-            // If not ready, wait for ready event
-            if (
-              mcpService &&
-              mcpService.getStatus().serviceStatus !== "ready"
-            ) {
-              mcpService.once("ready", () => {
-                logger.info("MCP service is now ready");
-                resolve();
-              });
+            // Create AgentService instance
+            agentService = new AgentService();
 
-              // Also listen for error event to avoid hanging forever
-              mcpService.once("error", error => {
-                logger.warn("MCP service failed to initialize:", error);
-                resolve(); // Continue anyway
-              });
-            }
-          }),
-          new Promise<void>(resolve => {
-            setTimeout(() => {
-              logger.warn(
-                "MCP service readiness timeout after 30s, continuing anyway",
-              );
-              resolve();
-            }, 30000);
-          }),
-        ]);
-      }
-    } else {
-      logger.info(
-        "No MCP service available, proceeding with agent initialization",
-      );
-    }
+            // Set up error handling for agent service
+            agentService.on("error", error => {
+              logger.error("AgentService error:", error);
+            });
 
-    // Now initialize agent service
-    try {
-      logger.info("Initializing AgentService with utility process isolation");
+            agentService.on("terminated", data => {
+              logger.info("AgentService terminated:", data);
+            });
 
-      // Create AgentService instance
-      agentService = new AgentService();
+            agentService.on("ready", data => {
+              logger.info("AgentService ready:", data);
+            });
 
-      // Set up error handling for agent service
-      agentService.on("error", error => {
-        logger.error("AgentService error:", error);
-      });
+            // Initialize with configuration
+            await agentService.initialize({
+              openaiApiKey: process.env.OPENAI_API_KEY!,
+              model: "gpt-4o-mini",
+              processorType: "react",
+            });
 
-      agentService.on("terminated", data => {
-        logger.info("AgentService terminated:", data);
-      });
+            // Inject agent service into IPC handlers
+            setAgentStatusInstance(agentService);
+            setChatMessagingInstance(agentService);
+            setTabAgentInstance(agentService);
 
-      agentService.on("ready", data => {
-        logger.info("AgentService ready:", data);
-      });
+            logger.info(
+              "AgentService initialized successfully with utility process isolation",
+            );
+            resolve(void 0);
+          } catch (error) {
+            logger.error(
+              "AgentService initialization failed:",
+              error instanceof Error ? error.message : String(error),
+            );
 
-      agentService.on("status-changed", () => {
-        logger.info("AgentService status changed, broadcasting to renderers");
-        // Broadcast to all windows
-        const allWindows = browser?.getAllWindows() || [];
-        allWindows.forEach(browserWindow => {
-          if (browserWindow && !browserWindow.isDestroyed()) {
-            browserWindow.webContents.send("agent:status-changed");
+            // Log agent initialization failure
+            logger.error("Agent initialization failed:", error);
+
+            resolve(void 0); // Don't fail the whole startup process
           }
-        });
+        }, 500);
       });
-
-      // Get auth token from proper storage mechanism
-      const { getAuthToken } = await import("./ipc/app/app-info.js");
-      const authToken = getAuthToken();
-
-      // Initialize with configuration
-      await agentService.initialize({
-        openaiApiKey: process.env.OPENAI_API_KEY, // Allow undefined - agent service will check storage
-        model: "gpt-4o-mini",
-        processorType: "react",
-        authToken: authToken ?? undefined,
-      });
-
-      // Inject agent service into IPC handlers
-      setAgentStatusInstance(agentService);
-      setChatMessagingInstance(agentService);
-      setTabAgentInstance(agentService);
-
-      logger.info(
-        "AgentService initialized successfully with utility process isolation",
-      );
-    } catch (error) {
-      logger.error(
-        "AgentService initialization failed:",
-        error instanceof Error ? error.message : String(error),
-      );
-
-      // Log agent initialization failure
-      logger.error("Agent initialization failed:", error);
-      // Don't fail the whole startup process - app can work without agent
+    } else {
+      logger.warn("OPENAI_API_KEY not found, skipping service initialization");
     }
   } catch (error) {
     logger.error(
@@ -679,32 +511,7 @@ async function initializeServices(): Promise<void> {
 }
 
 // Main application initialization
-app.whenReady().then(async () => {
-  // Initialize storage first
-  try {
-    await initializeStorage();
-
-    // Check if this is first launch
-    const storage = getStorageService();
-    const firstLaunchComplete = storage.get("_firstLaunchComplete", false);
-
-    if (!firstLaunchComplete) {
-      logger.info("First launch detected - waiting for onboarding completion");
-    } else {
-      logger.info("Storage initialized successfully");
-    }
-  } catch (error) {
-    logger.error("Failed to initialize storage:", error);
-  }
-
-  // Register the custom protocol handler for secure context
-  protocol.handle("vibe", request => {
-    const url = new URL(request.url);
-    const normalizedPath = url.pathname.replace(/^\//, ""); // Remove leading slash
-    const filePath = join(__dirname, "../renderer", normalizedPath);
-    return net.fetch(`file://${filePath}`);
-  });
-
+app.whenReady().then(() => {
   if (isProd) {
     //updater.init();
   }
@@ -714,8 +521,7 @@ app.whenReady().then(async () => {
 
   const initialized = initializeApp();
   if (!initialized) {
-    // Use gracefulShutdown instead of app.quit()
-    gracefulShutdown("initialization-failed");
+    app.quit();
     return;
   }
 
@@ -768,8 +574,7 @@ app.whenReady().then(async () => {
 // App lifecycle events
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
-    // Use gracefulShutdown instead of app.quit()
-    gracefulShutdown("window-all-closed");
+    app.quit();
   }
 });
 
@@ -779,16 +584,7 @@ app.on("activate", () => {
   }
 });
 
-app.on("before-quit", async event => {
-  // Prevent default quit behavior if already shutting down
-  if (isShuttingDown) {
-    event.preventDefault();
-    return;
-  }
-
-  // No longer need to prevent default for encryption
-  // Storage automatically encrypts on write
-
+app.on("before-quit", async _event => {
   // Track app shutdown
   try {
     const windows = browser?.getAllWindows();
@@ -832,10 +628,8 @@ app.on("before-quit", async event => {
   }
 
   // Clean up browser resources
-  if (browser && !browserDestroyed && !browser.isDestroyed()) {
-    browserDestroyed = true;
+  if (browser && !browser.isDestroyed()) {
     browser.destroy();
-    browser = null;
   }
 
   // Clean up memory monitor
@@ -861,4 +655,8 @@ app.on("web-contents-created", (_event, contents) => {
     shell.openExternal(url);
     return { action: "deny" };
   });
+});
+
+app.on("before-quit", () => {
+  app.isQuitting = true;
 });

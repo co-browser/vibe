@@ -13,16 +13,26 @@ import {
   ClockCircleOutlined,
   GlobalOutlined,
   LinkOutlined,
+  LoadingOutlined,
 } from "@ant-design/icons";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import "../styles/NavigationBar.css";
 
 interface Suggestion {
   id: string;
-  type: "url" | "search" | "history" | "bookmark" | "context";
+  type:
+    | "url"
+    | "search"
+    | "history"
+    | "bookmark"
+    | "context"
+    | "perplexity"
+    | "agent";
   text: string;
   url?: string;
   icon: React.ReactNode;
   description?: string;
+  metadata?: any;
 }
 
 interface TabNavigationState {
@@ -31,6 +41,15 @@ interface TabNavigationState {
   isLoading: boolean;
   url: string;
   title: string;
+}
+
+interface PerplexityResponse {
+  query: string;
+  suggestions: Array<{
+    text: string;
+    url?: string;
+    snippet?: string;
+  }>;
 }
 
 /**
@@ -42,6 +61,7 @@ const NavigationBar: React.FC = () => {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
+  const [isLoadingPerplexity, setIsLoadingPerplexity] = useState(false);
   const [navigationState, setNavigationState] = useState<TabNavigationState>({
     canGoBack: false,
     canGoForward: false,
@@ -54,6 +74,16 @@ const NavigationBar: React.FC = () => {
 
   const inputRef = useRef<HTMLInputElement>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
+  const parentRef = useRef<HTMLDivElement>(null);
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Virtualizer for performant list rendering
+  const virtualizer = useVirtualizer({
+    count: suggestions.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 60, // Estimated height of each suggestion item
+    overscan: 3,
+  });
 
   // Get current active tab
   useEffect(() => {
@@ -215,6 +245,56 @@ const NavigationBar: React.FC = () => {
     [isValidURL, isDomain],
   );
 
+  // Mock Perplexity API call
+  const fetchPerplexitySuggestions = async (
+    query: string,
+  ): Promise<PerplexityResponse> => {
+    // In a real implementation, this would call the actual Perplexity API
+    // For now, we'll simulate an API call with a delay
+    await new Promise(resolve => setTimeout(resolve, 300));
+
+    // Mock response based on query
+    return {
+      query,
+      suggestions: [
+        {
+          text: `${query} - Wikipedia`,
+          url: `https://en.wikipedia.org/wiki/${encodeURIComponent(query.replace(/ /g, "_"))}`,
+          snippet: `Learn more about ${query} on Wikipedia, the free encyclopedia.`,
+        },
+        {
+          text: `${query} news and updates`,
+          url: `https://news.google.com/search?q=${encodeURIComponent(query)}`,
+          snippet: `Latest news and updates about ${query}.`,
+        },
+        {
+          text: `${query} - Stack Overflow`,
+          url: `https://stackoverflow.com/search?q=${encodeURIComponent(query)}`,
+          snippet: `Find programming solutions related to ${query}.`,
+        },
+      ],
+    };
+  };
+
+  // Mock local agent suggestions
+  const getLocalAgentSuggestions = async (
+    query: string,
+  ): Promise<Suggestion[]> => {
+    // Mock implementation - in real app, this would query the local agent
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    return [
+      {
+        id: "agent-1",
+        type: "agent",
+        text: `Ask agent about "${query}"`,
+        icon: <RobotOutlined />,
+        description: "Get AI-powered insights from your local agent",
+        metadata: { action: "ask-agent", query },
+      },
+    ];
+  };
+
   // Generate intelligent suggestions using vibe APIs
   const generateRealSuggestions = useCallback(
     async (input: string): Promise<Suggestion[]> => {
@@ -258,25 +338,47 @@ const NavigationBar: React.FC = () => {
           });
         }
 
-        // Get real browsing history from saved contexts
-        const contexts = await window.vibe.content.getSavedContexts();
-        const historyMatches = contexts
-          .filter(
-            ctx =>
-              (ctx.url && ctx.url.toLowerCase().includes(inputLower)) ||
-              (ctx.title && ctx.title.toLowerCase().includes(inputLower)),
-          )
-          .slice(0, 3)
-          .map((ctx, index) => ({
+        // Get browsing history from user profile
+        try {
+          const profileHistory =
+            (await (window.vibe as any).profile?.getNavigationHistory(
+              input,
+              5,
+            )) || [];
+          const historyMatches = profileHistory.map((entry, index) => ({
             id: `history-${index}`,
             type: "history" as const,
-            text: ctx.title || ctx.url || "Untitled",
-            url: ctx.url || "",
+            text: entry.title || entry.url || "Untitled",
+            url: entry.url || "",
             icon: <ClockCircleOutlined />,
-            description: ctx.url,
+            description: `${entry.url} - Visited ${entry.visitCount} times`,
+            metadata: entry,
           }));
 
-        suggestions.push(...historyMatches);
+          suggestions.push(...historyMatches);
+        } catch (error) {
+          console.error("Failed to get profile history:", error);
+
+          // Fallback to saved contexts if profile history fails
+          const contexts = await window.vibe.content.getSavedContexts();
+          const historyMatches = contexts
+            .filter(
+              ctx =>
+                (ctx.url && ctx.url.toLowerCase().includes(inputLower)) ||
+                (ctx.title && ctx.title.toLowerCase().includes(inputLower)),
+            )
+            .slice(0, 3)
+            .map((ctx, index) => ({
+              id: `history-${index}`,
+              type: "history" as const,
+              text: ctx.title || ctx.url || "Untitled",
+              url: ctx.url || "",
+              icon: <ClockCircleOutlined />,
+              description: ctx.url,
+            }));
+
+          suggestions.push(...historyMatches);
+        }
 
         // Get current tabs for "switch to tab" suggestions
         const tabs = await window.vibe.tabs.getTabs();
@@ -298,6 +400,35 @@ const NavigationBar: React.FC = () => {
           }));
 
         suggestions.push(...tabMatches);
+
+        // Add local agent suggestions
+        if (inputType === "search") {
+          const agentSuggestions = await getLocalAgentSuggestions(input);
+          suggestions.push(...agentSuggestions);
+        }
+
+        // Fetch Perplexity suggestions for search queries
+        if (inputType === "search" && input.length > 2) {
+          setIsLoadingPerplexity(true);
+          try {
+            const perplexityResponse = await fetchPerplexitySuggestions(input);
+            const perplexitySuggestions = perplexityResponse.suggestions.map(
+              (s, index) => ({
+                id: `perplexity-${index}`,
+                type: "perplexity" as const,
+                text: s.text,
+                url: s.url,
+                icon: <SearchOutlined />,
+                description: s.snippet || s.url,
+              }),
+            );
+            suggestions.push(...perplexitySuggestions);
+          } catch (error) {
+            console.error("Failed to fetch Perplexity suggestions:", error);
+          } finally {
+            setIsLoadingPerplexity(false);
+          }
+        }
       } catch (error) {
         console.error("Failed to generate suggestions:", error);
 
@@ -314,9 +445,9 @@ const NavigationBar: React.FC = () => {
         }
       }
 
-      return suggestions.slice(0, 6); // Limit to 6 suggestions
+      return suggestions;
     },
-    [currentTabKey, detectInputType],
+    [currentTabKey],
   );
 
   // Navigation handlers using vibe APIs
@@ -378,39 +509,48 @@ const NavigationBar: React.FC = () => {
     }
   }, [chatPanelVisible]);
 
-  // Telemetry handlers are now passed as props from BrowserUI
-
-  // Input handling
+  // Input handling with debouncing
   const handleInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setInputValue(value);
 
+    // Clear existing timer
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+
     if (value.trim()) {
-      const newSuggestions = await generateRealSuggestions(value);
-      setSuggestions(newSuggestions);
-      setShowSuggestions(newSuggestions.length > 0);
+      // Debounce API calls
+      debounceTimerRef.current = setTimeout(async () => {
+        const newSuggestions = await generateRealSuggestions(value);
+        setSuggestions(newSuggestions);
+        setShowSuggestions(newSuggestions.length > 0);
+        setSelectedIndex(-1);
+      }, 200);
     } else {
       setSuggestions([]);
       setShowSuggestions(false);
+      setSelectedIndex(-1);
     }
-    setSelectedIndex(-1);
   };
 
   const handleInputFocus = async () => {
-    if (inputValue.trim()) {
+    if (inputValue.trim() && suggestions.length === 0) {
       const newSuggestions = await generateRealSuggestions(inputValue);
       setSuggestions(newSuggestions);
       setShowSuggestions(newSuggestions.length > 0);
+    } else if (suggestions.length > 0) {
+      setShowSuggestions(true);
     }
   };
 
   const handleInputBlur = () => {
     // Delay hiding suggestions to allow for clicks
-    setTimeout(() => setShowSuggestions(false), 150);
+    setTimeout(() => setShowSuggestions(false), 200);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (!showSuggestions) return;
+    if (!showSuggestions && e.key !== "Enter") return;
 
     switch (e.key) {
       case "ArrowDown":
@@ -418,10 +558,23 @@ const NavigationBar: React.FC = () => {
         setSelectedIndex(prev =>
           prev < suggestions.length - 1 ? prev + 1 : prev,
         );
+        // Scroll to item if using virtualizer
+        if (selectedIndex >= 0) {
+          virtualizer.scrollToIndex(selectedIndex + 1, { align: "auto" });
+        }
         break;
       case "ArrowUp":
         e.preventDefault();
         setSelectedIndex(prev => (prev > 0 ? prev - 1 : -1));
+        if (selectedIndex > 0) {
+          virtualizer.scrollToIndex(selectedIndex - 1, { align: "auto" });
+        }
+        break;
+      case "Tab":
+        if (showSuggestions && selectedIndex >= 0) {
+          e.preventDefault();
+          handleSuggestionClick(suggestions[selectedIndex]);
+        }
         break;
       case "Enter":
         e.preventDefault();
@@ -479,6 +632,14 @@ const NavigationBar: React.FC = () => {
       if (suggestion.type === "context" && suggestion.url) {
         // Switch to existing tab
         await window.vibe.tabs.switchToTab(suggestion.url);
+      } else if (suggestion.type === "agent" && suggestion.metadata) {
+        // Handle agent action
+        if (suggestion.metadata.action === "ask-agent") {
+          // Open chat panel and send query
+          await window.vibe.interface.toggleChatPanel(true);
+          // In a real implementation, you would send the query to the agent
+          console.log("Asking agent:", suggestion.metadata.query);
+        }
       } else if (suggestion.url && currentTabKey) {
         // Navigate to URL
         await window.vibe.page.navigate(currentTabKey, suggestion.url);
@@ -498,6 +659,8 @@ const NavigationBar: React.FC = () => {
       console.error("Failed to handle suggestion click:", error);
     }
   };
+
+  const virtualItems = virtualizer.getVirtualItems();
 
   return (
     <div className="navigation-bar">
@@ -555,25 +718,63 @@ const NavigationBar: React.FC = () => {
 
           {showSuggestions && suggestions.length > 0 && (
             <div ref={suggestionsRef} className="omnibar-suggestions">
-              {suggestions.map((suggestion, index) => (
+              <div
+                ref={parentRef}
+                style={{
+                  height: `${Math.min(400, virtualizer.getTotalSize())}px`,
+                  width: "100%",
+                  position: "relative",
+                  overflow: "auto",
+                }}
+              >
                 <div
-                  key={suggestion.id}
-                  className={`suggestion-item ${index === selectedIndex ? "selected" : ""}`}
-                  onClick={() => handleSuggestionClick(suggestion)}
-                  onMouseEnter={() => setSelectedIndex(index)}
+                  style={{
+                    height: `${virtualizer.getTotalSize()}px`,
+                    width: "100%",
+                    position: "relative",
+                  }}
                 >
-                  <div className="suggestion-icon">{suggestion.icon}</div>
-                  <div className="suggestion-content">
-                    <div className="suggestion-text">{suggestion.text}</div>
-                    {suggestion.description && (
-                      <div className="suggestion-description">
-                        {suggestion.description}
+                  {virtualItems.map(virtualItem => {
+                    const suggestion = suggestions[virtualItem.index];
+                    const isSelected = virtualItem.index === selectedIndex;
+
+                    return (
+                      <div
+                        key={virtualItem.key}
+                        className={`suggestion-item ${isSelected ? "selected" : ""}`}
+                        style={{
+                          position: "absolute",
+                          top: 0,
+                          left: 0,
+                          width: "100%",
+                          height: `${virtualItem.size}px`,
+                          transform: `translateY(${virtualItem.start}px)`,
+                        }}
+                        onClick={() => handleSuggestionClick(suggestion)}
+                        onMouseEnter={() => setSelectedIndex(virtualItem.index)}
+                      >
+                        <div className="suggestion-icon">{suggestion.icon}</div>
+                        <div className="suggestion-content">
+                          <div className="suggestion-text">
+                            {suggestion.text}
+                          </div>
+                          {suggestion.description && (
+                            <div className="suggestion-description">
+                              {suggestion.description}
+                            </div>
+                          )}
+                        </div>
+                        <div className="suggestion-type">{suggestion.type}</div>
                       </div>
-                    )}
-                  </div>
-                  <div className="suggestion-type">{suggestion.type}</div>
+                    );
+                  })}
                 </div>
-              ))}
+              </div>
+              {isLoadingPerplexity && (
+                <div className="suggestion-loading">
+                  <LoadingOutlined /> Searching...
+                </div>
+              )}
             </div>
           )}
         </div>
