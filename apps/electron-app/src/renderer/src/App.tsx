@@ -6,6 +6,7 @@
 import "./components/styles/index.css";
 import { RouterProvider } from "./router/provider";
 import { Route } from "./router/route";
+import { ProfileProvider } from "./ProfileProvider";
 
 // Browser Route
 import BrowserRoute from "./routes/browser/route";
@@ -15,11 +16,13 @@ import BrowserRoute from "./routes/browser/route";
  */
 function Routes() {
   return (
-    <RouterProvider>
-      <Route>
-        <BrowserRoute />
-      </Route>
-    </RouterProvider>
+    <ProfileProvider>
+      <RouterProvider>
+        <Route>
+          <BrowserRoute />
+        </Route>
+      </RouterProvider>
+    </ProfileProvider>
   );
 }
 
