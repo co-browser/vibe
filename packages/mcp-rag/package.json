@@ -18,6 +18,7 @@
     "@llamaindex/workflow": "^1.1.9",
     "@modelcontextprotocol/sdk": "^1.13.0",
     "@mozilla/readability": "^0.4.4",
+    "@privy-io/server-auth": "^1.12.3",
     "@turbopuffer/turbopuffer": "^0.10.2",
     "@vibe/shared-types": "workspace:*",
     "@vibe/tab-extraction-core": "workspace:*",
