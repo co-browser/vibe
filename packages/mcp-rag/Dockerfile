@@ -1,6 +1,11 @@
 # Use Node.js 20 Alpine image for smaller size
 FROM node:20-alpine
 
+# OCI annotations for GitHub Package Registry
+LABEL org.opencontainers.image.source="https://github.com/co-browser/vibe"
+LABEL org.opencontainers.image.description="RAG MCP Server for Vibe - Secure agentic browser"
+LABEL org.opencontainers.image.licenses="MIT"
+
 # Install dependencies
 RUN apk add --no-cache libc6-compat
 
