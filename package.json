@@ -71,7 +71,8 @@
   },
   "pnpm": {
     "onlyBuiltDependencies": [
-      "electron"
+      "electron",
+      "tree-sitter"
     ]
   }
 }
