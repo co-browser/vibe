@@ -11,6 +11,8 @@ const logger = createLogger("SettingsCRUD");
 
 ipcMain.handle("settings:get", async (_event, key: string) => {
   try {
+    console.log(`[Settings CRUD] Getting setting "${key}"`);
+
     // Check if it's a sensitive setting that should be in secure store
     const sensitiveKeys = [
       "llmApiKey",
@@ -19,19 +21,35 @@ ipcMain.handle("settings:get", async (_event, key: string) => {
       "anthropicApiKey",
     ];
 
+    let value;
     if (sensitiveKeys.includes(key)) {
-      return secureStore.get(key);
+      value = secureStore.get(key);
+      console.log(
+        `[Settings CRUD] Retrieved sensitive setting "${key}" from secure store: ${value ? "***" : "null"}`,
+      );
     } else {
-      return settingsStore.get(key);
+      value = settingsStore.get(key);
+      console.log(
+        `[Settings CRUD] Retrieved setting "${key}" from settings store:`,
+        value,
+      );
     }
+
+    return value;
   } catch (error) {
     logger.error(`Failed to get setting "${key}":`, error);
+    console.error(`[Settings CRUD] Error getting setting "${key}":`, error);
     return null;
   }
 });
 
 ipcMain.handle("settings:set", async (_event, key: string, value: any) => {
   try {
+    console.log(
+      `[Settings CRUD] Setting "${key}" to:`,
+      key.includes("ApiKey") ? "***" : value,
+    );
+
     // Check if it's a sensitive setting that should be in secure store
     const sensitiveKeys = [
       "llmApiKey",
@@ -43,14 +61,32 @@ ipcMain.handle("settings:set", async (_event, key: string, value: any) => {
     if (sensitiveKeys.includes(key)) {
       secureStore.set(key, value);
       logger.debug(`Set sensitive setting "${key}" in secure store`);
+      console.log(
+        `[Settings CRUD] Saved sensitive setting "${key}" to secure store`,
+      );
+
+      // Verify it was saved
+      const verifyValue = secureStore.get(key);
+      console.log(
+        `[Settings CRUD] Verification - "${key}" saved: ${verifyValue === value}`,
+      );
     } else {
       settingsStore.set(key, value);
       logger.debug(`Set setting "${key}" in settings store`);
+      console.log(`[Settings CRUD] Saved setting "${key}" to settings store`);
+
+      // Verify it was saved
+      const verifyValue = settingsStore.get(key);
+      console.log(
+        `[Settings CRUD] Verification - "${key}" saved:`,
+        verifyValue === value,
+      );
     }
 
     return true;
   } catch (error) {
     logger.error(`Failed to set setting "${key}":`, error);
+    console.error(`[Settings CRUD] Error setting "${key}":`, error);
     return false;
   }
 });

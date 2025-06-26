@@ -1,12 +1,13 @@
 {
   "permissions": {
     "allow": [
-      "Bash(ls:*)",
-      "Bash(npm install)",
-      "Bash(pnpm install:*)",
-      "Bash(npm run lint)",
-      "Bash(npm run typecheck:*)",
-      "Bash(pnpm add:*)"
+      "Bash(find:*)",
+      "Bash(cat:*)",
+      "Bash(chmod:*)",
+      "Bash(node:*)",
+      "Bash(pnpm eslint:*)",
+      "Bash(mkdir:*)",
+      "Bash(mv:*)"
     ],
     "deny": []
   }

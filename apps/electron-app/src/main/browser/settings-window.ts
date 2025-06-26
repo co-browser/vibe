@@ -48,6 +48,7 @@ export class SettingsWindow extends EventEmitter {
         "settings:get-custom-data",
         "settings:set-custom-data",
         "settings:close",
+        "settings:get-passwords",
       ];
 
       for (const handler of handlers) {
@@ -172,6 +173,7 @@ export class SettingsWindow extends EventEmitter {
         "settings:get-custom-data",
         "settings:set-custom-data",
         "settings:close",
+        "settings:get-passwords",
       ];
 
       for (const handler of existingHandlers) {
@@ -274,6 +276,33 @@ export class SettingsWindow extends EventEmitter {
         return { success: true };
       });
 
+      // Handle getting passwords for a profile
+      ipcMain.handle(
+        "settings:get-passwords",
+        async (_event, profileId: string) => {
+          try {
+            // Get passwords using the public API
+            const passwords = this.profileService.getProfileData(
+              profileId,
+              "passwords",
+            );
+
+            // Transform passwords to the expected format
+            const formattedPasswords = passwords.map((item: any) => ({
+              id: item.id || crypto.randomUUID(),
+              url: item.url || item.origin || "",
+              username: item.username || "",
+              createdAt: item.createdAt || new Date(),
+            }));
+
+            return formattedPasswords;
+          } catch (error) {
+            logger.error("Failed to get passwords:", error);
+            return [];
+          }
+        },
+      );
+
       SettingsWindow.ipcHandlersRegistered = true;
       logger.debug("Settings IPC handlers registered successfully");
     } catch (error) {
@@ -360,6 +389,7 @@ export class SettingsWindow extends EventEmitter {
       ipcMain.removeHandler("settings:get-custom-data");
       ipcMain.removeHandler("settings:set-custom-data");
       ipcMain.removeHandler("settings:close");
+      ipcMain.removeHandler("settings:get-passwords");
 
       SettingsWindow.ipcHandlersRegistered = false;
       logger.debug("Settings IPC handlers cleaned up successfully");

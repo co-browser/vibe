@@ -14,7 +14,7 @@ import BrowserRoute from "./routes/browser/route";
 
 // Popup Pages
 import { OnboardingPage3D } from "./pages/onboarding/OnboardingPage3D";
-import SettingsPage from "./pages/settings/SettingsPage";
+import { SettingsPageV2 } from "./pages/settings/SettingsPageV2";
 import AboutPage from "./pages/about/AboutPage";
 
 /**
@@ -64,7 +64,7 @@ function Routes() {
   }
 
   if (windowType === "settings") {
-    return <SettingsPage />;
+    return <SettingsPageV2 />;
   }
 
   if (windowType === "about") {

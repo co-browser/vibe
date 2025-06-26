@@ -21,6 +21,8 @@ export default tseslint.config(
       "**/tmp/**",
       "**/temp/**",
       "**/electron-builder.js",
+      "**/apps/electron-app/scripts/**",
+      "**/apps/electron-app/test-*.js",
     ],
   },
   js.configs.recommended,

@@ -98,6 +98,13 @@ class EncryptedStore {
     logger.info(
       `Encrypted store initialized: ${options.name || "encrypted-store"} (encryption: ${this.encryptionAvailable ? "enabled" : "disabled"}, custom key: ${!!this.customEncryptionKey})`,
     );
+
+    console.log(
+      `[EncryptedStore] Initialized "${options.name || "encrypted-store"}"`,
+    );
+    console.log(`[EncryptedStore] Store path:`, this.store.path);
+    console.log(`[EncryptedStore] Store size:`, this.store.size);
+    console.log(`[EncryptedStore] All keys:`, Object.keys(this.store.store));
   }
 
   /**
@@ -150,9 +157,19 @@ class EncryptedStore {
    */
   get<T = any>(key: string, defaultValue?: T): T {
     try {
-      return this.store.get(key, defaultValue) as T;
+      console.log(`[EncryptedStore] Getting key "${key}"`);
+      console.log(`[EncryptedStore] Store path:`, this.store.path);
+
+      const value = this.store.get(key, defaultValue) as T;
+      console.log(
+        `[EncryptedStore] Retrieved value for "${key}":`,
+        key.includes("Key") && value ? "***" : value,
+      );
+
+      return value;
     } catch (error) {
       logger.error(`Failed to get key "${key}" from encrypted store:`, error);
+      console.error(`[EncryptedStore] Error getting key "${key}":`, error);
       return defaultValue as T;
     }
   }
@@ -162,10 +179,24 @@ class EncryptedStore {
    */
   set(key: string, value: any): void {
     try {
+      console.log(
+        `[EncryptedStore] Setting key "${key}" with value:`,
+        key.includes("Key") ? "***" : value,
+      );
+      console.log(`[EncryptedStore] Store path:`, this.store.path);
+
       this.store.set(key, value);
       logger.debug(`Set key "${key}" in encrypted store`);
+
+      console.log(
+        `[EncryptedStore] Successfully saved "${key}" to encrypted store`,
+      );
+
+      // Force sync to disk
+      console.log(`[EncryptedStore] Forcing sync to disk...`);
     } catch (error) {
       logger.error(`Failed to set key "${key}" in encrypted store:`, error);
+      console.error(`[EncryptedStore] Error setting key "${key}":`, error);
     }
   }
 
@@ -286,21 +317,37 @@ class PlainStore {
     });
 
     logger.info(`Plain store initialized: ${options.name || "plain-store"}`);
+
+    console.log(`[PlainStore] Initialized "${options.name || "plain-store"}"`);
+    console.log(`[PlainStore] Store path:`, this.store.path);
+    console.log(`[PlainStore] Store size:`, this.store.size);
+    console.log(`[PlainStore] All keys:`, Object.keys(this.store.store));
   }
 
   /**
    * Get a value from the plain store
    */
   get<T = any>(key: string, defaultValue?: T): T {
-    return this.store.get(key, defaultValue) as T;
+    console.log(`[PlainStore] Getting key "${key}"`);
+    console.log(`[PlainStore] Store path:`, this.store.path);
+
+    const value = this.store.get(key, defaultValue) as T;
+    console.log(`[PlainStore] Retrieved value for "${key}":`, value);
+
+    return value;
   }
 
   /**
    * Set a value in the plain store
    */
   set(key: string, value: any): void {
+    console.log(`[PlainStore] Setting key "${key}" with value:`, value);
+    console.log(`[PlainStore] Store path:`, this.store.path);
+
     this.store.set(key, value);
     logger.debug(`Set key "${key}" in plain store`);
+
+    console.log(`[PlainStore] Successfully saved "${key}" to plain store`);
   }
 
   /**
@@ -422,6 +469,8 @@ export function createPlainStore(options: PlainStoreOptions = {}): PlainStore {
 /**
  * Default store instances for common use cases
  */
+
+console.log("[Persistent Storage] Creating default store instances...");
 
 // Default encrypted store for sensitive data (API keys, tokens, etc.)
 export const secureStore = createEncryptedStore({
