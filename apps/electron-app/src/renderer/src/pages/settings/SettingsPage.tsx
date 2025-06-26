@@ -133,14 +133,17 @@ export function SettingsPage() {
 
       // Save profile settings
       if (currentProfile) {
-        await window.electronAPI?.ipcRenderer?.invoke("settings:update-profile", {
-          settings: {
-            theme,
-            fontSize,
-            language,
-            defaultSearchEngine,
+        await window.electronAPI?.ipcRenderer?.invoke(
+          "settings:update-profile",
+          {
+            settings: {
+              theme,
+              fontSize,
+              language,
+              defaultSearchEngine,
+            },
           },
-        });
+        );
       }
 
       // Save AI settings to secure store

@@ -1,11 +1,6 @@
 import { useState, useRef, useEffect, Suspense } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { 
-  Float,
-  Box,
-  Sphere,
-  Stars
-} from "@react-three/drei";
+import { Float, Box, Sphere, Stars } from "@react-three/drei";
 import * as THREE from "three";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -17,12 +12,11 @@ interface ChromeProfile {
   browser: string;
 }
 
-
 // 3D Browser Icon Components
 function ChromeIcon({ position }: { position: [number, number, number] }) {
   const ref = useRef<THREE.Group>(null);
-  
-  useFrame((state) => {
+
+  useFrame(state => {
     if (ref.current) {
       ref.current.rotation.y = state.clock.getElapsedTime() * 0.3;
     }
@@ -34,22 +28,42 @@ function ChromeIcon({ position }: { position: [number, number, number] }) {
         {/* Chrome colors: red, yellow, green, blue */}
         <mesh position={[0, 0.5, 0]} rotation={[0, 0, Math.PI * 0.75]}>
           <torusGeometry args={[1, 0.3, 8, 16, Math.PI * 0.5]} />
-          <meshStandardMaterial color="#EA4335" emissive="#EA4335" emissiveIntensity={0.3} />
+          <meshStandardMaterial
+            color="#EA4335"
+            emissive="#EA4335"
+            emissiveIntensity={0.3}
+          />
         </mesh>
         <mesh position={[0, -0.5, 0]} rotation={[0, 0, -Math.PI * 0.25]}>
           <torusGeometry args={[1, 0.3, 8, 16, Math.PI * 0.5]} />
-          <meshStandardMaterial color="#FBBC05" emissive="#FBBC05" emissiveIntensity={0.3} />
+          <meshStandardMaterial
+            color="#FBBC05"
+            emissive="#FBBC05"
+            emissiveIntensity={0.3}
+          />
         </mesh>
         <mesh position={[-0.5, 0, 0]} rotation={[0, 0, Math.PI * 0.25]}>
           <torusGeometry args={[1, 0.3, 8, 16, Math.PI * 0.5]} />
-          <meshStandardMaterial color="#34A853" emissive="#34A853" emissiveIntensity={0.3} />
+          <meshStandardMaterial
+            color="#34A853"
+            emissive="#34A853"
+            emissiveIntensity={0.3}
+          />
         </mesh>
         <mesh position={[0.5, 0, 0]} rotation={[0, 0, -Math.PI * 0.75]}>
           <torusGeometry args={[1, 0.3, 8, 16, Math.PI * 0.5]} />
-          <meshStandardMaterial color="#4285F4" emissive="#4285F4" emissiveIntensity={0.3} />
+          <meshStandardMaterial
+            color="#4285F4"
+            emissive="#4285F4"
+            emissiveIntensity={0.3}
+          />
         </mesh>
         <Sphere args={[0.5, 32, 16]}>
-          <meshStandardMaterial color="#4285F4" emissive="#4285F4" emissiveIntensity={0.2} />
+          <meshStandardMaterial
+            color="#4285F4"
+            emissive="#4285F4"
+            emissiveIntensity={0.2}
+          />
         </Sphere>
       </group>
     </Float>
@@ -58,11 +72,12 @@ function ChromeIcon({ position }: { position: [number, number, number] }) {
 
 function MosaicIcon({ position }: { position: [number, number, number] }) {
   const ref = useRef<THREE.Mesh>(null);
-  
-  useFrame((state) => {
+
+  useFrame(state => {
     if (ref.current) {
       ref.current.rotation.y = state.clock.getElapsedTime() * 0.25;
-      ref.current.rotation.x = Math.sin(state.clock.getElapsedTime() * 0.5) * 0.1;
+      ref.current.rotation.x =
+        Math.sin(state.clock.getElapsedTime() * 0.5) * 0.1;
     }
   });
 
@@ -70,9 +85,9 @@ function MosaicIcon({ position }: { position: [number, number, number] }) {
     <Float speed={2} rotationIntensity={0.5} floatIntensity={1.5}>
       <mesh ref={ref} position={position}>
         <dodecahedronGeometry args={[1.2, 0]} />
-        <meshStandardMaterial 
-          color="#0080FF" 
-          emissive="#0080FF" 
+        <meshStandardMaterial
+          color="#0080FF"
+          emissive="#0080FF"
           emissiveIntensity={0.4}
           roughness={0.3}
           metalness={0.7}
@@ -84,8 +99,8 @@ function MosaicIcon({ position }: { position: [number, number, number] }) {
 
 function NetscapeIcon({ position }: { position: [number, number, number] }) {
   const ref = useRef<THREE.Group>(null);
-  
-  useFrame((state) => {
+
+  useFrame(state => {
     if (ref.current) {
       ref.current.rotation.y = state.clock.getElapsedTime() * 0.4;
     }
@@ -96,23 +111,46 @@ function NetscapeIcon({ position }: { position: [number, number, number] }) {
       <group ref={ref} position={position}>
         {/* Netscape "N" with stars */}
         <Box args={[0.3, 2, 0.3]} position={[-0.7, 0, 0]}>
-          <meshStandardMaterial color="#00A0A0" emissive="#00A0A0" emissiveIntensity={0.3} />
+          <meshStandardMaterial
+            color="#00A0A0"
+            emissive="#00A0A0"
+            emissiveIntensity={0.3}
+          />
         </Box>
         <Box args={[0.3, 2, 0.3]} position={[0.7, 0, 0]}>
-          <meshStandardMaterial color="#00A0A0" emissive="#00A0A0" emissiveIntensity={0.3} />
+          <meshStandardMaterial
+            color="#00A0A0"
+            emissive="#00A0A0"
+            emissiveIntensity={0.3}
+          />
         </Box>
-        <Box args={[1.4, 0.3, 0.3]} position={[0, 0, 0]} rotation={[0, 0, Math.PI / 4]}>
-          <meshStandardMaterial color="#00A0A0" emissive="#00A0A0" emissiveIntensity={0.3} />
+        <Box
+          args={[1.4, 0.3, 0.3]}
+          position={[0, 0, 0]}
+          rotation={[0, 0, Math.PI / 4]}
+        >
+          <meshStandardMaterial
+            color="#00A0A0"
+            emissive="#00A0A0"
+            emissiveIntensity={0.3}
+          />
         </Box>
         {/* Stars around */}
-        {[0, 1, 2, 3].map((i) => (
-          <mesh key={i} position={[
-            Math.cos((i / 4) * Math.PI * 2) * 1.5,
-            Math.sin((i / 4) * Math.PI * 2) * 1.5,
-            0
-          ]}>
+        {[0, 1, 2, 3].map(i => (
+          <mesh
+            key={i}
+            position={[
+              Math.cos((i / 4) * Math.PI * 2) * 1.5,
+              Math.sin((i / 4) * Math.PI * 2) * 1.5,
+              0,
+            ]}
+          >
             <coneGeometry args={[0.2, 0.4, 4]} />
-            <meshStandardMaterial color="#FFD700" emissive="#FFD700" emissiveIntensity={0.5} />
+            <meshStandardMaterial
+              color="#FFD700"
+              emissive="#FFD700"
+              emissiveIntensity={0.5}
+            />
           </mesh>
         ))}
       </group>
@@ -122,11 +160,12 @@ function NetscapeIcon({ position }: { position: [number, number, number] }) {
 
 function IEIcon({ position }: { position: [number, number, number] }) {
   const ref = useRef<THREE.Group>(null);
-  
-  useFrame((state) => {
+
+  useFrame(state => {
     if (ref.current) {
       ref.current.rotation.y = state.clock.getElapsedTime() * 0.35;
-      ref.current.position.y = position[1] + Math.sin(state.clock.getElapsedTime()) * 0.2;
+      ref.current.position.y =
+        position[1] + Math.sin(state.clock.getElapsedTime()) * 0.2;
     }
   });
 
@@ -135,15 +174,30 @@ function IEIcon({ position }: { position: [number, number, number] }) {
       {/* Internet Explorer "e" */}
       <mesh>
         <torusGeometry args={[1, 0.4, 8, 32]} />
-        <meshStandardMaterial color="#1EBBEE" emissive="#1EBBEE" emissiveIntensity={0.3} />
+        <meshStandardMaterial
+          color="#1EBBEE"
+          emissive="#1EBBEE"
+          emissiveIntensity={0.3}
+        />
       </mesh>
       <Box args={[2, 0.3, 0.3]} position={[0, 0, 0]}>
-        <meshStandardMaterial color="#1EBBEE" emissive="#1EBBEE" emissiveIntensity={0.3} />
+        <meshStandardMaterial
+          color="#1EBBEE"
+          emissive="#1EBBEE"
+          emissiveIntensity={0.3}
+        />
       </Box>
       {/* Yellow swoosh */}
-      <mesh position={[0.5, -0.5, 0.5]} rotation={[0, Math.PI / 4, Math.PI / 6]}>
+      <mesh
+        position={[0.5, -0.5, 0.5]}
+        rotation={[0, Math.PI / 4, Math.PI / 6]}
+      >
         <torusGeometry args={[0.8, 0.2, 6, 16, Math.PI * 0.7]} />
-        <meshStandardMaterial color="#FFD700" emissive="#FFD700" emissiveIntensity={0.5} />
+        <meshStandardMaterial
+          color="#FFD700"
+          emissive="#FFD700"
+          emissiveIntensity={0.5}
+        />
       </mesh>
     </group>
   );
@@ -152,8 +206,8 @@ function IEIcon({ position }: { position: [number, number, number] }) {
 // 3D Background Scene Component
 function Scene({ step }: { step: number }) {
   const lightRef = useRef<THREE.SpotLight>(null);
-  
-  useFrame((state) => {
+
+  useFrame(state => {
     if (lightRef.current && step === 2) {
       // Flashlight effect on step 3
       const mouseX = state.mouse.x * 5;
@@ -165,13 +219,13 @@ function Scene({ step }: { step: number }) {
 
   return (
     <>
-      <fog attach="fog" args={['#000', 5, 30]} />
+      <fog attach="fog" args={["#000", 5, 30]} />
       <ambientLight intensity={0.1} />
-      
+
       {/* Soft lighting */}
       <pointLight position={[10, 10, 10]} color="#4444ff" intensity={1} />
       <pointLight position={[-10, 10, -10]} color="#ff4444" intensity={1} />
-      
+
       {/* Flashlight for final step */}
       {step === 2 && (
         <spotLight
@@ -184,13 +238,13 @@ function Scene({ step }: { step: number }) {
           castShadow
         />
       )}
-      
+
       {/* Browser Icons */}
       <ChromeIcon position={[-4, 2, -8]} />
       <MosaicIcon position={[4, 1, -6]} />
       <NetscapeIcon position={[-2, -1, -10]} />
       <IEIcon position={[3, -2, -7]} />
-      
+
       {/* Volumetric fog plane at bottom */}
       <mesh position={[0, -4, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <planeGeometry args={[50, 50]} />
@@ -202,10 +256,14 @@ function Scene({ step }: { step: number }) {
           transparent
         />
       </mesh>
-      
+
       {/* Additional fog layers for volumetric effect */}
-      {[0, 1, 2, 3, 4].map((i) => (
-        <mesh key={i} position={[0, -3.5 + i * 0.3, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+      {[0, 1, 2, 3, 4].map(i => (
+        <mesh
+          key={i}
+          position={[0, -3.5 + i * 0.3, 0]}
+          rotation={[-Math.PI / 2, 0, 0]}
+        >
           <planeGeometry args={[40 - i * 5, 40 - i * 5]} />
           <meshStandardMaterial
             color="#ffffff"
@@ -216,8 +274,15 @@ function Scene({ step }: { step: number }) {
           />
         </mesh>
       ))}
-      
-      <Stars radius={100} depth={50} count={3000} factor={4} saturation={0} fade />
+
+      <Stars
+        radius={100}
+        depth={50}
+        count={3000}
+        factor={4}
+        saturation={0}
+        fade
+      />
     </>
   );
 }
@@ -236,17 +301,29 @@ export function OnboardingPage3D() {
       try {
         // This would be called via IPC in real implementation
         const profiles = await window.electronAPI?.ipcRenderer?.invoke(
-          "onboarding:get-chrome-profiles"
+          "onboarding:get-chrome-profiles",
         );
         if (profiles) {
-          setChromeProfiles(profiles.filter((p: any) => p.browser === "chrome"));
+          setChromeProfiles(
+            profiles.filter((p: any) => p.browser === "chrome"),
+          );
         }
       } catch (error) {
         console.error("Failed to load Chrome profiles:", error);
         // Mock data for development
         setChromeProfiles([
-          { name: "Default", path: "/path/to/default", lastModified: new Date(), browser: "chrome" },
-          { name: "Personal", path: "/path/to/personal", lastModified: new Date(), browser: "chrome" }
+          {
+            name: "Default",
+            path: "/path/to/default",
+            lastModified: new Date(),
+            browser: "chrome",
+          },
+          {
+            name: "Personal",
+            path: "/path/to/personal",
+            lastModified: new Date(),
+            browser: "chrome",
+          },
         ]);
       }
     };
@@ -265,14 +342,14 @@ export function OnboardingPage3D() {
           selectedBrowser: "chrome",
           selectedChromeProfile: selectedProfile,
           theme: "dark",
-          privacyMode: false
-        }
+          privacyMode: false,
+        },
       );
 
       if (result?.success) {
         // Move to flashlight animation
         setCurrentStep(2);
-        
+
         // Close window after animation
         setTimeout(() => {
           window.close();
@@ -315,7 +392,7 @@ export function OnboardingPage3D() {
                 </svg>
               </div>
             </div>
-            
+
             <div className="text-center space-y-4">
               <h1 className="text-5xl font-bold bg-gradient-to-r from-cyan-400 to-purple-500 bg-clip-text text-transparent">
                 Welcome to Vibe
@@ -330,11 +407,11 @@ export function OnboardingPage3D() {
                 type="text"
                 placeholder="Enter your name"
                 value={profileName}
-                onChange={(e) => setProfileName(e.target.value)}
+                onChange={e => setProfileName(e.target.value)}
                 className="w-full px-6 py-4 bg-white/10 backdrop-blur-md rounded-xl text-white placeholder-gray-400 border border-white/20 focus:border-cyan-400 focus:outline-none transition-all"
                 autoFocus
               />
-              
+
               <button
                 onClick={() => profileName.trim() && setCurrentStep(1)}
                 disabled={!profileName.trim()}
@@ -364,7 +441,7 @@ export function OnboardingPage3D() {
             </div>
 
             <div className="w-full max-w-md space-y-3">
-              {chromeProfiles.map((profile) => (
+              {chromeProfiles.map(profile => (
                 <button
                   key={profile.path}
                   onClick={() => setSelectedProfile(profile.path)}
@@ -376,7 +453,9 @@ export function OnboardingPage3D() {
                 >
                   <div className="flex items-center space-x-4">
                     <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center">
-                      <span className="text-white font-bold">{profile.name.charAt(0).toUpperCase()}</span>
+                      <span className="text-white font-bold">
+                        {profile.name.charAt(0).toUpperCase()}
+                      </span>
                     </div>
                     <div className="text-left flex-1">
                       <p className="font-semibold">{profile.name}</p>
@@ -386,8 +465,16 @@ export function OnboardingPage3D() {
                     </div>
                     {selectedProfile === profile.path && (
                       <div className="w-6 h-6 bg-cyan-400 rounded-full flex items-center justify-center">
-                        <svg className="w-4 h-4 text-black" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        <svg
+                          className="w-4 h-4 text-black"
+                          fill="currentColor"
+                          viewBox="0 0 20 20"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                            clipRule="evenodd"
+                          />
                         </svg>
                       </div>
                     )}
@@ -428,8 +515,16 @@ export function OnboardingPage3D() {
               className="text-center space-y-4"
             >
               <div className="w-24 h-24 bg-gradient-to-br from-green-400 to-green-600 rounded-full flex items-center justify-center mx-auto">
-                <svg className="w-12 h-12 text-white" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                <svg
+                  className="w-12 h-12 text-white"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                    clipRule="evenodd"
+                  />
                 </svg>
               </div>
               <h3 className="text-2xl font-bold text-white">All set!</h3>
@@ -456,9 +551,7 @@ export function OnboardingPage3D() {
 
       {/* Content Overlay */}
       <div className="relative z-10 h-full flex items-center justify-center p-8">
-        <AnimatePresence mode="wait">
-          {renderStep()}
-        </AnimatePresence>
+        <AnimatePresence mode="wait">{renderStep()}</AnimatePresence>
       </div>
 
       {/* Close button */}
@@ -467,8 +560,18 @@ export function OnboardingPage3D() {
           onClick={() => window.close()}
           className="absolute top-6 right-6 w-10 h-10 rounded-full bg-white/10 backdrop-blur-md flex items-center justify-center text-white hover:bg-white/20 transition-all"
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          <svg
+            className="w-5 h-5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M6 18L18 6M6 6l12 12"
+            />
           </svg>
         </button>
       )}

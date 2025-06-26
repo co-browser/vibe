@@ -27,9 +27,10 @@ export function useOnboarding() {
         setIsLoading(true);
 
         // Check if onboarding is needed
-        const result: OnboardingResult = await window.electronAPI?.ipcRenderer?.invoke(
-          "onboarding:initialize",
-        );
+        const result: OnboardingResult =
+          await window.electronAPI?.ipcRenderer?.invoke(
+            "onboarding:initialize",
+          );
 
         if (result.needsOnboarding) {
           logger.info("Onboarding needed, opening modal");
@@ -39,9 +40,10 @@ export function useOnboarding() {
         }
 
         // Get onboarding status
-        const status: OnboardingStatus = await window.electronAPI?.ipcRenderer?.invoke(
-          "onboarding:get-status",
-        );
+        const status: OnboardingStatus =
+          await window.electronAPI?.ipcRenderer?.invoke(
+            "onboarding:get-status",
+          );
         setOnboardingStatus(status);
       } catch (error) {
         logger.error("Failed to initialize onboarding:", error);
@@ -63,9 +65,8 @@ export function useOnboarding() {
 
   const refreshOnboardingStatus = async () => {
     try {
-      const status: OnboardingStatus = await window.electronAPI?.ipcRenderer?.invoke(
-        "onboarding:get-status",
-      );
+      const status: OnboardingStatus =
+        await window.electronAPI?.ipcRenderer?.invoke("onboarding:get-status");
       setOnboardingStatus(status);
     } catch (error) {
       logger.error("Failed to refresh onboarding status:", error);

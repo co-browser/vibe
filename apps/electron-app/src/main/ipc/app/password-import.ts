@@ -60,13 +60,13 @@ async function decryptPassword(
   // - On Windows: Use DPAPI
   // - On macOS: Use Keychain Services to decrypt Chrome passwords
   // - On Linux: Use libsecret or similar
-  
+
   // For testing, return a mock password to ensure the import flow works
-  if (process.env.NODE_ENV === 'development') {
+  if (process.env.NODE_ENV === "development") {
     logger.info(`Mock decrypting password for ${browserProfile.name}`);
     return `mock_password_${encryptedPassword.length}`;
   }
-  
+
   logger.warn(
     `Password decryption not implemented for ${browserProfile.name}. Returning empty string.`,
   );
@@ -78,141 +78,151 @@ async function getAllPasswords(
   browserProfile: BrowserProfile,
   key: string,
 ): Promise<PasswordRecord[]> {
-  console.log("[DEBUG] Starting getAllPasswords for profile:", browserProfile.name);
+  console.log(
+    "[DEBUG] Starting getAllPasswords for profile:",
+    browserProfile.name,
+  );
   return new Promise((resolve, reject) => {
     (async () => {
       const loginDataPath = path.join(browserProfile.path, "Login Data");
       console.log("[DEBUG] Login data path:", loginDataPath);
       const tempDbPath = path.join(browserProfile.path, "Login Data.temp");
-      
+
       try {
         console.log("[DEBUG] Creating temporary database copy");
         fs.copyFileSync(loginDataPath, tempDbPath);
-        await new Promise((resolve2) => setTimeout(resolve2, 500));
-      
-      if (!fs.existsSync(tempDbPath)) {
-        throw new Error("Temporary database file was not created successfully");
+        await new Promise(resolve2 => setTimeout(resolve2, 500));
+
+        if (!fs.existsSync(tempDbPath)) {
+          throw new Error(
+            "Temporary database file was not created successfully",
+          );
+        }
+        console.log("[DEBUG] Temporary database copy created successfully");
+      } catch (error) {
+        logger.error("Error copying Login Data file:", error);
+        console.error("[DEBUG] Failed to create temporary database:", error);
+        reject(error as Error);
+        return;
       }
-      console.log("[DEBUG] Temporary database copy created successfully");
-    } catch (error) {
-      logger.error("Error copying Login Data file:", error);
-      console.error("[DEBUG] Failed to create temporary database:", error);
-      reject(error as Error);
-      return;
-    }
-    
-    console.log("[DEBUG] Opening database connection");
-    let db: sqlite3.Database | null = null;
-    
-    try {
-      db = await new Promise<sqlite3.Database>((resolveDb, rejectDb) => {
-        const database = new sqlite3.Database(
-          tempDbPath,
-          sqlite3.OPEN_READONLY,
-          (err) => {
+
+      console.log("[DEBUG] Opening database connection");
+      let db: sqlite3.Database | null = null;
+
+      try {
+        db = await new Promise<sqlite3.Database>((resolveDb, rejectDb) => {
+          const database = new sqlite3.Database(
+            tempDbPath,
+            sqlite3.OPEN_READONLY,
+            err => {
+              if (err) {
+                rejectDb(new Error(`Failed to open database: ${err.message}`));
+                return;
+              }
+              resolveDb(database);
+            },
+          );
+        });
+        console.log("[DEBUG] Database connection established successfully");
+      } catch (error) {
+        logger.error("Error opening database:", error);
+        console.error("[DEBUG] Failed to create database connection:", error);
+        try {
+          fs.unlinkSync(tempDbPath);
+        } catch (cleanupError) {
+          logger.error(
+            "Error cleaning up temporary database after failed open:",
+            cleanupError,
+          );
+        }
+        reject(error as Error);
+        return;
+      }
+
+      if (!db) {
+        const error = new Error("Database connection could not be established");
+        logger.error(String(error));
+        reject(error);
+        return;
+      }
+
+      try {
+        console.log("[DEBUG] Executing password query");
+        db.all(
+          `SELECT origin_url, username_value, password_value, date_created 
+         FROM logins`,
+          async (err, rows: any[]) => {
             if (err) {
-              rejectDb(new Error(`Failed to open database: ${err.message}`));
+              console.error("[DEBUG] Database query failed:", err);
+              reject(err);
               return;
             }
-            resolveDb(database);
+
+            console.log("[DEBUG] Query results count:", rows?.length);
+            console.log("[DEBUG] Starting password decryption");
+
+            try {
+              const processedLogins = await Promise.all(
+                rows.map(async row => {
+                  const decryptedPassword = await decryptPassword(
+                    row.password_value,
+                    key,
+                    browserProfile,
+                  );
+                  console.log(
+                    "[DEBUG] Successfully decrypted password for:",
+                    row.origin_url,
+                  );
+                  return {
+                    originUrl: row.origin_url,
+                    username: row.username_value,
+                    password: decryptedPassword,
+                    dateCreated: new Date(row.date_created / 1000),
+                  };
+                }),
+              );
+
+              const filteredLogins = processedLogins.filter(
+                login => login.password !== "",
+              );
+              console.log(
+                "[DEBUG] Finished processing all passwords. Valid passwords:",
+                filteredLogins.length,
+              );
+              resolve(filteredLogins);
+            } catch (error) {
+              console.error("[DEBUG] Error processing passwords:", error);
+              reject(error as Error);
+            }
           },
         );
-      });
-      console.log("[DEBUG] Database connection established successfully");
-    } catch (error) {
-      logger.error("Error opening database:", error);
-      console.error("[DEBUG] Failed to create database connection:", error);
-      try {
-        fs.unlinkSync(tempDbPath);
-      } catch (cleanupError) {
-        logger.error(
-          "Error cleaning up temporary database after failed open:",
-          cleanupError,
-        );
-      }
-      reject(error as Error);
-      return;
-    }
-    
-    if (!db) {
-      const error = new Error("Database connection could not be established");
-      logger.error(String(error));
-      reject(error);
-      return;
-    }
-    
-    try {
-      console.log("[DEBUG] Executing password query");
-      db.all(
-        `SELECT origin_url, username_value, password_value, date_created 
-         FROM logins`,
-        async (err, rows: any[]) => {
-          if (err) {
-            console.error("[DEBUG] Database query failed:", err);
-            reject(err);
-            return;
-          }
-          
-          console.log("[DEBUG] Query results count:", rows?.length);
-          console.log("[DEBUG] Starting password decryption");
-          
-          try {
-            const processedLogins = await Promise.all(
-              rows.map(async (row) => {
-                const decryptedPassword = await decryptPassword(
-                  row.password_value,
-                  key,
-                  browserProfile,
-                );
-                console.log(
-                  "[DEBUG] Successfully decrypted password for:",
-                  row.origin_url,
-                );
-                return {
-                  originUrl: row.origin_url,
-                  username: row.username_value,
-                  password: decryptedPassword,
-                  dateCreated: new Date(row.date_created / 1000),
-                };
-              }),
-            );
-            
-            const filteredLogins = processedLogins.filter(
-              (login) => login.password !== "",
-            );
-            console.log(
-              "[DEBUG] Finished processing all passwords. Valid passwords:",
-              filteredLogins.length,
-            );
-            resolve(filteredLogins);
-          } catch (error) {
-            console.error("[DEBUG] Error processing passwords:", error);
-            reject(error as Error);
-          }
-        },
-      );
-    } catch (error) {
-      console.error("[DEBUG] Error in database operations:", error);
-      reject(error as Error);
-    } finally {
-      console.log("[DEBUG] Closing database connection");
-      if (db) {
-        db.close((err) => {
-          if (err) {
-            logger.error("Error closing database:", err);
-          }
-        });
-      }
-      
-      try {
-        console.log("[DEBUG] Cleaning up temporary database file");
-        fs.unlinkSync(tempDbPath);
-        console.log("[DEBUG] Temporary database file cleaned up successfully");
       } catch (error) {
-        logger.error("Error cleaning up temporary database:", error);
-        console.error("[DEBUG] Failed to clean up temporary database:", error);
+        console.error("[DEBUG] Error in database operations:", error);
+        reject(error as Error);
+      } finally {
+        console.log("[DEBUG] Closing database connection");
+        if (db) {
+          db.close(err => {
+            if (err) {
+              logger.error("Error closing database:", err);
+            }
+          });
+        }
+
+        try {
+          console.log("[DEBUG] Cleaning up temporary database file");
+          fs.unlinkSync(tempDbPath);
+          console.log(
+            "[DEBUG] Temporary database file cleaned up successfully",
+          );
+        } catch (error) {
+          logger.error("Error cleaning up temporary database:", error);
+          console.error(
+            "[DEBUG] Failed to clean up temporary database:",
+            error,
+          );
+        }
       }
-    }
     })();
   });
 }
@@ -291,11 +301,11 @@ async function migrateChromePasswords(
 ): Promise<number> {
   logger.info("Migrating passwords");
   const passwords = await getAllPasswords(browserProfile, key);
-  
+
   // Import to ProfileService instead of using UserProfile
   const { getProfileService } = await import("../../services/profile-service");
   const profileService = getProfileService();
-  
+
   const importData = passwords.map(password => ({
     url: password.originUrl,
     username: password.username,
@@ -304,9 +314,9 @@ async function migrateChromePasswords(
     source: "chrome" as const,
     lastUsed: password.dateCreated,
   }));
-  
+
   await profileService.importPasswords(profileId, importData);
-  
+
   logger.info(`Successfully migrated ${passwords.length} passwords`);
   return passwords.length;
 }
@@ -583,12 +593,12 @@ const readBrowserProfiles = (
     if (!fs.existsSync(browserPath)) {
       return browserProfiles;
     }
-    
+
     const localStatePath = path.join(browserPath, "Local State");
     if (fs.existsSync(localStatePath)) {
       const localState = JSON.parse(fs.readFileSync(localStatePath, "utf8"));
       const profilesInfo = localState.profile?.info_cache || {};
-      
+
       const defaultProfilePath = path.join(browserPath, "Default");
       if (fs.existsSync(defaultProfilePath)) {
         browserProfiles.push({
@@ -598,20 +608,22 @@ const readBrowserProfiles = (
           browser: browserType,
         } as BrowserProfile & { lastModified: Date; browser: string });
       }
-      
-      Object.entries(profilesInfo).forEach(([profileDir, info]: [string, any]) => {
-        if (profileDir !== "Default") {
-          const profilePath = path.join(browserPath, profileDir);
-          if (fs.existsSync(profilePath)) {
-            browserProfiles.push({
-              name: info.name || profileDir,
-              path: profilePath,
-              lastModified: fs.statSync(profilePath).mtime,
-              browser: browserType,
-            } as BrowserProfile & { lastModified: Date; browser: string });
+
+      Object.entries(profilesInfo).forEach(
+        ([profileDir, info]: [string, any]) => {
+          if (profileDir !== "Default") {
+            const profilePath = path.join(browserPath, profileDir);
+            if (fs.existsSync(profilePath)) {
+              browserProfiles.push({
+                name: info.name || profileDir,
+                path: profilePath,
+                lastModified: fs.statSync(profilePath).mtime,
+                browser: browserType,
+              } as BrowserProfile & { lastModified: Date; browser: string });
+            }
           }
-        }
-      });
+        },
+      );
     }
   } catch (error) {
     logger.error(`Error reading ${browserType} profiles:`, error);
@@ -620,19 +632,30 @@ const readBrowserProfiles = (
 };
 
 // Find all browser profiles on the system
-const findBrowserProfiles = (): Array<BrowserProfile & { lastModified: Date; browser: string }> => {
+const findBrowserProfiles = (): Array<
+  BrowserProfile & { lastModified: Date; browser: string }
+> => {
   let chromePath = "";
   let arcPath = "";
   let safariPath = "";
-  
+
   switch (process.platform) {
     case "win32":
-      chromePath = path.join(process.env.LOCALAPPDATA || "", "Google/Chrome/User Data");
+      chromePath = path.join(
+        process.env.LOCALAPPDATA || "",
+        "Google/Chrome/User Data",
+      );
       arcPath = path.join(process.env.LOCALAPPDATA || "", "Arc/User Data");
       break;
     case "darwin":
-      chromePath = path.join(os.homedir(), "Library/Application Support/Google/Chrome");
-      arcPath = path.join(os.homedir(), "Library/Application Support/Arc/User Data");
+      chromePath = path.join(
+        os.homedir(),
+        "Library/Application Support/Google/Chrome",
+      );
+      arcPath = path.join(
+        os.homedir(),
+        "Library/Application Support/Arc/User Data",
+      );
       safariPath = path.join(os.homedir(), "Library/Safari");
       break;
     case "linux":
@@ -642,12 +665,12 @@ const findBrowserProfiles = (): Array<BrowserProfile & { lastModified: Date; bro
     default:
       logger.info("Unsupported operating system");
   }
-  
+
   const allProfiles = [
     ...readBrowserProfiles(chromePath, "chrome"),
     ...readBrowserProfiles(arcPath, "arc"),
   ] as Array<BrowserProfile & { lastModified: Date; browser: string }>;
-  
+
   if (process.platform === "darwin" && fs.existsSync(safariPath)) {
     allProfiles.push({
       name: "Safari Data",
@@ -656,7 +679,7 @@ const findBrowserProfiles = (): Array<BrowserProfile & { lastModified: Date; bro
       browser: "safari",
     });
   }
-  
+
   return allProfiles.sort((a, b) => {
     if (a.browser < b.browser) return -1;
     if (a.browser > b.browser) return 1;
@@ -744,7 +767,12 @@ ipcMain.handle("password-import-csv", async (_event, csvContent: string) => {
 
 ipcMain.handle(
   "password-migrate-chrome",
-  async (_event, profilePath: string, encryptionKey: string, profileId?: string) => {
+  async (
+    _event,
+    profilePath: string,
+    encryptionKey: string,
+    profileId?: string,
+  ) => {
     logger.info("Starting Chrome password migration");
 
     try {
@@ -755,7 +783,9 @@ ipcMain.handle(
 
       // Use current profile if no profileId provided
       if (!profileId) {
-        const { getProfileService } = await import("../../services/profile-service");
+        const { getProfileService } = await import(
+          "../../services/profile-service"
+        );
         const profileService = getProfileService();
         const currentProfile = profileService.getCurrentProfile();
         if (!currentProfile) {

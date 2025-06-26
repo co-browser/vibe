@@ -56,7 +56,6 @@ function Routes() {
   useEffect(() => {
     const type = getWindowType();
     setWindowType(type);
-
   }, []);
 
   // Render popup windows directly without router (no context menu for popup windows)

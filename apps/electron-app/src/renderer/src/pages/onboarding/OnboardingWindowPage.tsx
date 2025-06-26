@@ -29,7 +29,9 @@ export function OnboardingWindowPage() {
   const handleCloseOnboarding = async () => {
     try {
       // Complete the onboarding process
-      await window.electronAPI?.ipcRenderer?.invoke("onboarding:complete-window");
+      await window.electronAPI?.ipcRenderer?.invoke(
+        "onboarding:complete-window",
+      );
       setIsOnboardingOpen(false);
     } catch (error) {
       logger.error("Failed to complete onboarding:", error);

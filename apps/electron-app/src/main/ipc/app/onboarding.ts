@@ -41,21 +41,25 @@ ipcMain.handle("onboarding:complete", async (_event, data: any) => {
   try {
     const profileService = getProfileService();
     const onboardingService = getOnboardingService();
-    
+
     // Prompt for Touch ID to set up secure storage (first time only)
-    const { NewUserStore, getSecureItem } = await import("../../store/desktop-store");
+    const { NewUserStore, getSecureItem } = await import(
+      "../../store/desktop-store"
+    );
     const touchIdInitialized = getSecureItem("touch_id_initialized");
-    
+
     if (!touchIdInitialized) {
       logger.info("First time setup - prompting for Touch ID");
-      const touchIdSuccess = await NewUserStore("Authenticate to secure your Vibe passwords");
-      
+      const touchIdSuccess = await NewUserStore(
+        "Authenticate to secure your Vibe passwords",
+      );
+
       if (!touchIdSuccess && process.platform === "darwin") {
         logger.warn("Touch ID authentication failed or was cancelled");
         // Continue anyway - we can still use encrypted storage without Touch ID
       }
     }
-    
+
     // Create profile with onboarding data
     const profile = await profileService.createProfile(
       data.profileName,
@@ -70,31 +74,41 @@ ipcMain.handle("onboarding:complete", async (_event, data: any) => {
         privacyMode: data.privacyMode || false,
       },
     );
-    
+
     // The profile creation should have triggered Touch ID when initializing the encrypted store
     logger.info("Profile created with encrypted store");
 
     // Import Chrome passwords if profile selected
     if (data.selectedChromeProfile && data.importPasswords) {
-      logger.info(`Importing passwords from Chrome profile: ${data.selectedChromeProfile}`);
+      logger.info(
+        `Importing passwords from Chrome profile: ${data.selectedChromeProfile}`,
+      );
       try {
         // Use the real Chrome password import
         const { migrateChromePasswords } = await import("./password-import");
-        const { generateProfileEncryptionKey } = await import("../../persistent");
-        
+        const { generateProfileEncryptionKey } = await import(
+          "../../persistent"
+        );
+
         // Create a browser profile object for the selected Chrome profile
         const browserProfile = {
           name: data.selectedChromeProfile,
           path: data.selectedChromeProfile,
-          browser: "chrome"
+          browser: "chrome",
         };
-        
+
         // Generate encryption key for Chrome password decryption
         const chromeKey = generateProfileEncryptionKey();
-        
+
         // Import passwords into the newly created profile
-        const importedCount = await migrateChromePasswords(browserProfile, profile.id, chromeKey);
-        logger.info(`Successfully imported ${importedCount} passwords from Chrome`);
+        const importedCount = await migrateChromePasswords(
+          browserProfile,
+          profile.id,
+          chromeKey,
+        );
+        logger.info(
+          `Successfully imported ${importedCount} passwords from Chrome`,
+        );
       } catch (importError) {
         logger.error("Failed to import Chrome passwords:", importError);
         // Don't fail the whole onboarding if import fails
@@ -164,7 +178,9 @@ ipcMain.handle("onboarding:get-chrome-profiles", async () => {
   try {
     const allProfiles = findBrowserProfiles();
     // Filter to only Chrome profiles
-    const chromeProfiles = allProfiles.filter(profile => profile.browser === "chrome");
+    const chromeProfiles = allProfiles.filter(
+      profile => profile.browser === "chrome",
+    );
     logger.info(`Found ${chromeProfiles.length} Chrome profiles`);
     return chromeProfiles;
   } catch (error) {
