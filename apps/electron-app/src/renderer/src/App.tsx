@@ -13,9 +13,7 @@ import { ContextMenuDetector } from "./components/ui/context-menu-detector";
 import BrowserRoute from "./routes/browser/route";
 
 // Popup Pages
-import OnboardingPage, {
-  type DetectedBrowser,
-} from "./pages/onboarding/OnboardingPage";
+import { OnboardingPage3D } from "./pages/onboarding/OnboardingPage3D";
 import SettingsPage from "./pages/settings/SettingsPage";
 import AboutPage from "./pages/about/AboutPage";
 
@@ -48,36 +46,22 @@ function getWindowType(): string {
 /**
  * Gets detected browsers from command line arguments
  */
-function getDetectedBrowsers(): DetectedBrowser[] {
-  if (window.electronAPI?.getDetectedBrowsers) {
-    return window.electronAPI.getDetectedBrowsers();
-  }
-  return [];
-}
 
 /**
  * Main application component with window type detection
  */
 function Routes() {
   const [windowType, setWindowType] = useState<string>("browser");
-  const [detectedBrowsers, setDetectedBrowsers] = useState<DetectedBrowser[]>(
-    [],
-  );
 
   useEffect(() => {
     const type = getWindowType();
     setWindowType(type);
 
-    // Get detected browsers for onboarding window
-    if (type === "onboarding") {
-      const browsers = getDetectedBrowsers();
-      setDetectedBrowsers(browsers);
-    }
   }, []);
 
   // Render popup windows directly without router (no context menu for popup windows)
   if (windowType === "onboarding") {
-    return <OnboardingPage detectedBrowsers={detectedBrowsers} />;
+    return <OnboardingPage3D />;
   }
 
   if (windowType === "settings") {

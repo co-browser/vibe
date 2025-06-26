@@ -11,7 +11,7 @@ export function OnboardingWindowPage() {
   useEffect(() => {
     const getBrowsers = async () => {
       try {
-        const browsers = await window.electronAPI?.invoke(
+        const browsers = await window.electronAPI?.ipcRenderer?.invoke(
           "onboarding:get-browsers",
         );
         if (browsers) {
@@ -29,12 +29,12 @@ export function OnboardingWindowPage() {
   const handleCloseOnboarding = async () => {
     try {
       // Complete the onboarding process
-      await window.electronAPI?.invoke("onboarding:complete-window");
+      await window.electronAPI?.ipcRenderer?.invoke("onboarding:complete-window");
       setIsOnboardingOpen(false);
     } catch (error) {
       logger.error("Failed to complete onboarding:", error);
       // Even if completion fails, close the window
-      await window.electronAPI?.invoke("onboarding:close-window");
+      await window.electronAPI?.ipcRenderer?.invoke("onboarding:close-window");
     }
   };
 

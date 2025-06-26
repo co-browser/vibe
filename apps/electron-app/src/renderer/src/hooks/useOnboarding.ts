@@ -27,7 +27,7 @@ export function useOnboarding() {
         setIsLoading(true);
 
         // Check if onboarding is needed
-        const result: OnboardingResult = await window.electronAPI?.invoke(
+        const result: OnboardingResult = await window.electronAPI?.ipcRenderer?.invoke(
           "onboarding:initialize",
         );
 
@@ -39,7 +39,7 @@ export function useOnboarding() {
         }
 
         // Get onboarding status
-        const status: OnboardingStatus = await window.electronAPI?.invoke(
+        const status: OnboardingStatus = await window.electronAPI?.ipcRenderer?.invoke(
           "onboarding:get-status",
         );
         setOnboardingStatus(status);
@@ -63,7 +63,7 @@ export function useOnboarding() {
 
   const refreshOnboardingStatus = async () => {
     try {
-      const status: OnboardingStatus = await window.electronAPI?.invoke(
+      const status: OnboardingStatus = await window.electronAPI?.ipcRenderer?.invoke(
         "onboarding:get-status",
       );
       setOnboardingStatus(status);

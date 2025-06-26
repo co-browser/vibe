@@ -52,7 +52,7 @@ export function OnboardingPage({
       // Try to get detected browsers via IPC
       const getBrowsers = async () => {
         try {
-          const browsers = await window.electronAPI?.invoke(
+          const browsers = await window.electronAPI?.ipcRenderer?.invoke(
             "onboarding:get-browsers",
           );
           if (browsers) {
@@ -142,7 +142,7 @@ export function OnboardingPage({
         privacyMode,
       };
 
-      const result = await window.electronAPI?.invoke(
+      const result = await window.electronAPI?.ipcRenderer?.invoke(
         "onboarding:complete",
         onboardingData,
       );

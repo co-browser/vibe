@@ -150,12 +150,6 @@ export const NewUserStore = async (
       return false;
     }
 
-    // Check if Touch ID is available
-    if (!systemPreferences.canPromptTouchID()) {
-      logger.warn("Touch ID is not available on this system");
-      return false;
-    }
-
     // Prompt for Touch ID authentication
     try {
       await systemPreferences.promptTouchID(reason);

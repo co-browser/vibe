@@ -73,5 +73,11 @@
     "onlyBuiltDependencies": [
       "electron"
     ]
+  },
+  "dependencies": {
+    "@react-three/drei": "^10.3.0",
+    "@react-three/fiber": "^9.1.2",
+    "@types/three": "^0.177.0",
+    "three": "^0.177.0"
   }
 }

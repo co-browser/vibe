@@ -37,7 +37,7 @@ export const ContextMenuDetector: React.FC<ContextMenuDetectorProps> = ({
       const tabId = currentTab?.key;
 
       // Get window ID
-      const windowId = await window.electronAPI?.invoke("window:get-id");
+      const windowId = await window.electronAPI?.ipcRenderer?.invoke("window:get-id");
 
       const contextMenuOptions = {
         type: menuType,

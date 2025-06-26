@@ -86,7 +86,7 @@ export function SettingsPage() {
       setLoading(true);
 
       // Load current profile
-      const profileResult = await window.electronAPI?.invoke(
+      const profileResult = await window.electronAPI?.ipcRenderer?.invoke(
         "settings:get-profile",
       );
       if (profileResult?.success) {
@@ -133,7 +133,7 @@ export function SettingsPage() {
 
       // Save profile settings
       if (currentProfile) {
-        await window.electronAPI?.invoke("settings:update-profile", {
+        await window.electronAPI?.ipcRenderer?.invoke("settings:update-profile", {
           settings: {
             theme,
             fontSize,
@@ -193,7 +193,7 @@ export function SettingsPage() {
   };
 
   const closeSettings = () => {
-    window.electronAPI?.invoke("settings:close");
+    window.electronAPI?.ipcRenderer?.invoke("settings:close");
   };
 
   if (loading) {

@@ -148,6 +148,7 @@ module.exports = {
   //   owner: "co-browser",
   //   repo: "vibe"
   // },
+  electronVersion: "35.1.5",
   electronDownload: {
     mirror: "https://npmmirror.com/mirrors/electron/",
   },

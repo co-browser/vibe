@@ -1,9 +1,8 @@
-import { BrowserWindow, nativeTheme, app, ipcMain } from "electron";
+import { BrowserWindow, app, ipcMain } from "electron";
 import { EventEmitter } from "events";
 import { join } from "path";
 import { is } from "@electron-toolkit/utils";
 import { createLogger } from "@vibe/shared-types";
-import { getProfileService } from "../services/profile-service";
 import fs from "fs";
 import path from "path";
 
@@ -25,6 +24,7 @@ interface OnboardingData {
   importPasswords: boolean;
   importHistory: boolean;
   selectedBrowser?: string;
+  selectedChromeProfile?: string;
   theme: "light" | "dark" | "system";
   privacyMode: boolean;
 }
@@ -151,7 +151,6 @@ export class OnboardingWindow extends EventEmitter {
   public readonly window: BrowserWindow;
   private parentWindow: BrowserWindow;
   private detectedBrowsers: DetectedBrowser[];
-  private profileService = getProfileService();
 
   constructor(
     parentWindow: BrowserWindow,
@@ -175,32 +174,27 @@ export class OnboardingWindow extends EventEmitter {
 
   private getWindowOptions(): Electron.BrowserWindowConstructorOptions {
     return {
-      // Remove parent and modal to make window independent but keep modal behavior
-      modal: true, // Keep modal for onboarding as it's a guided experience
-      width: 800,
-      height: 600,
-      minWidth: 600,
-      minHeight: 400,
+      modal: true,
+      width: 900,
+      height: 700,
+      minWidth: 800,
+      minHeight: 600,
       show: false,
       autoHideMenuBar: true,
-      titleBarStyle: process.platform === "darwin" ? "hidden" : undefined,
-      titleBarOverlay: {
-        height: 30,
-        symbolColor: nativeTheme.shouldUseDarkColors ? "white" : "black",
-        color: "rgba(0,0,0,0)",
-      },
-      backgroundColor: process.platform === "darwin" ? "#00000000" : "#000000",
+      titleBarStyle: "hiddenInset",
+      trafficLightPosition: { x: 20, y: 20 },
+      backgroundColor: "#00000000",
       frame: false,
       transparent: true,
-      resizable: true,
-      movable: true, // Explicitly enable dragging
-      minimizable: false, // Onboarding shouldn't be minimizable
-      maximizable: false, // Keep onboarding at fixed size
-      closable: true, // Allow closing
+      resizable: false,
+      movable: true,
+      minimizable: false,
+      maximizable: false,
+      closable: true,
+      hasShadow: true,
       visualEffectState: "active",
-      backgroundMaterial: "none",
+      vibrancy: "under-window",
       roundedCorners: true,
-      vibrancy: process.platform === "darwin" ? "fullscreen-ui" : undefined,
       webPreferences: {
         preload: join(__dirname, "../preload/index.js"),
         sandbox: false,
@@ -208,6 +202,7 @@ export class OnboardingWindow extends EventEmitter {
         contextIsolation: true,
         webSecurity: true,
         allowRunningInsecureContent: false,
+        backgroundThrottling: false,
         additionalArguments: [
           "--window-type=onboarding",
           `--detected-browsers=${JSON.stringify(this.detectedBrowsers)}`,
@@ -252,50 +247,7 @@ export class OnboardingWindow extends EventEmitter {
   }
 
   private setupIpcHandlers(): void {
-    // Handle onboarding completion
-    ipcMain.handle(
-      "onboarding:complete",
-      async (_event, data: OnboardingData) => {
-        try {
-          // Create profile with onboarding data
-          const profile = await this.profileService.createProfile(
-            data.profileName,
-            data.email,
-            {
-              theme: data.theme,
-              language: "en",
-              defaultSearchEngine: "google",
-              autoSavePasswords: data.importPasswords,
-              syncBrowsingHistory: data.importHistory,
-              enableAutocomplete: true,
-              privacyMode: data.privacyMode,
-            },
-          );
-
-          // Import data if requested
-          if (
-            data.selectedBrowser &&
-            (data.importPasswords || data.importHistory)
-          ) {
-            await this.importBrowserData(profile.id, data.selectedBrowser, {
-              passwords: data.importPasswords,
-              history: data.importHistory,
-            });
-          }
-
-          // Close onboarding window
-          this.close();
-
-          return { success: true, profileId: profile.id };
-        } catch (error) {
-          logger.error("Failed to complete onboarding:", error);
-          return {
-            success: false,
-            error: error instanceof Error ? error.message : String(error),
-          };
-        }
-      },
-    );
+    // Note: The main onboarding:complete handler is in src/main/ipc/app/onboarding.ts
 
     // Handle getting detected browsers
     ipcMain.handle("onboarding:get-browsers", async () => {
@@ -305,9 +257,14 @@ export class OnboardingWindow extends EventEmitter {
     // Handle browser data preview
     ipcMain.handle(
       "onboarding:preview-browser-data",
-      async (_event, browserName: string) => {
+      async (_event, _browserName: string) => {
         try {
-          const preview = await this.previewBrowserData(browserName);
+          // Mock preview data - in real implementation would scan browser
+          const preview = {
+            passwords: Math.floor(Math.random() * 50) + 10,
+            history: Math.floor(Math.random() * 1000) + 100,
+            bookmarks: Math.floor(Math.random() * 100) + 20,
+          };
           return { success: true, preview };
         } catch (error) {
           logger.error("Failed to preview browser data:", error);
@@ -344,7 +301,7 @@ export class OnboardingWindow extends EventEmitter {
     }
   }
 
-  private async importBrowserData(
+  /* private async importBrowserData(
     profileId: string,
     browserName: string,
     data: { passwords: boolean; history: boolean },
@@ -463,6 +420,7 @@ export class OnboardingWindow extends EventEmitter {
       throw error;
     }
   }
+  */
 
   public close(): void {
     if (!this.window.isDestroyed()) {
@@ -474,7 +432,7 @@ export class OnboardingWindow extends EventEmitter {
     if (this.window.isDestroyed()) return;
 
     // Clean up IPC handlers
-    ipcMain.removeHandler("onboarding:complete");
+    // Note: onboarding:complete is handled in onboarding.ts
     ipcMain.removeHandler("onboarding:get-browsers");
     ipcMain.removeHandler("onboarding:preview-browser-data");
 

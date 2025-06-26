@@ -48,11 +48,10 @@ const WelcomeStep: React.FC<OnboardingStepProps> = ({
           </svg>
         </div>
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-          Welcome to Vibe
+          The Vibe
         </h2>
         <p className="text-gray-600 dark:text-gray-300 max-w-md mx-auto">
-          Let's set up your personalized browsing experience with AI-powered
-          assistance.
+          Let's set you up for an accelerated browsing experience.
         </p>
       </div>
 
@@ -92,7 +91,7 @@ const ProfileSetupStep: React.FC<OnboardingStepProps> = ({
   const handleNext = () => {
     if (profileName.trim()) {
       // Save profile data via IPC
-      window.electronAPI?.invoke("onboarding:update-profile", {
+      window.electronAPI?.ipcRenderer?.invoke("onboarding:update-profile", {
         name: profileName.trim(),
         email: email.trim() || undefined,
       });
