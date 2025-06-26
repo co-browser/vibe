@@ -726,6 +726,17 @@ const profileAPI = {
   },
 };
 
+// Overlay API for transparent overlay system
+const overlayAPI = {
+  show: async () => ipcRenderer.invoke("overlay:show"),
+  hide: async () => ipcRenderer.invoke("overlay:hide"),
+  render: async (content: any) => ipcRenderer.invoke("overlay:render", content),
+  clear: async () => ipcRenderer.invoke("overlay:clear"),
+  update: async (updates: any) => ipcRenderer.invoke("overlay:update", updates),
+  execute: async (script: string) =>
+    ipcRenderer.invoke("overlay:execute", script),
+};
+
 const vibeAPI = {
   app: appAPI,
   actions: actionsAPI,
@@ -745,9 +756,29 @@ const vibeAPI = {
 if (process.contextIsolated) {
   try {
     contextBridge.exposeInMainWorld("vibe", vibeAPI);
+    contextBridge.exposeInMainWorld("vibeOverlay", overlayAPI);
     contextBridge.exposeInMainWorld("electron", {
       ...electronAPI,
+      overlay: overlayAPI,
       platform: process.platform,
+      // IPC renderer for direct communication
+      ipcRenderer: {
+        on: (channel: string, listener: (...args: any[]) => void) => {
+          ipcRenderer.on(channel, listener);
+        },
+        removeListener: (
+          channel: string,
+          listener: (...args: any[]) => void,
+        ) => {
+          ipcRenderer.removeListener(channel, listener);
+        },
+        send: (channel: string, ...args: any[]) => {
+          ipcRenderer.send(channel, ...args);
+        },
+        invoke: (channel: string, ...args: any[]) => {
+          return ipcRenderer.invoke(channel, ...args);
+        },
+      },
       // Legacy methods for backward compatibility
       ...legacyListeners,
       // Legacy individual methods - deprecated, functionality removed

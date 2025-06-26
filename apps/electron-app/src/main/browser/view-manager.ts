@@ -5,6 +5,7 @@ import {
   CHAT_PANEL,
 } from "@vibe/shared-types";
 import { createLogger } from "@vibe/shared-types";
+import { OverlayManager } from "./overlay-manager";
 
 const logger = createLogger("ViewManager");
 
@@ -39,12 +40,40 @@ export class ViewManager {
   private activeViewKey: string | null = null;
   private isChatAreaVisible: boolean = false;
 
+  // Overlay manager
+  private overlayManager: OverlayManager;
+
   // Track which views are currently visible
   private visibleViews: Set<string> = new Set();
 
   constructor(browser: any, window: BrowserWindow) {
     this._browser = browser;
     this.window = window;
+    this.overlayManager = new OverlayManager(window);
+  }
+
+  // === OVERLAY MANAGEMENT ===
+
+  /**
+   * Initialize the overlay system
+   */
+  public async initializeOverlay(): Promise<void> {
+    await this.overlayManager.initialize();
+    this.ensureOverlayOnTop();
+  }
+
+  /**
+   * Ensure overlay stays on top of all views
+   */
+  private ensureOverlayOnTop(): void {
+    this.overlayManager.bringToFront();
+  }
+
+  /**
+   * Get the overlay manager
+   */
+  public getOverlayManager(): OverlayManager {
+    return this.overlayManager;
   }
 
   // === PURE UTILITY INTERFACE ===
@@ -59,6 +88,8 @@ export class ViewManager {
     if (this.window) {
       this.window.contentView.addChildView(view);
       this.updateBoundsForView(tabKey);
+      // Ensure overlay stays on top
+      this.ensureOverlayOnTop();
     }
   }
 
@@ -220,6 +251,9 @@ export class ViewManager {
     // Update bounds for the newly visible view
     this.updateBoundsForView(tabKey);
 
+    // Ensure overlay stays on top
+    this.ensureOverlayOnTop();
+
     return true;
   }
 
@@ -242,6 +276,30 @@ export class ViewManager {
     this.visibleViews.delete(tabKey);
 
     return true;
+  }
+
+  /**
+   * Hide web contents (for omnibox overlay)
+   */
+  public hideWebContents(): void {
+    if (this.activeViewKey) {
+      const view = this.browserViews.get(this.activeViewKey);
+      if (view) {
+        view.setVisible(false);
+      }
+    }
+  }
+
+  /**
+   * Show web contents (after omnibox overlay)
+   */
+  public showWebContents(): void {
+    if (this.activeViewKey) {
+      const view = this.browserViews.get(this.activeViewKey);
+      if (view) {
+        view.setVisible(true);
+      }
+    }
   }
 
   /**
@@ -399,6 +457,9 @@ export class ViewManager {
    * Destroys the view manager
    */
   public destroy(): void {
+    // Clean up overlay manager
+    this.overlayManager.destroy();
+
     for (const [tabKey] of this.browserViews) {
       this.removeBrowserView(tabKey);
     }

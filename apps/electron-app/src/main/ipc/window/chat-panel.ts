@@ -1,4 +1,4 @@
-import { ipcMain } from "electron";
+import { ipcMain, BrowserWindow } from "electron";
 import { browser } from "@/index";
 import { createLogger } from "@vibe/shared-types";
 
@@ -52,5 +52,31 @@ ipcMain.handle("interface:recover-chat-panel", async event => {
       success: false,
       error: error instanceof Error ? error.message : "Unknown error",
     };
+  }
+});
+
+// Forward omnibox events from overlay to main window
+ipcMain.on("omnibox:suggestion-clicked", (_event, suggestion) => {
+  // Find which window this came from
+  for (const window of BrowserWindow.getAllWindows()) {
+    if (!window.isDestroyed()) {
+      window.webContents.send("omnibox:suggestion-clicked", suggestion);
+    }
+  }
+});
+
+ipcMain.on("omnibox:escape-dropdown", () => {
+  for (const window of BrowserWindow.getAllWindows()) {
+    if (!window.isDestroyed()) {
+      window.webContents.send("omnibox:escape-dropdown");
+    }
+  }
+});
+
+ipcMain.on("omnibox:delete-history", (_event, suggestionId) => {
+  for (const window of BrowserWindow.getAllWindows()) {
+    if (!window.isDestroyed()) {
+      window.webContents.send("omnibox:delete-history", suggestionId);
+    }
   }
 });

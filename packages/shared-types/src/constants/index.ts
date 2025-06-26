@@ -25,6 +25,7 @@ export const IPC_EVENTS = {
     GET_CHAT_PANEL_STATE: "interface:get-chat-panel-state",
     SET_CHAT_PANEL_WIDTH: "interface:set-chat-panel-width",
     RECOVER_CHAT_PANEL: "interface:recover-chat-panel",
+    OMNIBOX_SUGGESTIONS_VISIBILITY: "interface:omnibox-suggestions-visibility",
   },
 } as const;
 

@@ -52,6 +52,16 @@ export default defineConfig({
         "@vibe/shared-types": path.resolve(__dirname, "../../packages/shared-types/src/index.ts"),
       },
     },
+    build: {
+      rollupOptions: {
+        input: {
+          index: path.resolve(__dirname, "./src/preload/index.ts"),
+        },
+        output: {
+          entryFileNames: "[name].js",
+        },
+      },
+    },
   },
   renderer: {
     resolve: {
@@ -64,6 +74,14 @@ export default defineConfig({
       port: 5173,
       host: 'localhost',
       strictPort: true,
+    },
+    build: {
+      rollupOptions: {
+        input: {
+          index: path.resolve(__dirname, "./src/renderer/index.html"),
+          overlay: path.resolve(__dirname, "./src/renderer/overlay.html"),
+        },
+      },
     },
     plugins: [
       react(),
