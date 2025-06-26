@@ -18,6 +18,10 @@ export interface NavigationHistoryEntry {
 }
 
 export interface UserProfile {
+  /**
+   * WARNING: Do NOT store sensitive data (such as passwords or API keys) in plain text in this object.
+   * If you need to store such data, use secure storage (e.g., OS keychain, encrypted file, or Electron's safeStorage API).
+   */
   id: string;
   name: string;
   createdAt: number;
