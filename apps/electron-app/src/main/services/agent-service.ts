@@ -104,8 +104,8 @@ export class AgentService extends EventEmitter implements IAgentService {
       throw new Error("Message must be a non-empty string");
     }
 
-    if (message.length > 10000) {
-      throw new Error("Message too long (max 10000 characters)");
+    if (message.length > 50000) {
+      throw new Error("Message too long (max 50000 characters)");
     }
 
     try {

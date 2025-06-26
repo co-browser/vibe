@@ -4,6 +4,9 @@ interface TextInputProps {
   value: string;
   onChange: (value: string) => void;
   onEnter?: () => void;
+  onKeyDown?: (
+    event: KeyboardEvent<HTMLTextAreaElement>,
+  ) => boolean | undefined;
   placeholder?: string;
   disabled?: boolean;
   autoFocus?: boolean;
@@ -15,6 +18,7 @@ export const TextInput: React.FC<TextInputProps> = ({
   value,
   onChange,
   onEnter,
+  onKeyDown,
   placeholder = "Type here...",
   disabled = false,
   autoFocus = false,
@@ -24,6 +28,14 @@ export const TextInput: React.FC<TextInputProps> = ({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>): void => {
+    // Allow parent to intercept keyboard events
+    if (onKeyDown) {
+      const handled = onKeyDown(event);
+      if (handled === true) {
+        return; // Parent handled the event, skip default behavior
+      }
+    }
+
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
       onEnter?.();
