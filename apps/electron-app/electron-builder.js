@@ -102,4 +102,5 @@ module.exports = {
   electronDownload: {
     mirror: "https://npmmirror.com/mirrors/electron/",
   },
+  electronVersion: "version",
 };
