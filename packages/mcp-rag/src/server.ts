@@ -21,7 +21,6 @@ const JSON_RPC_ERROR = -32603;
 
 export class StreamableHTTPServer {
   server: Server;
-  private userId: string | undefined;
 
   constructor(server: Server) {
     this.server = server;
@@ -42,12 +41,10 @@ export class StreamableHTTPServer {
   async handlePostRequest(req: Request, res: Response) {
     log.info(`POST ${req.originalUrl} (${req.ip}) - payload:`, req.body);
     
-    // Store userId from authenticated request
-    if (req.user?.id) {
-      this.userId = req.user.id;
-      log.info(`Request from authenticated user: ${this.userId}`);
-    } else {
-      this.userId = undefined;
+    // Extract userId from authenticated request
+    const userId = req.user?.id;
+    if (userId) {
+      log.info(`Request from authenticated user: ${userId}`);
     }
     
     try {
@@ -60,7 +57,9 @@ export class StreamableHTTPServer {
       await this.server.connect(transport as any);
       log.success('Transport connected. Handling request...');
 
-      await transport.handleRequest(req, res, req.body);
+      // Pass auth info through the request body
+      const bodyWithAuth = userId ? { ...req.body, auth: { userId } } : req.body;
+      await transport.handleRequest(req, res, bodyWithAuth);
       res.on('close', () => {
         log.success('Request closed by client');
         transport.close();
@@ -106,8 +105,9 @@ export class StreamableHTTPServer {
         
         try {
           log.info(`Executing tool ${toolName}...`);
-          // Pass userId to tool if available
-          const argsWithUserId = this.userId ? { ...args, userId: this.userId } : args;
+          // Extract userId from the request's auth info if available
+          const userId = (request as any).auth?.userId;
+          const argsWithUserId = userId ? { ...args, userId } : args;
           const result = await tool.execute(argsWithUserId as any);
           log.success(`Tool ${toolName} executed successfully. Result:`, result);
           
