@@ -15,7 +15,9 @@ export class AgentFactory {
 
     // Store auth token for later use
     if (config.authToken) {
-      (mcpManager as any).authToken = config.authToken;
+      mcpManager.updateAuthToken(config.authToken).catch((error: Error) => {
+        logger.error("Failed to update auth token:", error);
+      });
     }
 
     // Initialize MCP connections in background if environment variables are available
