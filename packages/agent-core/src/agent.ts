@@ -8,7 +8,11 @@ import type {
   IStreamProcessor,
   IAgentConfig,
 } from "./interfaces/index.js";
-import type { StreamResponse, ExtractedPage } from "@vibe/shared-types";
+import type {
+  StreamResponse,
+  ExtractedPage,
+  IMCPManager,
+} from "@vibe/shared-types";
 import { createLogger } from "@vibe/shared-types";
 
 const logger = createLogger("Agent");
@@ -20,7 +24,7 @@ export class Agent {
     private toolManager: IToolManager,
     private streamProcessor: IStreamProcessor,
     private config: IAgentConfig,
-    private mcpManager?: any, // MCPManager instance for dynamic updates
+    private mcpManager?: IMCPManager,
   ) {}
 
   private async getProcessor(): Promise<ReActProcessor | CoActProcessor> {
@@ -99,7 +103,7 @@ export class Agent {
 
     try {
       // Update auth token and manage RAG connections dynamically
-      await (this.mcpManager as any).updateAuthToken(authToken);
+      await this.mcpManager.updateAuthToken(authToken);
       logger.info("MCP connections updated with new auth token");
     } catch (error) {
       logger.error("Failed to update MCP connections:", error);
