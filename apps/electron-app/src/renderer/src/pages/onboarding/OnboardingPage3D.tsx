@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, Suspense } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { Float, Box, Sphere, Stars } from "@react-three/drei";
+import { Float, Stars } from "@react-three/drei";
 import * as THREE from "three";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -12,274 +12,150 @@ interface ChromeProfile {
   browser: string;
 }
 
-// 3D Browser Icon Components
-function ChromeIcon({ position }: { position: [number, number, number] }) {
-  const ref = useRef<THREE.Group>(null);
-
-  useFrame(state => {
-    if (ref.current) {
-      ref.current.rotation.y = state.clock.getElapsedTime() * 0.3;
-    }
-  });
-
+// Gemini-style progress bar component
+function GeminiProgressBar({
+  progress,
+  isProcessing,
+}: {
+  progress: number;
+  isProcessing: boolean;
+}) {
   return (
-    <Float speed={1.5} rotationIntensity={0.3} floatIntensity={1}>
-      <group ref={ref} position={position}>
-        {/* Chrome colors: red, yellow, green, blue */}
-        <mesh position={[0, 0.5, 0]} rotation={[0, 0, Math.PI * 0.75]}>
-          <torusGeometry args={[1, 0.3, 8, 16, Math.PI * 0.5]} />
-          <meshStandardMaterial
-            color="#EA4335"
-            emissive="#EA4335"
-            emissiveIntensity={0.3}
-          />
-        </mesh>
-        <mesh position={[0, -0.5, 0]} rotation={[0, 0, -Math.PI * 0.25]}>
-          <torusGeometry args={[1, 0.3, 8, 16, Math.PI * 0.5]} />
-          <meshStandardMaterial
-            color="#FBBC05"
-            emissive="#FBBC05"
-            emissiveIntensity={0.3}
-          />
-        </mesh>
-        <mesh position={[-0.5, 0, 0]} rotation={[0, 0, Math.PI * 0.25]}>
-          <torusGeometry args={[1, 0.3, 8, 16, Math.PI * 0.5]} />
-          <meshStandardMaterial
-            color="#34A853"
-            emissive="#34A853"
-            emissiveIntensity={0.3}
-          />
-        </mesh>
-        <mesh position={[0.5, 0, 0]} rotation={[0, 0, -Math.PI * 0.75]}>
-          <torusGeometry args={[1, 0.3, 8, 16, Math.PI * 0.5]} />
-          <meshStandardMaterial
-            color="#4285F4"
-            emissive="#4285F4"
-            emissiveIntensity={0.3}
-          />
-        </mesh>
-        <Sphere args={[0.5, 32, 16]}>
-          <meshStandardMaterial
-            color="#4285F4"
-            emissive="#4285F4"
-            emissiveIntensity={0.2}
-          />
-        </Sphere>
-      </group>
-    </Float>
-  );
-}
-
-function MosaicIcon({ position }: { position: [number, number, number] }) {
-  const ref = useRef<THREE.Mesh>(null);
-
-  useFrame(state => {
-    if (ref.current) {
-      ref.current.rotation.y = state.clock.getElapsedTime() * 0.25;
-      ref.current.rotation.x =
-        Math.sin(state.clock.getElapsedTime() * 0.5) * 0.1;
-    }
-  });
-
-  return (
-    <Float speed={2} rotationIntensity={0.5} floatIntensity={1.5}>
-      <mesh ref={ref} position={position}>
-        <dodecahedronGeometry args={[1.2, 0]} />
-        <meshStandardMaterial
-          color="#0080FF"
-          emissive="#0080FF"
-          emissiveIntensity={0.4}
-          roughness={0.3}
-          metalness={0.7}
+    <div className="relative w-full max-w-md">
+      {/* Background track */}
+      <div className="h-1 bg-gray-800 rounded-full overflow-hidden">
+        {/* Progress fill */}
+        <motion.div
+          className="h-full bg-blue-500"
+          initial={{ width: "0%" }}
+          animate={{ width: `${progress}%` }}
+          transition={{ duration: 0.5, ease: "easeOut" }}
         />
-      </mesh>
-    </Float>
-  );
-}
+      </div>
 
-function NetscapeIcon({ position }: { position: [number, number, number] }) {
-  const ref = useRef<THREE.Group>(null);
-
-  useFrame(state => {
-    if (ref.current) {
-      ref.current.rotation.y = state.clock.getElapsedTime() * 0.4;
-    }
-  });
-
-  return (
-    <Float speed={1.8} rotationIntensity={0.4} floatIntensity={1.2}>
-      <group ref={ref} position={position}>
-        {/* Netscape "N" with stars */}
-        <Box args={[0.3, 2, 0.3]} position={[-0.7, 0, 0]}>
-          <meshStandardMaterial
-            color="#00A0A0"
-            emissive="#00A0A0"
-            emissiveIntensity={0.3}
-          />
-        </Box>
-        <Box args={[0.3, 2, 0.3]} position={[0.7, 0, 0]}>
-          <meshStandardMaterial
-            color="#00A0A0"
-            emissive="#00A0A0"
-            emissiveIntensity={0.3}
-          />
-        </Box>
-        <Box
-          args={[1.4, 0.3, 0.3]}
-          position={[0, 0, 0]}
-          rotation={[0, 0, Math.PI / 4]}
-        >
-          <meshStandardMaterial
-            color="#00A0A0"
-            emissive="#00A0A0"
-            emissiveIntensity={0.3}
-          />
-        </Box>
-        {/* Stars around */}
-        {[0, 1, 2, 3].map(i => (
-          <mesh
-            key={i}
-            position={[
-              Math.cos((i / 4) * Math.PI * 2) * 1.5,
-              Math.sin((i / 4) * Math.PI * 2) * 1.5,
-              0,
-            ]}
+      {/* Rotating shimmer effect */}
+      {isProcessing && (
+        <div className="absolute inset-0 rounded-full overflow-hidden">
+          <motion.div
+            className="absolute inset-0"
+            animate={{ rotate: 360 }}
+            transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
           >
-            <coneGeometry args={[0.2, 0.4, 4]} />
-            <meshStandardMaterial
-              color="#FFD700"
-              emissive="#FFD700"
-              emissiveIntensity={0.5}
+            <div
+              className="absolute h-full w-16"
+              style={{
+                background:
+                  "linear-gradient(90deg, transparent 0%, rgba(59, 130, 246, 0.8) 50%, transparent 100%)",
+                boxShadow: "0 0 20px rgba(59, 130, 246, 0.8)",
+              }}
             />
-          </mesh>
-        ))}
-      </group>
-    </Float>
-  );
-}
+          </motion.div>
+        </div>
+      )}
 
-function IEIcon({ position }: { position: [number, number, number] }) {
-  const ref = useRef<THREE.Group>(null);
-
-  useFrame(state => {
-    if (ref.current) {
-      ref.current.rotation.y = state.clock.getElapsedTime() * 0.35;
-      ref.current.position.y =
-        position[1] + Math.sin(state.clock.getElapsedTime()) * 0.2;
-    }
-  });
-
-  return (
-    <group ref={ref} position={position}>
-      {/* Internet Explorer "e" */}
-      <mesh>
-        <torusGeometry args={[1, 0.4, 8, 32]} />
-        <meshStandardMaterial
-          color="#1EBBEE"
-          emissive="#1EBBEE"
-          emissiveIntensity={0.3}
+      {/* Border with rotating gradient */}
+      <div className="absolute -inset-[2px] rounded-full overflow-hidden">
+        <motion.div
+          className="absolute inset-0"
+          animate={isProcessing ? { rotate: 360 } : {}}
+          transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+          style={{
+            background:
+              "conic-gradient(from 0deg, transparent, #3b82f6, transparent 180deg)",
+          }}
         />
-      </mesh>
-      <Box args={[2, 0.3, 0.3]} position={[0, 0, 0]}>
-        <meshStandardMaterial
-          color="#1EBBEE"
-          emissive="#1EBBEE"
-          emissiveIntensity={0.3}
-        />
-      </Box>
-      {/* Yellow swoosh */}
-      <mesh
-        position={[0.5, -0.5, 0.5]}
-        rotation={[0, Math.PI / 4, Math.PI / 6]}
-      >
-        <torusGeometry args={[0.8, 0.2, 6, 16, Math.PI * 0.7]} />
-        <meshStandardMaterial
-          color="#FFD700"
-          emissive="#FFD700"
-          emissiveIntensity={0.5}
-        />
-      </mesh>
-    </group>
+        <div className="absolute inset-[2px] bg-black rounded-full" />
+      </div>
+    </div>
   );
 }
 
 // 3D Background Scene Component
-function Scene({ step }: { step: number }) {
-  const lightRef = useRef<THREE.SpotLight>(null);
+function Scene() {
+  const fogRef = useRef<THREE.Group>(null);
 
   useFrame(state => {
-    if (lightRef.current && step === 2) {
-      // Flashlight effect on step 3
-      const mouseX = state.mouse.x * 5;
-      const mouseY = state.mouse.y * 5;
-      lightRef.current.position.x = mouseX;
-      lightRef.current.position.y = mouseY;
+    if (fogRef.current) {
+      // Animate fog layers
+      fogRef.current.children.forEach((child, i) => {
+        if (child instanceof THREE.Mesh) {
+          child.position.y =
+            -4 + Math.sin(state.clock.getElapsedTime() * 0.5 + i * 0.5) * 0.3;
+          child.rotation.z =
+            Math.sin(state.clock.getElapsedTime() * 0.2 + i * 0.3) * 0.02;
+        }
+      });
     }
   });
 
   return (
     <>
-      <fog attach="fog" args={["#000", 5, 30]} />
-      <ambientLight intensity={0.1} />
+      <fog attach="fog" args={["#000", 1, 20]} />
+      <ambientLight intensity={0.05} />
 
-      {/* Soft lighting */}
-      <pointLight position={[10, 10, 10]} color="#4444ff" intensity={1} />
-      <pointLight position={[-10, 10, -10]} color="#ff4444" intensity={1} />
+      {/* Soft blue lighting from below */}
+      <pointLight position={[0, -5, 0]} color="#0080ff" intensity={2} />
+      <pointLight position={[10, -5, 10]} color="#4488ff" intensity={1} />
+      <pointLight position={[-10, -5, -10]} color="#0066ff" intensity={1} />
 
-      {/* Flashlight for final step */}
-      {step === 2 && (
-        <spotLight
-          ref={lightRef}
-          position={[0, 5, 5]}
-          angle={0.3}
-          penumbra={1}
-          intensity={5}
-          color="#ffffff"
-          castShadow
-        />
-      )}
+      {/* Dense fog layers at bottom */}
+      <group ref={fogRef}>
+        {/* Main fog bank */}
+        {[...Array(15)].map((_, i) => (
+          <mesh
+            key={`fog-main-${i}`}
+            position={[0, -4 + i * 0.1, 0]}
+            rotation={[-Math.PI / 2, 0, 0]}
+          >
+            <planeGeometry args={[100, 100]} />
+            <meshStandardMaterial
+              color="#ffffff"
+              emissive="#0080ff"
+              emissiveIntensity={0.05 - i * 0.003}
+              opacity={0.2 - i * 0.01}
+              transparent
+              depthWrite={false}
+            />
+          </mesh>
+        ))}
 
-      {/* Browser Icons */}
-      <ChromeIcon position={[-4, 2, -8]} />
-      <MosaicIcon position={[4, 1, -6]} />
-      <NetscapeIcon position={[-2, -1, -10]} />
-      <IEIcon position={[3, -2, -7]} />
-
-      {/* Volumetric fog plane at bottom */}
-      <mesh position={[0, -4, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[50, 50]} />
-        <meshStandardMaterial
-          color="#ffffff"
-          emissive="#4444ff"
-          emissiveIntensity={0.1}
-          opacity={0.3}
-          transparent
-        />
-      </mesh>
-
-      {/* Additional fog layers for volumetric effect */}
-      {[0, 1, 2, 3, 4].map(i => (
-        <mesh
-          key={i}
-          position={[0, -3.5 + i * 0.3, 0]}
-          rotation={[-Math.PI / 2, 0, 0]}
-        >
-          <planeGeometry args={[40 - i * 5, 40 - i * 5]} />
-          <meshStandardMaterial
-            color="#ffffff"
-            emissive="#6666ff"
-            emissiveIntensity={0.05}
-            opacity={0.1 - i * 0.02}
-            transparent
-          />
-        </mesh>
-      ))}
+        {/* Drifting fog patches */}
+        {[...Array(10)].map((_, i) => (
+          <Float
+            key={`fog-float-${i}`}
+            speed={0.5 + Math.random() * 0.5}
+            rotationIntensity={0.1}
+            floatIntensity={0.5}
+          >
+            <mesh
+              position={[
+                (Math.random() - 0.5) * 40,
+                -3 + Math.random() * 2,
+                (Math.random() - 0.5) * 40,
+              ]}
+              rotation={[-Math.PI / 2, 0, Math.random() * Math.PI]}
+            >
+              <planeGeometry
+                args={[20 + Math.random() * 20, 20 + Math.random() * 20]}
+              />
+              <meshStandardMaterial
+                color="#ffffff"
+                emissive="#0080ff"
+                emissiveIntensity={0.02}
+                opacity={0.15}
+                transparent
+                depthWrite={false}
+              />
+            </mesh>
+          </Float>
+        ))}
+      </group>
 
       <Stars
         radius={100}
         depth={50}
-        count={3000}
-        factor={4}
+        count={2000}
+        factor={3}
         saturation={0}
         fade
       />
@@ -294,41 +170,67 @@ export function OnboardingPage3D() {
   const [chromeProfiles, setChromeProfiles] = useState<ChromeProfile[]>([]);
   const [selectedProfile, setSelectedProfile] = useState<string>("");
   const [isProcessing, setIsProcessing] = useState(false);
+  const [importProgress, setImportProgress] = useState(0);
+  const [, setDetectedBrowsers] = useState<any[]>([]);
 
-  // Get Chrome profiles on mount
+  // Get Chrome profiles and detected browsers on mount
   useEffect(() => {
     const loadChromeProfiles = async () => {
       try {
-        // This would be called via IPC in real implementation
         const profiles = await window.electronAPI?.ipcRenderer?.invoke(
           "onboarding:get-chrome-profiles",
         );
         if (profiles) {
-          setChromeProfiles(
-            profiles.filter((p: any) => p.browser === "chrome"),
-          );
+          setChromeProfiles(profiles);
         }
       } catch (error) {
         console.error("Failed to load Chrome profiles:", error);
-        // Mock data for development
-        setChromeProfiles([
-          {
-            name: "Default",
-            path: "/path/to/default",
-            lastModified: new Date(),
-            browser: "chrome",
-          },
-          {
-            name: "Personal",
-            path: "/path/to/personal",
-            lastModified: new Date(),
-            browser: "chrome",
-          },
-        ]);
       }
     };
+
     loadChromeProfiles();
+
+    // Listen for detected browsers from main process
+    const handleDetectedBrowsers = (_event: any, browsers: any[]) => {
+      console.log("Received detected browsers:", browsers);
+      setDetectedBrowsers(browsers || []);
+    };
+
+    window.electronAPI?.ipcRenderer?.on(
+      "detected-browsers",
+      handleDetectedBrowsers,
+    );
+
+    // Cleanup listener
+    return () => {
+      window.electronAPI?.ipcRenderer?.removeListener(
+        "detected-browsers",
+        handleDetectedBrowsers,
+      );
+    };
   }, []);
+
+  // Simulate import progress when processing
+  useEffect(() => {
+    if (isProcessing) {
+      setImportProgress(0);
+      const interval = setInterval(() => {
+        setImportProgress(prev => {
+          if (prev >= 90) {
+            clearInterval(interval);
+            return 90; // Stay at 90% until actual completion
+          }
+          return prev + Math.random() * 15;
+        });
+      }, 500);
+      return () => clearInterval(interval);
+    } else if (importProgress > 0 && importProgress < 100) {
+      // Complete the progress bar when processing finishes
+      setImportProgress(100);
+    }
+    // Return undefined for all code paths
+    return undefined;
+  }, [isProcessing, importProgress]);
 
   const handleComplete = async () => {
     setIsProcessing(true);
@@ -440,11 +342,22 @@ export function OnboardingPage3D() {
               </p>
             </div>
 
-            <div className="w-full max-w-md space-y-3">
+            <div className="w-full max-w-md space-y-3 relative z-10">
               {chromeProfiles.map(profile => (
                 <button
                   key={profile.path}
-                  onClick={() => setSelectedProfile(profile.path)}
+                  onClick={async () => {
+                    setSelectedProfile(profile.path);
+                    // Get password count for this profile
+                    try {
+                      await window.electronAPI?.ipcRenderer?.invoke(
+                        "password-import-get-count",
+                        profile.path,
+                      );
+                    } catch (error) {
+                      console.error("Failed to get password count:", error);
+                    }
+                  }}
                   className={`w-full p-4 rounded-xl border transition-all duration-200 ${
                     selectedProfile === profile.path
                       ? "bg-gradient-to-r from-cyan-500/20 to-purple-600/20 border-cyan-400"
@@ -483,7 +396,7 @@ export function OnboardingPage3D() {
               ))}
             </div>
 
-            <div className="flex space-x-4 w-full max-w-md">
+            <div className="flex space-x-4 w-full max-w-md relative z-10">
               <button
                 onClick={() => setCurrentStep(0)}
                 className="flex-1 px-6 py-3 bg-white/10 backdrop-blur-md rounded-xl text-white border border-white/20 hover:bg-white/20 transition-all"
@@ -498,6 +411,19 @@ export function OnboardingPage3D() {
                 {isProcessing ? "Importing..." : "Import & Finish"}
               </button>
             </div>
+
+            {/* Gemini-style progress bar */}
+            {isProcessing && (
+              <div className="w-full max-w-md space-y-2">
+                <GeminiProgressBar
+                  progress={importProgress}
+                  isProcessing={isProcessing}
+                />
+                <p className="text-sm text-gray-400 text-center">
+                  Importing passwords from Chrome...
+                </p>
+              </div>
+            )}
           </motion.div>
         );
 
@@ -544,7 +470,7 @@ export function OnboardingPage3D() {
       <div className="absolute inset-0">
         <Canvas camera={{ position: [0, 0, 10], fov: 75 }}>
           <Suspense fallback={null}>
-            <Scene step={currentStep} />
+            <Scene />
           </Suspense>
         </Canvas>
       </div>

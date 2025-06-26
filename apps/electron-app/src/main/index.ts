@@ -26,7 +26,6 @@ import {
   childProcessIntegration,
 } from "@sentry/electron/main";
 import AppUpdater from "./services/update-service";
-import { openOnboardingForFirstRun } from "@/browser/onboarding-window";
 import { SettingsWindow } from "@/browser/settings-window";
 import { getOnboardingService } from "@/services/onboarding-service";
 
@@ -43,6 +42,11 @@ if (process.env.NODE_ENV === "development") {
 }
 
 const logger = createLogger("main-process");
+
+// Log environment variables at startup
+logger.info("=== App Starting ===");
+logger.info("DEMO_MODE environment variable:", process.env.DEMO_MODE);
+logger.info("Node environment:", process.env.NODE_ENV);
 
 // Initialize Sentry for error tracking
 init({
@@ -268,14 +272,46 @@ async function createInitialWindow(): Promise<void> {
   // Initialize onboarding service and check if onboarding is needed
   try {
     const onboardingService = getOnboardingService();
+    logger.info("Checking onboarding status...");
+    logger.info("DEMO_MODE:", process.env.DEMO_MODE);
+
     const onboardingResult = await onboardingService.initialize();
+    logger.info("Onboarding result:", onboardingResult);
 
     if (onboardingResult.needsOnboarding) {
       logger.info("Onboarding needed - will open onboarding window");
 
       // Wait a bit for the main window to be fully ready
       setTimeout(() => {
-        openOnboardingForFirstRun(browser, detectedBrowsers);
+        logger.info("Attempting to open onboarding window...");
+        logger.info("Browser exists:", !!browser);
+        logger.info("MainWindow exists:", !!mainWindow);
+        logger.info("MainWindow destroyed:", mainWindow?.isDestroyed());
+
+        // Open onboarding window through ApplicationWindow
+        if (browser) {
+          const applicationWindow =
+            browser.getApplicationWindowFromBrowserWindow(mainWindow);
+          logger.info("ApplicationWindow found:", !!applicationWindow);
+          if (applicationWindow) {
+            logger.info(
+              "Opening onboarding window with detected browsers:",
+              detectedBrowsers?.length || 0,
+            );
+            try {
+              const onboardingWindow =
+                applicationWindow.openOnboardingWindow(detectedBrowsers);
+              logger.info("Onboarding window created:", !!onboardingWindow);
+            } catch (error) {
+              logger.error("Error creating onboarding window:", error);
+            }
+          } else {
+            logger.error("ApplicationWindow not found");
+            logger.error("WebContents ID:", mainWindow?.webContents?.id);
+          }
+        } else {
+          logger.error("Browser instance not available");
+        }
       }, 2000); // 2 second delay to ensure everything is loaded
     } else {
       logger.info("No onboarding needed - app ready to use");

@@ -6,8 +6,6 @@ import { ChatErrorBoundary } from "../ui/error-boundary";
 import { CHAT_PANEL } from "@vibe/shared-types";
 import { LayoutProvider } from "../../contexts/LayoutContext";
 import { useLayout } from "../../hooks/useLayout";
-import { OnboardingModal } from "../onboarding/OnboardingModal";
-import { useOnboarding } from "../../hooks/useOnboarding";
 
 /**
  * Chat Panel Sidebar
@@ -131,7 +129,6 @@ function BrowserLayout(): React.JSX.Element {
 export function MainApp(): React.JSX.Element {
   const [isReady, setIsReady] = useState(false);
   const [vibeAPIReady, setVibeAPIReady] = useState(false);
-  const { isOnboardingOpen, closeOnboarding, isLoading } = useOnboarding();
 
   // Check if vibe API is available
   useEffect(() => {
@@ -192,14 +189,6 @@ export function MainApp(): React.JSX.Element {
             )}
           </div>
         </div>
-
-        {/* Onboarding Modal */}
-        {!isLoading && (
-          <OnboardingModal
-            isOpen={isOnboardingOpen}
-            onClose={closeOnboarding}
-          />
-        )}
       </div>
     </LayoutProvider>
   );

@@ -256,9 +256,6 @@ importers:
       autoprefixer:
         specifier: ^10.4.21
         version: 10.4.21(postcss@8.5.4)
-      electron:
-        specifier: ^35.1.5
-        version: 35.5.1
       electron-builder:
         specifier: ^26.0.17
         version: 26.0.17(electron-builder-squirrel-windows@25.1.8(dmg-builder@26.0.17))

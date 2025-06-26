@@ -3,7 +3,6 @@ import { join } from "path";
 import { existsSync, writeFileSync } from "fs";
 import { createLogger } from "@vibe/shared-types";
 import { getProfileService } from "./profile-service";
-import { UserDataRecover, getSecureItem } from "../store/desktop-store";
 
 const logger = createLogger("OnboardingService");
 
@@ -21,6 +20,11 @@ export class OnboardingService {
    * Check if this is the first time the app has been run
    */
   public isFirstRun(): boolean {
+    // Check for DEMO_MODE environment variable
+    if (process.env.DEMO_MODE === "true") {
+      logger.info("DEMO_MODE enabled - treating as first run");
+      return true;
+    }
     return !existsSync(this.hasRunBeforeFile);
   }
 
@@ -28,6 +32,12 @@ export class OnboardingService {
    * Mark that the app has been run before
    */
   public markAsRunBefore(): void {
+    // Skip marking if in DEMO_MODE
+    if (process.env.DEMO_MODE === "true") {
+      logger.info("DEMO_MODE enabled - skipping mark as run before");
+      return;
+    }
+
     try {
       writeFileSync(this.hasRunBeforeFile, Date.now().toString());
       logger.info("Marked app as having run before");
@@ -42,80 +52,47 @@ export class OnboardingService {
   public async initialize(): Promise<{
     isFirstRun: boolean;
     needsOnboarding: boolean;
-    profileCreated: boolean;
   }> {
     if (this.initialized) {
       logger.warn("OnboardingService already initialized");
       return {
         isFirstRun: false,
         needsOnboarding: false,
-        profileCreated: false,
       };
     }
 
     const isFirstRun = this.isFirstRun();
     let needsOnboarding = false;
-    let profileCreated = false;
+
+    // Log DEMO_MODE status
+    if (process.env.DEMO_MODE === "true") {
+      logger.info("DEMO_MODE is enabled - app will always run as first-time");
+    }
 
     try {
       if (isFirstRun) {
-        logger.info("First time running the app - starting onboarding flow");
+        logger.info("First time running the app - onboarding needed");
         needsOnboarding = true;
+      } else {
+        logger.info("App has been run before - checking profile status");
 
-        // Create initial profile with Touch ID authentication
+        // Check if we have a valid profile
         const profileService = getProfileService();
         await profileService.initialize();
 
-        // Create a default profile - using the correct interface
-        const profile = await profileService.createProfile(
-          "Default Profile",
-          "",
-          {
-            theme: "system",
-            language: "en",
-            defaultSearchEngine: "google",
-            autoSavePasswords: true,
-            syncBrowsingHistory: true,
-            enableAutocomplete: true,
-            privacyMode: false,
-          },
-        );
-
-        if (profile) {
-          profileCreated = true;
-          logger.info("Default profile created during onboarding");
-        }
-      } else {
-        logger.info(
-          "App has been run before - attempting to recover profile data",
-        );
-
-        // Try to recover existing profile data
-        const recovered = await UserDataRecover();
-        if (recovered) {
-          const profileId = getSecureItem("profile_id");
-          if (profileId) {
-            logger.info("Successfully recovered profile data");
-            const profileService = getProfileService();
-            await profileService.initialize();
-          } else {
-            logger.warn("No profile ID found in recovered data");
-            needsOnboarding = true;
-          }
-        } else {
-          logger.warn(
-            "Failed to recover profile data - may need re-onboarding",
-          );
+        const currentProfile = profileService.getCurrentProfile();
+        if (!currentProfile) {
+          logger.warn("No current profile found - onboarding needed");
           needsOnboarding = true;
         }
       }
 
       this.initialized = true;
-      return { isFirstRun, needsOnboarding, profileCreated };
+      return { isFirstRun, needsOnboarding };
     } catch (error) {
       logger.error("Error during onboarding initialization:", error);
       needsOnboarding = true;
-      return { isFirstRun, needsOnboarding, profileCreated: false };
+      return { isFirstRun, needsOnboarding };
     }
   }
 
@@ -135,10 +112,15 @@ export class OnboardingService {
   /**
    * Get onboarding status
    */
-  public getStatus(): { initialized: boolean; hasRunBefore: boolean } {
+  public getStatus(): {
+    initialized: boolean;
+    hasRunBefore: boolean;
+    demoMode: boolean;
+  } {
     return {
       initialized: this.initialized,
       hasRunBefore: !this.isFirstRun(),
+      demoMode: process.env.DEMO_MODE === "true",
     };
   }
 }

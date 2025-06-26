@@ -10,7 +10,7 @@ import "@/ipc/app/notifications";
 import "@/ipc/app/actions";
 import "@/ipc/app/gmail";
 import "@/ipc/app/api-keys";
-import "@/ipc/app/password-import";
+import { registerPasswordImportHandlers } from "@/ipc/app/password-import-handlers";
 import "@/ipc/app/onboarding";
 
 // Chat APIs - direct imports (register themselves)
@@ -48,6 +48,9 @@ import "@/ipc/mcp/mcp-status";
  */
 export function registerAllIpcHandlers(browser: Browser): () => void {
   logger.info("Registering all IPC handlers");
+
+  // Register password import handlers
+  registerPasswordImportHandlers();
 
   // Setup browser event forwarding (needs browser instance)
   setupBrowserEventForwarding();

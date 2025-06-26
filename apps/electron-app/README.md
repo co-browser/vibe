@@ -12,6 +12,19 @@ pnpm --filter @vibe/electron-app dev
 pnpm dev
 ```
 
+### Demo Mode
+
+To always show the onboarding flow (useful for testing and demos):
+
+```bash
+DEMO_MODE=true pnpm dev
+```
+
+This will:
+- Always treat the app as a first-time run
+- Show the onboarding flow every time
+- Skip creating the "has run before" marker
+
 ## Build
 
 ```bash

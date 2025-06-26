@@ -2,9 +2,12 @@ import { ipcMain } from "electron";
 import { createLogger } from "@vibe/shared-types";
 import { getOnboardingService } from "../../services/onboarding-service";
 import { getProfileService } from "../../services/profile-service";
-import { importFromChrome, findBrowserProfiles } from "./password-import";
+import { PasswordImportService } from "../../services/password-import/password-import.service";
 
 const logger = createLogger("OnboardingIPC");
+
+// Store detected browsers passed from main process
+let detectedBrowsers: any[] = [];
 
 // Initialize onboarding and check if it's needed
 ipcMain.handle("onboarding:initialize", async () => {
@@ -25,8 +28,26 @@ ipcMain.handle("onboarding:import-chrome-passwords", async event => {
   try {
     logger.info("Starting Chrome password import for onboarding");
 
-    // Use the existing password import functionality
-    const result = await importFromChrome(event.sender);
+    // Get current profile
+    const profileService = getProfileService();
+    const currentProfile = profileService.getCurrentProfile();
+    if (!currentProfile) {
+      throw new Error("No current profile available");
+    }
+
+    // Get Chrome profiles and use the first one
+    const chromeProfiles = PasswordImportService.getChromeProfiles();
+    if (chromeProfiles.length === 0) {
+      throw new Error("No Chrome profiles found");
+    }
+
+    const result = await PasswordImportService.importFromChrome(
+      currentProfile.id,
+      chromeProfiles[0],
+      progress => {
+        event.sender.send("password-import-progress", progress);
+      },
+    );
 
     logger.info("Chrome password import completed:", result);
     return result;
@@ -84,31 +105,21 @@ ipcMain.handle("onboarding:complete", async (_event, data: any) => {
         `Importing passwords from Chrome profile: ${data.selectedChromeProfile}`,
       );
       try {
-        // Use the real Chrome password import
-        const { migrateChromePasswords } = await import("./password-import");
-        const { generateProfileEncryptionKey } = await import(
-          "../../persistent"
+        // Find the selected Chrome profile
+        const profiles = PasswordImportService.getAllBrowserProfiles();
+        const selectedProfile = profiles.find(
+          p => p.path === data.selectedChromeProfile,
         );
 
-        // Create a browser profile object for the selected Chrome profile
-        const browserProfile = {
-          name: data.selectedChromeProfile,
-          path: data.selectedChromeProfile,
-          browser: "chrome",
-        };
-
-        // Generate encryption key for Chrome password decryption
-        const chromeKey = generateProfileEncryptionKey();
-
-        // Import passwords into the newly created profile
-        const importedCount = await migrateChromePasswords(
-          browserProfile,
-          profile.id,
-          chromeKey,
-        );
-        logger.info(
-          `Successfully imported ${importedCount} passwords from Chrome`,
-        );
+        if (selectedProfile) {
+          const result = await PasswordImportService.importFromChrome(
+            profile.id,
+            selectedProfile,
+          );
+          logger.info(
+            `Successfully imported ${result.passwordCount || 0} passwords from Chrome`,
+          );
+        }
       } catch (importError) {
         logger.error("Failed to import Chrome passwords:", importError);
         // Don't fail the whole onboarding if import fails
@@ -176,11 +187,7 @@ ipcMain.handle("onboarding:update-profile", async (_, updates: any) => {
 // Get Chrome profiles for import
 ipcMain.handle("onboarding:get-chrome-profiles", async () => {
   try {
-    const allProfiles = findBrowserProfiles();
-    // Filter to only Chrome profiles
-    const chromeProfiles = allProfiles.filter(
-      profile => profile.browser === "chrome",
-    );
+    const chromeProfiles = PasswordImportService.getChromeProfiles();
     logger.info(`Found ${chromeProfiles.length} Chrome profiles`);
     return chromeProfiles;
   } catch (error) {
@@ -188,6 +195,25 @@ ipcMain.handle("onboarding:get-chrome-profiles", async () => {
     throw error;
   }
 });
+
+// Get detected browsers
+ipcMain.handle("onboarding:get-browsers", async () => {
+  try {
+    // For now, return empty array since we're not using browser detection
+    // The detected browsers should be passed from the main process
+    logger.info("Getting detected browsers");
+    return detectedBrowsers || [];
+  } catch (error) {
+    logger.error("Error getting browsers:", error);
+    throw error;
+  }
+});
+
+// Set detected browsers (called from main process)
+export function setDetectedBrowsers(browsers: any[]): void {
+  detectedBrowsers = browsers;
+  logger.info(`Set ${browsers.length} detected browsers`);
+}
 
 // Legacy function for backward compatibility (no longer needed)
 export function setupOnboardingIPC(): void {
