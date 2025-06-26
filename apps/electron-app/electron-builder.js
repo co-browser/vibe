@@ -17,44 +17,6 @@ module.exports = {
   asarUnpack: [
     "dist/mac-arm64/vibe.app/Contents/Resources/app.asar.unpacked/node_modules/sqlite3/build/Release/node_sqlite3.node",
   ],
-  packagerConfig: {
-    afterComplete: [
-      (buildPath, electronVersion, platform, arch, callback) => {
-        if (platform == "darwin") {
-          try {
-            // Copy the plugin to the app bundle
-            const fs = require("fs");
-            const path = require("path");
-            const pluginPath = path.join(
-              __dirname,
-              "node_modules",
-              "electron-mac-dock-icon-switcher",
-              "build",
-              "Release",
-              "DockTile.docktileplugin"
-            );
-            
-            if (!fs.existsSync(pluginPath)) {
-              return callback(new Error(`Dock tile plugin not found at ${pluginPath}`));
-            }
-            
-            const pluginDest = path.join(
-              buildPath,
-              "vibe.app",
-              "Contents",
-              "PlugIns",
-              "DockTile.docktileplugin"
-            );
-            fs.mkdirSync(pluginDest, { recursive: true });
-            fs.cpSync(pluginPath, pluginDest, { recursive: true, overwrite: true });
-          } catch (error) {
-            return callback(new Error(`Failed to copy dock tile plugin: ${error.message}`));
-          }
-        }
-        callback();
-      },
-    ],
-  },
   extraResources: [
     {
       from: "../../packages/mcp-*/dist",
@@ -148,7 +110,6 @@ module.exports = {
   //   owner: "co-browser",
   //   repo: "vibe"
   // },
-  electronVersion: "35.1.5",
   electronDownload: {
     mirror: "https://npmmirror.com/mirrors/electron/",
   },
