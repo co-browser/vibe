@@ -1,0 +1,88 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Vibe Overlay</title>
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'"
+    />
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        background: transparent;
+        overflow: hidden;
+      }
+
+      #vibe-overlay-container {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        z-index: 9999;
+      }
+
+      /* Interactive elements need this class */
+      .vibe-overlay-interactive {
+        pointer-events: auto !important;
+      }
+
+      /* Utility classes */
+      .vibe-overlay-center {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+      }
+
+      .vibe-overlay-fade-in {
+        animation: vibe-fade-in 0.2s ease-out;
+      }
+
+      @keyframes vibe-fade-in {
+        from {
+          opacity: 0;
+          transform: translateY(-10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="vibe-overlay-container"></div>
+    <script>
+      // Set up IPC communication handlers for the overlay
+      if (window.electron && window.electron.ipcRenderer) {
+        // Forward omnibox events from overlay to main window
+        window.handleSuggestionClick = function (id) {
+          const suggestion =
+            window.omniboxSuggestions &&
+            window.omniboxSuggestions.find(s => s.id === id);
+          if (suggestion) {
+            window.electron.ipcRenderer.send(
+              "omnibox:suggestion-clicked",
+              suggestion,
+            );
+          }
+        };
+
+        window.handleDeleteHistory = function (id) {
+          window.electron.ipcRenderer.send("omnibox:delete-history", id);
+        };
+
+        window.handleEscapeDropdown = function () {
+          window.electron.ipcRenderer.send("omnibox:escape-dropdown");
+        };
+      }
+    </script>
+  </body>
+</html>

@@ -1,6 +1,11 @@
 import { ipcMain } from "electron";
 
 /**
+ * WARNING: Do NOT store API keys in plain text for production use.
+ * Use secure storage (e.g., OS keychain, Electron safeStorage, or encryption) to protect sensitive credentials.
+ */
+
+/**
  * API key management handlers
  * Direct approach - no registration functions needed
  */

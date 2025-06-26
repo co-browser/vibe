@@ -82,7 +82,10 @@ export class ApplicationWindow extends EventEmitter {
   }
 
   private setupEvents(): void {
-    this.window.once("ready-to-show", () => {
+    this.window.once("ready-to-show", async () => {
+      // Initialize overlay before showing window
+      await this.viewManager.initializeOverlay();
+
       this.window.show();
       this.window.focus();
     });
