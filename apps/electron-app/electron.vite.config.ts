@@ -1,3 +1,4 @@
+
 import { defineConfig, externalizeDepsPlugin } from "electron-vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
@@ -32,6 +33,7 @@ export default defineConfig({
     },
     build: {
       rollupOptions: {
+        external: ['@tanstack/react-virtual'],
         input: {
           index: path.resolve(__dirname, "./src/main/index.ts"),
           "processes/agent-process": path.resolve(__dirname, "./src/main/processes/agent-process.ts"),
