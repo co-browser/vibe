@@ -713,6 +713,19 @@ const sessionAPI: VibeSessionAPI = {
   },
 };
 
+// Profile API for user profile management
+const profileAPI = {
+  getNavigationHistory: async (query?: string, limit?: number) => {
+    return ipcRenderer.invoke("profile:getNavigationHistory", query, limit);
+  },
+  clearNavigationHistory: async () => {
+    return ipcRenderer.invoke("profile:clearNavigationHistory");
+  },
+  getActiveProfile: async () => {
+    return ipcRenderer.invoke("profile:getActiveProfile");
+  },
+};
+
 const vibeAPI = {
   app: appAPI,
   actions: actionsAPI,
@@ -725,6 +738,7 @@ const vibeAPI = {
   settings: settingsAPI,
   session: sessionAPI,
   update: updateAPI,
+  profile: profileAPI,
 };
 
 // Expose APIs to the renderer process

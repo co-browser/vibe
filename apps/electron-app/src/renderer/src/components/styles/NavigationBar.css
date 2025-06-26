@@ -13,15 +13,17 @@
   box-sizing: border-box;
   -webkit-app-region: no-drag;
   position: relative;
-  z-index: 3;
+  z-index: 100;
   flex-shrink: 0;
   width: 100%;
+  /* Create a new stacking context to ensure proper z-index behavior */
+  isolation: isolate;
 }
 
 /* Omnibox overlay behavior */
 .navigation-bar:focus-within {
-  z-index: 999;
-  /* Elevate to omnibox overlay level when focused */
+  z-index: 10000;
+  /* Elevate significantly above all browser content when focused */
 }
 
 .nav-controls {
@@ -132,13 +134,17 @@
   margin-top: 4px;
   max-height: 400px;
   overflow-y: auto;
-  z-index: 1001;
-  /* Above the elevated navigation bar */
+  z-index: 20000;
+  /* Ensure it's above all browser content and other UI elements */
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   transform: translateY(-2px);
   opacity: 0;
   animation: omniboxSuggestionsAppear 0.15s ease-out forwards;
+  /* Create a new stacking context */
+  isolation: isolate;
+  /* Ensure it's rendered on top */
+  pointer-events: auto;
 }
 
 @keyframes omniboxSuggestionsAppear {
@@ -242,6 +248,38 @@
 .suggestion-item[data-type="url"] .suggestion-icon {
   color: #8b5cf6;
   /* Purple for URLs */
+}
+
+.suggestion-item[data-type="perplexity"] .suggestion-icon {
+  color: #06b6d4;
+  /* Cyan for Perplexity suggestions */
+}
+
+.suggestion-item[data-type="agent"] .suggestion-icon {
+  color: #ec4899;
+  /* Pink for agent suggestions */
+}
+
+/* Loading indicator for async suggestions */
+.suggestion-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  border-top: 1px solid var(--nav-border);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 
 /* Dark mode removed - using light theme exclusively */

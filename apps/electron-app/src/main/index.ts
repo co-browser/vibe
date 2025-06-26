@@ -22,6 +22,7 @@ import { setMCPServiceInstance } from "@/ipc/mcp/mcp-status";
 import { setAgentServiceInstance as setAgentStatusInstance } from "@/ipc/chat/agent-status";
 import { setAgentServiceInstance as setChatMessagingInstance } from "@/ipc/chat/chat-messaging";
 import { setAgentServiceInstance as setTabAgentInstance } from "@/utils/tab-agent";
+import { useUserProfileStore } from "@/store/user-profile-store";
 import {
   createLogger,
   MAIN_PROCESS_CONFIG,
@@ -394,6 +395,12 @@ function initializeApp(): boolean {
  */
 async function initializeServices(): Promise<void> {
   try {
+    // Initialize user profile store
+    logger.info("Initializing user profile store");
+    const userProfileStore = useUserProfileStore.getState();
+    await userProfileStore.loadProfiles();
+    logger.info("User profile store initialized");
+
     // Initialize simple analytics instead of complex telemetry system
     logger.info("Using simplified analytics system");
 
