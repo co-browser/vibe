@@ -13,9 +13,8 @@ import {
   ClockCircleOutlined,
   GlobalOutlined,
   LinkOutlined,
-  LoadingOutlined,
 } from "@ant-design/icons";
-import { useVirtualizer } from "@tanstack/react-virtual";
+import { useOmniboxOverlay } from "../../hooks/useOmniboxOverlay";
 import "../styles/NavigationBar.css";
 
 interface Suggestion {
@@ -61,7 +60,6 @@ const NavigationBar: React.FC = () => {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
-  const [isLoadingPerplexity, setIsLoadingPerplexity] = useState(false);
   const [navigationState, setNavigationState] = useState<TabNavigationState>({
     canGoBack: false,
     canGoForward: false,
@@ -73,17 +71,81 @@ const NavigationBar: React.FC = () => {
   const [chatPanelVisible, setChatPanelVisible] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
-  const suggestionsRef = useRef<HTMLDivElement>(null);
-  const parentRef = useRef<HTMLDivElement>(null);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Virtualizer for performant list rendering
-  const virtualizer = useVirtualizer({
-    count: suggestions.length,
-    getScrollElement: () => parentRef.current,
-    estimateSize: () => 60, // Estimated height of each suggestion item
-    overscan: 3,
-  });
+  // Initialize overlay hook early to avoid initialization errors
+  const overlayCallbacks = {
+    onSuggestionClick: (suggestion: any) => {
+      // This will be properly defined later via handleSuggestionClick
+      if (suggestion.type === "context" && suggestion.url) {
+        window.vibe.tabs.switchToTab(suggestion.url);
+      } else if (suggestion.type === "agent" && suggestion.metadata) {
+        if (suggestion.metadata.action === "ask-agent") {
+          window.vibe.interface.toggleChatPanel(true);
+        }
+      } else if (suggestion.url && currentTabKey) {
+        window.vibe.page.navigate(currentTabKey, suggestion.url);
+        setInputValue(suggestion.text);
+      }
+      setShowSuggestions(false);
+      inputRef.current?.blur();
+    },
+    onEscape: () => {
+      setShowSuggestions(false);
+      inputRef.current?.blur();
+    },
+    onDeleteHistory: (suggestionId: string) => {
+      setSuggestions(prev => prev.filter(s => s.id !== suggestionId));
+      // TODO: Implement actual history deletion
+    },
+  };
+
+  const {
+    showSuggestions: showOverlaySuggestions,
+    hideSuggestions: hideOverlaySuggestions,
+  } = useOmniboxOverlay(overlayCallbacks);
+
+  // Use overlay system for suggestions
+  useEffect(() => {
+    if (showSuggestions && suggestions.length > 0 && inputRef.current) {
+      const bounds = inputRef.current.getBoundingClientRect();
+
+      // Convert suggestions to serializable format (remove React components)
+      const serializableSuggestions = suggestions.map(s => ({
+        ...s,
+        icon: undefined, // Remove React component
+        iconType: getIconType(s), // Add icon type for overlay to recreate
+      }));
+
+      showOverlaySuggestions(serializableSuggestions, bounds);
+    } else {
+      hideOverlaySuggestions();
+    }
+  }, [
+    showSuggestions,
+    suggestions,
+    showOverlaySuggestions,
+    hideOverlaySuggestions,
+  ]);
+
+  // Helper to get icon type from suggestion
+  const getIconType = (suggestion: Suggestion): string => {
+    switch (suggestion.type) {
+      case "search":
+      case "perplexity":
+        return "search";
+      case "history":
+        return "clock";
+      case "url":
+        return "global";
+      case "context":
+        return "link";
+      case "agent":
+        return "robot";
+      default:
+        return "search";
+    }
+  };
 
   // Get current active tab
   useEffect(() => {
@@ -221,6 +283,8 @@ const NavigationBar: React.FC = () => {
     return cleanup;
   }, []);
 
+  // This useEffect will be moved after handleSuggestionClick is defined
+
   // Validation helpers
   const isValidURL = useCallback((string: string): boolean => {
     try {
@@ -245,35 +309,77 @@ const NavigationBar: React.FC = () => {
     [isValidURL, isDomain],
   );
 
-  // Mock Perplexity API call
+  // Perplexity API call for search suggestions
   const fetchPerplexitySuggestions = async (
     query: string,
   ): Promise<PerplexityResponse> => {
-    // In a real implementation, this would call the actual Perplexity API
-    // For now, we'll simulate an API call with a delay
-    await new Promise(resolve => setTimeout(resolve, 300));
+    try {
+      // For suggestions, we'll use a simpler approach - just search for the query
+      // Note: In production, you'd want to handle authentication properly
+      const searchUrl = `https://www.perplexity.ai/search?q=${encodeURIComponent(query)}`;
 
-    // Mock response based on query
-    return {
-      query,
-      suggestions: [
-        {
-          text: `${query} - Wikipedia`,
-          url: `https://en.wikipedia.org/wiki/${encodeURIComponent(query.replace(/ /g, "_"))}`,
-          snippet: `Learn more about ${query} on Wikipedia, the free encyclopedia.`,
-        },
-        {
-          text: `${query} news and updates`,
-          url: `https://news.google.com/search?q=${encodeURIComponent(query)}`,
-          snippet: `Latest news and updates about ${query}.`,
-        },
-        {
-          text: `${query} - Stack Overflow`,
-          url: `https://stackoverflow.com/search?q=${encodeURIComponent(query)}`,
-          snippet: `Find programming solutions related to ${query}.`,
-        },
-      ],
-    };
+      // For now, we'll generate suggestions based on the query
+      // In a real implementation, you might want to:
+      // 1. Use a proper API endpoint if Perplexity provides one
+      // 2. Handle authentication
+      // 3. Parse actual search results
+
+      // Generate intelligent suggestions based on query
+      const suggestions: Array<{
+        text: string;
+        url?: string;
+        snippet?: string;
+      }> = [];
+
+      // Add direct Perplexity search
+      suggestions.push({
+        text: `Search "${query}" on Perplexity`,
+        url: searchUrl,
+        snippet: `Get AI-powered answers about ${query}`,
+      });
+
+      // Add common search variations
+      if (query.split(" ").length === 1) {
+        suggestions.push({
+          text: `What is ${query}?`,
+          url: `https://www.perplexity.ai/search?q=${encodeURIComponent(`What is ${query}`)}`,
+          snippet: `Learn about ${query} with AI-powered search`,
+        });
+
+        suggestions.push({
+          text: `${query} news`,
+          url: `https://www.perplexity.ai/search?q=${encodeURIComponent(`${query} news`)}`,
+          snippet: `Latest news and updates about ${query}`,
+        });
+      }
+
+      // Add domain-specific suggestions based on query patterns
+      if (query.toLowerCase().includes("how to")) {
+        suggestions.push({
+          text: `${query} tutorial`,
+          url: `https://www.perplexity.ai/search?q=${encodeURIComponent(`${query} tutorial`)}`,
+          snippet: `Step-by-step guide for ${query}`,
+        });
+      }
+
+      return {
+        query,
+        suggestions: suggestions.slice(0, 3), // Limit to 3 suggestions
+      };
+    } catch (error) {
+      console.error("Failed to fetch Perplexity suggestions:", error);
+      // Fallback to basic suggestion
+      return {
+        query,
+        suggestions: [
+          {
+            text: `Search "${query}" on Perplexity`,
+            url: `https://www.perplexity.ai/search?q=${encodeURIComponent(query)}`,
+            snippet: `Get AI-powered answers about ${query}`,
+          },
+        ],
+      };
+    }
   };
 
   // Mock local agent suggestions
@@ -300,9 +406,11 @@ const NavigationBar: React.FC = () => {
     async (input: string): Promise<Suggestion[]> => {
       if (!input.trim()) return [];
 
+      console.log("[NavigationBar] Generating suggestions for:", input);
       const suggestions: Suggestion[] = [];
       const inputType = detectInputType(input);
       const inputLower = input.toLowerCase();
+      console.log("[NavigationBar] Input type detected:", inputType);
 
       try {
         // Add primary suggestion based on input type
@@ -327,24 +435,47 @@ const NavigationBar: React.FC = () => {
         } else {
           // Add search suggestion
           const defaultSearchEngine =
-            (await window.vibe.settings.get("defaultSearchEngine")) || "google";
+            (await window.vibe.settings.get("defaultSearchEngine")) ||
+            "perplexity";
+
+          let searchUrl;
+          let searchDescription;
+
+          if (defaultSearchEngine === "perplexity") {
+            searchUrl = `https://www.perplexity.ai/search?q=${encodeURIComponent(input)}`;
+            searchDescription = "AI-powered search with Perplexity";
+          } else if (defaultSearchEngine === "google") {
+            searchUrl = `https://www.google.com/search?q=${encodeURIComponent(input)}`;
+            searchDescription = "Search with Google";
+          } else {
+            searchUrl = `https://www.${defaultSearchEngine}.com/search?q=${encodeURIComponent(input)}`;
+            searchDescription = `Search with ${defaultSearchEngine}`;
+          }
+
           suggestions.push({
             id: "search-query",
             type: "search",
             text: `Search for "${input}"`,
-            url: `https://www.${defaultSearchEngine}.com/search?q=${encodeURIComponent(input)}`,
+            url: searchUrl,
             icon: <SearchOutlined />,
-            description: `Search with ${defaultSearchEngine}`,
+            description: searchDescription,
           });
         }
 
         // Get browsing history from user profile
         try {
+          console.log("[NavigationBar] Checking for profile API...");
           const profileHistory =
             (await (window.vibe as any).profile?.getNavigationHistory(
               input,
               5,
             )) || [];
+          console.log("[NavigationBar] Profile history:", profileHistory);
+          if (profileHistory.length === 0) {
+            console.log(
+              "[NavigationBar] No profile history found, profile might not be active",
+            );
+          }
           const historyMatches = profileHistory.map((entry, index) => ({
             id: `history-${index}`,
             type: "history" as const,
@@ -409,9 +540,13 @@ const NavigationBar: React.FC = () => {
 
         // Fetch Perplexity suggestions for search queries
         if (inputType === "search" && input.length > 2) {
-          setIsLoadingPerplexity(true);
+          console.log("[NavigationBar] Fetching Perplexity suggestions...");
           try {
             const perplexityResponse = await fetchPerplexitySuggestions(input);
+            console.log(
+              "[NavigationBar] Perplexity response:",
+              perplexityResponse,
+            );
             const perplexitySuggestions = perplexityResponse.suggestions.map(
               (s, index) => ({
                 id: `perplexity-${index}`,
@@ -425,8 +560,6 @@ const NavigationBar: React.FC = () => {
             suggestions.push(...perplexitySuggestions);
           } catch (error) {
             console.error("Failed to fetch Perplexity suggestions:", error);
-          } finally {
-            setIsLoadingPerplexity(false);
           }
         }
       } catch (error) {
@@ -445,9 +578,14 @@ const NavigationBar: React.FC = () => {
         }
       }
 
+      console.log(
+        "[NavigationBar] Total suggestions generated:",
+        suggestions.length,
+        suggestions,
+      );
       return suggestions;
     },
-    [currentTabKey],
+    [currentTabKey, detectInputType],
   );
 
   // Navigation handlers using vibe APIs
@@ -513,6 +651,7 @@ const NavigationBar: React.FC = () => {
   const handleInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setInputValue(value);
+    console.log("[NavigationBar] Input changed to:", value);
 
     // Clear existing timer
     if (debounceTimerRef.current) {
@@ -520,9 +659,17 @@ const NavigationBar: React.FC = () => {
     }
 
     if (value.trim()) {
+      // Show immediate feedback that we're loading
+      setShowSuggestions(true);
+      setSuggestions([]); // Clear old suggestions
+
       // Debounce API calls
       debounceTimerRef.current = setTimeout(async () => {
+        console.log(
+          "[NavigationBar] Debounce timer fired, generating suggestions...",
+        );
         const newSuggestions = await generateRealSuggestions(value);
+        console.log("[NavigationBar] Setting suggestions:", newSuggestions);
         setSuggestions(newSuggestions);
         setShowSuggestions(newSuggestions.length > 0);
         setSelectedIndex(-1);
@@ -535,6 +682,9 @@ const NavigationBar: React.FC = () => {
   };
 
   const handleInputFocus = async () => {
+    // Select all text when focusing the input
+    inputRef.current?.select();
+
     if (inputValue.trim() && suggestions.length === 0) {
       const newSuggestions = await generateRealSuggestions(inputValue);
       setSuggestions(newSuggestions);
@@ -558,22 +708,25 @@ const NavigationBar: React.FC = () => {
         setSelectedIndex(prev =>
           prev < suggestions.length - 1 ? prev + 1 : prev,
         );
-        // Scroll to item if using virtualizer
-        if (selectedIndex >= 0) {
-          virtualizer.scrollToIndex(selectedIndex + 1, { align: "auto" });
-        }
         break;
       case "ArrowUp":
         e.preventDefault();
         setSelectedIndex(prev => (prev > 0 ? prev - 1 : -1));
-        if (selectedIndex > 0) {
-          virtualizer.scrollToIndex(selectedIndex - 1, { align: "auto" });
-        }
         break;
       case "Tab":
+        e.preventDefault();
         if (showSuggestions && selectedIndex >= 0) {
-          e.preventDefault();
+          // If a suggestion is selected, use it
           handleSuggestionClick(suggestions[selectedIndex]);
+        } else if (inputValue.trim()) {
+          // Only navigate directly if it's a valid domain/URL
+          const trimmedInput = inputValue.trim();
+          if (isDomain(trimmedInput) || isValidURL(trimmedInput)) {
+            // It's a domain/URL, navigate to it
+            handleSubmit();
+          }
+          // If it's not a domain/URL, do nothing on Tab
+          // User must press Enter to search
         }
         break;
       case "Enter":
@@ -604,8 +757,16 @@ const NavigationBar: React.FC = () => {
         } else {
           // Search query
           const searchEngine =
-            (await window.vibe.settings.get("defaultSearchEngine")) || "google";
-          finalUrl = `https://www.${searchEngine}.com/search?q=${encodeURIComponent(inputValue)}`;
+            (await window.vibe.settings.get("defaultSearchEngine")) ||
+            "perplexity";
+
+          if (searchEngine === "perplexity") {
+            finalUrl = `https://www.perplexity.ai/search?q=${encodeURIComponent(inputValue)}`;
+          } else if (searchEngine === "google") {
+            finalUrl = `https://www.google.com/search?q=${encodeURIComponent(inputValue)}`;
+          } else {
+            finalUrl = `https://www.${searchEngine}.com/search?q=${encodeURIComponent(inputValue)}`;
+          }
         }
       }
 
@@ -627,40 +788,43 @@ const NavigationBar: React.FC = () => {
     }
   };
 
-  const handleSuggestionClick = async (suggestion: Suggestion) => {
-    try {
-      if (suggestion.type === "context" && suggestion.url) {
-        // Switch to existing tab
-        await window.vibe.tabs.switchToTab(suggestion.url);
-      } else if (suggestion.type === "agent" && suggestion.metadata) {
-        // Handle agent action
-        if (suggestion.metadata.action === "ask-agent") {
-          // Open chat panel and send query
-          await window.vibe.interface.toggleChatPanel(true);
-          // In a real implementation, you would send the query to the agent
-          console.log("Asking agent:", suggestion.metadata.query);
+  const handleSuggestionClick = useCallback(
+    async (suggestion: Suggestion) => {
+      try {
+        if (suggestion.type === "context" && suggestion.url) {
+          // Switch to existing tab
+          await window.vibe.tabs.switchToTab(suggestion.url);
+        } else if (suggestion.type === "agent" && suggestion.metadata) {
+          // Handle agent action
+          if (suggestion.metadata.action === "ask-agent") {
+            // Open chat panel and send query
+            await window.vibe.interface.toggleChatPanel(true);
+            // In a real implementation, you would send the query to the agent
+            console.log("Asking agent:", suggestion.metadata.query);
+          }
+        } else if (suggestion.url && currentTabKey) {
+          // Navigate to URL
+          await window.vibe.page.navigate(currentTabKey, suggestion.url);
+          setInputValue(suggestion.text);
+
+          // Track navigation via suggestion
+          (window as any).umami?.track?.("page-navigated", {
+            action: "suggestion-clicked",
+            suggestionType: suggestion.type,
+            timestamp: Date.now(),
+          });
         }
-      } else if (suggestion.url && currentTabKey) {
-        // Navigate to URL
-        await window.vibe.page.navigate(currentTabKey, suggestion.url);
-        setInputValue(suggestion.text);
 
-        // Track navigation via suggestion
-        (window as any).umami?.track?.("page-navigated", {
-          action: "suggestion-clicked",
-          suggestionType: suggestion.type,
-          timestamp: Date.now(),
-        });
+        setShowSuggestions(false);
+        inputRef.current?.blur();
+      } catch (error) {
+        console.error("Failed to handle suggestion click:", error);
       }
+    },
+    [currentTabKey],
+  );
 
-      setShowSuggestions(false);
-      inputRef.current?.blur();
-    } catch (error) {
-      console.error("Failed to handle suggestion click:", error);
-    }
-  };
-
-  const virtualItems = virtualizer.getVirtualItems();
+  // Removed old dropdown IPC listeners - now handled by overlay hook
 
   return (
     <div className="navigation-bar">
@@ -716,67 +880,7 @@ const NavigationBar: React.FC = () => {
             autoComplete="off"
           />
 
-          {showSuggestions && suggestions.length > 0 && (
-            <div ref={suggestionsRef} className="omnibar-suggestions">
-              <div
-                ref={parentRef}
-                style={{
-                  height: `${Math.min(400, virtualizer.getTotalSize())}px`,
-                  width: "100%",
-                  position: "relative",
-                  overflow: "auto",
-                }}
-              >
-                <div
-                  style={{
-                    height: `${virtualizer.getTotalSize()}px`,
-                    width: "100%",
-                    position: "relative",
-                  }}
-                >
-                  {virtualItems.map(virtualItem => {
-                    const suggestion = suggestions[virtualItem.index];
-                    const isSelected = virtualItem.index === selectedIndex;
-
-                    return (
-                      <div
-                        key={virtualItem.key}
-                        className={`suggestion-item ${isSelected ? "selected" : ""}`}
-                        style={{
-                          position: "absolute",
-                          top: 0,
-                          left: 0,
-                          width: "100%",
-                          height: `${virtualItem.size}px`,
-                          transform: `translateY(${virtualItem.start}px)`,
-                        }}
-                        onClick={() => handleSuggestionClick(suggestion)}
-                        onMouseEnter={() => setSelectedIndex(virtualItem.index)}
-                      >
-                        <div className="suggestion-icon">{suggestion.icon}</div>
-                        <div className="suggestion-content">
-                          <div className="suggestion-text">
-                            {suggestion.text}
-                          </div>
-                          {suggestion.description && (
-                            <div className="suggestion-description">
-                              {suggestion.description}
-                            </div>
-                          )}
-                        </div>
-                        <div className="suggestion-type">{suggestion.type}</div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-              {isLoadingPerplexity && (
-                <div className="suggestion-loading">
-                  <LoadingOutlined /> Searching...
-                </div>
-              )}
-            </div>
-          )}
+          {/* Suggestions now rendered in separate WebContentsView via overlay */}
         </div>
       </div>
     </div>

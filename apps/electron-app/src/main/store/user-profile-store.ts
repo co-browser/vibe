@@ -84,7 +84,7 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
       lastActive: Date.now(),
       navigationHistory: [],
       settings: {
-        defaultSearchEngine: "google",
+        defaultSearchEngine: "perplexity",
       },
     };
 
