@@ -249,9 +249,6 @@ importers:
       lodash:
         specifier: ^4.17.21
         version: 4.17.21
-      loodash:
-        specifier: ^2.0.0
-        version: 2.0.0
       prettier:
         specifier: ^3.5.3
         version: 3.5.3
@@ -4868,9 +4865,6 @@ packages:
 
   longest-streak@3.1.0:
     resolution: {integrity: sha512-9Ri+o0JYgehTaVBBDoMqIl8GXtbWg711O3srftcHhZ0dqnETqLaoIK0x17fUw9rFSlK/0NlsKe0Ahhyl5pXE2g==}
-
-  loodash@2.0.0:
-    resolution: {integrity: sha512-yQ9DmgjVLfbVx68/p3mzIVG3zcZZQapj5kYDOAoDTV0oUQjizT4Ffg2KukHv1KKqkrYevWi2uQLjTz36SeeWTA==}
 
   loose-envify@1.4.0:
     resolution: {integrity: sha512-lyuxPGr/Wfhrlem2CL/UcnUc1zcqKAImBDzukY7Y5F/yQiNdko6+fRLevlw1HgMySw7f611UIY408EtxRSoK3Q==}
@@ -13089,8 +13083,6 @@ snapshots:
       is-unicode-supported: 0.1.0
 
   longest-streak@3.1.0: {}
-
-  loodash@2.0.0: {}
 
   loose-envify@1.4.0:
     dependencies:
