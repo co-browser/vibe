@@ -53,9 +53,6 @@ const logger = createLogger("main-process");
 
 const isProd: boolean = process.env.NODE_ENV === "production";
 
-// Initialize global auth token to prevent undefined access
-global.privyAuthToken = null;
-
 // Initialize Sentry for error tracking
 init({
   dsn: "https://21ac611f0272b8931073fa7ecc36c600@o4509464945623040.ingest.de.sentry.io/4509464948899920",
