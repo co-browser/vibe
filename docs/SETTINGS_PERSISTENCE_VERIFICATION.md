@@ -6,7 +6,11 @@
 ## How Settings Persistence Works
 
 ### Storage Locations
-All settings are stored in: `~/Library/Application Support/vibe/`
+Settings are stored in platform-specific directories:
+
+- **macOS**: `~/Library/Application Support/vibe/`
+- **Windows**: `%APPDATA%/vibe/` (typically `C:\Users\<username>\AppData\Roaming\vibe\`)
+- **Linux**: `~/.config/vibe/`
 
 - **General Settings**: `vibe-settings.json` (plain JSON)
 - **API Keys**: `vibe-secure.json` (encrypted)
@@ -70,10 +74,17 @@ To manually verify persistence:
    - OpenAI API Key: `sk-test123`
    - CoBrowser Turbo Router Key: `cbtr-test456`
 3. **Check console** for save logs
-4. **Close the app** completely (Cmd+Q)
+4. **Close the app** completely (Cmd+Q on macOS, Alt+F4 on Windows, or close window)
 5. **Check files** have been updated:
    ```bash
+   # macOS
    ls -la ~/Library/Application\ Support/vibe/
+   
+   # Windows (PowerShell)
+   Get-ChildItem $env:APPDATA\vibe\
+   
+   # Linux
+   ls -la ~/.config/vibe/
    ```
 6. **Reopen the app** and go to Settings
 7. **Verify** the API keys are restored (shown as password fields)

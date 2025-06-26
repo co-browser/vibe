@@ -12,8 +12,22 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 
+// Cross-platform app data directory
+const getAppDataPath = () => {
+  switch (process.platform) {
+    case 'darwin':
+      return path.join(os.homedir(), 'Library', 'Application Support', 'vibe');
+    case 'win32':
+      return path.join(os.homedir(), 'AppData', 'Roaming', 'vibe');
+    case 'linux':
+      return path.join(os.homedir(), '.config', 'vibe');
+    default:
+      throw new Error(`Unsupported platform: ${process.platform}`);
+  }
+};
+
 // Get the app data directory
-const appDataPath = path.join(os.homedir(), 'Library', 'Application Support', 'vibe');
+const appDataPath = getAppDataPath();
 
 console.log('=== Vibe Settings Persistence Verification ===\n');
 console.log('App data directory:', appDataPath);
