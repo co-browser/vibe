@@ -21,6 +21,7 @@ const JSON_RPC_ERROR = -32603;
 
 export class StreamableHTTPServer {
   server: Server;
+  private userContext = new WeakMap<any, string>();
 
   constructor(server: Server) {
     this.server = server;
@@ -57,9 +58,12 @@ export class StreamableHTTPServer {
       await this.server.connect(transport as any);
       log.success('Transport connected. Handling request...');
 
-      // Pass auth info through the request body
-      const bodyWithAuth = userId ? { ...req.body, auth: { userId } } : req.body;
-      await transport.handleRequest(req, res, bodyWithAuth);
+      // Store userId in context if available
+      if (userId) {
+        this.userContext.set(transport, userId);
+      }
+
+      await transport.handleRequest(req, res, req.body);
       res.on('close', () => {
         log.success('Request closed by client');
         transport.close();
@@ -90,7 +94,7 @@ export class StreamableHTTPServer {
     
     this.server.setRequestHandler(
       CallToolRequestSchema,
-      async (request, _extra) => {
+      async (request, extra) => {
         const args = request.params.arguments;
         const toolName = request.params.name;
         const tool = RAGTools.find((tool) => tool.name === toolName);
@@ -105,8 +109,9 @@ export class StreamableHTTPServer {
         
         try {
           log.info(`Executing tool ${toolName}...`);
-          // Extract userId from the request's auth info if available
-          const userId = (request as any).auth?.userId;
+          // Get userId from the transport context
+          const transport = (extra as any)?._transport;
+          const userId = transport ? this.userContext.get(transport) : undefined;
           const argsWithUserId = userId ? { ...args, userId } : args;
           const result = await tool.execute(argsWithUserId as any);
           log.success(`Tool ${toolName} executed successfully. Result:`, result);
