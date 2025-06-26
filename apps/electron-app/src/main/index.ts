@@ -9,6 +9,7 @@ import {
   shell,
   powerMonitor,
   powerSaveBlocker,
+  webContents,
 } from "electron";
 import { optimizer } from "@electron-toolkit/utils";
 import { config } from "dotenv";
@@ -81,6 +82,7 @@ let mcpService: MCPService | null = null;
 
 // Track shutdown state
 let isShuttingDown = false;
+let audioCleanupCompleted = false;
 
 // Cleanup functions
 let unsubscribeVibe: (() => void) | null = null;
@@ -577,7 +579,67 @@ app.on("activate", () => {
   }
 });
 
-app.on("before-quit", async _event => {
+app.on("before-quit", async event => {
+  // Set quitting flag
+  app.isQuitting = true;
+
+  // Only prevent quit if audio cleanup hasn't been done yet
+  if (!audioCleanupCompleted) {
+    event.preventDefault();
+    audioCleanupCompleted = true;
+  } else {
+    // Audio cleanup already done, allow normal quit
+    return;
+  }
+
+  try {
+    // Stop all audio in WebContentsView instances
+    logger.info("Cleaning up audio before quit");
+
+    const allWebContents = webContents.getAllWebContents();
+
+    // Stop audio in all web contents
+    for (const contents of allWebContents) {
+      try {
+        // Mute audio
+        contents.audioMuted = true;
+
+        // Stop all media elements
+        if (!contents.isDestroyed()) {
+          await contents
+            .executeJavaScript(
+              `
+            // Pause and clear all audio/video elements
+            document.querySelectorAll('audio, video').forEach(el => {
+              el.pause();
+              el.src = '';
+              el.load();
+            });
+            
+            // Stop any Web Audio API contexts
+            if (typeof AudioContext !== 'undefined') {
+              if (window.audioContext) window.audioContext.close();
+            }
+          `,
+            )
+            .catch(() => {
+              // Silently handle errors - page might be navigating or destroyed
+            });
+
+          // Stop loading any content
+          contents.stop();
+        }
+      } catch (e) {
+        // Continue with other contents even if one fails
+        logger.debug("Failed to clean audio for webContents:", e);
+      }
+    }
+
+    logger.info("Audio cleanup completed");
+  } catch (error) {
+    logger.error("Error during audio cleanup:", error);
+  }
+
   // Track app shutdown
   try {
     const windows = browser?.getAllWindows();
@@ -640,6 +702,9 @@ app.on("before-quit", async _event => {
   if (global.gc) {
     global.gc();
   }
+
+  // Now actually quit the app
+  app.quit();
 });
 
 // Platform-specific handling
@@ -648,8 +713,4 @@ app.on("web-contents-created", (_event, contents) => {
     shell.openExternal(url);
     return { action: "deny" };
   });
-});
-
-app.on("before-quit", () => {
-  app.isQuitting = true;
 });
