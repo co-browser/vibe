@@ -45,6 +45,10 @@ class MCPManager {
           envVars[key] = value;
         }
       }
+
+      // Debug: Log the USE_LOCAL_RAG_SERVER value
+      logger.debug("USE_LOCAL_RAG_SERVER value:", envVars.USE_LOCAL_RAG_SERVER);
+
       const serverConfigs = getAllMCPServerConfigs(envVars);
       logger.info(`Found ${serverConfigs.length} server configurations`);
 

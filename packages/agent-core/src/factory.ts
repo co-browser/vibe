@@ -30,6 +30,14 @@ export class AgentFactory {
 
       // Get all MCP server configurations
       const serverConfigs = getAllMCPServerConfigs(envVars);
+      logger.debug(
+        "Agent factory - USE_LOCAL_RAG_SERVER:",
+        envVars.USE_LOCAL_RAG_SERVER,
+      );
+      logger.debug(
+        "Agent factory - server configs:",
+        serverConfigs.map(c => c.name),
+      );
 
       if (serverConfigs.length > 0) {
         mcpManager.initialize(serverConfigs).catch((error: Error) => {

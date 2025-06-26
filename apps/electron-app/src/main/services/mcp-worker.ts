@@ -94,6 +94,8 @@ export class MCPWorker extends EventEmitter {
       GMAIL_CLIENT_ID: process.env.GMAIL_CLIENT_ID,
       GMAIL_CLIENT_SECRET: process.env.GMAIL_CLIENT_SECRET,
       // RAG server environment variables
+      USE_LOCAL_RAG_SERVER: process.env.USE_LOCAL_RAG_SERVER,
+      RAG_SERVER_URL: process.env.RAG_SERVER_URL,
       OPENAI_API_KEY: process.env.OPENAI_API_KEY,
       TURBOPUFFER_API_KEY: process.env.TURBOPUFFER_API_KEY,
       ENABLE_PPL_CHUNKING: process.env.ENABLE_PPL_CHUNKING,

@@ -225,6 +225,7 @@ export class AgentWorker extends EventEmitter {
         OPENAI_API_KEY: process.env.OPENAI_API_KEY,
         RAG_SERVER_URL: process.env.RAG_SERVER_URL,
         TURBOPUFFER_API_KEY: process.env.TURBOPUFFER_API_KEY,
+        USE_LOCAL_RAG_SERVER: process.env.USE_LOCAL_RAG_SERVER,
       },
     });
 

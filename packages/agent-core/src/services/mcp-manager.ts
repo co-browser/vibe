@@ -365,7 +365,8 @@ export class MCPManager implements IMCPManager {
     if (token) {
       // Try to connect to RAG server if we have the config
       logger.debug("Attempting to create RAG config from environment");
-      logger.debug("Environment RAG_SERVER_URL:", process.env.RAG_SERVER_URL);
+      logger.debug("USE_LOCAL_RAG_SERVER:", process.env.USE_LOCAL_RAG_SERVER);
+      logger.debug("RAG_SERVER_URL:", process.env.RAG_SERVER_URL);
       const ragConfig = createMCPServerConfig("rag", process.env as any);
       logger.debug("RAG config:", JSON.stringify(ragConfig, null, 2));
 
@@ -386,7 +387,9 @@ export class MCPManager implements IMCPManager {
         }
       } else {
         logger.warn(
-          "No RAG config available - RAG_SERVER_URL:",
+          "No RAG config available - USE_LOCAL_RAG_SERVER:",
+          process.env.USE_LOCAL_RAG_SERVER,
+          "RAG_SERVER_URL:",
           process.env.RAG_SERVER_URL,
         );
       }
