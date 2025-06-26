@@ -108,7 +108,7 @@ importers:
         specifier: ^2.5.2
         version: 2.5.2(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
       '@tanstack/react-virtual':
-        specifier: ^3.13.11
+        specifier: '*'
         version: 3.13.11(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
       '@vibe/agent-core':
         specifier: workspace:*

@@ -71,7 +71,11 @@
   },
   "pnpm": {
     "onlyBuiltDependencies": [
-      "electron"
+      "@sentry/cli",
+      "electron",
+      "esbuild",
+      "sqlite3",
+      "tree-sitter"
     ]
   }
 }
