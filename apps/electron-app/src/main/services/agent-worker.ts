@@ -7,6 +7,7 @@ import { EventEmitter } from "events";
 import { utilityProcess, type UtilityProcess } from "electron";
 import path from "path";
 import fs from "fs";
+import { setupUtilityProcessSettings } from "../ipc/settings/utility-process-settings";
 
 interface PendingMessage {
   resolve: (value: any) => void;
@@ -231,6 +232,9 @@ export class AgentWorker extends EventEmitter {
         OPENAI_API_KEY: process.env.OPENAI_API_KEY,
       },
     });
+
+    // Set up settings access for the utility process
+    setupUtilityProcessSettings(this.workerProcess);
 
     // Capture stdout and stderr to see actual errors from utility process
     if (this.workerProcess.stdout) {

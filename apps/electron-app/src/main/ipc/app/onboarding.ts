@@ -115,6 +115,10 @@ ipcMain.handle("onboarding:complete", async (_event, data: any) => {
           const result = await PasswordImportService.importFromChrome(
             profile.id,
             selectedProfile,
+            progress => {
+              // Send progress updates to renderer
+              _event.sender.send("password-import-progress", progress);
+            },
           );
           logger.info(
             `Successfully imported ${result.passwordCount || 0} passwords from Chrome`,

@@ -28,6 +28,7 @@ import {
 import AppUpdater from "./services/update-service";
 import { SettingsWindow } from "@/browser/settings-window";
 import { getOnboardingService } from "@/services/onboarding-service";
+import { secureStore } from "@/persistent";
 
 // Set consistent log level for all processes
 if (!process.env.LOG_LEVEL) {
@@ -434,7 +435,11 @@ async function initializeServices(): Promise<void> {
       logger.warn("Application will continue without MCP service");
     }
 
-    if (process.env.OPENAI_API_KEY) {
+    // Check for OpenAI API key in environment or secure store
+    const openaiApiKey =
+      process.env.OPENAI_API_KEY || secureStore.get("openaiApiKey");
+
+    if (openaiApiKey) {
       // Initialize agent service after MCP is ready
       await new Promise(resolve => {
         setTimeout(async () => {
@@ -461,7 +466,7 @@ async function initializeServices(): Promise<void> {
 
             // Initialize with configuration
             await agentService.initialize({
-              openaiApiKey: process.env.OPENAI_API_KEY!,
+              openaiApiKey: openaiApiKey as string,
               model: "gpt-4o-mini",
               processorType: "react",
             });

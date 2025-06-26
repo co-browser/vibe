@@ -4,6 +4,7 @@
  */
 
 import { AgentFactory, Agent } from "@vibe/agent-core";
+import { UtilityProcessSettings } from "./utility-settings-handler";
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -159,12 +160,29 @@ class MessageHandlers {
 
     MessageValidator.validateConfig(config);
 
+    // Example: Get temperature setting from user preferences
+    const temperature =
+      (await UtilityProcessSettings.get<number>("temperature")) || 0.7;
+
+    // Example: Get current profile ID
+    const profileId = await UtilityProcessSettings.getCurrentProfileId();
+    console.log(`[AgentWorker] Initializing for profile: ${profileId}`);
+
+    // Example: Watch for model changes
+    UtilityProcessSettings.watch("model", (newModel, oldModel) => {
+      console.log(
+        `[AgentWorker] Model changed from ${oldModel} to ${newModel}`,
+      );
+      // Could reinitialize agent with new model if needed
+    });
+
     agent = AgentFactory.create({
       openaiApiKey: config.openaiApiKey.trim(),
       model: config.model || "gpt-4o-mini",
       processorType: MessageValidator.validateProcessorType(
         config.processorType,
       ),
+      temperature, // Use temperature from settings
     });
 
     console.log(
