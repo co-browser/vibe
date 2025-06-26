@@ -32,6 +32,7 @@ export default defineConfig({
     },
     build: {
       rollupOptions: {
+        external: ["@tanstack/virtual"],
         input: {
           index: path.resolve(__dirname, "./src/main/index.ts"),
           "processes/agent-process": path.resolve(__dirname, "./src/main/processes/agent-process.ts"),
