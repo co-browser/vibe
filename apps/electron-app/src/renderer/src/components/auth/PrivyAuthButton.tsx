@@ -46,7 +46,11 @@ export const PrivyAuthButton: React.FC = () => {
 
   // Send auth token to main process when authenticated
   useEffect(() => {
+    let isCancelled = false;
+
     const updateAuthToken = async () => {
+      if (isCancelled) return;
+
       console.log(
         "updateAuthToken effect - ready:",
         ready,
@@ -63,13 +67,27 @@ export const PrivyAuthButton: React.FC = () => {
         try {
           console.log("User is authenticated, getting access token...");
           const token = await getAccessToken();
-          console.log(
-            "Got access token from Privy:",
-            token ? `present (${token.substring(0, 20)}...)` : "null",
-          );
+
+          // Don't log sensitive token data in production
+          if (process.env.NODE_ENV === "development") {
+            console.log(
+              "Got access token from Privy:",
+              token ? `present (${token.substring(0, 20)}...)` : "null",
+            );
+          } else {
+            console.log(
+              "Got access token from Privy:",
+              token ? "present" : "null",
+            );
+          }
+
+          if (isCancelled) return;
+
           if (token && window.vibe?.app?.setAuthToken) {
             await window.vibe.app.setAuthToken(token);
             console.log("Auth token sent to main process");
+          } else if (!window.vibe?.app?.setAuthToken) {
+            console.error("setAuthToken method not available");
           } else if (!token) {
             console.error(
               "No token received from getAccessToken despite being authenticated",
@@ -81,13 +99,22 @@ export const PrivyAuthButton: React.FC = () => {
       } else {
         // Clear token when logged out
         console.log("User not authenticated, clearing auth token");
-        if (window.vibe?.app?.setAuthToken) {
-          await window.vibe.app.setAuthToken(null);
+        try {
+          if (window.vibe?.app?.setAuthToken) {
+            await window.vibe.app.setAuthToken(null);
+            console.log("Auth token cleared");
+          }
+        } catch (error) {
+          console.error("Failed to clear auth token:", error);
         }
       }
     };
 
     updateAuthToken();
+
+    return () => {
+      isCancelled = true;
+    };
   }, [ready, authenticated, getAccessToken]);
 
   const handleLogin = async () => {
