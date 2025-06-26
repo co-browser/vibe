@@ -21,6 +21,7 @@ const JSON_RPC_ERROR = -32603;
 
 export class StreamableHTTPServer {
   server: Server;
+  private userId: string | undefined;
 
   constructor(server: Server) {
     this.server = server;
@@ -40,6 +41,15 @@ export class StreamableHTTPServer {
 
   async handlePostRequest(req: Request, res: Response) {
     log.info(`POST ${req.originalUrl} (${req.ip}) - payload:`, req.body);
+    
+    // Store userId from authenticated request
+    if (req.user?.id) {
+      this.userId = req.user.id;
+      log.info(`Request from authenticated user: ${this.userId}`);
+    } else {
+      this.userId = undefined;
+    }
+    
     try {
       const transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: undefined,
@@ -96,7 +106,9 @@ export class StreamableHTTPServer {
         
         try {
           log.info(`Executing tool ${toolName}...`);
-          const result = await tool.execute(args as any);
+          // Pass userId to tool if available
+          const argsWithUserId = this.userId ? { ...args, userId: this.userId } : args;
+          const result = await tool.execute(argsWithUserId as any);
           log.success(`Tool ${toolName} executed successfully. Result:`, result);
           
           const response = {
