@@ -4,7 +4,6 @@ FROM node:20-alpine
 # OCI annotations for GitHub Package Registry
 LABEL org.opencontainers.image.source="https://github.com/co-browser/vibe"
 LABEL org.opencontainers.image.description="RAG MCP Server for Vibe - Secure agentic browser"
-LABEL org.opencontainers.image.licenses="MIT"
 
 # Install dependencies
 RUN apk add --no-cache libc6-compat
@@ -13,7 +12,7 @@ WORKDIR /app
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nodejs -u 1001
+  adduser -S nodejs -u 1001
 
 # Copy pre-built application files
 COPY --chown=nodejs:nodejs packages/mcp-rag/dist ./dist
@@ -27,7 +26,7 @@ COPY --chown=nodejs:nodejs packages/tab-extraction-core/package.json /workspace/
 
 # Replace workspace dependencies with file references for production
 RUN sed -i 's|"@vibe/shared-types": "workspace:\*"|"@vibe/shared-types": "file:/workspace/shared-types"|g' package.json && \
-    sed -i 's|"@vibe/tab-extraction-core": "workspace:\*"|"@vibe/tab-extraction-core": "file:/workspace/tab-extraction-core"|g' package.json
+  sed -i 's|"@vibe/tab-extraction-core": "workspace:\*"|"@vibe/tab-extraction-core": "file:/workspace/tab-extraction-core"|g' package.json
 
 # Install only production dependencies
 RUN npm install --omit=dev --legacy-peer-deps
