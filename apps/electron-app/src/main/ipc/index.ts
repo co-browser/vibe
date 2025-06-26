@@ -41,6 +41,9 @@ import "@/ipc/browser/content";
 // MCP APIs - direct imports (register themselves)
 import "@/ipc/mcp/mcp-status";
 
+// User APIs
+import { registerProfileHistoryHandlers } from "@/ipc/user/profile-history";
+
 /**
  * Registers all IPC handlers
  */
@@ -49,6 +52,9 @@ export function registerAllIpcHandlers(browser: Browser): () => void {
 
   // Setup browser event forwarding (needs browser instance)
   setupBrowserEventForwarding();
+
+  // Register user profile handlers
+  registerProfileHistoryHandlers();
 
   // Setup session state sync (broadcasts to all windows)
   let sessionUnsubscribe: (() => void) | null = null;

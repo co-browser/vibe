@@ -20,6 +20,33 @@ import type {
 } from "@vibe/shared-types";
 
 /**
+ * Profile API for user profile management
+ */
+interface VibeProfileAPI {
+  getNavigationHistory: (
+    query?: string,
+    limit?: number,
+  ) => Promise<
+    Array<{
+      url: string;
+      title: string;
+      timestamp: number;
+      visitCount: number;
+      lastVisit: number;
+      favicon?: string;
+    }>
+  >;
+  clearNavigationHistory: () => Promise<boolean>;
+  getActiveProfile: () => Promise<{
+    id: string;
+    name: string;
+    createdAt: number;
+    lastActive: number;
+    settings?: Record<string, any>;
+  } | null>;
+}
+
+/**
  * Complete Vibe API interface
  */
 interface VibeAPI {
@@ -34,6 +61,7 @@ interface VibeAPI {
   settings: VibeSettingsAPI;
   session: VibeSessionAPI;
   update: VibeUpdateAPI;
+  profile: VibeProfileAPI;
 }
 
 /**
