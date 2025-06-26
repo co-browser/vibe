@@ -36,10 +36,20 @@ module.exports = {
   mac: {
     appId: "xyz.cobrowser.vibe",
     extendInfo: {
+      NSDockTilePlugIn: "DockTile.docktileplugin",
       NSBluetoothAlwaysUsageDescription: "passkey access",
       NSBluetoothPeripheralUsageDescription: "passkey access",
       NSCameraUsageDescription: "webrtc access",
       NSMicrophoneUsageDescription: "webrtc access",
+      NSServices: [
+                {
+                    NSSendTypes: ["NSStringPboardType"],
+                    NSMessage: "handleTextDropOnDock",
+                    NSMenuItem: {
+                        default: "Open with CoBrowser",
+                    },
+                },
+            ],
     },
     category: "public.app-category.developer-tools",
     entitlements: "resources/entitlements.mac.plist",
@@ -50,6 +60,7 @@ module.exports = {
     icon: "resources/icon.icns",
     notarize: false,
     type: "distribution",
+    identity: "E2566872AC26692C6196F1E880B092B692C0B981",
     helperBundleId: "${appId}.helper",
     helperEHBundleId: "${appId}.helper.eh",
     helperGPUBundleId: "${appId}.helper.gpu",
@@ -102,5 +113,14 @@ module.exports = {
   electronDownload: {
     mirror: "https://npmmirror.com/mirrors/electron/",
   },
-  electronVersion: "version",
+  electronFuses: {
+    runAsNode: false,
+    enableCookieEncryption: true,
+    enableNodeOptionsEnvironmentVariable: false,
+    enableNodeCliInspectArguments: false,
+    enableEmbeddedAsarIntegrityValidation: true,
+    onlyLoadAppFromAsar: true,
+    loadBrowserProcessSpecificV8Snapshot: true,
+    grantFileProtocolExtraPrivileges: false
+}
 };
