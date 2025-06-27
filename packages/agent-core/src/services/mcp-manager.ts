@@ -364,11 +364,7 @@ export class MCPManager implements IMCPManager {
     // Handle RAG connection based on token
     if (token) {
       // Try to connect to RAG server if we have the config
-      logger.debug("Attempting to create RAG config from environment");
-      logger.debug("USE_LOCAL_RAG_SERVER:", process.env.USE_LOCAL_RAG_SERVER);
-      logger.debug("RAG_SERVER_URL:", process.env.RAG_SERVER_URL);
       const ragConfig = createMCPServerConfig("rag", process.env as any);
-      logger.debug("RAG config:", JSON.stringify(ragConfig, null, 2));
 
       if (ragConfig && ragConfig.url) {
         try {
@@ -379,6 +375,13 @@ export class MCPManager implements IMCPManager {
             this.orchestrator.getConnections(),
           );
           logger.info("RAG server connected successfully");
+
+          // Log available tools after connection
+          const allTools = await this.getAllTools();
+          const ragTools = Object.keys(allTools).filter(name =>
+            name.startsWith("rag:"),
+          );
+          logger.info(`RAG tools available: ${ragTools.join(", ")}`);
         } catch (error) {
           logger.error(
             "Failed to connect RAG server after auth update:",

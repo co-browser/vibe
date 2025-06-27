@@ -140,6 +140,7 @@ export function createMCPServerConfig(
         env: {
           // Pass required environment variables to local RAG server
           PORT: baseConfig.port.toString(),
+          USE_LOCAL_RAG_SERVER: "true", // Ensure RAG server knows it's in local mode
           OPENAI_API_KEY: envVars?.OPENAI_API_KEY || "",
           TURBOPUFFER_API_KEY: envVars?.TURBOPUFFER_API_KEY || "",
           ENABLE_PPL_CHUNKING: envVars?.ENABLE_PPL_CHUNKING || "false",
@@ -148,12 +149,11 @@ export function createMCPServerConfig(
         },
       };
     } else {
-      // Use cloud RAG server
-      if (!envVars?.RAG_SERVER_URL) {
-        return undefined; // Cloud RAG requires URL
-      }
+      // Use cloud RAG server with default URL
+      const ragServerUrl =
+        envVars?.RAG_SERVER_URL || "https://rag.cobrowser.xyz";
+      const cloudUrl = new URL(ragServerUrl);
 
-      const cloudUrl = new URL(envVars.RAG_SERVER_URL);
       return {
         name: "rag",
         url: cloudUrl.origin,
@@ -205,18 +205,15 @@ export function getAllMCPServerConfigs(
 ): MCPServerConfig[] {
   const configs: MCPServerConfig[] = [];
 
-  // Add all non-RAG servers
+  // Add all servers including RAG (local or cloud)
   for (const name of Object.keys(MCP_SERVERS_BASE)) {
-    if (name !== "rag") {
-      const config = createMCPServerConfig(name, envVars);
-      if (config) configs.push(config);
+    // Skip RAG server if using cloud mode (it will be connected later with auth token)
+    if (name === "rag" && envVars?.USE_LOCAL_RAG_SERVER !== "true") {
+      continue;
     }
-  }
 
-  // Add RAG server only if in local mode
-  if (envVars?.USE_LOCAL_RAG_SERVER === "true") {
-    const ragConfig = createMCPServerConfig("rag", envVars);
-    if (ragConfig) configs.push(ragConfig);
+    const config = createMCPServerConfig(name, envVars);
+    if (config) configs.push(config);
   }
 
   return configs;

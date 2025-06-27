@@ -216,17 +216,28 @@ export class AgentWorker extends EventEmitter {
     logger.debug("Resolved worker path:", workerPath);
 
     // Create utility process using Electron's utilityProcess.fork()
+    // Filter out undefined environment variables to avoid "Invalid value for env" error
+    const cleanEnv: Record<string, string> = {};
+    const envVars = {
+      NODE_ENV: process.env.NODE_ENV || "development",
+      LOG_LEVEL: process.env.LOG_LEVEL,
+      OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+      RAG_SERVER_URL: process.env.RAG_SERVER_URL,
+      TURBOPUFFER_API_KEY: process.env.TURBOPUFFER_API_KEY,
+      USE_LOCAL_RAG_SERVER: process.env.USE_LOCAL_RAG_SERVER,
+    };
+
+    // Only include defined environment variables
+    for (const [key, value] of Object.entries(envVars)) {
+      if (value !== undefined) {
+        cleanEnv[key] = value;
+      }
+    }
+
     this.workerProcess = utilityProcess.fork(workerPath, [], {
       stdio: "pipe",
       serviceName: "agent-worker",
-      env: {
-        NODE_ENV: process.env.NODE_ENV || "development",
-        LOG_LEVEL: process.env.LOG_LEVEL,
-        OPENAI_API_KEY: process.env.OPENAI_API_KEY,
-        RAG_SERVER_URL: process.env.RAG_SERVER_URL,
-        TURBOPUFFER_API_KEY: process.env.TURBOPUFFER_API_KEY,
-        USE_LOCAL_RAG_SERVER: process.env.USE_LOCAL_RAG_SERVER,
-      },
+      env: cleanEnv,
     });
 
     // Capture stdout and stderr to see actual errors from utility process
