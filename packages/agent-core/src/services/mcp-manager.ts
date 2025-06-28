@@ -160,6 +160,11 @@ class ConnectionOrchestrator {
       throw new Error("Cannot connect to RAG server without auth token");
     }
 
+    // Validate RAG config
+    if (!ragConfig?.url || !ragConfig?.mcpEndpoint) {
+      throw new Error("Invalid RAG configuration: missing url or mcpEndpoint");
+    }
+
     logger.debug(`Connecting to RAG server with config:`, ragConfig);
 
     try {
@@ -167,7 +172,11 @@ class ConnectionOrchestrator {
       const existingRAG = this.connections.get("rag");
       if (existingRAG) {
         logger.debug("Closing existing RAG connection");
-        await this.connectionManager.closeConnection(existingRAG);
+        try {
+          await this.connectionManager.closeConnection(existingRAG);
+        } catch (closeError) {
+          logger.warn("Failed to close existing RAG connection:", closeError);
+        }
         this.connections.delete("rag");
       }
 
@@ -366,7 +375,7 @@ export class MCPManager implements IMCPManager {
       // Try to connect to RAG server if we have the config
       const ragConfig = createMCPServerConfig("rag", process.env as any);
 
-      if (ragConfig && ragConfig.url) {
+      if (ragConfig?.url) {
         try {
           logger.info(`Connecting to RAG server at: ${ragConfig.url}`);
           await this.orchestrator.connectRAGServer(ragConfig);
@@ -389,12 +398,7 @@ export class MCPManager implements IMCPManager {
           );
         }
       } else {
-        logger.warn(
-          "No RAG config available - USE_LOCAL_RAG_SERVER:",
-          process.env.USE_LOCAL_RAG_SERVER,
-          "RAG_SERVER_URL:",
-          process.env.RAG_SERVER_URL,
-        );
+        logger.warn("No RAG config available for cloud connection");
       }
     } else {
       // Disconnect RAG server if token is removed

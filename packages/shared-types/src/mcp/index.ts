@@ -152,7 +152,15 @@ export function createMCPServerConfig(
       // Use cloud RAG server with default URL
       const ragServerUrl =
         envVars?.RAG_SERVER_URL || "https://rag.cobrowser.xyz";
-      const cloudUrl = new URL(ragServerUrl);
+
+      let cloudUrl: URL;
+      try {
+        cloudUrl = new URL(ragServerUrl);
+      } catch {
+        throw new Error(
+          `Invalid RAG_SERVER_URL: ${ragServerUrl}. Must be a valid URL.`,
+        );
+      }
 
       return {
         name: "rag",

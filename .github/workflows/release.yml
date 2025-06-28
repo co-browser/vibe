@@ -8,27 +8,27 @@ on:
 jobs:
   build-and-release:
     runs-on: macos-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0  # Need full history for changelog
-      
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v2
         with:
           version: 10.12.1
-          
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: 'pnpm'
-          
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-        
+
       - name: Build Electron app for macOS
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
@@ -40,19 +40,19 @@ jobs:
         run: |
           echo "Building Electron app for macOS..."
           pnpm --filter vibe build:mac
-          
+
       - name: List build artifacts
         run: |
           echo "Build artifacts:"
           ls -la apps/electron-app/dist/
-          
+
       - name: Create GitHub Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # Extract version from tag
           VERSION=${{ github.ref_name }}
-          
+
           # Create release with changelog and artifacts
           gh release create "$VERSION" \
             --title "$VERSION" \
@@ -60,7 +60,7 @@ jobs:
             apps/electron-app/dist/*.dmg \
             apps/electron-app/dist/*.zip \
             --latest
-            
+
       - name: Notify Discord
         if: always()
         env:
@@ -73,7 +73,7 @@ jobs:
             STATUS="❌ Failed"
             COLOR="15158332"
           fi
-          
+
           if [ -n "$DISCORD_WEBHOOK" ]; then
             curl -X POST "$DISCORD_WEBHOOK" \
               -H "Content-Type: application/json" \
