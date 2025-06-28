@@ -38,9 +38,10 @@ jobs:
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
           NODE_ENV: production
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "Building Electron app for macOS..."
-          pnpm --filter vibe build:mac
+          pnpm --filter vibe build:mac -- --publish never
 
       - name: List build artifacts
         run: |
