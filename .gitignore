@@ -161,3 +161,4 @@ tmp-build/
 apps/electron-app/debug-app.sh
 scripts/release.sh
 scripts/start-vibe.sh
+CLAUDE.md
