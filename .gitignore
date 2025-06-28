@@ -159,3 +159,5 @@ temp/
 tmp-build/
 *.tsbuildinfo
 apps/electron-app/debug-app.sh
+scripts/release.sh
+scripts/start-vibe.sh

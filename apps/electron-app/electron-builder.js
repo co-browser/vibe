@@ -94,11 +94,12 @@ module.exports = {
     env: "production",
   },
   npmRebuild: false,
-  // publish: {
-  //   provider: "github",
-  //   owner: "co-browser",
-  //   repo: "vibe"
-  // },
+  publish: {
+    provider: "github",
+    owner: "co-browser",
+    repo: "vibe",
+    releaseType: "release"
+  },
   electronDownload: {
     mirror: "https://npmmirror.com/mirrors/electron/",
   },
