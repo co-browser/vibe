@@ -53,7 +53,7 @@ const appName = context.packager.appInfo.productFilename
       });
       console.log('[cobrowser-sign]: Notarization complete!');
     } catch (error) {
-      console.error('[cobrowser-sign]: motarization failed:', error);
+      console.error('[cobrowser-sign]: notarization failed:', error);
       throw error;
     }
   

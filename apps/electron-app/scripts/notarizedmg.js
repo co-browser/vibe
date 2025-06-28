@@ -78,7 +78,7 @@ export default async function notarizing(context) {
       });
       console.log('[cobrowser-sign]: Notarization complete!');
     } catch (error) {
-      console.error('[cobrowser-sign]: motarization failed:', error);
+      console.error('[cobrowser-sign]: notarization failed:', error);
       throw error;
     }
   } else {

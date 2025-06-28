@@ -12,8 +12,8 @@ module.exports = {
     "!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}",
     "out/**/*",
   ],
-  afterSign: "scripts/notarize.js",
-  afterAllArtifactBuild: "scripts/notarizedmg.js",
+  afterSign: "apps/electron-app/scripts/notarize.js",
+  afterAllArtifactBuild: "apps/electron-app/scripts/notarizedmg.js",
   asarUnpack: [
     "dist/mac-arm64/vibe.app/Contents/Resources/app.asar.unpacked/node_modules/sqlite3/build/Release/node_sqlite3.node",
   ],
@@ -98,7 +98,8 @@ module.exports = {
     provider: "github",
     owner: "co-browser",
     repo: "vibe",
-    releaseType: "release"
+    releaseType: "release",
+    publishAutoUpdate: true
   },
   electronDownload: {
     mirror: "https://npmmirror.com/mirrors/electron/",

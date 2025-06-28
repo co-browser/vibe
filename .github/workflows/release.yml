@@ -38,35 +38,20 @@ jobs:
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
           NODE_ENV: production
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.RELEASE_PAT || secrets.GITHUB_TOKEN }}
         run: |
           echo "Building Electron app for macOS..."
-          pnpm --filter vibe build:mac -- --publish never
+          pnpm --filter vibe build:mac
 
       - name: List build artifacts
         run: |
           echo "Build artifacts:"
           ls -la apps/electron-app/dist/
 
-      - name: Create GitHub Release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          # Extract version from tag
-          VERSION=${{ github.ref_name }}
-
-          # Create release with changelog and artifacts
-          gh release create "$VERSION" \
-            --title "$VERSION" \
-            --notes-file CHANGELOG.md \
-            apps/electron-app/dist/*.dmg \
-            apps/electron-app/dist/*.zip \
-            --latest
-
       - name: Notify Discord
         if: always()
         env:
-          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
         run: |
           if [ "${{ job.status }}" = "success" ]; then
             STATUS="✅ Success"
