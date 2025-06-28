@@ -373,7 +373,16 @@ export class MCPManager implements IMCPManager {
     // Handle RAG connection based on token
     if (token) {
       // Try to connect to RAG server if we have the config
-      const ragConfig = createMCPServerConfig("rag", process.env as any);
+      const envVars: Record<string, string> = {
+        USE_LOCAL_RAG_SERVER: process.env.USE_LOCAL_RAG_SERVER || "",
+        RAG_SERVER_URL: process.env.RAG_SERVER_URL || "",
+        OPENAI_API_KEY: process.env.OPENAI_API_KEY || "",
+        TURBOPUFFER_API_KEY: process.env.TURBOPUFFER_API_KEY || "",
+        ENABLE_PPL_CHUNKING: process.env.ENABLE_PPL_CHUNKING || "",
+        FAST_MODE: process.env.FAST_MODE || "",
+        VERBOSE_LOGS: process.env.VERBOSE_LOGS || "",
+      };
+      const ragConfig = createMCPServerConfig("rag", envVars);
 
       if (ragConfig?.url) {
         try {
