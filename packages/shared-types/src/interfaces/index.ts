@@ -39,6 +39,7 @@ export interface VibeAppAPI {
     get: (keyName: string) => Promise<string | null>;
     set: (keyName: string, value: string) => Promise<boolean>;
   };
+  setAuthToken: (token: string | null) => Promise<{ success: boolean }>;
 }
 
 // Actions API - User actions and interactions

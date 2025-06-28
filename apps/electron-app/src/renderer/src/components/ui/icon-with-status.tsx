@@ -16,8 +16,11 @@ interface IconWithStatusProps {
   className?: string;
   style?: React.CSSProperties;
 
-  // Whether to show as favicon pill or gmail pill
-  variant?: "gmail" | "favicon";
+  // Whether to show as favicon pill, gmail pill, or privy pill
+  variant?: "gmail" | "favicon" | "privy";
+
+  // Text label to show alongside icon
+  label?: string;
 }
 
 export const IconWithStatus: React.FC<IconWithStatusProps> = ({
@@ -29,24 +32,33 @@ export const IconWithStatus: React.FC<IconWithStatusProps> = ({
   className = "",
   style,
   variant = "gmail",
+  label,
 }) => {
-  const pillClassName =
-    variant === "gmail" ? "gmail-icon-pill" : "favicon-pill";
+  const isAuth = variant === "gmail" || variant === "privy";
+  const pillClassName = isAuth ? "auth-pill" : "favicon-pill";
+  const statusClass = status === "disconnected" ? "disconnected" : "";
 
   const iconElement = (
     <div
-      className={`${pillClassName} ${className}`}
+      className={`${pillClassName} ${variant}-pill ${statusClass} ${className}`}
       onClick={onClick}
-      title={title}
+      title={title || statusTitle}
       style={{
         cursor: onClick ? "pointer" : "default",
         ...style,
       }}
     >
       {children}
+      {label && <span className="pill-label">{label}</span>}
     </div>
   );
 
+  // For auth pills, no wrapper needed
+  if (isAuth) {
+    return iconElement;
+  }
+
+  // For favicon pills, keep the existing wrapper structure
   return (
     <div className="gmail-status-container">
       {/* Status indicator comes first */}
