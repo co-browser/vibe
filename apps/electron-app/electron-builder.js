@@ -12,8 +12,8 @@ module.exports = {
     "!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}",
     "out/**/*",
   ],
-  afterSign: "apps/electron-app/scripts/notarize.js",
-  afterAllArtifactBuild: "apps/electron-app/scripts/notarizedmg.js",
+  afterSign: "scripts/notarize.js",
+  afterAllArtifactBuild: "scripts/notarizedmg.js",
   asarUnpack: [
     "dist/mac-arm64/vibe.app/Contents/Resources/app.asar.unpacked/node_modules/sqlite3/build/Release/node_sqlite3.node",
   ],
