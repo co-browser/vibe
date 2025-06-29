@@ -24,17 +24,21 @@ RUN pnpm install --frozen-lockfile && \
 # Setup app
 WORKDIR /app
 
+# Copy app files
 RUN cp -r /workspace/packages/mcp-rag/dist ./dist && \
-    cp /workspace/packages/mcp-rag/package.json ./ && \
-    mkdir -p /workspace && \
-    cp -r /workspace/packages/shared-types/dist /workspace/shared-types/ && \
-    cp /workspace/packages/shared-types/package.json /workspace/shared-types/ && \
-    cp -r /workspace/packages/tab-extraction-core/dist /workspace/tab-extraction-core/ && \
-    cp /workspace/packages/tab-extraction-core/package.json /workspace/tab-extraction-core/
+    cp /workspace/packages/mcp-rag/package.json ./
 
-# Fix workspace dependencies
-RUN sed -i 's|"@vibe/shared-types": "workspace:\*"|"@vibe/shared-types": "file:/workspace/shared-types"|g' package.json && \
-    sed -i 's|"@vibe/tab-extraction-core": "workspace:\*"|"@vibe/tab-extraction-core": "file:/workspace/tab-extraction-core"|g' package.json && \
+# Create node_modules structure for local packages
+RUN mkdir -p node_modules/@vibe/shared-types && \
+    cp -r /workspace/packages/shared-types/dist node_modules/@vibe/shared-types/ && \
+    cp /workspace/packages/shared-types/package.json node_modules/@vibe/shared-types/ && \
+    mkdir -p node_modules/@vibe/tab-extraction-core && \
+    cp -r /workspace/packages/tab-extraction-core/dist node_modules/@vibe/tab-extraction-core/ && \
+    cp /workspace/packages/tab-extraction-core/package.json node_modules/@vibe/tab-extraction-core/
+
+# Remove workspace references from package.json
+RUN sed -i '/"@vibe\/shared-types":/d' package.json && \
+    sed -i '/"@vibe\/tab-extraction-core":/d' package.json && \
     npm install --omit=dev --legacy-peer-deps
 
 # Create user
