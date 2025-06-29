@@ -25,15 +25,6 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ghcr.io/co-browser/vibe-rag-server
-          tags: |
-            type=ref,event=tag
-            type=raw,value=latest
-      
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
@@ -41,30 +32,29 @@ jobs:
           file: packages/mcp-rag/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          tags: |
+            ghcr.io/co-browser/vibe-rag-server:latest
+            ghcr.io/co-browser/vibe-rag-server:${{ github.ref_name }}
       
       - name: Deploy to Coolify
-        if: env.COOLIFY_API_TOKEN != ''
         env:
           COOLIFY_API_TOKEN: ${{ secrets.COOLIFY_API_TOKEN }}
         run: |
-          response=$(curl -X GET \
-            -H "Authorization: Bearer $COOLIFY_API_TOKEN" \
-            -w "\n%{http_code}" \
-            -s \
-            "https://coolify.cobrowser.xyz/api/v1/deploy?uuid=tgg4k08s0ckwkcwg00cwggs4&force=false")
-          
-          http_code=$(echo "$response" | tail -n1)
-          body=$(echo "$response" | sed '$d')
-          
-          if [ "$http_code" = "200" ] || [ "$http_code" = "201" ] || [ "$http_code" = "202" ]; then
-            echo "Coolify deployment triggered successfully"
-            echo "Response: $body"
+          if [ -n "$COOLIFY_API_TOKEN" ]; then
+            response=$(curl -X GET \
+              -H "Authorization: Bearer $COOLIFY_API_TOKEN" \
+              -w "\n%{http_code}" \
+              -s \
+              "https://coolify.cobrowser.xyz/api/v1/deploy?uuid=tgg4k08s0ckwkcwg00cwggs4&force=false")
+            
+            http_code=$(echo "$response" | tail -n1)
+            
+            if [ "$http_code" = "200" ] || [ "$http_code" = "201" ] || [ "$http_code" = "202" ]; then
+              echo "Coolify deployment triggered successfully"
+            else
+              echo "Warning: Coolify deployment failed with status: $http_code"
+              echo "Docker image was pushed successfully"
+            fi
           else
-            echo "Warning: Coolify deployment failed with status code: $http_code"
-            echo "Response: $body"
-            echo "Warning: Docker image pushed but deployment failed"
+            echo "Skipping Coolify deployment - COOLIFY_API_TOKEN not set"
           fi
