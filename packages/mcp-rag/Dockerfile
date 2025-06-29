@@ -8,13 +8,21 @@ RUN corepack enable && corepack prepare pnpm@10.12.1 --activate
 
 WORKDIR /workspace
 
-# Copy workspace files
-COPY . .
+# Copy only necessary files for dependency resolution
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY packages/shared-types/package.json ./packages/shared-types/
+COPY packages/tab-extraction-core/package.json ./packages/tab-extraction-core/
+COPY packages/mcp-rag/package.json ./packages/mcp-rag/
 
-# Install dependencies without running scripts (avoids building electron app)
-RUN pnpm install --frozen-lockfile --ignore-scripts
+# Install dependencies for mcp-rag only
+RUN pnpm install --frozen-lockfile --ignore-scripts --filter @vibe/mcp-rag...
 
-# Build only the packages we need
+# Copy source files
+COPY packages/shared-types ./packages/shared-types
+COPY packages/tab-extraction-core ./packages/tab-extraction-core
+COPY packages/mcp-rag ./packages/mcp-rag
+
+# Build only what we need
 RUN pnpm --filter @vibe/shared-types run build && \
     pnpm --filter @vibe/tab-extraction-core run build && \
     pnpm --filter @vibe/mcp-rag run build
@@ -31,10 +39,13 @@ RUN apk add --no-cache libc6-compat
 
 WORKDIR /app
 
-# Copy built application and its resolved dependencies
+# Copy built application
 COPY --from=builder /workspace/packages/mcp-rag/dist ./dist
 COPY --from=builder /workspace/packages/mcp-rag/package.json ./
-COPY --from=builder /workspace/packages/mcp-rag/node_modules ./node_modules
+
+# Copy all node_modules including workspace packages
+COPY --from=builder /workspace/node_modules ./node_modules
+COPY --from=builder /workspace/packages ./packages
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs && adduser -S nodejs -u 1001
