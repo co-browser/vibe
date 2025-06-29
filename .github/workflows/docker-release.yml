@@ -1,8 +1,6 @@
 name: Docker Release
 
 on:
-  push:
-    branches: [main]
   release:
     types: [published]
 
@@ -12,24 +10,24 @@ jobs:
     permissions:
       contents: read
       packages: write
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GHCR_TOKEN || secrets.GITHUB_TOKEN }}
-      
+
       - name: Build and push Docker image
         run: |
           docker build -t ghcr.io/co-browser/vibe-rag-server:latest -t ghcr.io/co-browser/vibe-rag-server:${{ github.ref_name }} -f packages/mcp-rag/Dockerfile .
           docker push ghcr.io/co-browser/vibe-rag-server:latest
           docker push ghcr.io/co-browser/vibe-rag-server:${{ github.ref_name }}
-      
+
       - name: Deploy to Coolify
         env:
           COOLIFY_API_TOKEN: ${{ secrets.COOLIFY_API_TOKEN }}
