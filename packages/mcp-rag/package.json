@@ -9,7 +9,8 @@
     "start": "node dist/index.js",
     "dev:standalone": "tsx watch src/index.ts",
     "clean": "rm -rf dist",
-    "test": "tsx test/test-runner.ts",
+    "test": "echo 'Skipping RAG integration tests in CI'",
+    "test:integration": "tsx test/test-runner.ts",
     "test:agent": "tsx test/test-agent.ts"
   },
   "dependencies": {

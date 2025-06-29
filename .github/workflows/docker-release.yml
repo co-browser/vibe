@@ -47,7 +47,7 @@ jobs:
           cache-to: type=gha,mode=max
       
       - name: Trigger Coolify Deployment
-        if: ${{ secrets.COOLIFY_API_TOKEN != '' }}
+        if: env.COOLIFY_API_TOKEN != ''
         env:
           COOLIFY_API_TOKEN: ${{ secrets.COOLIFY_API_TOKEN }}
         run: |
@@ -61,10 +61,10 @@ jobs:
           body=$(echo "$response" | sed '$d')
           
           if [ "$http_code" = "200" ] || [ "$http_code" = "201" ] || [ "$http_code" = "202" ]; then
-            echo "✅ Coolify deployment triggered successfully"
+            echo "Coolify deployment triggered successfully"
             echo "Response: $body"
           else
-            echo "⚠️  Coolify deployment failed with status code: $http_code"
+            echo "Warning: Coolify deployment failed with status code: $http_code"
             echo "Response: $body"
             echo "Warning: Docker image pushed but deployment failed"
           fi

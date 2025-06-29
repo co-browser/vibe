@@ -54,10 +54,10 @@ jobs:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
         run: |
           if [ "${{ job.status }}" = "success" ]; then
-            STATUS="✅ Success"
+            STATUS="Success"
             COLOR="3066993"
           else
-            STATUS="❌ Failed"
+            STATUS="Failed"
             COLOR="15158332"
           fi
 
