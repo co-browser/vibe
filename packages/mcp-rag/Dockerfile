@@ -15,19 +15,31 @@ WORKDIR /workspace
 # Copy workspace files
 COPY . .
 
-# Install and build - let pnpm handle everything
-RUN pnpm install --frozen-lockfile --ignore-scripts && \
-    pnpm --filter @vibe/mcp-rag... run build
+# Install without running postinstall scripts
+RUN pnpm install --frozen-lockfile --ignore-scripts
 
-# Setup runtime
+# Build only what we need
+RUN cd packages/shared-types && pnpm run build && \
+    cd ../tab-extraction-core && pnpm run build && \
+    cd ../mcp-rag && pnpm run build
+
+# Setup app
 WORKDIR /app
 
-# Copy everything we need from the built workspace
-RUN cp -r /workspace/packages/mcp-rag/* . && \
-    rm -rf node_modules && \
-    cp -r /workspace/node_modules .
+RUN cp -r /workspace/packages/mcp-rag/dist ./dist && \
+    cp /workspace/packages/mcp-rag/package.json ./ && \
+    mkdir -p /workspace && \
+    cp -r /workspace/packages/shared-types/dist /workspace/shared-types/ && \
+    cp /workspace/packages/shared-types/package.json /workspace/shared-types/ && \
+    cp -r /workspace/packages/tab-extraction-core/dist /workspace/tab-extraction-core/ && \
+    cp /workspace/packages/tab-extraction-core/package.json /workspace/tab-extraction-core/
 
-# Create non-root user
+# Fix workspace dependencies
+RUN sed -i 's|"@vibe/shared-types": "workspace:\*"|"@vibe/shared-types": "file:/workspace/shared-types"|g' package.json && \
+    sed -i 's|"@vibe/tab-extraction-core": "workspace:\*"|"@vibe/tab-extraction-core": "file:/workspace/tab-extraction-core"|g' package.json && \
+    npm install --omit=dev --legacy-peer-deps
+
+# Create user
 RUN addgroup -g 1001 -S nodejs && adduser -S nodejs -u 1001
 USER nodejs
 
