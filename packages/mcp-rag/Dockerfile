@@ -20,7 +20,7 @@ RUN pnpm --filter @vibe/shared-types run build && \
     pnpm --filter @vibe/mcp-rag run build
 
 # Deploy mcp-rag with all dependencies resolved
-RUN pnpm deploy --filter @vibe/mcp-rag --prod /prod/mcp-rag
+RUN pnpm deploy --filter @vibe/mcp-rag --prod --legacy /prod/mcp-rag
 
 # Production stage
 FROM node:20-alpine
