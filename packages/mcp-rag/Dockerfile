@@ -33,7 +33,8 @@ RUN cp -r /workspace/packages/mcp-rag/dist ./dist && \
     cp /workspace/packages/tab-extraction-core/package.json /workspace/tab-extraction-core/
 
 # Fix workspace dependencies
-RUN sed -i 's|"workspace:\*"|"file:/workspace/shared-types"|g; s|"workspace:\*"|"file:/workspace/tab-extraction-core"|g' package.json && \
+RUN sed -i 's|"@vibe/shared-types": "workspace:\*"|"@vibe/shared-types": "file:/workspace/shared-types"|g' package.json && \
+    sed -i 's|"@vibe/tab-extraction-core": "workspace:\*"|"@vibe/tab-extraction-core": "file:/workspace/tab-extraction-core"|g' package.json && \
     npm install --omit=dev --legacy-peer-deps
 
 # Create user
