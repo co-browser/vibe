@@ -1,10 +1,6 @@
-FROM node:20-alpine
+FROM node:20-alpine AS builder
 
-# OCI annotations
-LABEL org.opencontainers.image.source="https://github.com/co-browser/vibe"
-LABEL org.opencontainers.image.description="RAG MCP Server for Vibe"
-
-# Install dependencies
+# Install build dependencies
 RUN apk add --no-cache libc6-compat python3 make g++
 
 # Enable pnpm
@@ -15,33 +11,39 @@ WORKDIR /workspace
 # Copy workspace files
 COPY . .
 
-# Install and build
+# Install and build only what we need
 RUN pnpm install --frozen-lockfile && \
     pnpm --filter @vibe/shared-types build && \
     pnpm --filter @vibe/tab-extraction-core build && \
     pnpm --filter @vibe/mcp-rag build
 
-# Setup app
+# Production stage
+FROM node:20-alpine
+
+# OCI annotations
+LABEL org.opencontainers.image.source="https://github.com/co-browser/vibe"
+LABEL org.opencontainers.image.description="RAG MCP Server for Vibe"
+
+# Install runtime dependencies
+RUN apk add --no-cache libc6-compat
+
 WORKDIR /app
 
-# Copy app files
-RUN cp -r /workspace/packages/mcp-rag/dist ./dist && \
-    cp /workspace/packages/mcp-rag/package.json ./
+# Copy built application
+COPY --from=builder /workspace/packages/mcp-rag/dist ./dist
+COPY --from=builder /workspace/packages/mcp-rag/package.json ./
 
-# Create node_modules structure for local packages
-RUN mkdir -p node_modules/@vibe/shared-types && \
-    cp -r /workspace/packages/shared-types/dist node_modules/@vibe/shared-types/ && \
-    cp /workspace/packages/shared-types/package.json node_modules/@vibe/shared-types/ && \
-    mkdir -p node_modules/@vibe/tab-extraction-core && \
-    cp -r /workspace/packages/tab-extraction-core/dist node_modules/@vibe/tab-extraction-core/ && \
-    cp /workspace/packages/tab-extraction-core/package.json node_modules/@vibe/tab-extraction-core/
+# Copy local dependencies
+COPY --from=builder /workspace/packages/shared-types/dist ./node_modules/@vibe/shared-types/dist
+COPY --from=builder /workspace/packages/shared-types/package.json ./node_modules/@vibe/shared-types/
+COPY --from=builder /workspace/packages/tab-extraction-core/dist ./node_modules/@vibe/tab-extraction-core/dist
+COPY --from=builder /workspace/packages/tab-extraction-core/package.json ./node_modules/@vibe/tab-extraction-core/
 
-# Remove workspace references from package.json
-RUN sed -i '/"@vibe\/shared-types":/d' package.json && \
-    sed -i '/"@vibe\/tab-extraction-core":/d' package.json && \
+# Remove workspace dependencies from package.json and install production deps
+RUN sed -i '/"@vibe\/shared-types":/d; /"@vibe\/tab-extraction-core":/d' package.json && \
     npm install --omit=dev --legacy-peer-deps
 
-# Create user
+# Create non-root user
 RUN addgroup -g 1001 -S nodejs && adduser -S nodejs -u 1001
 USER nodejs
 
