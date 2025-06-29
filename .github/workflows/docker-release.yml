@@ -1,6 +1,8 @@
 name: Docker Release
 
 on:
+  push:
+    branches: [main]
   release:
     types: [published]
 
@@ -15,8 +17,24 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
       
-      - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.12.1
+      
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      
+      - name: Build packages
+        run: |
+          pnpm --filter @vibe/shared-types build
+          pnpm --filter @vibe/tab-extraction-core build
+          pnpm --filter @vibe/mcp-rag build
       
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
@@ -26,35 +44,16 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       
       - name: Build and push Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: packages/mcp-rag/Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: |
-            ghcr.io/co-browser/vibe-rag-server:latest
-            ghcr.io/co-browser/vibe-rag-server:${{ github.ref_name }}
+        run: |
+          docker build -t ghcr.io/co-browser/vibe-rag-server:latest -t ghcr.io/co-browser/vibe-rag-server:${{ github.ref_name }} -f packages/mcp-rag/Dockerfile.simple .
+          docker push ghcr.io/co-browser/vibe-rag-server:latest
+          docker push ghcr.io/co-browser/vibe-rag-server:${{ github.ref_name }}
       
       - name: Deploy to Coolify
         env:
           COOLIFY_API_TOKEN: ${{ secrets.COOLIFY_API_TOKEN }}
+        if: env.COOLIFY_API_TOKEN != ''
         run: |
-          if [ -n "$COOLIFY_API_TOKEN" ]; then
-            response=$(curl -X GET \
-              -H "Authorization: Bearer $COOLIFY_API_TOKEN" \
-              -w "\n%{http_code}" \
-              -s \
-              "https://coolify.cobrowser.xyz/api/v1/deploy?uuid=tgg4k08s0ckwkcwg00cwggs4&force=false")
-            
-            http_code=$(echo "$response" | tail -n1)
-            
-            if [ "$http_code" = "200" ] || [ "$http_code" = "201" ] || [ "$http_code" = "202" ]; then
-              echo "Coolify deployment triggered successfully"
-            else
-              echo "Warning: Coolify deployment failed with status: $http_code"
-              echo "Docker image was pushed successfully"
-            fi
-          else
-            echo "Skipping Coolify deployment - COOLIFY_API_TOKEN not set"
-          fi
+          curl -X GET \
+            -H "Authorization: Bearer $COOLIFY_API_TOKEN" \
+            "https://coolify.cobrowser.xyz/api/v1/deploy?uuid=tgg4k08s0ckwkcwg00cwggs4&force=false"
