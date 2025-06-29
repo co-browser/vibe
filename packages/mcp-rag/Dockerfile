@@ -11,11 +11,13 @@ WORKDIR /workspace
 # Copy workspace files
 COPY . .
 
-# Install and build only what we need
-RUN pnpm install --frozen-lockfile && \
-    pnpm --filter @vibe/shared-types build && \
-    pnpm --filter @vibe/tab-extraction-core build && \
-    pnpm --filter @vibe/mcp-rag build
+# Install dependencies without running scripts (avoids building electron app)
+RUN pnpm install --frozen-lockfile --ignore-scripts
+
+# Build only the packages we need
+RUN pnpm --filter @vibe/shared-types run build && \
+    pnpm --filter @vibe/tab-extraction-core run build && \
+    pnpm --filter @vibe/mcp-rag run build
 
 # Production stage
 FROM node:20-alpine
@@ -29,19 +31,10 @@ RUN apk add --no-cache libc6-compat
 
 WORKDIR /app
 
-# Copy built application
+# Copy built application and its resolved dependencies
 COPY --from=builder /workspace/packages/mcp-rag/dist ./dist
 COPY --from=builder /workspace/packages/mcp-rag/package.json ./
-
-# Copy local dependencies
-COPY --from=builder /workspace/packages/shared-types/dist ./node_modules/@vibe/shared-types/dist
-COPY --from=builder /workspace/packages/shared-types/package.json ./node_modules/@vibe/shared-types/
-COPY --from=builder /workspace/packages/tab-extraction-core/dist ./node_modules/@vibe/tab-extraction-core/dist
-COPY --from=builder /workspace/packages/tab-extraction-core/package.json ./node_modules/@vibe/tab-extraction-core/
-
-# Remove workspace dependencies from package.json and install production deps
-RUN sed -i '/"@vibe\/shared-types":/d; /"@vibe\/tab-extraction-core":/d' package.json && \
-    npm install --omit=dev --legacy-peer-deps
+COPY --from=builder /workspace/packages/mcp-rag/node_modules ./node_modules
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs && adduser -S nodejs -u 1001
