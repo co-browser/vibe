@@ -68,11 +68,23 @@ jobs:
             PREVIOUS_TAG=$(git rev-list --max-parents=0 HEAD)
           fi
           
-          # Generate release body with GitHub CLI
-          gh release edit ${{ github.ref_name }} \
-            --draft=false \
-            --generate-notes \
-            --notes-start-tag "$PREVIOUS_TAG"
+          # Generate release notes
+          BODY=$(gh api \
+            --method POST \
+            -H "Accept: application/vnd.github+json" \
+            /repos/${{ github.repository }}/releases/generate-notes \
+            -f tag_name="${{ github.ref_name }}" \
+            -f target_commitish="main" \
+            -f previous_tag_name="$PREVIOUS_TAG" \
+            --jq '.body')
+          
+          # Update the release
+          gh api \
+            --method PATCH \
+            -H "Accept: application/vnd.github+json" \
+            /repos/${{ github.repository }}/releases/$RELEASE_ID \
+            -f body="$BODY" \
+            -F draft=false
 
       - name: Send Discord notification
         if: always() && env.DISCORD_WEBHOOK != ''
