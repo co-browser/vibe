@@ -17,25 +17,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
       
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10.12.1
-      
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-      
-      - name: Build packages
-        run: |
-          pnpm --filter @vibe/shared-types build
-          pnpm --filter @vibe/tab-extraction-core build
-          pnpm --filter @vibe/mcp-rag build
-      
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -45,7 +26,7 @@ jobs:
       
       - name: Build and push Docker image
         run: |
-          docker build -t ghcr.io/co-browser/vibe-rag-server:latest -t ghcr.io/co-browser/vibe-rag-server:${{ github.ref_name }} -f packages/mcp-rag/Dockerfile.simple .
+          docker build -t ghcr.io/co-browser/vibe-rag-server:latest -t ghcr.io/co-browser/vibe-rag-server:${{ github.ref_name }} -f packages/mcp-rag/Dockerfile .
           docker push ghcr.io/co-browser/vibe-rag-server:latest
           docker push ghcr.io/co-browser/vibe-rag-server:${{ github.ref_name }}
       
