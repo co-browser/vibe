@@ -11,13 +11,19 @@ WORKDIR /app
 
 # Copy pre-built packages
 COPY packages/mcp-rag/dist ./dist
-COPY packages/mcp-rag/package.json ./
+COPY packages/mcp-rag/package.json ./package.json.tmp
 
 # Copy pre-built dependencies
 COPY packages/shared-types/dist ./node_modules/@vibe/shared-types/dist/
 COPY packages/shared-types/package.json ./node_modules/@vibe/shared-types/
 COPY packages/tab-extraction-core/dist ./node_modules/@vibe/tab-extraction-core/dist/
 COPY packages/tab-extraction-core/package.json ./node_modules/@vibe/tab-extraction-core/
+
+# Fix workspace references in package.json
+RUN sed -e 's|"@vibe/shared-types": "workspace:\*"|"@vibe/shared-types": "file:./node_modules/@vibe/shared-types"|g' \
+        -e 's|"@vibe/tab-extraction-core": "workspace:\*"|"@vibe/tab-extraction-core": "file:./node_modules/@vibe/tab-extraction-core"|g' \
+        package.json.tmp > package.json && \
+    rm package.json.tmp
 
 # Install production dependencies only
 RUN npm install --omit=dev --legacy-peer-deps
