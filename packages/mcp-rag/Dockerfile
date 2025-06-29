@@ -1,6 +1,10 @@
-FROM node:20-alpine AS builder
+FROM node:20-alpine
 
-# Install build dependencies
+# OCI annotations
+LABEL org.opencontainers.image.source="https://github.com/co-browser/vibe"
+LABEL org.opencontainers.image.description="RAG MCP Server for Vibe"
+
+# Install dependencies
 RUN apk add --no-cache libc6-compat python3 make g++
 
 # Enable pnpm
@@ -8,44 +12,20 @@ RUN corepack enable && corepack prepare pnpm@10.12.1 --activate
 
 WORKDIR /workspace
 
-# Copy only necessary files for dependency resolution
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY packages/shared-types/package.json ./packages/shared-types/
-COPY packages/tab-extraction-core/package.json ./packages/tab-extraction-core/
-COPY packages/mcp-rag/package.json ./packages/mcp-rag/
+# Copy workspace files
+COPY . .
 
-# Install dependencies for mcp-rag only
-RUN pnpm install --frozen-lockfile --ignore-scripts --filter @vibe/mcp-rag...
+# Install and build - let pnpm handle everything
+RUN pnpm install --frozen-lockfile --ignore-scripts && \
+    pnpm --filter @vibe/mcp-rag... run build
 
-# Copy source files
-COPY packages/shared-types ./packages/shared-types
-COPY packages/tab-extraction-core ./packages/tab-extraction-core
-COPY packages/mcp-rag ./packages/mcp-rag
-
-# Build only what we need
-RUN pnpm --filter @vibe/shared-types run build && \
-    pnpm --filter @vibe/tab-extraction-core run build && \
-    pnpm --filter @vibe/mcp-rag run build
-
-# Production stage
-FROM node:20-alpine
-
-# OCI annotations
-LABEL org.opencontainers.image.source="https://github.com/co-browser/vibe"
-LABEL org.opencontainers.image.description="RAG MCP Server for Vibe"
-
-# Install runtime dependencies
-RUN apk add --no-cache libc6-compat
-
+# Setup runtime
 WORKDIR /app
 
-# Copy built application
-COPY --from=builder /workspace/packages/mcp-rag/dist ./dist
-COPY --from=builder /workspace/packages/mcp-rag/package.json ./
-
-# Copy all node_modules including workspace packages
-COPY --from=builder /workspace/node_modules ./node_modules
-COPY --from=builder /workspace/packages ./packages
+# Copy everything we need from the built workspace
+RUN cp -r /workspace/packages/mcp-rag/* . && \
+    rm -rf node_modules && \
+    cp -r /workspace/node_modules .
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs && adduser -S nodejs -u 1001
