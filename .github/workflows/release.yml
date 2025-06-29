@@ -6,18 +6,18 @@ on:
       - 'v*'
 
 jobs:
-  build-and-release:
+  build:
     runs-on: macos-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Need full history for changelog
+          fetch-depth: 0
           token: ${{ secrets.RELEASE_PAT || github.token }}
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v2
+        uses: pnpm/action-setup@v4
         with:
           version: 10.12.1
 
@@ -30,7 +30,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build Electron app for macOS
+      
+      - name: Build macOS app
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWOR }}
@@ -39,54 +40,55 @@ jobs:
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
           NODE_ENV: production
           GH_TOKEN: ${{ secrets.RELEASE_PAT || secrets.GITHUB_TOKEN }}
-        run: |
-          echo "Building Electron app for macOS..."
-          pnpm --filter vibe build:mac
+        run: pnpm --filter vibe build:mac
 
-      - name: List build artifacts
+      - name: List artifacts
+        run: ls -la apps/electron-app/dist/
+      
+      
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PAT || secrets.GITHUB_TOKEN }}
         run: |
-          echo "Build artifacts:"
-          ls -la apps/electron-app/dist/
+          sleep 10
+          
+          # Get the release ID
+          RELEASE_ID=$(gh api repos/${{ github.repository }}/releases --jq '.[] | select(.tag_name == "${{ github.ref_name }}" and .draft == true) | .id' | head -1)
+          
+          if [ -z "$RELEASE_ID" ]; then
+            echo "No draft release found for ${{ github.ref_name }}"
+            exit 1
+          fi
+          
+          echo "Found draft release ID: $RELEASE_ID"
+          
+          PREVIOUS_TAG=$(git describe --tags --abbrev=0 ${{ github.ref_name }}^ 2>/dev/null || echo "")
+          
+          if [ -z "$PREVIOUS_TAG" ]; then
+            PREVIOUS_TAG=$(git rev-list --max-parents=0 HEAD)
+          fi
+          
+          # Generate release body with GitHub CLI
+          gh release edit ${{ github.ref_name }} \
+            --draft=false \
+            --generate-notes \
+            --notes-start-tag "$PREVIOUS_TAG"
 
-      - name: Notify Discord
-        if: always()
+      - name: Send Discord notification
+        if: always() && env.DISCORD_WEBHOOK != ''
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
         run: |
-          if [ "${{ job.status }}" = "success" ]; then
-            STATUS="Success"
-            COLOR="3066993"
-          else
-            STATUS="Failed"
-            COLOR="15158332"
-          fi
-
-          if [ -n "$DISCORD_WEBHOOK" ]; then
-            curl -X POST "$DISCORD_WEBHOOK" \
-              -H "Content-Type: application/json" \
-              -d "{
-                \"embeds\": [{
-                  \"title\": \"Vibe Release ${{ github.ref_name }}\",
-                  \"description\": \"Release build status: $STATUS\",
-                  \"color\": $COLOR,
-                  \"fields\": [
-                    {
-                      \"name\": \"Version\",
-                      \"value\": \"${{ github.ref_name }}\",
-                      \"inline\": true
-                    },
-                    {
-                      \"name\": \"Platform\",
-                      \"value\": \"macOS\",
-                      \"inline\": true
-                    },
-                    {
-                      \"name\": \"Workflow\",
-                      \"value\": \"[View Run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})\",
-                      \"inline\": false
-                    }
-                  ],
-                  \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%S.000Z)\"
-                }]
-              }"
-          fi
+          COLOR=$([[ "${{ job.status }}" == "success" ]] && echo "3066993" || echo "15158332")
+          STATUS=$([[ "${{ job.status }}" == "success" ]] && echo "Success" || echo "Failed")
+          
+          curl -X POST "$DISCORD_WEBHOOK" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"embeds\": [{
+                \"title\": \"Release ${{ github.ref_name }}\",
+                \"description\": \"Build status: $STATUS\",
+                \"color\": $COLOR,
+                \"url\": \"https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\"
+              }]
+            }"

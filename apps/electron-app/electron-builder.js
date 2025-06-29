@@ -98,7 +98,7 @@ module.exports = {
     provider: "github",
     owner: "co-browser",
     repo: "vibe",
-    releaseType: "release",
+    releaseType: "draft",
     publishAutoUpdate: true
   },
   electronDownload: {
