@@ -1,5 +1,10 @@
-on: pull_request
-name: pull_request
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
 
 jobs:
   lint-and-typecheck:
@@ -59,24 +64,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build packages
-        run: pnpm build
-
-      - name: Run tests
+      - name: Run Tests
         run: pnpm test
-        continue-on-error: true # Allow to continue since tests may not be set up yet
 
-  slack-notifications:
-    if: always()
-    uses: ./.github/workflows/slack-notifications.yml
-    needs:
-      - test
-      - lint-and-typecheck
-    secrets:
-      SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
-    with:
-      status: ${{ (needs.lint-and-typecheck.result == 'success' && needs.test.result == 'success') && 'success' || 'failure' }}
-      actor: ${{ github.actor }}
-      repository: ${{ github.repository }}
-      branch: ${{ github.event.pull_request.head.ref }}
-      run_id: ${{ github.run_id }}
+      - name: Create test summary
+        uses: test-summary/action@v2
+        if: always()
+        with:
+          paths: "**/*junit.xml"
