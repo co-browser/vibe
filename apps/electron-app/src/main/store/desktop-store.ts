@@ -76,6 +76,13 @@ export const getSecureItem = (key: string) => {
 };
 
 export const setSecureItem = (key: string, value: string): void => {
+  if (!key || typeof key !== "string") {
+    throw new Error("Invalid key");
+  }
+  if (!value || typeof value !== "string") {
+    throw new Error("Invalid value");
+  }
+
   const available = safeStorage.isEncryptionAvailable();
   if (!available) {
     logger.error("safeStorage is not available");
@@ -168,13 +175,8 @@ export const NewUserStore = async (
       return false;
     }
 
-    // Create a random password using system time and other randomness
-    const timestamp = Date.now().toString();
-    const randomBytesBuffer = randomBytes(32);
-    const randomHex = Array.from(randomBytesBuffer, (byte: number) =>
-      byte.toString(16).padStart(2, "0"),
-    ).join("");
-    randomPassword = `${timestamp}-${randomHex}-${Math.random().toString(36).substring(2)}`;
+    // Create a cryptographically secure random password
+    randomPassword = randomBytes(64).toString("base64url");
 
     // Store the password in the system keychain
     const entry = new Entry("xyz.cobrowser.vibe", "encrypted_store");
@@ -244,7 +246,7 @@ export const UserDataRecover = async (): Promise<boolean> => {
         );
         decryptedData[key] = decryptedValue;
 
-        logger.debug(`Successfully decrypted data for key: ${key}`);
+        logger.debug(`Successfully decrypted data for key: [REDACTED]`);
       } catch (decryptError) {
         logger.error(`Failed to decrypt data for key ${key}:`, decryptError);
         // Continue with other keys even if one fails

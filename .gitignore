@@ -158,3 +158,5 @@ tmp/
 temp/
 tmp-build/
 *.tsbuildinfo
+scripts/release.sh
+scripts/start-vibe.sh
