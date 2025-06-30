@@ -188,8 +188,8 @@ export const NewUserStore = async (
       return false;
     }
 
-    // Store the password reference in our VibeDict
-    setSecureItem("keychain_password", storedPassword);
+    // Store a flag indicating keychain has been configured
+    setSecureItem("keychain_configured", "true");
 
     // Also store a flag indicating Touch ID was used for initialization
     setSecureItem("touch_id_initialized", "true");
@@ -235,8 +235,8 @@ export const UserDataRecover = async (): Promise<boolean> => {
 
     for (const [key, encryptedValue] of Object.entries(encryptedData)) {
       try {
-        // Skip the keychain_password key as it's the reference, not encrypted data
-        if (key === "keychain_password") {
+        // Skip configuration flags, not encrypted user data
+        if (key === "keychain_configured" || key === "touch_id_initialized") {
           continue;
         }
 
