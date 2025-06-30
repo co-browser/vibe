@@ -21,6 +21,7 @@ const JSON_RPC_ERROR = -32603;
 
 export class StreamableHTTPServer {
   server: Server;
+  private userContext = new WeakMap<any, string>();
 
   constructor(server: Server) {
     this.server = server;
@@ -40,6 +41,13 @@ export class StreamableHTTPServer {
 
   async handlePostRequest(req: Request, res: Response) {
     log.info(`POST ${req.originalUrl} (${req.ip}) - payload:`, req.body);
+    
+    // Extract userId from authenticated request
+    const userId = req.user?.id;
+    if (userId) {
+      log.info(`Request from authenticated user: ${userId}`);
+    }
+    
     try {
       const transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: undefined,
@@ -49,6 +57,11 @@ export class StreamableHTTPServer {
 
       await this.server.connect(transport as any);
       log.success('Transport connected. Handling request...');
+
+      // Store userId in context if available
+      if (userId) {
+        this.userContext.set(transport, userId);
+      }
 
       await transport.handleRequest(req, res, req.body);
       res.on('close', () => {
@@ -81,7 +94,7 @@ export class StreamableHTTPServer {
     
     this.server.setRequestHandler(
       CallToolRequestSchema,
-      async (request, _extra) => {
+      async (request, extra) => {
         const args = request.params.arguments;
         const toolName = request.params.name;
         const tool = RAGTools.find((tool) => tool.name === toolName);
@@ -96,7 +109,11 @@ export class StreamableHTTPServer {
         
         try {
           log.info(`Executing tool ${toolName}...`);
-          const result = await tool.execute(args as any);
+          // Get userId from the transport context
+          const transport = (extra as any)?._transport;
+          const userId = transport ? this.userContext.get(transport) : undefined;
+          const argsWithUserId = userId ? { ...args, userId } : args;
+          const result = await tool.execute(argsWithUserId as any);
           log.success(`Tool ${toolName} executed successfully. Result:`, result);
           
           const response = {

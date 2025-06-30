@@ -7,6 +7,9 @@ import { EventEmitter } from "events";
 import { utilityProcess, type UtilityProcess } from "electron";
 import path from "path";
 import fs from "fs";
+import { createLogger } from "@vibe/shared-types";
+
+const logger = createLogger("MCPWorker");
 
 export class MCPWorker extends EventEmitter {
   private workerProcess: UtilityProcess | null = null;
@@ -25,9 +28,9 @@ export class MCPWorker extends EventEmitter {
   async start(): Promise<void> {
     try {
       await this.createWorkerProcess();
-      console.log("[MCPWorker] Worker process started successfully");
+      logger.info("Worker process started successfully");
     } catch (error) {
-      console.error("[MCPWorker] Failed to start worker:", error);
+      logger.error("Failed to start worker:", error);
       throw error;
     }
   }
@@ -73,15 +76,13 @@ export class MCPWorker extends EventEmitter {
 
     // Verify file exists before creating process
     if (!fs.existsSync(workerPath)) {
-      console.error(`[MCPWorker] Worker process file not found: ${workerPath}`);
+      logger.error(`Worker process file not found: ${workerPath}`);
       throw new Error(
         `MCP worker process file not found at ${workerPath}. Please ensure the build process has completed successfully.`,
       );
     }
 
-    if (process.env.LOG_LEVEL === "debug") {
-      console.log("[MCPWorker] Creating utility process:", workerPath);
-    }
+    logger.debug("Creating utility process:", workerPath);
 
     // Create utility process using Electron's utilityProcess.fork()
     // Filter out undefined environment variables to avoid "Invalid value for env" error
@@ -93,6 +94,8 @@ export class MCPWorker extends EventEmitter {
       GMAIL_CLIENT_ID: process.env.GMAIL_CLIENT_ID,
       GMAIL_CLIENT_SECRET: process.env.GMAIL_CLIENT_SECRET,
       // RAG server environment variables
+      USE_LOCAL_RAG_SERVER: process.env.USE_LOCAL_RAG_SERVER,
+      RAG_SERVER_URL: process.env.RAG_SERVER_URL,
       OPENAI_API_KEY: process.env.OPENAI_API_KEY,
       TURBOPUFFER_API_KEY: process.env.TURBOPUFFER_API_KEY,
       ENABLE_PPL_CHUNKING: process.env.ENABLE_PPL_CHUNKING,
@@ -116,13 +119,13 @@ export class MCPWorker extends EventEmitter {
     // Capture stdout and stderr
     if (this.workerProcess.stdout) {
       this.workerProcess.stdout.on("data", data => {
-        console.log("[MCPWorker stdout]:", data.toString());
+        logger.info("Worker stdout:", data.toString());
       });
     }
 
     if (this.workerProcess.stderr) {
       this.workerProcess.stderr.on("data", data => {
-        console.error("[MCPWorker stderr]:", data.toString());
+        logger.error("Worker stderr:", data.toString());
       });
     }
 
@@ -155,32 +158,23 @@ export class MCPWorker extends EventEmitter {
       this.workerProcess!.on("message", readyHandler);
     });
 
-    if (process.env.LOG_LEVEL === "debug") {
-      console.log("[MCPWorker] Worker process connected and ready");
-    }
+    logger.debug("Worker process connected and ready");
   }
 
   /**
    * Handle messages from worker process
    */
   private handleWorkerMessage(message: any): void {
-    if (process.env.LOG_LEVEL === "debug") {
-      console.log("[MCPWorker] Received message from worker:", message.type);
-    }
+    logger.debug("Received message from worker:", message.type);
 
     if (message.type === "ready") {
       // Additional ready handling if needed
-      if (process.env.LOG_LEVEL === "debug") {
-        console.log("[MCPWorker] Worker ready signal received");
-      }
+      logger.debug("Worker ready signal received");
     } else if (message.type === "mcp-server-status") {
       // Forward MCP server status updates
       this.emit("mcp-server-status", message.data);
     } else {
-      console.warn(
-        "[MCPWorker] Unknown message type from worker:",
-        message.type,
-      );
+      logger.warn("Unknown message type from worker:", message.type);
     }
   }
 
@@ -188,7 +182,7 @@ export class MCPWorker extends EventEmitter {
    * Handle worker process exit
    */
   private handleWorkerExit(code: number): void {
-    console.warn(`[MCPWorker] Worker process exited with code ${code}`);
+    logger.warn(`Worker process exited with code ${code}`);
     this.isConnected = false;
 
     // Emit disconnected event
@@ -202,7 +196,7 @@ export class MCPWorker extends EventEmitter {
     ) {
       this.attemptRestart();
     } else if (this.restartCount >= this.maxRestarts) {
-      console.error("[MCPWorker] Max restart attempts reached");
+      logger.error("Max restart attempts reached");
       this.emit("error", new Error("Worker process repeatedly crashed"));
     }
   }
@@ -216,8 +210,8 @@ export class MCPWorker extends EventEmitter {
     this.isRestarting = true;
     this.restartCount++;
 
-    console.log(
-      `[MCPWorker] Auto-restarting worker (attempt ${this.restartCount}/${this.maxRestarts})`,
+    logger.info(
+      `Auto-restarting worker (attempt ${this.restartCount}/${this.maxRestarts})`,
     );
 
     try {
@@ -233,14 +227,11 @@ export class MCPWorker extends EventEmitter {
       // Reset restart flag on success
       this.isRestarting = false;
 
-      console.log("[MCPWorker] Worker successfully restarted");
+      logger.info("Worker successfully restarted");
       this.emit("restarted", { restartCount: this.restartCount });
     } catch (error) {
       this.isRestarting = false;
-      console.error(
-        `[MCPWorker] Restart attempt ${this.restartCount} failed:`,
-        error,
-      );
+      logger.error(`Restart attempt ${this.restartCount} failed:`, error);
 
       // Try again if we haven't hit the limit
       if (this.restartCount < this.maxRestarts) {

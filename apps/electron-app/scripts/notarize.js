@@ -30,7 +30,7 @@ async function retryNotarize(options, retries = 5, delay = 5000) {
 
 export default async function notarizing(context) {
   const { electronPlatformName, appOutDir } = context;
-const appName = context.packager.appInfo.productFilename
+  const appName = context.packager.appInfo.productFilename;
   if (electronPlatformName !== 'darwin') {
     console.log('[cobrowser-sign]: Skipping notarization: Not a macOS build.');
     return;
@@ -53,11 +53,7 @@ const appName = context.packager.appInfo.productFilename
       });
       console.log('[cobrowser-sign]: Notarization complete!');
     } catch (error) {
-      console.error('[cobrowser-sign]: motarization failed:', error);
+      console.error('[cobrowser-sign]: Notarization failed:', error);
       throw error;
     }
-  
-
-
-
 }

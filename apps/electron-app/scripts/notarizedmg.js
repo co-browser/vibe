@@ -66,7 +66,7 @@ export default async function notarizing(context) {
 
   const dmgFilePath = findDmgFile(appOutDir);
   if (dmgFilePath) {
-    console.log(`Found .dmg file: ${dmgFilePath}`);
+    console.log(`[cobrowser-sign]: Found .dmg file: ${dmgFilePath}`);
     try {
       await retryNotarize({
         tool: 'notarytool',
@@ -78,13 +78,10 @@ export default async function notarizing(context) {
       });
       console.log('[cobrowser-sign]: Notarization complete!');
     } catch (error) {
-      console.error('[cobrowser-sign]: motarization failed:', error);
+      console.error('[cobrowser-sign]: Notarization failed:', error);
       throw error;
     }
   } else {
     console.error(`[cobrowser-sign]: No .dmg file found in ${appOutDir}`);
   }
-
-
-
 }

@@ -71,6 +71,7 @@ export interface IMCPToolRouter {
 
 export interface IMCPManager {
   initialize(configs: MCPServerConfig[]): Promise<void>;
+  updateAuthToken(token: string | null): Promise<void>;
   getConnection(serverName: string): MCPConnection | null;
   getAllTools(): Promise<Record<string, MCPTool>>;
   callTool<T = unknown>(

@@ -4,6 +4,7 @@ import { ActionButton } from "@/components/ui/action-button";
 import { StatusIndicator } from "@/components/ui/status-indicator";
 import { TabContextDisplay } from "@/components/ui/tab-context-display";
 import { GmailAuthButton } from "@/components/auth/GmailAuthButton";
+import { PrivyAuthButton } from "@/components/auth/PrivyAuthButton";
 import { TabAliasSuggestions } from "./TabAliasSuggestions";
 import { TabContextBar } from "./TabContextBar";
 import { useTabContext } from "@/hooks/useTabContextUtils";
@@ -202,7 +203,10 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             moreTabsCount={moreTabsCount}
           />
         </div>
-        <GmailAuthButton />
+        <div style={{ display: "flex", gap: "6px" }}>
+          <GmailAuthButton />
+          <PrivyAuthButton />
+        </div>
       </div>
       {selectedTabs.length > 0 && (
         <TabContextBar

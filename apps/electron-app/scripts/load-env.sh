@@ -27,4 +27,4 @@ if [ -z "$GITHUB_TOKEN" ]; then
   echo "Warning: GITHUB_TOKEN not found in environment or .env"
 else
   echo "GITHUB_TOKEN is available"
-fi 
+fi

@@ -528,6 +528,67 @@
   gap: 4px;
 }
 
+/* Auth pills - modern stamped design */
+.auth-pill {
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  background: #f3f4f6;
+  box-shadow:
+    inset 1px 1px 2px rgba(0, 0, 0, 0.1),
+    inset -1px -1px 2px rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  position: relative;
+  z-index: 0;
+}
+
+.auth-pill:hover {
+  transform: translateY(-0.5px);
+}
+
+.auth-pill:active {
+  transform: translateY(0);
+  box-shadow:
+    inset 2px 2px 3px rgba(0, 0, 0, 0.12),
+    inset -1px -1px 2px rgba(255, 255, 255, 0.5);
+}
+
+/* Disconnected state */
+.auth-pill.disconnected {
+  color: #9ca3af;
+  background: #e5e7eb;
+}
+
+/* Connected state */
+.auth-pill:not(.disconnected) {
+  color: #374151;
+  background: #f3f4f6;
+  box-shadow:
+    inset 1px 1px 2px rgba(0, 0, 0, 0.1),
+    inset -1px -1px 2px rgba(255, 255, 255, 0.7);
+}
+
+/* Pill label text */
+.pill-label {
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  position: relative;
+  z-index: 1;
+}
+
+/* Icon styling within pills */
+.auth-pill svg {
+  width: 12px;
+  height: 12px;
+  position: relative;
+  z-index: 1;
+}
+
 /* Status indicator pill */
 .status-indicator-pill {
   width: 18px;
@@ -571,37 +632,77 @@
   animation: pulse-loading 1s infinite;
 }
 
-/* Gmail icon pill */
-.gmail-icon-pill {
-  width: 24px;
-  height: 24px;
-  border-radius: 12px;
-  background-color: var(--chat-background-primary);
-  box-shadow:
-    var(--shadow-sm),
-    inset 0 1px 2px rgba(0, 0, 0, 0.03);
-  border: 1px solid var(--chat-border-subtle);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.15s ease;
-  cursor: pointer;
-}
-
-.gmail-icon-pill:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-  background-color: var(--chat-background-input);
-}
-
+/* Icon size for auth pills */
 .gmail-icon {
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
 }
 
-/* Gmail SVG colors - apply brand colors to the icon */
-.gmail-icon-pill svg {
-  color: #ea4335;
+/* Rainbow gradient for connected state - both pills */
+.auth-pill:not(.disconnected)::before {
+  content: "";
+  position: absolute;
+  inset: -0.5px;
+  border-radius: 12.5px;
+  background: linear-gradient(
+    90deg,
+    #ff0000,
+    #ff7f00,
+    #ffff00,
+    #00ff00,
+    #0000ff,
+    #4b0082,
+    #8f00ff,
+    #ff0000
+  );
+  background-size: 200% 200%;
+  animation: rainbow 3s linear infinite;
+  z-index: -2;
+  opacity: 0.6;
+}
+
+/* Inner background for rainbow border effect */
+.auth-pill:not(.disconnected)::after {
+  content: "";
+  position: absolute;
+  inset: 0.25px;
+  border-radius: 11.75px;
+  background: #f3f4f6;
+  box-shadow:
+    inset 1px 1px 2px rgba(0, 0, 0, 0.1),
+    inset -1px -1px 2px rgba(255, 255, 255, 0.7);
+  z-index: -1;
+}
+
+/* Privy icon styling */
+.privy-icon {
+  width: 12px;
+  height: 12px;
+  z-index: 1;
+}
+
+/* Rainbow animation */
+@keyframes rainbow {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 200% 50%;
+  }
+}
+
+/* Spin animation for loading icons */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
 }
 
 /* Pulsating animations */
