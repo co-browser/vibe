@@ -9,6 +9,7 @@ export interface AgentConfig {
   model?: string;
   temperature?: number;
   processorType?: "react" | "coact";
+  authToken?: string | null;
 }
 
 export interface AgentStatus {
@@ -38,6 +39,7 @@ export interface IAgentProvider {
   getStatus(): AgentStatus;
   reset(): Promise<void>;
   saveTabMemory(extractedPage: ExtractedPage): Promise<void>;
+  updateAuthToken(token: string | null): Promise<void>;
 
   // Event handling
   on(event: "message-stream", listener: (data: any) => void): void;
