@@ -93,7 +93,7 @@ export const setSecureItem = (key: string, value: string): void => {
     items[key] = safeStorage.encryptString(value).toString("hex");
     store.set(VibeDict.EncryptedData, items);
   } catch {
-    logger.error(`failed to encrypt ${key}`);
+    logger.error(`failed to encrypt [REDACTED]`);
   }
 };
 
