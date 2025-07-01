@@ -200,12 +200,8 @@ export const NewUserStore = async (
     logger.error("Error in NewUserStore:", error);
     return false;
   } finally {
-    // Clear sensitive data from memory
-    if (randomPassword) {
-      // Overwrite the string with zeros to clear it from memory
-      randomPassword = "0".repeat(randomPassword.length);
-      randomPassword = null;
-    }
+  } finally {
+    randomPassword = null;
   }
 };
 
