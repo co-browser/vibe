@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect, Suspense } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { Float, Stars } from "@react-three/drei";
+import { Float, Stars, OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
 import { motion, AnimatePresence } from "framer-motion";
+import noiseImage from "../../assets/noise.png";
 
 // Types
 interface ChromeProfile {
@@ -10,6 +11,76 @@ interface ChromeProfile {
   path: string;
   lastModified: Date;
   browser: string;
+}
+
+// Scrambled placeholder component
+function ScrambledPlaceholder({ isActive }: { isActive: boolean }) {
+  const [displayText, setDisplayText] = useState("enter your name");
+  const [isScrambling, setIsScrambling] = useState(false);
+  
+  const names = [
+    "Alex Chen", "Jordan Smith", "Taylor Davis", "Morgan Lee", 
+    "Casey Wilson", "River Johnson", "Sage Anderson", "Quinn Miller",
+    "Blake Taylor", "Avery Brown", "Cameron White", "Dakota Jones"
+  ];
+  
+  const scrambleChars = "!@#$%^&*()_+-=[]{}|;:,.<>?/~`";
+  
+  useEffect(() => {
+    if (!isActive) return;
+    
+    const interval = setInterval(() => {
+      // Start scrambling
+      setIsScrambling(true);
+      const targetName = names[Math.floor(Math.random() * names.length)];
+      let currentIndex = 0;
+      
+      const scrambleInterval = setInterval(() => {
+        if (currentIndex <= targetName.length) {
+          const scrambled = targetName
+            .split('')
+            .map((char, index) => {
+              if (index < currentIndex) return char;
+              return scrambleChars[Math.floor(Math.random() * scrambleChars.length)];
+            })
+            .join('');
+          setDisplayText(scrambled);
+          currentIndex++;
+        } else {
+          clearInterval(scrambleInterval);
+          setIsScrambling(false);
+          // Keep the name for 2 seconds before starting over
+          setTimeout(() => {
+            // Scramble back to "enter your name"
+            let backIndex = 0;
+            const backInterval = setInterval(() => {
+              if (backIndex <= "enter your name".length) {
+                const scrambled = "enter your name"
+                  .split('')
+                  .map((char, index) => {
+                    if (index < backIndex) return char;
+                    return scrambleChars[Math.floor(Math.random() * scrambleChars.length)];
+                  })
+                  .join('');
+                setDisplayText(scrambled);
+                backIndex++;
+              } else {
+                clearInterval(backInterval);
+              }
+            }, 50);
+          }, 2000);
+        }
+      }, 50);
+    }, 3000);
+    
+    return () => clearInterval(interval);
+  }, [isActive]);
+  
+  return (
+    <span className={`${isScrambling ? 'font-mono' : ''}`}>
+      {displayText}
+    </span>
+  );
 }
 
 // Gemini-style progress bar component
@@ -26,7 +97,7 @@ function GeminiProgressBar({
       <div className="h-1 bg-gray-800 rounded-full overflow-hidden">
         {/* Progress fill */}
         <motion.div
-          className="h-full bg-blue-500"
+          className="h-full bg-green-700"
           initial={{ width: "0%" }}
           animate={{ width: `${progress}%` }}
           transition={{ duration: 0.5, ease: "easeOut" }}
@@ -45,8 +116,8 @@ function GeminiProgressBar({
               className="absolute h-full w-16"
               style={{
                 background:
-                  "linear-gradient(90deg, transparent 0%, rgba(59, 130, 246, 0.8) 50%, transparent 100%)",
-                boxShadow: "0 0 20px rgba(59, 130, 246, 0.8)",
+                  "linear-gradient(90deg, transparent 0%, rgba(34, 197, 94, 0.8) 50%, transparent 100%)",
+                boxShadow: "0 0 20px rgba(34, 197, 94, 0.8)",
               }}
             />
           </motion.div>
@@ -61,7 +132,7 @@ function GeminiProgressBar({
           transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
           style={{
             background:
-              "conic-gradient(from 0deg, transparent, #3b82f6, transparent 180deg)",
+              "conic-gradient(from 0deg, transparent, #15803d, transparent 180deg)",
           }}
         />
         <div className="absolute inset-[2px] bg-black rounded-full" />
@@ -70,87 +141,108 @@ function GeminiProgressBar({
   );
 }
 
-// 3D Background Scene Component
-function Scene() {
-  const fogRef = useRef<THREE.Group>(null);
-
-  useFrame(state => {
-    if (fogRef.current) {
-      // Animate fog layers
-      fogRef.current.children.forEach((child, i) => {
-        if (child instanceof THREE.Mesh) {
-          child.position.y =
-            -4 + Math.sin(state.clock.getElapsedTime() * 0.5 + i * 0.5) * 0.3;
-          child.rotation.z =
-            Math.sin(state.clock.getElapsedTime() * 0.2 + i * 0.3) * 0.02;
-        }
-      });
+// Animated background component with lava lamp effect
+function AnimatedBackground() {
+  const meshRef = useRef<THREE.Mesh>();
+  const [texture, setTexture] = useState<THREE.Texture | null>(null);
+  
+  useEffect(() => {
+    const loader = new THREE.TextureLoader();
+    loader.load(noiseImage, (loadedTexture) => {
+      loadedTexture.wrapS = THREE.ClampToEdgeWrapping;
+      loadedTexture.wrapT = THREE.ClampToEdgeWrapping;
+      setTexture(loadedTexture);
+    });
+  }, []);
+  
+  useFrame((state) => {
+    if (meshRef.current && meshRef.current.material) {
+      const material = meshRef.current.material as THREE.ShaderMaterial;
+      if (material.uniforms?.time) {
+        material.uniforms.time.value = state.clock.elapsedTime;
+      }
     }
   });
+  
+  if (!texture) return null;
+  
+  return (
+    <mesh ref={meshRef} position={[0, 0, -30]} scale={[80, 80, 1]}>
+      <planeGeometry args={[1, 1, 32, 32]} />
+      <shaderMaterial
+        uniforms={{
+          time: { value: 0 },
+          noiseTexture: { value: texture },
+          color1: { value: new THREE.Color("#FFD700") },
+          color2: { value: new THREE.Color("#FFA500") },
+        }}
+        vertexShader={`
+          varying vec2 vUv;
+          void main() {
+            vUv = uv;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          }
+        `}
+        fragmentShader={`
+          uniform float time;
+          uniform sampler2D noiseTexture;
+          uniform vec3 color1;
+          uniform vec3 color2;
+          varying vec2 vUv;
+          
+          void main() {
+            vec2 uv = vUv;
+            float edgeWidth = 0.2;
+            float distFromEdgeX = min(uv.x, 1.0 - uv.x);
+            float distFromEdgeY = min(uv.y, 1.0 - uv.y);
+            float distFromEdge = min(distFromEdgeX, distFromEdgeY);
+            
+            if (distFromEdge < edgeWidth) {
+              float normalizedDist = distFromEdge / edgeWidth;
+              float wave1 = sin(time * 0.8 + uv.y * 6.0) * 0.05;
+              float wave2 = cos(time * 0.6 + uv.x * 5.0) * 0.08;
+              float wave3 = sin(time * 1.2 + (uv.x + uv.y) * 7.0) * 0.03;
+              float distortion = (1.0 - normalizedDist) * (wave1 + wave2 + wave3);
+              uv += distortion;
+            }
+            
+            vec4 noise = texture2D(noiseTexture, uv);
+            vec3 color = mix(color1, color2, noise.r);
+            float edgeFactor = distFromEdge < edgeWidth ? 1.0 + (1.0 - distFromEdge / edgeWidth) * 0.5 : 1.0;
+            color *= edgeFactor;
+            float shimmer = sin(time * 2.0) * 0.1 + 0.9;
+            gl_FragColor = vec4(color, noise.r * 0.4 * shimmer);
+          }
+        `}
+        transparent
+        side={THREE.DoubleSide}
+        blending={THREE.AdditiveBlending}
+      />
+    </mesh>
+  );
+}
 
+// 3D Background Scene Component
+function Scene() {
   return (
     <>
-      <fog attach="fog" args={["#000", 1, 20]} />
-      <ambientLight intensity={0.05} />
-
-      {/* Soft blue lighting from below */}
-      <pointLight position={[0, -5, 0]} color="#0080ff" intensity={2} />
-      <pointLight position={[10, -5, 10]} color="#4488ff" intensity={1} />
-      <pointLight position={[-10, -5, -10]} color="#0066ff" intensity={1} />
-
-      {/* Dense fog layers at bottom */}
-      <group ref={fogRef}>
-        {/* Main fog bank */}
-        {[...Array(15)].map((_, i) => (
-          <mesh
-            key={`fog-main-${i}`}
-            position={[0, -4 + i * 0.1, 0]}
-            rotation={[-Math.PI / 2, 0, 0]}
-          >
-            <planeGeometry args={[100, 100]} />
-            <meshStandardMaterial
-              color="#ffffff"
-              emissive="#0080ff"
-              emissiveIntensity={0.05 - i * 0.003}
-              opacity={0.2 - i * 0.01}
-              transparent
-              depthWrite={false}
-            />
-          </mesh>
-        ))}
-
-        {/* Drifting fog patches */}
-        {[...Array(10)].map((_, i) => (
-          <Float
-            key={`fog-float-${i}`}
-            speed={0.5 + Math.random() * 0.5}
-            rotationIntensity={0.1}
-            floatIntensity={0.5}
-          >
-            <mesh
-              position={[
-                (Math.random() - 0.5) * 40,
-                -3 + Math.random() * 2,
-                (Math.random() - 0.5) * 40,
-              ]}
-              rotation={[-Math.PI / 2, 0, Math.random() * Math.PI]}
-            >
-              <planeGeometry
-                args={[20 + Math.random() * 20, 20 + Math.random() * 20]}
-              />
-              <meshStandardMaterial
-                color="#ffffff"
-                emissive="#0080ff"
-                emissiveIntensity={0.02}
-                opacity={0.15}
-                transparent
-                depthWrite={false}
-              />
-            </mesh>
-          </Float>
-        ))}
-      </group>
-
+      <ambientLight intensity={0.1} />
+      {/* Directional light from top left with gold tint */}
+      <directionalLight
+        position={[-10, 10, 5]}
+        intensity={0.8}
+        color="#FFD700"
+      />
+      {/* Subtle point light for depth */}
+      <pointLight
+        position={[-15, 15, 10]}
+        intensity={0.5}
+        color="#FFA500"
+      />
+      
+      {/* Animated background with lava lamp effect */}
+      <AnimatedBackground />
+      
       <Stars
         radius={100}
         depth={50}
@@ -158,6 +250,22 @@ function Scene() {
         factor={3}
         saturation={0}
         fade
+      />
+      
+      {/* OrbitControls for mouse interaction */}
+      <OrbitControls
+        enableZoom={true}
+        enablePan={false}
+        enableRotate={true}
+        zoomSpeed={0.5}
+        rotateSpeed={0.5}
+        mouseButtons={{
+          LEFT: THREE.MOUSE.ROTATE,
+          MIDDLE: THREE.MOUSE.ROTATE,
+          RIGHT: null
+        }}
+        minDistance={5}
+        maxDistance={20}
       />
     </>
   );
@@ -312,27 +420,14 @@ export function OnboardingPage3D() {
           >
             <div className="relative">
               <div className="absolute inset-0 animate-pulse">
-                <div className="w-32 h-32 bg-gradient-to-br from-cyan-500 to-purple-600 rounded-full filter blur-xl opacity-60" />
+                <div className="w-32 h-32 bg-gradient-to-br from-yellow-600 to-amber-700 rounded-full filter blur-xl opacity-60" />
               </div>
-              <div className="relative w-32 h-32 bg-gradient-to-br from-cyan-500 to-purple-600 rounded-full flex items-center justify-center">
-                <svg
-                  className="w-16 h-16 text-white"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M13 10V3L4 14h7v7l9-11h-7z"
-                  />
-                </svg>
+              <div className="relative w-32 h-32 bg-gradient-to-br from-yellow-600 to-amber-700 rounded-full flex items-center justify-center">
               </div>
             </div>
 
             <div className="text-center space-y-4">
-              <h1 className="text-5xl font-bold bg-gradient-to-r from-cyan-400 to-purple-500 bg-clip-text text-transparent">
+              <h1 className="text-5xl font-bold bg-gradient-to-r from-yellow-600 to-amber-700 bg-clip-text text-transparent">
                 Welcome to Vibe
               </h1>
               <p className="text-xl text-gray-300 max-w-md">
@@ -341,14 +436,23 @@ export function OnboardingPage3D() {
             </div>
 
             <div className="space-y-4 w-full max-w-sm">
-              <input
-                type="text"
-                placeholder="Enter your name"
-                value={profileName}
-                onChange={e => setProfileName(e.target.value)}
-                className="w-full px-6 py-4 bg-white/10 backdrop-blur-md rounded-xl text-white placeholder-gray-400 border border-white/20 focus:border-cyan-400 focus:outline-none transition-all"
-                autoFocus
-              />
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder=""
+                  value={profileName}
+                  onChange={e => setProfileName(e.target.value)}
+                  className="w-full px-6 py-4 bg-white/10 backdrop-blur-md rounded-xl text-white placeholder-gray-400 border border-white/20 focus:border-green-600 focus:outline-none transition-all"
+                  autoFocus
+                />
+                {!profileName && (
+                  <div className="absolute inset-0 pointer-events-none flex items-center px-6">
+                    <div className="text-gray-400">
+                      <ScrambledPlaceholder isActive={currentStep === 0} />
+                    </div>
+                  </div>
+                )}
+              </div>
 
               <button
                 onClick={() => {
@@ -357,7 +461,7 @@ export function OnboardingPage3D() {
                   }
                 }}
                 disabled={!profileName.trim()}
-                className="w-full px-8 py-4 bg-gradient-to-r from-cyan-500 to-purple-600 text-white rounded-xl font-medium hover:from-cyan-600 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-105"
+                className="w-full px-8 py-4 bg-gradient-to-r from-green-700 to-green-900 text-white rounded-xl font-medium hover:from-green-800 hover:to-green-950 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-105"
               >
                 Continue
               </button>
@@ -374,11 +478,27 @@ export function OnboardingPage3D() {
             className="flex flex-col items-center justify-center space-y-8 text-white"
           >
             <div className="text-center space-y-4">
-              <h2 className="text-4xl font-bold bg-gradient-to-r from-cyan-400 to-purple-500 bg-clip-text text-transparent">
-                Connect to AI
-              </h2>
+              <motion.h2 
+                className="text-4xl font-bold relative"
+                animate={{
+                  textShadow: [
+                    "0 0 10px rgba(255, 215, 0, 0.5), 0 0 20px rgba(255, 215, 0, 0.3)",
+                    "0 0 20px rgba(255, 215, 0, 0.8), 0 0 40px rgba(255, 215, 0, 0.5)",
+                    "0 0 10px rgba(255, 215, 0, 0.5), 0 0 20px rgba(255, 215, 0, 0.3)"
+                  ]
+                }}
+                transition={{
+                  duration: 2,
+                  ease: "easeInOut",
+                  repeat: Infinity,
+                }}
+              >
+                <span className="bg-gradient-to-r from-yellow-400 to-amber-600 bg-clip-text text-transparent">
+                  Unlock Vibe Pro
+                </span>
+              </motion.h2>
               <p className="text-lg text-gray-300 max-w-md">
-                Enter your OpenAI API key to enable AI-powered features
+                Get unlimited AI-powered features for your browsing
               </p>
             </div>
 
@@ -394,7 +514,7 @@ export function OnboardingPage3D() {
                   }}
                   className={`w-full px-6 py-4 bg-white/10 backdrop-blur-md rounded-xl text-white placeholder-gray-400 border ${
                     apiKeyError ? "border-red-500" : "border-white/20"
-                  } focus:border-cyan-400 focus:outline-none transition-all font-mono`}
+                  } focus:border-green-600 focus:outline-none transition-all font-mono`}
                   autoFocus
                 />
                 {apiKeyError && (
@@ -409,7 +529,7 @@ export function OnboardingPage3D() {
                     href="https://platform.openai.com/api-keys"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-cyan-400 hover:text-cyan-300 underline"
+                    className="text-green-600 hover:text-green-500 underline"
                   >
                     Get one from OpenAI
                   </a>
@@ -421,13 +541,13 @@ export function OnboardingPage3D() {
 
               {/* Vibe Mode Section */}
               <div className="relative mt-6">
-                {/* Animated neon border */}
+                {/* Animated golden glow border */}
                 <motion.div className="absolute -inset-[2px] rounded-2xl">
                   <motion.div
                     className="absolute inset-0 rounded-2xl opacity-75"
                     style={{
                       background:
-                        "linear-gradient(45deg, #0080ff, #00d4ff, #0080ff)",
+                        "linear-gradient(45deg, #FFD700, #FFA500, #FFD700)",
                       backgroundSize: "400% 400%",
                     }}
                     animate={{
@@ -447,7 +567,7 @@ export function OnboardingPage3D() {
                     className="absolute inset-0 rounded-2xl blur-xl"
                     style={{
                       background:
-                        "radial-gradient(circle, #0080ff, transparent)",
+                        "radial-gradient(circle, #FFD700, transparent)",
                     }}
                     animate={{
                       opacity: [0.3, 0.5, 0.3],
@@ -464,10 +584,14 @@ export function OnboardingPage3D() {
                 {/* Content */}
                 <div className="relative bg-black/90 backdrop-blur-xl rounded-2xl p-6 space-y-4">
                   <div className="text-center space-y-2">
-                    <motion.h3
-                      className="text-lg font-bold text-blue-400"
+                    <motion.div
+                      className="text-5xl font-bold"
                       animate={{
-                        opacity: [0.5, 1, 0.5],
+                        textShadow: [
+                          "0 0 20px rgba(255, 215, 0, 0.8), 0 0 40px rgba(255, 215, 0, 0.5)",
+                          "0 0 30px rgba(255, 215, 0, 1), 0 0 60px rgba(255, 215, 0, 0.7)",
+                          "0 0 20px rgba(255, 215, 0, 0.8), 0 0 40px rgba(255, 215, 0, 0.5)"
+                        ]
                       }}
                       transition={{
                         duration: 1.5,
@@ -475,16 +599,16 @@ export function OnboardingPage3D() {
                         repeat: Infinity,
                       }}
                     >
-                      No API Key?
-                    </motion.h3>
-                    <h2 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
-                      Try Vibe Mode
-                    </h2>
+                      <span className="bg-gradient-to-r from-yellow-400 via-amber-500 to-yellow-600 bg-clip-text text-transparent">
+                        $49.99
+                      </span>
+                    </motion.div>
+                    <p className="text-sm text-gray-400">One-time payment</p>
                   </div>
 
                   <div className="space-y-3 text-center">
                     <p className="text-sm text-gray-300">
-                      Unlimited LLM calls powered by local AI & the Vibe network
+                      Lifetime access to AI-powered browsing features
                     </p>
 
                     <div className="flex items-center justify-center space-x-2 text-xs text-gray-400">
@@ -518,10 +642,50 @@ export function OnboardingPage3D() {
                     </div>
                   </div>
 
-                  <button className="w-full bg-black/50 border border-white/20 rounded-xl p-4 flex items-center justify-center space-x-3 hover:bg-white/10 transition-all group">
+                  <button 
+                    onClick={async () => {
+                      try {
+                        // Apple Pay implementation
+                        // Note: This requires proper backend setup and Apple developer account
+                        const paymentRequest = {
+                          countryCode: 'US',
+                          currencyCode: 'USD',
+                          total: {
+                            label: 'Vibe Pro - Lifetime Access',
+                            amount: '49.99'
+                          },
+                          supportedNetworks: ['visa', 'masterCard', 'amex'],
+                          merchantCapabilities: ['supports3DS']
+                        };
+                        
+                        // Show coming soon alert for now
+                        alert('Apple Pay integration coming soon! This will process a $49.99 payment for lifetime access.');
+                        
+                        // After successful payment, would continue to next step
+                        // setCurrentStep(2);
+                      } catch (error) {
+                        console.error('Payment failed:', error);
+                      }
+                    }}
+                    className="w-full bg-black border-2 border-yellow-500/50 rounded-xl p-4 flex items-center justify-center space-x-3 hover:bg-yellow-500/10 hover:border-yellow-500 transition-all group relative overflow-hidden"
+                  >
+                    {/* Shimmer effect */}
+                    <motion.div
+                      className="absolute inset-0 bg-gradient-to-r from-transparent via-yellow-500/20 to-transparent"
+                      animate={{
+                        x: ["-100%", "100%"],
+                      }}
+                      transition={{
+                        duration: 2,
+                        ease: "linear",
+                        repeat: Infinity,
+                        repeatDelay: 1,
+                      }}
+                    />
+                    
                     {/* Apple Pay icon */}
                     <svg
-                      className="w-8 h-8"
+                      className="w-8 h-8 relative z-10"
                       viewBox="0 0 50 20"
                       fill="currentColor"
                     >
@@ -530,8 +694,8 @@ export function OnboardingPage3D() {
                         className="text-white"
                       />
                     </svg>
-                    <span className="text-white font-medium group-hover:text-blue-400 transition-colors">
-                      Coming Soon
+                    <span className="text-white font-medium relative z-10">
+                      Pay with Apple Pay
                     </span>
                   </button>
                 </div>
@@ -547,41 +711,41 @@ export function OnboardingPage3D() {
               </button>
               <button
                 onClick={async () => {
-                  if (!apiKey.trim()) {
-                    setApiKeyError("Please enter your API key");
-                    return;
-                  }
-
-                  if (!apiKey.startsWith("sk-")) {
-                    setApiKeyError("Invalid API key format");
-                    return;
-                  }
-
-                  setIsValidatingKey(true);
-                  try {
-                    // Save the API key
-                    const saved = await window.electronAPI?.ipcRenderer?.invoke(
-                      "settings:set",
-                      "openaiApiKey",
-                      apiKey.trim(),
-                    );
-
-                    if (saved) {
-                      setCurrentStep(2);
-                    } else {
-                      setApiKeyError("Failed to save API key");
+                  if (apiKey.trim()) {
+                    // User has API key, save it and continue
+                    if (!apiKey.startsWith("sk-")) {
+                      setApiKeyError("Invalid API key format");
+                      return;
                     }
-                  } catch (error) {
-                    console.error("Error saving API key:", error);
-                    setApiKeyError("Failed to save API key");
-                  } finally {
-                    setIsValidatingKey(false);
+
+                    setIsValidatingKey(true);
+                    try {
+                      const saved = await window.electronAPI?.ipcRenderer?.invoke(
+                        "settings:set",
+                        "openaiApiKey",
+                        apiKey.trim(),
+                      );
+
+                      if (saved) {
+                        setCurrentStep(2);
+                      } else {
+                        setApiKeyError("Failed to save API key");
+                      }
+                    } catch (error) {
+                      console.error("Error saving API key:", error);
+                      setApiKeyError("Failed to save API key");
+                    } finally {
+                      setIsValidatingKey(false);
+                    }
+                  } else {
+                    // No API key, skip to next step
+                    setCurrentStep(2);
                   }
                 }}
-                disabled={!apiKey.trim() || isValidatingKey}
-                className="flex-1 px-6 py-3 bg-gradient-to-r from-cyan-500 to-purple-600 text-white rounded-xl font-medium hover:from-cyan-600 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                disabled={isValidatingKey}
+                className="flex-1 px-6 py-3 bg-gradient-to-r from-yellow-600 to-amber-700 text-white rounded-xl font-medium hover:from-yellow-700 hover:to-amber-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
               >
-                {isValidatingKey ? "Saving..." : "Continue"}
+                {isValidatingKey ? "Saving..." : apiKey.trim() ? "Continue with API Key" : "Skip"}
               </button>
             </div>
           </motion.div>
@@ -596,7 +760,7 @@ export function OnboardingPage3D() {
             className="flex flex-col items-center justify-center space-y-8 text-white"
           >
             <div className="text-center space-y-4">
-              <h2 className="text-4xl font-bold bg-gradient-to-r from-cyan-400 to-purple-500 bg-clip-text text-transparent">
+              <h2 className="text-4xl font-bold bg-gradient-to-r from-green-600 to-green-800 bg-clip-text text-transparent">
                 Import from Chrome
               </h2>
               <p className="text-lg text-gray-300">
@@ -622,12 +786,12 @@ export function OnboardingPage3D() {
                   }}
                   className={`w-full p-4 rounded-xl border transition-all duration-200 ${
                     selectedProfile === profile.path
-                      ? "bg-gradient-to-r from-cyan-500/20 to-purple-600/20 border-cyan-400"
+                      ? "bg-gradient-to-r from-green-700/20 to-green-900/20 border-green-600"
                       : "bg-white/5 border-white/20 hover:bg-white/10"
                   }`}
                 >
                   <div className="flex items-center space-x-4">
-                    <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center">
+                    <div className="w-12 h-12 bg-gradient-to-br from-green-700 to-green-800 rounded-full flex items-center justify-center">
                       <span className="text-white font-bold">
                         {profile.name.charAt(0).toUpperCase()}
                       </span>
@@ -639,7 +803,7 @@ export function OnboardingPage3D() {
                       </p>
                     </div>
                     {selectedProfile === profile.path && (
-                      <div className="w-6 h-6 bg-cyan-400 rounded-full flex items-center justify-center">
+                      <div className="w-6 h-6 bg-green-600 rounded-full flex items-center justify-center">
                         <svg
                           className="w-4 h-4 text-black"
                           fill="currentColor"
@@ -668,7 +832,7 @@ export function OnboardingPage3D() {
               <button
                 onClick={handleComplete}
                 disabled={!selectedProfile || isProcessing}
-                className="flex-1 px-6 py-3 bg-gradient-to-r from-cyan-500 to-purple-600 text-white rounded-xl font-medium hover:from-cyan-600 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                className="flex-1 px-6 py-3 bg-gradient-to-r from-green-700 to-green-900 text-white rounded-xl font-medium hover:from-green-800 hover:to-green-950 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
               >
                 {isProcessing ? "Importing..." : "Import & Finish"}
               </button>
@@ -728,7 +892,15 @@ export function OnboardingPage3D() {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-xl">
+    <div className="fixed inset-0 bg-black">
+      {/* Subtle gradient overlay */}
+      <div 
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          background: "radial-gradient(ellipse at center, transparent 0%, rgba(0, 0, 0, 0.4) 100%)",
+        }}
+      />
+      
       {/* 3D Background */}
       <div className="absolute inset-0">
         <Canvas camera={{ position: [0, 0, 10], fov: 75 }}>
