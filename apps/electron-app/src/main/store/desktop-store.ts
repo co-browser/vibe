@@ -214,8 +214,8 @@ export const NewUserStore = async (
     }
   }
 };
-
-// this uses the electron safeStoroage api which doesnt
+// this is called each time electron boots up
+// + uses the electron safeStoroage api which doesnt
 // expose the key, and we dont want to use the exposed
 export const UserDataRecover = async (): Promise<boolean> => {
   try {
