@@ -163,7 +163,8 @@ export const NewUserStore = async (
       return false;
     }
 
-    // Prompt for Touch ID authentication
+    // we use this call as check to see if a human is present
+    // as its hard to fake a successful touch id authentication
     try {
       await systemPreferences.promptTouchID(reason);
       // If we reach here, authentication was successful
@@ -178,8 +179,11 @@ export const NewUserStore = async (
     // Create a cryptographically secure random password
     randomPassword = randomBytes(64).toString("base64url");
 
-    // Store the password in the system keychain
-    const entry = new Entry("xyz.cobrowser.vibe", "encrypted_store");
+    // we are using the safeStorage api as a high level blob encryption
+    // service, but we also create "app_key" in the case where we need
+    // a key exposed for services that cant/dont use the safeStorage api
+
+    const entry = new Entry("xyz.cobrowser.vibe", "app_key");
     entry.setPassword(randomPassword);
     const storedPassword = entry.getPassword();
 
@@ -211,17 +215,10 @@ export const NewUserStore = async (
   }
 };
 
+// this uses the electron safeStoroage api which doesnt
+// expose the key, and we dont want to use the exposed
 export const UserDataRecover = async (): Promise<boolean> => {
   try {
-    // Get the password from the system keychain
-    const entry = new Entry("xyz.cobrowser.vibe", "encrypted_store");
-    const password = entry.getPassword();
-
-    if (!password) {
-      logger.error("No password found in system keychain");
-      return false;
-    }
-
     // Get all encrypted data from the store
     const encryptedData = store.get(VibeDict.EncryptedData, {});
 
@@ -230,7 +227,7 @@ export const UserDataRecover = async (): Promise<boolean> => {
       return true;
     }
 
-    // Decrypt all encrypted data using the keychain password
+    // Decrypt all encrypted data using electron safeStorage api
     const decryptedData: Record<string, string> = {};
 
     for (const [key, encryptedValue] of Object.entries(encryptedData)) {
@@ -240,7 +237,7 @@ export const UserDataRecover = async (): Promise<boolean> => {
           continue;
         }
 
-        // Decrypt the value using the keychain password
+        // Decrypt the value using electron safeStorage api
         const decryptedValue = safeStorage.decryptString(
           Buffer.from(encryptedValue, "hex"),
         );
