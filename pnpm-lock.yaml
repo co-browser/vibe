@@ -79,10 +79,10 @@ importers:
         version: 6.0.0(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
       '@electron-toolkit/preload':
         specifier: ^3.0.1
-        version: 3.0.2(electron@35.5.1)
+        version: 3.0.2(electron@35.1.5)
       '@electron-toolkit/utils':
         specifier: ^4.0.0
-        version: 4.0.0(electron@35.5.1)
+        version: 4.0.0(electron@35.1.5)
       '@modelcontextprotocol/sdk':
         specifier: 1.11.0
         version: 1.11.0
@@ -221,7 +221,7 @@ importers:
         version: 10.4.21(postcss@8.5.4)
       electron:
         specifier: ^35.1.5
-        version: 35.5.1
+        version: 35.1.5
       electron-builder:
         specifier: ^26.0.17
         version: 26.0.17(electron-builder-squirrel-windows@25.1.8)
@@ -377,73 +377,6 @@ importers:
       openai:
         specifier: ^4.20.0
         version: 4.104.0(encoding@0.1.13)(ws@7.5.10(bufferutil@4.0.9)(utf-8-validate@5.0.10))(zod@3.25.61)
-      uuid:
-        specifier: ^9.0.1
-        version: 9.0.1
-    devDependencies:
-      '@types/express':
-        specifier: ^4.17.21
-        version: 4.17.23
-      '@types/jsdom':
-        specifier: ^21.1.6
-        version: 21.1.7
-      '@types/node':
-        specifier: ^20.10.0
-        version: 20.19.1
-      '@types/uuid':
-        specifier: ^9.0.7
-        version: 9.0.8
-      tsx:
-        specifier: ^4.6.2
-        version: 4.20.1
-      typescript:
-        specifier: ^5.3.3
-        version: 5.8.3
-
-  packages/mcp-rag-auth:
-    dependencies:
-      '@llamaindex/openai':
-        specifier: ^0.4.4
-        version: 0.4.4(@llamaindex/core@0.6.10)(@llamaindex/env@0.1.30)(encoding@0.1.13)(ws@8.18.2(bufferutil@4.0.9)(utf-8-validate@5.0.10))(zod@3.25.61)
-      '@llamaindex/tools':
-        specifier: ^0.0.16
-        version: 0.0.16(@llamaindex/core@0.6.10)(@llamaindex/env@0.1.30)(openapi-types@12.1.3)
-      '@llamaindex/workflow':
-        specifier: ^1.1.9
-        version: 1.1.9(@llamaindex/core@0.6.10)(@llamaindex/env@0.1.30)(@modelcontextprotocol/sdk@1.13.0)(p-retry@6.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.24.5(zod@3.25.61))(zod@3.25.61)
-      '@modelcontextprotocol/sdk':
-        specifier: ^1.13.0
-        version: 1.13.0
-      '@mozilla/readability':
-        specifier: ^0.4.4
-        version: 0.4.4
-      '@privy-io/server-auth':
-        specifier: ^1.7.3
-        version: 1.28.0(bufferutil@4.0.9)(encoding@0.1.13)(typescript@5.8.3)(utf-8-validate@5.0.10)(viem@2.31.4(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.61))
-      '@turbopuffer/turbopuffer':
-        specifier: ^0.10.2
-        version: 0.10.2
-      dotenv:
-        specifier: ^16.5.0
-        version: 16.5.0
-      express:
-        specifier: ^4.18.2
-        version: 4.21.2
-      jsdom:
-        specifier: ^23.0.1
-        version: 23.2.0(bufferutil@4.0.9)(utf-8-validate@5.0.10)
-      llamaindex:
-        specifier: ^0.11.8
-        version: 0.11.8(@llama-flow/core@0.4.4(@modelcontextprotocol/sdk@1.13.0)(p-retry@6.2.1)(rxjs@7.8.2)(zod@3.25.61))(@modelcontextprotocol/sdk@1.13.0)(p-retry@6.2.1)(rxjs@7.8.2)(tree-sitter@0.22.4)(web-tree-sitter@0.24.7)(zod-to-json-schema@3.24.5(zod@3.25.61))(zod@3.25.61)
-      node-fetch:
-        specifier: ^3.3.2
-        version: 3.3.2
-      node-html-parser:
-        specifier: ^6.1.12
-        version: 6.1.13
-      openai:
-        specifier: ^4.20.0
-        version: 4.104.0(encoding@0.1.13)(ws@8.18.2(bufferutil@4.0.9)(utf-8-validate@5.0.10))(zod@3.25.61)
       uuid:
         specifier: ^9.0.1
         version: 9.0.1
@@ -1458,6 +1391,10 @@ packages:
     resolution: {integrity: sha512-Z+CZ3QaosfFaTqvhQsIktyGrjFjSC0Fa4EMph4mqKnWhmyoGICsV/8QK+8HpXut6zV7zwfWwqDmEjtk1Qf6EgQ==}
     engines: {node: '>=14.0.0'}
 
+  '@msgpack/msgpack@3.1.2':
+    resolution: {integrity: sha512-JEW4DEtBzfe8HvUYecLU9e6+XJnKDlUAIve8FvPzF3Kzs6Xo/KuZkZJsDH0wJXl/qEZbeeE7edxDNY3kMs39hQ==}
+    engines: {node: '>= 18'}
+
   '@napi-rs/keyring-darwin-arm64@1.1.8':
     resolution: {integrity: sha512-zaieCiY+gEl8kR7tJrKMfOMDHyUDfJYlGvAgWX4WZOnpvWZ5E+F+KGzm8TMQKkipiGRJgP6aCiQAB8m3dSl5kw==}
     engines: {node: '>= 10'}
@@ -1533,10 +1470,6 @@ packages:
   '@napi-rs/keyring@1.1.8':
     resolution: {integrity: sha512-FZw+fuwhcNyZDpA7Eg3xjdQ0oKfcr/IWNfzrPqPd9+Ug85VsCnV1eQPDrIIzYNeYtAVvnXQQFp1umtaM+JVSfQ==}
     engines: {node: '>= 10'}
-=======
-  '@msgpack/msgpack@3.1.2':
-    resolution: {integrity: sha512-JEW4DEtBzfe8HvUYecLU9e6+XJnKDlUAIve8FvPzF3Kzs6Xo/KuZkZJsDH0wJXl/qEZbeeE7edxDNY3kMs39hQ==}
-    engines: {node: '>= 18'}
 
   '@noble/ciphers@1.2.1':
     resolution: {integrity: sha512-rONPWMC7PeExE077uLE4oqWrZ1IvAfz3oH9LibVAcVCopJiA9R62uavnbEzdkVmJYI6M6Zgkbeb07+tWjlq2XA==}
@@ -3002,6 +2935,7 @@ packages:
 
   '@walletconnect/modal@2.7.0':
     resolution: {integrity: sha512-RQVt58oJ+rwqnPcIvRFeMGKuXb9qkgSmwz4noF8JZGUym3gUAzVs+uW2NQ1Owm9XOJAV+sANrtJ+VoVq1ftElw==}
+    deprecated: Please follow the migration guide on https://docs.reown.com/appkit/upgrade/wcm
 
   '@walletconnect/relay-api@1.0.11':
     resolution: {integrity: sha512-tLPErkze/HmC9aCmdZOhtVmYZq1wKfWTJtygQHoWtgg722Jd4homo54Cs4ak2RUFUZIGO2RsOpIcWipaua5D5Q==}
@@ -4263,8 +4197,8 @@ packages:
       '@swc/core':
         optional: true
 
-  electron@35.5.1:
-    resolution: {integrity: sha512-kkbGXz56safvXcxqAZyMS2nJGYK9NFG/iKOJsAO5e0HPH8y3EnV4Fi87tvbfFpeLiaruFS+eN0YFy6f1StpSgQ==}
+  electron@35.1.5:
+    resolution: {integrity: sha512-LolvbKKQUSCGvEwbEQNt1cxD1t+YYClDNwBIjn4d28KM8FSqUn9zJuf6AbqNA7tVs9OFl/EQpmg/m4lZV1hH8g==}
     engines: {node: '>= 12.20.55'}
     hasBin: true
 
@@ -9271,17 +9205,17 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@electron-toolkit/preload@3.0.2(electron@35.5.1)':
+  '@electron-toolkit/preload@3.0.2(electron@35.1.5)':
     dependencies:
-      electron: 35.5.1
+      electron: 35.1.5
 
   '@electron-toolkit/tsconfig@1.0.1(@types/node@22.15.31)':
     dependencies:
       '@types/node': 22.15.31
 
-  '@electron-toolkit/utils@4.0.0(electron@35.5.1)':
+  '@electron-toolkit/utils@4.0.0(electron@35.1.5)':
     dependencies:
-      electron: 35.5.1
+      electron: 35.1.5
 
   '@electron/asar@3.4.1':
     dependencies:
@@ -9950,16 +9884,6 @@ snapshots:
       - ws
       - zod
 
-  '@llamaindex/openai@0.4.4(@llamaindex/core@0.6.10)(@llamaindex/env@0.1.30)(encoding@0.1.13)(ws@8.18.2(bufferutil@4.0.9)(utf-8-validate@5.0.10))(zod@3.25.61)':
-    dependencies:
-      '@llamaindex/core': 0.6.10
-      '@llamaindex/env': 0.1.30
-      openai: 4.104.0(encoding@0.1.13)(ws@8.18.2(bufferutil@4.0.9)(utf-8-validate@5.0.10))(zod@3.25.61)
-    transitivePeerDependencies:
-      - encoding
-      - ws
-      - zod
-
   '@llamaindex/tools@0.0.16(@llamaindex/core@0.6.10)(@llamaindex/env@0.1.30)(openapi-types@12.1.3)':
     dependencies:
       '@apidevtools/swagger-parser': 10.1.1(openapi-types@12.1.3)
@@ -10129,6 +10053,8 @@ snapshots:
 
   '@mozilla/readability@0.5.0': {}
 
+  '@msgpack/msgpack@3.1.2': {}
+
   '@napi-rs/keyring-darwin-arm64@1.1.8':
     optional: true
 
@@ -10179,8 +10105,6 @@ snapshots:
       '@napi-rs/keyring-win32-arm64-msvc': 1.1.8
       '@napi-rs/keyring-win32-ia32-msvc': 1.1.8
       '@napi-rs/keyring-win32-x64-msvc': 1.1.8
-
-  '@msgpack/msgpack@3.1.2': {}
 
   '@noble/ciphers@1.2.1': {}
 
@@ -14297,7 +14221,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  electron@35.5.1:
+  electron@35.1.5:
     dependencies:
       '@electron/get': 2.0.3
       '@types/node': 22.15.31
@@ -17033,21 +16957,6 @@ snapshots:
       node-fetch: 2.7.0(encoding@0.1.13)
     optionalDependencies:
       ws: 7.5.10(bufferutil@4.0.9)(utf-8-validate@5.0.10)
-      zod: 3.25.61
-    transitivePeerDependencies:
-      - encoding
-
-  openai@4.104.0(encoding@0.1.13)(ws@8.18.2(bufferutil@4.0.9)(utf-8-validate@5.0.10))(zod@3.25.61):
-    dependencies:
-      '@types/node': 18.19.112
-      '@types/node-fetch': 2.6.12
-      abort-controller: 3.0.0
-      agentkeepalive: 4.6.0
-      form-data-encoder: 1.7.2
-      formdata-node: 4.4.1
-      node-fetch: 2.7.0(encoding@0.1.13)
-    optionalDependencies:
-      ws: 8.18.2(bufferutil@4.0.9)(utf-8-validate@5.0.10)
       zod: 3.25.61
     transitivePeerDependencies:
       - encoding

@@ -1,13 +1,13 @@
 import { EventEmitter } from "events";
+import { randomUUID } from "crypto";
 import { createLogger } from "@vibe/shared-types";
 import type { ProfileData, ProfileStatus } from "@vibe/shared-types";
 import {
-  NewUserStore,
-  UserDataRecover,
   setSecureItem,
   getSecureItem,
   deleteSecureItem,
-  getRecoveredData,
+  NewUserStore,
+  UserDataRecover,
 } from "@/store/desktop-store";
 
 const logger = createLogger("ProfileService");
@@ -29,32 +29,32 @@ export class ProfileService extends EventEmitter {
     try {
       logger.info("Initializing profile service");
 
-      const existingProfileId = getSecureItem("profile_id");
+      // First, ensure the desktop store is recovered
+      const recovered = await UserDataRecover();
+      if (!recovered) {
+        logger.warn("Failed to recover desktop store data");
+      }
 
-      if (existingProfileId) {
-        const recovered = await UserDataRecover();
-        if (recovered) {
-          const profileData = getRecoveredData("profile_data");
-           const profileData = getRecoveredData("profile_data");
-           if (profileData) {
--            this.currentProfile = JSON.parse(profileData);
-+            try {
-+              this.currentProfile = JSON.parse(profileData);
-+            } catch (parseError) {
-+              logger.error("Failed to parse profile data:", parseError);
-+              throw new Error("Corrupted profile data");
-+            }
-            this.status = {
-              initialized: true,
-              authenticated: true,
-              hasProfile: true,
-              profileId: existingProfileId,
-              lastActivity: Date.now(),
-            };
-            logger.info("Profile recovered successfully");
-            this.emit("profile-recovered", this.currentProfile);
-            return this.status;
-          }
+      const existingProfileId = getSecureItem("profile_id");
+      const profileData = getSecureItem("profile_data");
+
+      if (existingProfileId && profileData) {
+        try {
+          this.currentProfile = JSON.parse(profileData);
+          this.status = {
+            initialized: true,
+            authenticated: true,
+            hasProfile: true,
+            profileId: existingProfileId,
+            lastActivity: Date.now(),
+          };
+          logger.info("Profile recovered successfully");
+          this.emit("profile-recovered", this.currentProfile);
+          return this.status;
+        } catch (parseError) {
+          logger.error("Failed to parse profile data:", parseError);
+          deleteSecureItem("profile_id");
+          deleteSecureItem("profile_data");
         }
       }
 
@@ -83,16 +83,24 @@ export class ProfileService extends EventEmitter {
     try {
       logger.info("Creating new user profile");
 
-      const success = await NewUserStore(
-        "Authenticate to create your secure profile",
-      );
-      if (!success) {
-        throw new Error("Touch ID authentication failed");
+      // Check if this is the first time setup
+      const touchIdInitialized = getSecureItem("touch_id_initialized");
+      if (!touchIdInitialized) {
+        // Only call NewUserStore for first-time setup
+        logger.info(
+          "First time setup - initializing secure storage with Touch ID",
+        );
+        const storeInitialized = await NewUserStore(
+          "Authenticate to create your secure profile",
+        );
+        if (!storeInitialized) {
+          throw new Error("Failed to initialize secure storage");
+        }
       }
 
       const profile: ProfileData = {
         ...profileData,
-        id: crypto.randomUUID(),
+        id: randomUUID(),
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };
@@ -155,13 +163,10 @@ export class ProfileService extends EventEmitter {
       },
     });
 
-    setSecureItem(`api_key_${service}`, key);
     this.emit("api-key-changed", { service, key });
   }
 
   getApiKey(service: string): string | undefined {
-    const individualKey = getSecureItem(`api_key_${service}`);
-    if (individualKey) return individualKey;
     return this.currentProfile?.apiKeys[service];
   }
 
@@ -173,7 +178,6 @@ export class ProfileService extends EventEmitter {
     const remainingKeys = { ...this.currentProfile.apiKeys };
     delete remainingKeys[service];
     await this.updateProfile({ apiKeys: remainingKeys });
-    deleteSecureItem(`api_key_${service}`);
   }
 
   async setSavedPassword(domain: string, password: string): Promise<void> {
@@ -187,13 +191,9 @@ export class ProfileService extends EventEmitter {
         [domain]: password,
       },
     });
-
-    setSecureItem(`password_${domain}`, password);
   }
 
   getSavedPassword(domain: string): string | undefined {
-    const individualPassword = getSecureItem(`password_${domain}`);
-    if (individualPassword) return individualPassword;
     return this.currentProfile?.savedPasswords[domain];
   }
 
@@ -243,15 +243,6 @@ export class ProfileService extends EventEmitter {
   async clearProfile(): Promise<void> {
     deleteSecureItem("profile_id");
     deleteSecureItem("profile_data");
-
-    if (this.currentProfile) {
-      Object.keys(this.currentProfile.apiKeys).forEach(service => {
-        deleteSecureItem(`api_key_${service}`);
-      });
-      Object.keys(this.currentProfile.savedPasswords).forEach(domain => {
-        deleteSecureItem(`password_${domain}`);
-      });
-    }
 
     this.currentProfile = null;
     this.status = {

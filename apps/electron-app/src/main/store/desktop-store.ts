@@ -200,7 +200,6 @@ export const NewUserStore = async (
     logger.error("Error in NewUserStore:", error);
     return false;
   } finally {
-  } finally {
     randomPassword = null;
   }
 };

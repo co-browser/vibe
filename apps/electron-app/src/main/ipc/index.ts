@@ -20,6 +20,7 @@ import "@/ipc/chat/tab-context";
 // Session APIs - direct imports (register themselves)
 import "@/ipc/session/state-management";
 import "@/ipc/session/session-persistence";
+import "@/ipc/session/profile-status";
 import { setupSessionStateSync } from "@/ipc/session/state-sync";
 
 // Settings APIs - direct imports (register themselves)
