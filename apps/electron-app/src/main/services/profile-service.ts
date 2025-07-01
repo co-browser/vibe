@@ -35,8 +35,15 @@ export class ProfileService extends EventEmitter {
         const recovered = await UserDataRecover();
         if (recovered) {
           const profileData = getRecoveredData("profile_data");
-          if (profileData) {
-            this.currentProfile = JSON.parse(profileData);
+           const profileData = getRecoveredData("profile_data");
+           if (profileData) {
+-            this.currentProfile = JSON.parse(profileData);
++            try {
++              this.currentProfile = JSON.parse(profileData);
++            } catch (parseError) {
++              logger.error("Failed to parse profile data:", parseError);
++              throw new Error("Corrupted profile data");
++            }
             this.status = {
               initialized: true,
               authenticated: true,
