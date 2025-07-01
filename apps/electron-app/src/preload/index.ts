@@ -108,6 +108,9 @@ const appAPI: VibeAppAPI = {
     set: (keyName: string, value: string) =>
       ipcRenderer.invoke("set-api-key", keyName, value),
   },
+  setAuthToken: async (token: string | null) => {
+    return ipcRenderer.invoke("app:set-auth-token", token);
+  },
 };
 
 // ACTIONS API IMPLEMENTATION

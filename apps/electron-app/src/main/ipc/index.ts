@@ -15,6 +15,7 @@ import "@/ipc/app/api-keys";
 import "@/ipc/chat/chat-messaging";
 import "@/ipc/chat/agent-status";
 import "@/ipc/chat/chat-history";
+import "@/ipc/chat/tab-context";
 
 // Session APIs - direct imports (register themselves)
 import "@/ipc/session/state-management";

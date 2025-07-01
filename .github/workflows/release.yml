@@ -1,0 +1,106 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.RELEASE_PAT || github.token }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.12.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      
+      - name: Build macOS app
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          NODE_ENV: production
+          GH_TOKEN: ${{ secrets.RELEASE_PAT || secrets.GITHUB_TOKEN }}
+        run: pnpm --filter vibe build:mac
+
+      - name: List artifacts
+        run: ls -la apps/electron-app/dist/
+      
+      
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PAT || secrets.GITHUB_TOKEN }}
+        run: |
+          sleep 10
+          
+          # Get the release ID
+          RELEASE_ID=$(gh api repos/${{ github.repository }}/releases --jq '.[] | select(.tag_name == "${{ github.ref_name }}" and .draft == true) | .id' | head -1)
+          
+          if [ -z "$RELEASE_ID" ]; then
+            echo "No draft release found for ${{ github.ref_name }}"
+            exit 1
+          fi
+          
+          echo "Found draft release ID: $RELEASE_ID"
+          
+          PREVIOUS_TAG=$(git describe --tags --abbrev=0 ${{ github.ref_name }}^ 2>/dev/null || echo "")
+          
+          if [ -z "$PREVIOUS_TAG" ]; then
+            PREVIOUS_TAG=$(git rev-list --max-parents=0 HEAD)
+          fi
+          
+          # Generate release notes
+          BODY=$(gh api \
+            --method POST \
+            -H "Accept: application/vnd.github+json" \
+            /repos/${{ github.repository }}/releases/generate-notes \
+            -f tag_name="${{ github.ref_name }}" \
+            -f target_commitish="main" \
+            -f previous_tag_name="$PREVIOUS_TAG" \
+            --jq '.body')
+          
+          # Update the release
+          gh api \
+            --method PATCH \
+            -H "Accept: application/vnd.github+json" \
+            /repos/${{ github.repository }}/releases/$RELEASE_ID \
+            -f body="$BODY" \
+            -F draft=false
+
+      - name: Send Discord notification
+        if: always() && env.DISCORD_WEBHOOK != ''
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          COLOR=$([[ "${{ job.status }}" == "success" ]] && echo "3066993" || echo "15158332")
+          STATUS=$([[ "${{ job.status }}" == "success" ]] && echo "Success" || echo "Failed")
+          
+          curl -X POST "$DISCORD_WEBHOOK" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"embeds\": [{
+                \"title\": \"Release ${{ github.ref_name }}\",
+                \"description\": \"Build status: $STATUS\",
+                \"color\": $COLOR,
+                \"url\": \"https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\"
+              }]
+            }"

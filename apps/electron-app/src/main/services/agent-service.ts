@@ -11,6 +11,9 @@ import type {
   IAgentService,
   ExtractedPage,
 } from "@vibe/shared-types";
+import { createLogger } from "@vibe/shared-types";
+
+const logger = createLogger("AgentService");
 
 export class AgentService extends EventEmitter implements IAgentService {
   private worker: AgentWorker | null = null;
@@ -39,7 +42,7 @@ export class AgentService extends EventEmitter implements IAgentService {
       this.config = config;
       this.lastActivityTime = Date.now();
 
-      console.log("[AgentService] Initializing agent service");
+      logger.info("Initializing agent service");
 
       // Create and start AgentWorker instance
       this.worker = new AgentWorker();
@@ -55,7 +58,7 @@ export class AgentService extends EventEmitter implements IAgentService {
 
       this.status = "ready";
       this.lastActivityTime = Date.now();
-      console.log("[AgentService] Agent service initialized successfully");
+      logger.info("Agent service initialized successfully");
 
       // Emit service ready event
       this.emit("ready", {
@@ -65,7 +68,7 @@ export class AgentService extends EventEmitter implements IAgentService {
     } catch (error) {
       this.status = "error";
       this.lastActivityTime = Date.now();
-      console.error("[AgentService] Initialization failed:", error);
+      logger.error("Initialization failed:", error);
 
       // Cleanup on failure
       if (this.worker) {
@@ -101,21 +104,18 @@ export class AgentService extends EventEmitter implements IAgentService {
       throw new Error("Message must be a non-empty string");
     }
 
-    if (message.length > 10000) {
-      throw new Error("Message too long (max 10000 characters)");
+    if (message.length > 50000) {
+      throw new Error("Message too long (max 50000 characters)");
     }
 
     try {
       this.status = "processing";
       this.lastActivityTime = Date.now();
-      console.log(
-        "[AgentService] Processing message:",
-        message.substring(0, 100) + "...",
-      );
+      logger.info("Processing message:", message.substring(0, 100) + "...");
 
       // Set up stream listener before sending message
       const streamHandler = (_messageId: string, data: any) => {
-        console.log("[AgentService] Stream data:", data.type);
+        logger.debug("Stream data:", data.type);
 
         // Update activity time on stream data
         this.lastActivityTime = Date.now();
@@ -136,7 +136,7 @@ export class AgentService extends EventEmitter implements IAgentService {
 
         this.status = "ready";
         this.lastActivityTime = Date.now();
-        console.log("[AgentService] Message processing completed");
+        logger.info("Message processing completed");
       } finally {
         // Always clean up the stream listener
         this.worker.removeListener("stream", streamHandler);
@@ -144,7 +144,7 @@ export class AgentService extends EventEmitter implements IAgentService {
     } catch (error) {
       this.status = "ready";
       this.lastActivityTime = Date.now();
-      console.error("[AgentService] Message processing failed:", error);
+      logger.error("Message processing failed:", error);
       throw error;
     }
   }
@@ -172,7 +172,7 @@ export class AgentService extends EventEmitter implements IAgentService {
       try {
         workerStatus = this.worker.getConnectionStatus();
       } catch (error) {
-        console.warn("[AgentService] Failed to get worker status:", error);
+        logger.warn("Failed to get worker status:", error);
       }
     }
 
@@ -188,7 +188,7 @@ export class AgentService extends EventEmitter implements IAgentService {
       isHealthy,
     };
 
-    console.log("[AgentService] Status requested:", status);
+    logger.debug("Status requested:", status);
     return status;
   }
 
@@ -240,7 +240,7 @@ export class AgentService extends EventEmitter implements IAgentService {
    */
   async terminate(): Promise<void> {
     try {
-      console.log("[AgentService] Terminating agent service");
+      logger.info("Terminating agent service");
 
       // Prevent new operations during shutdown
       const originalStatus = this.status;
@@ -264,9 +264,9 @@ export class AgentService extends EventEmitter implements IAgentService {
             ),
           ]);
 
-          console.log("[AgentService] Worker stopped successfully");
+          logger.info("Worker stopped successfully");
         } catch (workerError) {
-          console.warn("[AgentService] Worker shutdown error:", workerError);
+          logger.warn("Worker shutdown error:", workerError);
           // Continue with cleanup even if worker shutdown fails
         } finally {
           this.worker = null;
@@ -289,9 +289,9 @@ export class AgentService extends EventEmitter implements IAgentService {
         this.emit("terminated", terminatedEvent);
       });
 
-      console.log("[AgentService] Agent service terminated successfully");
+      logger.info("Agent service terminated successfully");
     } catch (error) {
-      console.error("[AgentService] Error during termination:", error);
+      logger.error("Error during termination:", error);
 
       // Force cleanup even on error
       this.status = "error";
@@ -386,38 +386,34 @@ export class AgentService extends EventEmitter implements IAgentService {
 
     // Handle worker connection events
     this.worker.on("connected", data => {
-      if (process.env.LOG_LEVEL === "debug") {
-        console.log("[AgentService] Worker connected:", data);
-      }
+      logger.debug("Worker connected:", data);
       this.lastActivityTime = Date.now();
       this.emit("connected", data);
     });
 
     this.worker.on("disconnected", data => {
-      console.warn("[AgentService] Worker disconnected:", data);
+      logger.warn("Worker disconnected:", data);
       this.status = "error";
       this.lastActivityTime = Date.now();
       this.emit("disconnected", data);
     });
 
     this.worker.on("unhealthy", error => {
-      console.warn("[AgentService] Worker unhealthy:", error);
+      logger.warn("Worker unhealthy:", error);
       this.status = "error";
       this.lastActivityTime = Date.now();
       this.emit("unhealthy", error);
     });
 
     this.worker.on("restarted", data => {
-      if (process.env.LOG_LEVEL === "debug") {
-        console.log("[AgentService] Worker restarted:", data);
-      }
+      logger.debug("Worker restarted:", data);
       this.status = "ready";
       this.lastActivityTime = Date.now();
       this.emit("restarted", data);
     });
 
     this.worker.on("error", error => {
-      console.error("[AgentService] Worker error:", error);
+      logger.error("Worker error:", error);
       this.status = "error";
       this.lastActivityTime = Date.now();
       this.emit("error", error);
@@ -425,13 +421,7 @@ export class AgentService extends EventEmitter implements IAgentService {
 
     // Handle streaming data from worker
     this.worker.on("stream", (messageId, data) => {
-      if (process.env.LOG_LEVEL === "debug") {
-        console.log(
-          "[AgentService] Stream data received:",
-          messageId,
-          data.type,
-        );
-      }
+      logger.debug("Stream data received:", messageId, data.type);
       this.lastActivityTime = Date.now();
       this.emit("stream", messageId, data);
     });
@@ -488,20 +478,20 @@ export class AgentService extends EventEmitter implements IAgentService {
     }
 
     try {
-      console.log("[AgentService] Resetting agent state");
+      logger.info("Resetting agent state");
 
       // Send reset command to worker
       await this.worker.sendMessage("reset", {});
 
       this.lastActivityTime = Date.now();
-      console.log("[AgentService] Agent state reset successfully");
+      logger.info("Agent state reset successfully");
 
       // Emit reset event
       this.emit("reset", {
         timestamp: this.lastActivityTime,
       });
     } catch (error) {
-      console.error("[AgentService] Reset failed:", error);
+      logger.error("Reset failed:", error);
       this.lastActivityTime = Date.now();
       throw error;
     }
@@ -511,7 +501,7 @@ export class AgentService extends EventEmitter implements IAgentService {
    * Force immediate termination without graceful shutdown
    */
   async forceTerminate(): Promise<void> {
-    console.warn("[AgentService] Force terminating agent service");
+    logger.warn("Force terminating agent service");
 
     const originalStatus = this.status;
     this.status = "disconnected";
@@ -542,7 +532,7 @@ export class AgentService extends EventEmitter implements IAgentService {
       });
     });
 
-    console.warn("[AgentService] Agent service force terminated");
+    logger.warn("Agent service force terminated");
   }
 
   /**
@@ -569,7 +559,7 @@ export class AgentService extends EventEmitter implements IAgentService {
     }
 
     try {
-      console.log("[AgentService] Saving tab memory:", extractedPage.title);
+      logger.info("Saving tab memory:", extractedPage.title);
 
       // Send the full ExtractedPage to the worker process
       await this.worker.sendMessage("save-tab-memory", {
@@ -577,9 +567,42 @@ export class AgentService extends EventEmitter implements IAgentService {
       });
 
       this.lastActivityTime = Date.now();
-      console.log("[AgentService] Tab memory saved successfully");
+      logger.info("Tab memory saved successfully");
     } catch (error) {
-      console.error("[AgentService] Failed to save tab memory:", error);
+      logger.error("Failed to save tab memory:", error);
+      this.lastActivityTime = Date.now();
+      throw error;
+    }
+  }
+
+  /**
+   * Update authentication token for cloud MCP services
+   */
+  async updateAuthToken(token: string | null): Promise<void> {
+    if (!this.worker) {
+      throw new Error("Agent service not initialized");
+    }
+
+    if (!["ready", "processing"].includes(this.status)) {
+      throw new Error(`Agent service not ready: ${this.status}`);
+    }
+
+    try {
+      logger.info("Updating auth token:", token ? "present" : "null");
+
+      // Send token update to worker process
+      await this.worker.sendMessage("update-auth-token", { token });
+
+      this.lastActivityTime = Date.now();
+      logger.info("Auth token updated successfully");
+
+      // Emit token update event
+      this.emit("auth-token-updated", {
+        hasToken: !!token,
+        timestamp: this.lastActivityTime,
+      });
+    } catch (error) {
+      logger.error("Failed to update auth token:", error);
       this.lastActivityTime = Date.now();
       throw error;
     }

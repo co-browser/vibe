@@ -13,6 +13,13 @@ export class AgentFactory {
     // Create MCP manager for multiple server connections
     const mcpManager = new MCPManager();
 
+    // Store auth token for later use
+    if (config.authToken) {
+      mcpManager.updateAuthToken(config.authToken).catch((error: Error) => {
+        logger.error("Failed to update auth token:", error);
+      });
+    }
+
     // Initialize MCP connections in background if environment variables are available
     if (typeof process !== "undefined" && process.env) {
       // Create environment variables object for MCP server configuration
@@ -25,6 +32,14 @@ export class AgentFactory {
 
       // Get all MCP server configurations
       const serverConfigs = getAllMCPServerConfigs(envVars);
+      logger.debug(
+        "Agent factory - USE_LOCAL_RAG_SERVER:",
+        envVars.USE_LOCAL_RAG_SERVER,
+      );
+      logger.debug(
+        "Agent factory - server configs:",
+        serverConfigs.map(c => c.name),
+      );
 
       if (serverConfigs.length > 0) {
         mcpManager.initialize(serverConfigs).catch((error: Error) => {
@@ -48,6 +63,6 @@ export class AgentFactory {
     const streamProcessor = new StreamProcessor();
 
     // Create and return configured Agent with multi-MCP implementation
-    return new Agent(toolManager, streamProcessor, config);
+    return new Agent(toolManager, streamProcessor, config, mcpManager);
   }
 }

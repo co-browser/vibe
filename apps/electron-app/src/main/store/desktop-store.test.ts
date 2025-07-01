@@ -47,15 +47,44 @@ export async function testDesktopStore() {
   const testKey = "test-secure-key";
   const testValue = "test-secure-value";
 
-  setSecureItem(testKey, testValue);
-  const retrievedValue = getSecureItem(testKey);
-  console.log(
-    "Secure storage test:",
-    retrievedValue === testValue ? "PASS" : "FAIL",
-  );
+  try {
+    setSecureItem(testKey, testValue);
+    const retrievedValue = getSecureItem(testKey);
+    console.log(
+      "Secure storage test:",
+      retrievedValue === testValue ? "PASS" : "FAIL",
+    );
 
-  // Clean up
-  deleteSecureItem(testKey);
+    // Test input validation
+    console.log("Testing input validation...");
+    try {
+      setSecureItem("", "value");
+      console.log(
+        "Input validation test (empty key): FAIL - should have thrown",
+      );
+    } catch {
+      console.log(
+        "Input validation test (empty key): PASS - correctly threw error",
+      );
+    }
+
+    try {
+      setSecureItem("key", "");
+      console.log(
+        "Input validation test (empty value): FAIL - should have thrown",
+      );
+    } catch {
+      console.log(
+        "Input validation test (empty value): PASS - correctly threw error",
+      );
+    }
+
+    // Clean up
+    deleteSecureItem(testKey);
+  } catch (error) {
+    console.log("Secure storage test: FAIL -", (error as Error).message);
+  }
+
   clearUpdateBuildNumber();
 
   console.log("Desktop Store tests completed!");

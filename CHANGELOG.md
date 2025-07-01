@@ -1,4 +1,85 @@
 
+<a name="v0.1.2"></a>
+## [v0.1.2] - 2025-06-28
+### Chore
+- update RAG server configuration to use structured environment variables
+- enhance RAG server configuration and error handling
+- update .gitignore to include CLAUDE.md
+- add release workflow and update Electron app configuration
+- refine environment configuration and improve RAG server handling
+- update example environment configuration for RAG server
+- clean up Dockerfile and improve command formatting
+- remove deployment workflow and enhance Dockerfile metadata
+- linting
+- update postinstall script and remove versioning note from README
+
+### Docs
+- update README to enhance features section and clarify Gmail setup
+- simplify features setup and highlight both core features
+- add Gmail feature setup instructions
+
+### Feat
+- enhance deployment workflow and Dockerfile configuration
+- add multi-platform Docker build support to RAG server workflow
+- add error boundary and validation for PrivyProvider setup
+- implement Privy authentication in RAG server
+- add local RAG server configuration options
+- implement secure context for WebCrypto API support
+- implement dynamic OAuth authentication for cloud RAG server
+- add Privy authentication for cloud RAG server
+- add Privy authentication for cloud RAG server
+- enhance Umami tracking with serialized event data
+- improve Umami tool tracking with individual events
+- implement custom hook for chat panel health monitoring
+- enhance Window interface for Electron integration
+- implement chat panel recovery system
+- implement robust tab wake-up with comprehensive edge case handling
+- add RAG MCP server implementation with environment configuration and tools
+
+### Fix
+- use proper updateAuthToken method instead of type assertion in factory
+- improve type safety by removing type assertion in Agent class
+- improve security and race condition handling in PrivyAuthButton
+- add error handling for production vibe:// protocol loading
+- resolve concurrency issue by removing instance property for userId
+- sanitize Privy user IDs for Turbopuffer namespace compatibility
+- initialize global auth token for Privy authentication
+- improve chat panel visibility checks in LayoutProvider
+- update dependency in LayoutProvider effect to include chat panel visibility
+- resolve tab wake-up failure due to undefined originalUrl property
+- body of email missing -filter(boolean) was removing blank separator
+- update pnpm version in workflows to match package.json (10.12.1)
+
+### Refactor
+- revert commit 62d2484
+- replace global auth token with secure AuthTokenManager
+- simplify environment variable handling and hardcode Privy app ID
+- implement type guard for chat panel state in LayoutProvider
+- remove unused chat panel recovery animation styles
+- replace arbitrary setTimeout with event-driven navigation cleanup
+- clarify connectionAttempts property in MCP types
+- update RAGIngestionResult and RAGQueryResult interfaces for consistency
+- enhance RAGToolResponse interface for type safety
+- improve graceful shutdown handling in MCP server
+- update MCP manager and tool router descriptions
+- streamline MCP manager and tool routing
+- overhaul MCP connection management and tool routing
+- enhance MCP server configuration management
+
+### Pull Requests
+- Merge pull request [#40](https://github.com/co-browser/vibe/issues/40) from co-browser/feature/privy-authentication
+- Merge pull request [#39](https://github.com/co-browser/vibe/issues/39) from co-browser/feat/talkToTab
+- Merge pull request [#34](https://github.com/co-browser/vibe/issues/34) from co-browser/feature/add-gmail-setup-docs
+- Merge pull request [#33](https://github.com/co-browser/vibe/issues/33) from co-browser/feature/improve-umami-tool-tracking
+- Merge pull request [#32](https://github.com/co-browser/vibe/issues/32) from co-browser/fix/renderer-mac-sleep-recovery
+- Merge pull request [#30](https://github.com/co-browser/vibe/issues/30) from co-browser/fix/tab-sleep-originalurl-bug
+- Merge pull request [#31](https://github.com/co-browser/vibe/issues/31) from co-browser/fix/gmail-mcp-send
+- Merge pull request [#26](https://github.com/co-browser/vibe/issues/26) from co-browser/chore/docu-build-updates
+- Merge pull request [#27](https://github.com/co-browser/vibe/issues/27) from co-browser/feat/mcp-utility-process
+- Merge pull request [#25](https://github.com/co-browser/vibe/issues/25) from co-browser/fix/rag-server
+- Merge pull request [#20](https://github.com/co-browser/vibe/issues/20) from co-browser/feat/rag-mcp-server
+
+
 <a name="v0.1.1"></a>
 ## [v0.1.1] - 2025-06-20
 ### Chore
@@ -9,6 +90,7 @@
 - remove tsbuildinfo files from git tracking
 - update .gitignore to exclude TypeScript build info files
 - update dependencies in package.json and package-lock.json
+- **release:** v0.1.1 [skip ci]
 - **release:** update release workflow to generate and commit VERSION and CHANGELOG files
 
 ### Feat
@@ -71,5 +153,6 @@
 <a name="v0.0.0"></a>
 ## v0.0.0 - 2025-06-13
 
+[v0.1.2]: https://github.com/co-browser/vibe/compare/v0.1.1...v0.1.2
 [v0.1.1]: https://github.com/co-browser/vibe/compare/v0.1.0...v0.1.1
 [v0.1.0]: https://github.com/co-browser/vibe/compare/v0.0.0...v0.1.0

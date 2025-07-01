@@ -61,6 +61,7 @@ export const MCP_SERVERS_BASE: Record<string, Omit<MCPServerConfig, "env">> = {
     url: "http://localhost:3000",
     healthEndpoint: "/health",
     mcpEndpoint: "/mcp",
+    // RAG server can run locally or connect to cloud
   },
   // Future MCP servers can be added here:
   // github: {
@@ -125,26 +126,64 @@ export function createMCPServerConfig(
   name: string,
   envVars?: Record<string, string>,
 ): MCPServerConfig | undefined {
+  // Special handling for RAG server (local or cloud)
+  if (name === "rag") {
+    const useLocalRag = envVars?.USE_LOCAL_RAG_SERVER === "true";
+
+    if (useLocalRag) {
+      // Use local RAG server configuration
+      const baseConfig = getMCPServerBaseConfig(name);
+      if (!baseConfig) return undefined;
+
+      return {
+        ...baseConfig,
+        env: {
+          // Pass required environment variables to local RAG server
+          PORT: baseConfig.port.toString(),
+          USE_LOCAL_RAG_SERVER: "true", // Ensure RAG server knows it's in local mode
+          OPENAI_API_KEY: envVars?.OPENAI_API_KEY || "",
+          TURBOPUFFER_API_KEY: envVars?.TURBOPUFFER_API_KEY || "",
+          ENABLE_PPL_CHUNKING: envVars?.ENABLE_PPL_CHUNKING || "false",
+          FAST_MODE: envVars?.FAST_MODE || "true",
+          VERBOSE_LOGS: envVars?.VERBOSE_LOGS || "false",
+        },
+      };
+    } else {
+      // Use cloud RAG server with default URL
+      const ragServerUrl =
+        envVars?.RAG_SERVER_URL || "https://rag.cobrowser.xyz";
+
+      let cloudUrl: URL;
+      try {
+        cloudUrl = new URL(ragServerUrl);
+      } catch {
+        throw new Error(
+          `Invalid RAG_SERVER_URL: ${ragServerUrl}. Must be a valid URL.`,
+        );
+      }
+
+      return {
+        name: "rag",
+        url: cloudUrl.origin,
+        port:
+          parseInt(cloudUrl.port) ||
+          (cloudUrl.protocol === "https:" ? 443 : 80),
+        healthEndpoint: "/health",
+        mcpEndpoint: "/mcp",
+        env: {}, // Cloud RAG doesn't need environment variables
+      };
+    }
+  }
+
   const baseConfig = getMCPServerBaseConfig(name);
   if (!baseConfig) return undefined;
 
   // Build environment-specific configuration
   const env: Record<string, string> = {};
+  const url = baseConfig.url;
+  const port = baseConfig.port;
 
   switch (name) {
-    case "rag":
-      if (envVars) {
-        Object.assign(env, {
-          ...(envVars.TURBOPUFFER_API_KEY && {
-            TURBOPUFFER_API_KEY: envVars.TURBOPUFFER_API_KEY,
-          }),
-          ENABLE_PPL_CHUNKING: envVars.ENABLE_PPL_CHUNKING || "false",
-          FAST_MODE: envVars.FAST_MODE || "true",
-          VERBOSE_LOGS: envVars.VERBOSE_LOGS || "false",
-        });
-      }
-      break;
-
     case "gmail":
       // Gmail MCP server manages its own configuration
       // No environment variables needed from agent
@@ -157,6 +196,8 @@ export function createMCPServerConfig(
 
   return {
     ...baseConfig,
+    url,
+    port,
     env,
   };
 }
@@ -170,7 +211,18 @@ export function createMCPServerConfig(
 export function getAllMCPServerConfigs(
   envVars?: Record<string, string>,
 ): MCPServerConfig[] {
-  return Object.keys(MCP_SERVERS_BASE)
-    .map(name => createMCPServerConfig(name, envVars))
-    .filter((config): config is MCPServerConfig => config !== undefined);
+  const configs: MCPServerConfig[] = [];
+
+  // Add all servers including RAG (local or cloud)
+  for (const name of Object.keys(MCP_SERVERS_BASE)) {
+    // Skip RAG server if using cloud mode (it will be connected later with auth token)
+    if (name === "rag" && envVars?.USE_LOCAL_RAG_SERVER !== "true") {
+      continue;
+    }
+
+    const config = createMCPServerConfig(name, envVars);
+    if (config) configs.push(config);
+  }
+
+  return configs;
 }

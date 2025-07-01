@@ -12,6 +12,7 @@ import {
   MCPConnectionError,
   MCPToolError,
   IMCPManager,
+  createMCPServerConfig,
 } from "@vibe/shared-types";
 
 import { MCPConnectionManager } from "./mcp-connection-manager.js";
@@ -26,6 +27,12 @@ const logger = createLogger("McpManager");
 class ConnectionOrchestrator {
   private readonly connections = new Map<string, MCPConnection>();
   private readonly connectionManager = new MCPConnectionManager();
+  private authToken: string | null = null;
+
+  setAuthToken(token: string | null): void {
+    this.authToken = token;
+    this.connectionManager.setAuthToken(token);
+  }
 
   async initializeConnections(
     configs: MCPServerConfig[],
@@ -35,10 +42,21 @@ class ConnectionOrchestrator {
       return this.connections;
     }
 
+    // Set auth token before creating connections
+    if (this.authToken) {
+      this.connectionManager.setAuthToken(this.authToken);
+    }
+
     logger.debug(`Initializing ${configs.length} MCP servers`);
 
     const results = await Promise.allSettled(
       configs.map(async config => {
+        // Skip RAG server if no auth token
+        if (config.name === "rag" && !this.authToken) {
+          logger.info("Skipping RAG server - no auth token available");
+          return Promise.reject(new Error("No auth token for RAG server"));
+        }
+
         const connection =
           await this.connectionManager.createConnection(config);
         await this.fetchTools(connection);
@@ -58,7 +76,7 @@ class ConnectionOrchestrator {
 
     logger.info(`Initialized ${successCount}/${configs.length} MCP servers`);
 
-    if (successCount === 0) {
+    if (successCount === 0 && configs.some(c => c.name !== "rag")) {
       throw new MCPConnectionError("Failed to connect to any MCP servers");
     }
 
@@ -134,6 +152,58 @@ class ConnectionOrchestrator {
     } catch (error) {
       logger.error(`Reconnection failed for ${connection.serverName}:`, error);
       return false;
+    }
+  }
+
+  async connectRAGServer(ragConfig: MCPServerConfig): Promise<void> {
+    if (!this.authToken) {
+      throw new Error("Cannot connect to RAG server without auth token");
+    }
+
+    // Validate RAG config
+    if (!ragConfig?.url || !ragConfig?.mcpEndpoint) {
+      throw new Error("Invalid RAG configuration: missing url or mcpEndpoint");
+    }
+
+    logger.debug(`Connecting to RAG server with config:`, ragConfig);
+
+    try {
+      // Disconnect existing RAG connection if any
+      const existingRAG = this.connections.get("rag");
+      if (existingRAG) {
+        logger.debug("Closing existing RAG connection");
+        try {
+          await this.connectionManager.closeConnection(existingRAG);
+        } catch (closeError) {
+          logger.warn("Failed to close existing RAG connection:", closeError);
+        }
+        this.connections.delete("rag");
+      }
+
+      // Create new RAG connection
+      logger.debug("Creating new RAG connection");
+      const connection =
+        await this.connectionManager.createConnection(ragConfig);
+      logger.debug("Fetching RAG tools");
+      await this.fetchTools(connection);
+      this.connections.set("rag", connection);
+
+      logger.info(
+        "RAG server connected successfully with tools:",
+        Object.keys(connection.tools || {}),
+      );
+    } catch (error) {
+      logger.error("Failed to connect RAG server:", error);
+      throw error;
+    }
+  }
+
+  async disconnectRAGServer(): Promise<void> {
+    const ragConnection = this.connections.get("rag");
+    if (ragConnection) {
+      await this.connectionManager.closeConnection(ragConnection);
+      this.connections.delete("rag");
+      logger.info("RAG server disconnected");
     }
   }
 
@@ -288,10 +358,64 @@ export class MCPManager implements IMCPManager {
     this.orchestrator,
     this.toolRouter,
   );
+  private authToken: string | null = null;
 
   async initialize(configs: MCPServerConfig[]): Promise<void> {
     const connections = await this.orchestrator.initializeConnections(configs);
     this.toolRegistry.registerConnections(connections);
+  }
+
+  async updateAuthToken(token: string | null): Promise<void> {
+    logger.info(`Updating auth token: ${token ? "present" : "null"}`);
+    this.authToken = token;
+    this.orchestrator.setAuthToken(token);
+
+    // Handle RAG connection based on token
+    if (token) {
+      // Try to connect to RAG server if we have the config
+      const envVars: Record<string, string> = {
+        USE_LOCAL_RAG_SERVER: process.env.USE_LOCAL_RAG_SERVER || "",
+        RAG_SERVER_URL: process.env.RAG_SERVER_URL || "",
+        OPENAI_API_KEY: process.env.OPENAI_API_KEY || "",
+        TURBOPUFFER_API_KEY: process.env.TURBOPUFFER_API_KEY || "",
+        ENABLE_PPL_CHUNKING: process.env.ENABLE_PPL_CHUNKING || "",
+        FAST_MODE: process.env.FAST_MODE || "",
+        VERBOSE_LOGS: process.env.VERBOSE_LOGS || "",
+      };
+      const ragConfig = createMCPServerConfig("rag", envVars);
+
+      if (ragConfig?.url) {
+        try {
+          logger.info(`Connecting to RAG server at: ${ragConfig.url}`);
+          await this.orchestrator.connectRAGServer(ragConfig);
+          // Re-register connections to include new RAG connection
+          this.toolRegistry.registerConnections(
+            this.orchestrator.getConnections(),
+          );
+          logger.info("RAG server connected successfully");
+
+          // Log available tools after connection
+          const allTools = await this.getAllTools();
+          const ragTools = Object.keys(allTools).filter(name =>
+            name.startsWith("rag:"),
+          );
+          logger.info(`RAG tools available: ${ragTools.join(", ")}`);
+        } catch (error) {
+          logger.error(
+            "Failed to connect RAG server after auth update:",
+            error,
+          );
+        }
+      } else {
+        logger.warn("No RAG config available for cloud connection");
+      }
+    } else {
+      // Disconnect RAG server if token is removed
+      logger.info("Disconnecting RAG server due to token removal");
+      await this.orchestrator.disconnectRAGServer();
+      // Re-register connections without RAG
+      this.toolRegistry.registerConnections(this.orchestrator.getConnections());
+    }
   }
 
   async getAllTools(): Promise<Record<string, MCPTool>> {

@@ -31,7 +31,18 @@ export function parseReactToolCall(
     logger.debug(
       `[ReAct XML Parser] Parsing tool call XML content: "${toolCallXmlContent}"`,
     );
-    const parsed = JSON.parse(toolCallXmlContent);
+
+    // Remove any trailing content after the closing brace
+    const jsonMatch = toolCallXmlContent.match(/^(\{[\s\S]*\})/);
+    if (!jsonMatch) {
+      logger.error(
+        "[ReAct XML Parser] No valid JSON object found in tool call content",
+      );
+      return null;
+    }
+
+    const cleanedContent = jsonMatch[1];
+    const parsed = JSON.parse(cleanedContent);
     logger.debug(`[ReAct XML Parser] Parsed tool call:`, parsed);
     if (
       parsed &&

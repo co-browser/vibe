@@ -192,25 +192,28 @@ const NavigationBar: React.FC = () => {
   }, []);
 
   // Validation helpers
-  const isValidURL = (string: string): boolean => {
+  const isValidURL = useCallback((string: string): boolean => {
     try {
       new URL(string.includes("://") ? string : `https://${string}`);
       return true;
     } catch {
       return false;
     }
-  };
+  }, []);
 
-  const isDomain = (string: string): boolean => {
+  const isDomain = useCallback((string: string): boolean => {
     const domainRegex = /^[a-zA-Z0-9][a-zA-Z0-9-_.]*[a-zA-Z0-9]\.[a-zA-Z]{2,}$/;
     return domainRegex.test(string);
-  };
+  }, []);
 
-  const detectInputType = (input: string): "url" | "domain" | "search" => {
-    if (isValidURL(input)) return "url";
-    if (isDomain(input)) return "domain";
-    return "search";
-  };
+  const detectInputType = useCallback(
+    (input: string): "url" | "domain" | "search" => {
+      if (isValidURL(input)) return "url";
+      if (isDomain(input)) return "domain";
+      return "search";
+    },
+    [isValidURL, isDomain],
+  );
 
   // Generate intelligent suggestions using vibe APIs
   const generateRealSuggestions = useCallback(

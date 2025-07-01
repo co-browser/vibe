@@ -19,6 +19,7 @@ export const useAutoScroll = (dependencies: any[]) => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
       }, 100);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, dependencies);
 
   return { messagesEndRef, containerRef };
