@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, Suspense } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { Float, Stars, OrbitControls } from "@react-three/drei";
+import { Stars, OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
 import { motion, AnimatePresence } from "framer-motion";
 import noiseImage from "../../assets/noise.png";
@@ -17,33 +17,44 @@ interface ChromeProfile {
 function ScrambledPlaceholder({ isActive }: { isActive: boolean }) {
   const [displayText, setDisplayText] = useState("enter your name");
   const [isScrambling, setIsScrambling] = useState(false);
-  
+
   const names = [
-    "Alex Chen", "Jordan Smith", "Taylor Davis", "Morgan Lee", 
-    "Casey Wilson", "River Johnson", "Sage Anderson", "Quinn Miller",
-    "Blake Taylor", "Avery Brown", "Cameron White", "Dakota Jones"
+    "Alex Chen",
+    "Jordan Smith",
+    "Taylor Davis",
+    "Morgan Lee",
+    "Casey Wilson",
+    "River Johnson",
+    "Sage Anderson",
+    "Quinn Miller",
+    "Blake Taylor",
+    "Avery Brown",
+    "Cameron White",
+    "Dakota Jones",
   ];
-  
+
   const scrambleChars = "!@#$%^&*()_+-=[]{}|;:,.<>?/~`";
-  
+
   useEffect(() => {
     if (!isActive) return;
-    
+
     const interval = setInterval(() => {
       // Start scrambling
       setIsScrambling(true);
       const targetName = names[Math.floor(Math.random() * names.length)];
       let currentIndex = 0;
-      
+
       const scrambleInterval = setInterval(() => {
         if (currentIndex <= targetName.length) {
           const scrambled = targetName
-            .split('')
+            .split("")
             .map((char, index) => {
               if (index < currentIndex) return char;
-              return scrambleChars[Math.floor(Math.random() * scrambleChars.length)];
+              return scrambleChars[
+                Math.floor(Math.random() * scrambleChars.length)
+              ];
             })
-            .join('');
+            .join("");
           setDisplayText(scrambled);
           currentIndex++;
         } else {
@@ -56,12 +67,14 @@ function ScrambledPlaceholder({ isActive }: { isActive: boolean }) {
             const backInterval = setInterval(() => {
               if (backIndex <= "enter your name".length) {
                 const scrambled = "enter your name"
-                  .split('')
+                  .split("")
                   .map((char, index) => {
                     if (index < backIndex) return char;
-                    return scrambleChars[Math.floor(Math.random() * scrambleChars.length)];
+                    return scrambleChars[
+                      Math.floor(Math.random() * scrambleChars.length)
+                    ];
                   })
-                  .join('');
+                  .join("");
                 setDisplayText(scrambled);
                 backIndex++;
               } else {
@@ -72,14 +85,12 @@ function ScrambledPlaceholder({ isActive }: { isActive: boolean }) {
         }
       }, 50);
     }, 3000);
-    
+
     return () => clearInterval(interval);
   }, [isActive]);
-  
+
   return (
-    <span className={`${isScrambling ? 'font-mono' : ''}`}>
-      {displayText}
-    </span>
+    <span className={`${isScrambling ? "font-mono" : ""}`}>{displayText}</span>
   );
 }
 
@@ -143,19 +154,19 @@ function GeminiProgressBar({
 
 // Animated background component with lava lamp effect
 function AnimatedBackground() {
-  const meshRef = useRef<THREE.Mesh>();
+  const meshRef = useRef<THREE.Mesh>(null);
   const [texture, setTexture] = useState<THREE.Texture | null>(null);
-  
+
   useEffect(() => {
     const loader = new THREE.TextureLoader();
-    loader.load(noiseImage, (loadedTexture) => {
+    loader.load(noiseImage, loadedTexture => {
       loadedTexture.wrapS = THREE.ClampToEdgeWrapping;
       loadedTexture.wrapT = THREE.ClampToEdgeWrapping;
       setTexture(loadedTexture);
     });
   }, []);
-  
-  useFrame((state) => {
+
+  useFrame(state => {
     if (meshRef.current && meshRef.current.material) {
       const material = meshRef.current.material as THREE.ShaderMaterial;
       if (material.uniforms?.time) {
@@ -163,9 +174,9 @@ function AnimatedBackground() {
       }
     }
   });
-  
+
   if (!texture) return null;
-  
+
   return (
     <mesh ref={meshRef} position={[0, 0, -30]} scale={[80, 80, 1]}>
       <planeGeometry args={[1, 1, 32, 32]} />
@@ -234,15 +245,11 @@ function Scene() {
         color="#FFD700"
       />
       {/* Subtle point light for depth */}
-      <pointLight
-        position={[-15, 15, 10]}
-        intensity={0.5}
-        color="#FFA500"
-      />
-      
+      <pointLight position={[-15, 15, 10]} intensity={0.5} color="#FFA500" />
+
       {/* Animated background with lava lamp effect */}
       <AnimatedBackground />
-      
+
       <Stars
         radius={100}
         depth={50}
@@ -251,7 +258,7 @@ function Scene() {
         saturation={0}
         fade
       />
-      
+
       {/* OrbitControls for mouse interaction */}
       <OrbitControls
         enableZoom={true}
@@ -262,7 +269,7 @@ function Scene() {
         mouseButtons={{
           LEFT: THREE.MOUSE.ROTATE,
           MIDDLE: THREE.MOUSE.ROTATE,
-          RIGHT: null
+          RIGHT: THREE.MOUSE.ROTATE,
         }}
         minDistance={5}
         maxDistance={20}
@@ -422,8 +429,7 @@ export function OnboardingPage3D() {
               <div className="absolute inset-0 animate-pulse">
                 <div className="w-32 h-32 bg-gradient-to-br from-yellow-600 to-amber-700 rounded-full filter blur-xl opacity-60" />
               </div>
-              <div className="relative w-32 h-32 bg-gradient-to-br from-yellow-600 to-amber-700 rounded-full flex items-center justify-center">
-              </div>
+              <div className="relative w-32 h-32 bg-gradient-to-br from-yellow-600 to-amber-700 rounded-full flex items-center justify-center"></div>
             </div>
 
             <div className="text-center space-y-4">
@@ -478,14 +484,14 @@ export function OnboardingPage3D() {
             className="flex flex-col items-center justify-center space-y-8 text-white"
           >
             <div className="text-center space-y-4">
-              <motion.h2 
+              <motion.h2
                 className="text-4xl font-bold relative"
                 animate={{
                   textShadow: [
                     "0 0 10px rgba(255, 215, 0, 0.5), 0 0 20px rgba(255, 215, 0, 0.3)",
                     "0 0 20px rgba(255, 215, 0, 0.8), 0 0 40px rgba(255, 215, 0, 0.5)",
-                    "0 0 10px rgba(255, 215, 0, 0.5), 0 0 20px rgba(255, 215, 0, 0.3)"
-                  ]
+                    "0 0 10px rgba(255, 215, 0, 0.5), 0 0 20px rgba(255, 215, 0, 0.3)",
+                  ],
                 }}
                 transition={{
                   duration: 2,
@@ -590,8 +596,8 @@ export function OnboardingPage3D() {
                         textShadow: [
                           "0 0 20px rgba(255, 215, 0, 0.8), 0 0 40px rgba(255, 215, 0, 0.5)",
                           "0 0 30px rgba(255, 215, 0, 1), 0 0 60px rgba(255, 215, 0, 0.7)",
-                          "0 0 20px rgba(255, 215, 0, 0.8), 0 0 40px rgba(255, 215, 0, 0.5)"
-                        ]
+                          "0 0 20px rgba(255, 215, 0, 0.8), 0 0 40px rgba(255, 215, 0, 0.5)",
+                        ],
                       }}
                       transition={{
                         duration: 1.5,
@@ -642,29 +648,32 @@ export function OnboardingPage3D() {
                     </div>
                   </div>
 
-                  <button 
+                  <button
                     onClick={async () => {
                       try {
                         // Apple Pay implementation
                         // Note: This requires proper backend setup and Apple developer account
-                        const paymentRequest = {
-                          countryCode: 'US',
-                          currencyCode: 'USD',
-                          total: {
-                            label: 'Vibe Pro - Lifetime Access',
-                            amount: '49.99'
-                          },
-                          supportedNetworks: ['visa', 'masterCard', 'amex'],
-                          merchantCapabilities: ['supports3DS']
-                        };
-                        
+                        // Apple Pay payment request would go here
+                        // const paymentRequest = {
+                        //   countryCode: "US",
+                        //   currencyCode: "USD",
+                        //   total: {
+                        //     label: "Vibe Pro - Lifetime Access",
+                        //     amount: "49.99",
+                        //   },
+                        //   supportedNetworks: ["visa", "masterCard", "amex"],
+                        //   merchantCapabilities: ["supports3DS"],
+                        // };
+
                         // Show coming soon alert for now
-                        alert('Apple Pay integration coming soon! This will process a $49.99 payment for lifetime access.');
-                        
+                        alert(
+                          "Apple Pay integration coming soon! This will process a $49.99 payment for lifetime access.",
+                        );
+
                         // After successful payment, would continue to next step
                         // setCurrentStep(2);
                       } catch (error) {
-                        console.error('Payment failed:', error);
+                        console.error("Payment failed:", error);
                       }
                     }}
                     className="w-full bg-black border-2 border-yellow-500/50 rounded-xl p-4 flex items-center justify-center space-x-3 hover:bg-yellow-500/10 hover:border-yellow-500 transition-all group relative overflow-hidden"
@@ -682,7 +691,7 @@ export function OnboardingPage3D() {
                         repeatDelay: 1,
                       }}
                     />
-                    
+
                     {/* Apple Pay icon */}
                     <svg
                       className="w-8 h-8 relative z-10"
@@ -720,11 +729,12 @@ export function OnboardingPage3D() {
 
                     setIsValidatingKey(true);
                     try {
-                      const saved = await window.electronAPI?.ipcRenderer?.invoke(
-                        "settings:set",
-                        "openaiApiKey",
-                        apiKey.trim(),
-                      );
+                      const saved =
+                        await window.electronAPI?.ipcRenderer?.invoke(
+                          "settings:set",
+                          "openaiApiKey",
+                          apiKey.trim(),
+                        );
 
                       if (saved) {
                         setCurrentStep(2);
@@ -745,7 +755,11 @@ export function OnboardingPage3D() {
                 disabled={isValidatingKey}
                 className="flex-1 px-6 py-3 bg-gradient-to-r from-yellow-600 to-amber-700 text-white rounded-xl font-medium hover:from-yellow-700 hover:to-amber-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
               >
-                {isValidatingKey ? "Saving..." : apiKey.trim() ? "Continue with API Key" : "Skip"}
+                {isValidatingKey
+                  ? "Saving..."
+                  : apiKey.trim()
+                    ? "Continue with API Key"
+                    : "Skip"}
               </button>
             </div>
           </motion.div>
@@ -894,13 +908,14 @@ export function OnboardingPage3D() {
   return (
     <div className="fixed inset-0 bg-black">
       {/* Subtle gradient overlay */}
-      <div 
+      <div
         className="absolute inset-0 pointer-events-none"
         style={{
-          background: "radial-gradient(ellipse at center, transparent 0%, rgba(0, 0, 0, 0.4) 100%)",
+          background:
+            "radial-gradient(ellipse at center, transparent 0%, rgba(0, 0, 0, 0.4) 100%)",
         }}
       />
-      
+
       {/* 3D Background */}
       <div className="absolute inset-0">
         <Canvas camera={{ position: [0, 0, 10], fov: 75 }}>
