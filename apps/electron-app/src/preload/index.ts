@@ -111,6 +111,9 @@ const appAPI: VibeAppAPI = {
   setAuthToken: async (token: string | null) => {
     return ipcRenderer.invoke("app:set-auth-token", token);
   },
+  completeOnboardingFirstStep: async () => {
+    return ipcRenderer.invoke("onboarding:complete-first-step");
+  },
 };
 
 // ACTIONS API IMPLEMENTATION

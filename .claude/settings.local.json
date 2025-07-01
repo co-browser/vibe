@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(rg:*)",
+      "Bash(grep:*)",
+      "Bash(find:*)",
+      "Bash(npm run lint)",
+      "Bash(npm run typecheck:*)",
+      "Bash(pnpm --filter @vibe/shared-types build)",
+      "Bash(rm:*)"
+    ],
+    "deny": []
+  }
+}
