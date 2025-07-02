@@ -72,7 +72,9 @@ ipcMain.handle("tabs:update", async (event, tabKey: string, _updates: any) => {
 
 ipcMain.handle("remove-tab", async (event, tabKey: string) => {
   const appWindow = browser?.getApplicationWindow(event.sender.id);
-  appWindow?.tabManager.closeTab(tabKey);
+  if (appWindow) {
+    await appWindow.tabManager.closeTab(tabKey);
+  }
 });
 
 ipcMain.handle("switch-tab", async (event, tabKey: string) => {

@@ -129,10 +129,40 @@ export class ViewManager {
   /**
    * Removes a WebContentsView
    */
-  public removeBrowserView(tabKey: string): boolean {
+  public async removeBrowserView(tabKey: string): Promise<boolean> {
     const view = this.browserViews.get(tabKey);
     if (!view) {
       return false;
+    }
+
+    // Stop all audio/video before closing
+    if (!view.webContents.isDestroyed()) {
+      try {
+        logger.info(`🔇 Stopping audio/video for tab ${tabKey}`);
+
+        // Stop any pending navigation and media streams
+        view.webContents.stop();
+
+        await view.webContents.executeJavaScript(`
+          // Pause and cleanup all audio/video elements
+          document.querySelectorAll('audio, video').forEach(media => {
+            media.pause();
+            media.src = '';
+            media.load();
+          });
+          
+          // Stop any Web Audio API contexts
+          if (typeof AudioContext !== 'undefined' && window.audioContext) {
+            window.audioContext.close();
+          }
+        `);
+
+        // Small delay to ensure cleanup completes
+        await new Promise(resolve => setTimeout(resolve, 50));
+        logger.info(`✅ Audio/video stopped for tab ${tabKey}`);
+      } catch (error) {
+        logger.warn(`❌ Failed to stop media for tab ${tabKey}:`, error);
+      }
     }
 
     // Remove from window
@@ -143,7 +173,8 @@ export class ViewManager {
     // Clean up view
     if (!view.webContents.isDestroyed()) {
       view.webContents.removeAllListeners();
-      view.webContents.close();
+      // Destroy the webContents which will clean up all resources including audio/video
+      (view.webContents as any).destroy();
     }
 
     this.browserViews.delete(tabKey);
@@ -398,9 +429,9 @@ export class ViewManager {
   /**
    * Destroys the view manager
    */
-  public destroy(): void {
+  public async destroy(): Promise<void> {
     for (const [tabKey] of this.browserViews) {
-      this.removeBrowserView(tabKey);
+      await this.removeBrowserView(tabKey);
     }
     this.browserViews.clear();
     this.activeViewKey = null;
