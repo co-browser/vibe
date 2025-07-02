@@ -10,10 +10,12 @@ import http from "http";
 import {
   getAllMCPServerConfigs,
   type MCPServerConfig,
-  findWorkspaceRoot,
-  getMonorepoPackagePath,
   createLogger,
 } from "@vibe/shared-types";
+import {
+  findWorkspaceRoot,
+  getMonorepoPackagePath,
+} from "@vibe/shared-types/utils/path";
 
 const logger = createLogger("MCPManager");
 
