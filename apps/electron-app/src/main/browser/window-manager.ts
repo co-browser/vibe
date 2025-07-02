@@ -2,6 +2,7 @@ import { BrowserWindow, WebContents, nativeTheme } from "electron";
 import { ApplicationWindow } from "./application-window";
 import { WINDOW_CONFIG } from "@vibe/shared-types";
 import { createLogger } from "@vibe/shared-types";
+import liquidGlass, { GlassOptions } from "electron-liquid-glass";
 
 const logger = createLogger("WindowManager");
 
@@ -44,7 +45,6 @@ export class WindowManager {
       visualEffectState: "active",
       backgroundMaterial: "none",
       roundedCorners: true,
-      vibrancy: process.platform === "darwin" ? "fullscreen-ui" : undefined,
       webPreferences: {
         preload: require.resolve("../preload/index.js"),
         sandbox: false,
@@ -59,6 +59,19 @@ export class WindowManager {
     const applicationWindow =
       this.browser.createApplicationWindow(windowOptions);
     this.windows.set(applicationWindow.id, applicationWindow);
+
+    const glassOptions: GlassOptions = {
+      cornerRadius: 16, // (optional)
+      tintColor: "#44000010", // black tint (optional)
+      opaque: true, // add opaque background behind glass (optional)
+    };
+
+    applicationWindow.setWindowButtonVisibility(true);
+    liquidGlass.addView(
+      applicationWindow.getNativeWindowHandle(),
+      glassOptions,
+    );
+    liquidGlass.unstable_setVariant(11, 2);
 
     // Set as main window if first window
     if (!this.mainWindow) {

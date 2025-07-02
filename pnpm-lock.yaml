@@ -143,6 +143,9 @@ importers:
       dotenv:
         specifier: ^16.5.0
         version: 16.5.0
+      electron-liquid-glass:
+        specifier: ^1.0.1
+        version: 1.0.1
       electron-log:
         specifier: ^5.4.0
         version: 5.4.1
@@ -4166,6 +4169,11 @@ packages:
     resolution: {integrity: sha512-PJbm3XAG9qje73j4iXi043F0JnzHEDP2y/MQBprW+zizZqT2DywTkFN14ryLt8aGkGnoYBP44Smccff0A2AafQ==}
     engines: {node: '>=14.0.0'}
     hasBin: true
+
+  electron-liquid-glass@1.0.1:
+    resolution: {integrity: sha512-XznNF0uDOmwvIQFGfgZM6PiQbrpXJiG4GYN6VnLzUrZwcOsQUGy51cJ5mPZCfwH+ST/ahorhLzwFEr+hsKRHXw==}
+    engines: {node: '>=18'}
+    os: [darwin]
 
   electron-log@5.4.1:
     resolution: {integrity: sha512-QvisA18Z++8E3Th0zmhUelys9dEv7aIeXJlbFw3UrxCc8H9qSRW0j8/ooTef/EtHui8tVmbKSL+EIQzP9GoRLg==}
@@ -14161,6 +14169,13 @@ snapshots:
       - bluebird
       - electron-builder-squirrel-windows
       - supports-color
+
+  electron-liquid-glass@1.0.1:
+    dependencies:
+      bindings: 1.5.0
+      node-addon-api: 8.4.0
+    optionalDependencies:
+      node-gyp-build: 4.8.4
 
   electron-log@5.4.1: {}
 
