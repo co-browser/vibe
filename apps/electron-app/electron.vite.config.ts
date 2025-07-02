@@ -6,7 +6,7 @@ import { sentryVitePlugin } from "@sentry/vite-plugin";
 export default defineConfig({
   main: {
     plugins: [
-      externalizeDepsPlugin({ exclude: ["@modelcontextprotocol/sdk"] }),
+      externalizeDepsPlugin({ exclude: ["@modelcontextprotocol/sdk", "@vibe/shared-types"] }),
       sentryVitePlugin({
         authToken: "some invalid auth token",
         org: "some invalid org",
@@ -27,7 +27,7 @@ export default defineConfig({
     resolve: {
       alias: {
         "@": path.resolve(__dirname, "./src/main"),
-        "@vibe/shared-types": path.resolve(__dirname, "../../packages/shared-types/src/index.ts"),
+        "@vibe/shared-types": path.resolve(__dirname, "../../packages/shared-types/src"),
       },
     },
     build: {
@@ -44,10 +44,10 @@ export default defineConfig({
     },
   },
   preload: {
-    plugins: [externalizeDepsPlugin()],
+    plugins: [externalizeDepsPlugin({ exclude: ["@vibe/shared-types"] })],
     resolve: {
       alias: {
-        "@vibe/shared-types": path.resolve(__dirname, "../../packages/shared-types/src/index.ts"),
+        "@vibe/shared-types": path.resolve(__dirname, "../../packages/shared-types/src"),
       },
     },
   },
@@ -55,7 +55,7 @@ export default defineConfig({
     resolve: {
       alias: {
         "@": path.resolve(__dirname, "./src/renderer/src"),
-        "@vibe/shared-types": path.resolve(__dirname, "../../packages/shared-types/src/index.ts"),
+        "@vibe/shared-types": path.resolve(__dirname, "../../packages/shared-types/src"),
       },
     },
     server: {

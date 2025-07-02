@@ -31,11 +31,8 @@ import {
   isFirstLaunch,
   handleStoreEncryption,
 } from "@/store/desktop-store";
-import {
-  createLogger,
-  MAIN_PROCESS_CONFIG,
-  findFileUpwards,
-} from "@vibe/shared-types";
+import { createLogger, MAIN_PROCESS_CONFIG } from "@vibe/shared-types";
+import { findFileUpwards } from "@vibe/shared-types/utils/path";
 import {
   init,
   browserWindowSessionIntegration,
