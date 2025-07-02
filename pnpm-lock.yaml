@@ -220,7 +220,7 @@ importers:
         specifier: ^10.4.21
         version: 10.4.21(postcss@8.5.4)
       electron:
-        specifier: ^35.1.5
+        specifier: 35.1.5
         version: 35.1.5
       electron-builder:
         specifier: ^26.0.17

@@ -74,14 +74,20 @@ export function ProfileProvider({ children }: Props) {
   };
 
   const clearProfile = async () => {
-    await window.vibe.profile.clearProfile();
-    setProfile(null);
-    setStatus({
-      initialized: true,
-      authenticated: false,
-      hasProfile: false,
-      lastActivity: Date.now(),
-    });
+    setError(null);
+    try {
+      await window.vibe.profile.clearProfile();
+      setProfile(null);
+      setStatus({
+        initialized: true,
+        authenticated: false,
+        hasProfile: false,
+        lastActivity: Date.now(),
+      });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to clear profile");
+      throw e;
+    }
   };
 
   const setApiKey = (service: string, key: string) =>
@@ -109,17 +115,18 @@ export function ProfileProvider({ children }: Props) {
   useEffect(() => {
     const unsubscribe = window.vibe.profile.onApiKeyChanged(
       ({ service, key }) => {
-        if (profile) {
-          setProfile({
-            ...profile,
-            apiKeys: { ...profile.apiKeys, [service]: key },
+        setProfile(current => {
+          if (!current) return current;
+          return {
+            ...current,
+            apiKeys: { ...current.apiKeys, [service]: key },
             updatedAt: Date.now(),
-          });
-        }
+          };
+        });
       },
     );
     return unsubscribe;
-  }, [profile]);
+  }, []);
 
   return (
     <ProfileContext.Provider
