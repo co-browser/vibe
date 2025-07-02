@@ -228,7 +228,7 @@ async function gracefulShutdown(signal: string): Promise<void> {
 
     // Destroy browser instance (will clean up its own menu)
     if (browser) {
-      browser.destroy();
+      await browser.destroy();
     }
 
     // Close all windows
@@ -699,7 +699,7 @@ app.on("before-quit", async event => {
 
   // Clean up browser resources
   if (browser && !browser.isDestroyed()) {
-    browser.destroy();
+    await browser.destroy();
   }
 
   // Clean up memory monitor

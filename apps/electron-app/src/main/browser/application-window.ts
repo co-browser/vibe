@@ -210,7 +210,7 @@ export class ApplicationWindow extends EventEmitter {
     }
   }
 
-  public destroy(): void {
+  public async destroy(): Promise<void> {
     if (this.window.isDestroyed()) return;
 
     try {
@@ -222,7 +222,7 @@ export class ApplicationWindow extends EventEmitter {
 
     try {
       // Clean up ViewManager
-      this.viewManager.destroy();
+      await this.viewManager.destroy();
     } catch (error) {
       logger.warn("Error destroying ViewManager:", error);
     }

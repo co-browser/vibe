@@ -180,7 +180,7 @@ export class Browser extends EventEmitter {
   /**
    * Destroys the browser and cleans up resources
    */
-  public destroy(): void {
+  public async destroy(): Promise<void> {
     if (this._isDestroyed) return;
 
     logger.debug("🧹 Browser: Starting cleanup process...");
@@ -195,7 +195,7 @@ export class Browser extends EventEmitter {
     for (const [webContentsId, appWindow] of this.applicationWindows) {
       try {
         logger.debug("🧹 Browser: Destroying ApplicationWindow", webContentsId);
-        appWindow.destroy();
+        await appWindow.destroy();
       } catch (error) {
         logger.warn("Error destroying ApplicationWindow:", error);
       }

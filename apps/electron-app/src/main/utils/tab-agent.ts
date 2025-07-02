@@ -248,7 +248,7 @@ export async function sendTabToAgent(browser: Browser): Promise<void> {
 
   // Now remove tab from UI (non-blocking for user)
   // Use TabManager to close the tab directly instead of IPC to renderer
-  const closed = tabManager.closeTab(checkKey);
+  const closed = await tabManager.closeTab(checkKey);
   if (closed) {
     logger.info(`Tab ${checkKey} closed successfully`);
   } else {
