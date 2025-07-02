@@ -26,6 +26,12 @@ import { setAgentServiceInstance as setAgentStatusInstance } from "@/ipc/chat/ag
 import { setAgentServiceInstance as setChatMessagingInstance } from "@/ipc/chat/chat-messaging";
 import { setAgentServiceInstance as setTabAgentInstance } from "@/utils/tab-agent";
 import {
+  initializeStore,
+  registerExitHandler,
+  isFirstLaunch,
+  handleStoreEncryption,
+} from "@/store/desktop-store";
+import {
   createLogger,
   MAIN_PROCESS_CONFIG,
   findFileUpwards,
@@ -173,6 +179,14 @@ async function gracefulShutdown(signal: string): Promise<void> {
   logger.info(`Graceful shutdown triggered by: ${signal}`);
 
   try {
+    // Encrypt desktop store before shutting down
+    try {
+      await handleStoreEncryption();
+      logger.info("Desktop store encrypted successfully during shutdown");
+    } catch (error) {
+      logger.error("Failed to encrypt desktop store during shutdown:", error);
+    }
+
     // Clean up resources
     if (memoryMonitor) {
       memoryMonitor.triggerGarbageCollection();
@@ -524,7 +538,24 @@ async function initializeServices(): Promise<void> {
 }
 
 // Main application initialization
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  // Initialize desktop store first
+  try {
+    await initializeStore();
+    registerExitHandler();
+
+    // On first launch, store initialization is deferred until after onboarding
+    if (isFirstLaunch()) {
+      logger.info(
+        "First launch detected - store initialization deferred until after onboarding",
+      );
+    } else {
+      logger.info("Desktop store initialized successfully");
+    }
+  } catch (error) {
+    logger.error("Failed to initialize desktop store:", error);
+  }
+
   // Register the custom protocol handler for secure context
   protocol.handle("vibe", request => {
     const url = new URL(request.url);
@@ -605,7 +636,20 @@ app.on("activate", () => {
   }
 });
 
-app.on("before-quit", async _event => {
+app.on("before-quit", async event => {
+  // Prevent default to handle encryption
+  if (!isShuttingDown) {
+    event.preventDefault();
+
+    // Encrypt desktop store
+    try {
+      await handleStoreEncryption();
+      logger.info("Desktop store encrypted successfully");
+    } catch (error) {
+      logger.error("Failed to encrypt desktop store:", error);
+    }
+  }
+
   // Track app shutdown
   try {
     const windows = browser?.getAllWindows();
@@ -648,6 +692,11 @@ app.on("before-quit", async _event => {
     logger.error("Error during shutdown logging:", error);
   }
 
+  // Continue with quit if not already shutting down
+  if (!isShuttingDown) {
+    app.quit();
+  }
+
   // Clean up browser resources
   if (browser && !browser.isDestroyed()) {
     browser.destroy();
@@ -676,8 +725,4 @@ app.on("web-contents-created", (_event, contents) => {
     shell.openExternal(url);
     return { action: "deny" };
   });
-});
-
-app.on("before-quit", () => {
-  app.isQuitting = true;
 });

@@ -40,6 +40,10 @@ export interface VibeAppAPI {
     set: (keyName: string, value: string) => Promise<boolean>;
   };
   setAuthToken: (token: string | null) => Promise<{ success: boolean }>;
+  completeOnboardingFirstStep: () => Promise<{
+    success: boolean;
+    error?: string;
+  }>;
 }
 
 // Actions API - User actions and interactions
