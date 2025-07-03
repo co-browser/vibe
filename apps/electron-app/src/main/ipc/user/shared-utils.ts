@@ -77,34 +77,58 @@ export function normalizeApiKeyType(key: string): string {
  * Get a setting value from the appropriate source
  */
 export async function getSetting(key: string): Promise<any> {
+  logger.debug(`🔍 getSetting called with key: '${key}'`);
   const profileService = await getProfile();
   const storage = getStorage();
 
   // Check if it's a profile preference
   if (isProfilePreference(key)) {
+    logger.debug(`getSetting: '${key}' is a profile preference`);
     return profileService.getPreference(key);
   }
 
   // Check if it's an API key
-  if (isApiKeyType(key)) {
+  const isApiKey = isApiKeyType(key);
+  logger.debug(`getSetting: '${key}' isApiKeyType = ${isApiKey}`);
+  if (isApiKey) {
     const keyType = normalizeApiKeyType(key);
+    logger.debug(
+      `getSetting: Looking up API key type '${keyType}' for original key '${key}'`,
+    );
     const storedKey = profileService.getApiKey(keyType);
+    logger.debug(
+      `getSetting: Profile service returned:`,
+      storedKey ? "present" : "undefined",
+    );
 
-    // check ENV for keys
+    // check if the env has the key when the store doesnt have it
     if (!storedKey && API_KEY_ENV_MAP[keyType]) {
       const envValue = process.env[API_KEY_ENV_MAP[keyType]];
+      logger.debug(
+        `getSetting: No stored key, checking environment: ${API_KEY_ENV_MAP[keyType]} = ${envValue ? "present" : "undefined"}`,
+      );
       if (envValue) {
         // Migrate from env to profile storage
-        await profileService.setApiKey(keyType, envValue);
+        logger.info(
+          `getSetting: Migrating ${keyType} from environment to profile storage`,
+        );
+        profileService.setApiKey(keyType, envValue);
         return envValue;
       }
     }
 
+    logger.debug(
+      `getSetting: Returning storedKey:`,
+      storedKey ? "present" : "undefined",
+    );
     return storedKey;
   }
 
   // Otherwise it's an app setting
-  return storage.get(`settings.${key}`);
+  logger.debug(`getSetting: '${key}' is an app setting, checking storage`);
+  const result = storage.get(`settings.${key}`);
+  logger.debug(`getSetting: Storage returned:`, result);
+  return result;
 }
 
 /**

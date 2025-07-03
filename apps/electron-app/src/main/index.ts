@@ -462,67 +462,63 @@ async function initializeServices(): Promise<void> {
       // MCP service failed to initialize - this may impact functionality
       logger.warn("Application will continue without MCP service");
     }
-    if (process.env.OPENAI_API_KEY) {
-      // Initialize agent service after MCP is ready
-      await new Promise(resolve => {
-        setTimeout(async () => {
-          try {
-            logger.info(
-              "Initializing AgentService with utility process isolation",
-            );
+    // Initialize agent service after MCP is ready
+    await new Promise(resolve => {
+      setTimeout(async () => {
+        try {
+          logger.info(
+            "Initializing AgentService with utility process isolation",
+          );
 
-            // Create AgentService instance
-            agentService = new AgentService();
+          // Create AgentService instance
+          agentService = new AgentService();
 
-            // Set up error handling for agent service
-            agentService.on("error", error => {
-              logger.error("AgentService error:", error);
-            });
+          // Set up error handling for agent service
+          agentService.on("error", error => {
+            logger.error("AgentService error:", error);
+          });
 
-            agentService.on("terminated", data => {
-              logger.info("AgentService terminated:", data);
-            });
+          agentService.on("terminated", data => {
+            logger.info("AgentService terminated:", data);
+          });
 
-            agentService.on("ready", data => {
-              logger.info("AgentService ready:", data);
-            });
+          agentService.on("ready", data => {
+            logger.info("AgentService ready:", data);
+          });
 
-            // Get auth token if available
-            const authToken = (global as any).privyAuthToken ?? null;
+          // Get auth token if available
+          const authToken = (global as any).privyAuthToken ?? null;
 
-            // Initialize with configuration
-            await agentService.initialize({
-              openaiApiKey: process.env.OPENAI_API_KEY!,
-              model: "gpt-4o-mini",
-              processorType: "react",
-              authToken: authToken,
-            });
+          // Initialize with configuration
+          await agentService.initialize({
+            openaiApiKey: process.env.OPENAI_API_KEY!,
+            model: "gpt-4o-mini",
+            processorType: "react",
+            authToken: authToken,
+          });
 
-            // Inject agent service into IPC handlers
-            setAgentStatusInstance(agentService);
-            setChatMessagingInstance(agentService);
-            setTabAgentInstance(agentService);
+          // Inject agent service into IPC handlers
+          setAgentStatusInstance(agentService);
+          setChatMessagingInstance(agentService);
+          setTabAgentInstance(agentService);
 
-            logger.info(
-              "AgentService initialized successfully with utility process isolation",
-            );
-            resolve(void 0);
-          } catch (error) {
-            logger.error(
-              "AgentService initialization failed:",
-              error instanceof Error ? error.message : String(error),
-            );
+          logger.info(
+            "AgentService initialized successfully with utility process isolation",
+          );
+          resolve(void 0);
+        } catch (error) {
+          logger.error(
+            "AgentService initialization failed:",
+            error instanceof Error ? error.message : String(error),
+          );
 
-            // Log agent initialization failure
-            logger.error("Agent initialization failed:", error);
+          // Log agent initialization failure
+          logger.error("Agent initialization failed:", error);
 
-            resolve(void 0); // Don't fail the whole startup process
-          }
-        }, 500);
-      });
-    } else {
-      logger.warn("OPENAI_API_KEY not found, skipping service initialization");
-    }
+          resolve(void 0); // Don't fail the whole startup process
+        }
+      }, 500);
+    });
   } catch (error) {
     logger.error(
       "Service initialization failed:",

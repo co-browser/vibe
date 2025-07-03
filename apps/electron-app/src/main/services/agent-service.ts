@@ -37,14 +37,45 @@ export class AgentService extends EventEmitter implements IAgentService {
    */
   async initialize(config: AgentConfig): Promise<void> {
     try {
-      // Validate config using existing shared types
-      this.validateConfig(config);
-
       this.status = "initializing";
-      this.config = config;
       this.lastActivityTime = Date.now();
 
       logger.info("Initializing agent service");
+
+      // Get API key using centralized logic from shared-utils
+      const finalConfig = { ...config };
+      let apiKeySource = "none";
+
+      try {
+        logger.debug("Getting OpenAI API key from shared settings...");
+        const profileApiKey = await getSetting("openai");
+        logger.debug(
+          "API key result:",
+          profileApiKey ? "present" : "null/undefined",
+        );
+
+        if (profileApiKey) {
+          logger.info("Using OpenAI API key from settings");
+          finalConfig.openaiApiKey = profileApiKey;
+          apiKeySource = "settings";
+        } else {
+          logger.warn("No OpenAI API key found");
+          apiKeySource = "none";
+        }
+      } catch (error) {
+        logger.warn("Failed to get API key from settings:", error);
+        // Fallback to config as-is
+        if (config.openaiApiKey) {
+          apiKeySource = "config-fallback";
+        }
+      }
+
+      logger.info(`🔑 API key source: ${apiKeySource}`);
+      logger.info("Final config has API key:", !!finalConfig.openaiApiKey);
+
+      // Validate final config using existing shared types (allow empty API key during init)
+      this.validateConfig(finalConfig, true); // true = allowEmptyApiKey
+      this.config = finalConfig;
 
       // Create and start AgentWorker instance
       this.worker = new AgentWorker();
@@ -56,19 +87,31 @@ export class AgentService extends EventEmitter implements IAgentService {
       await this.worker.start();
 
       // Send initialization to worker process
-      await this.worker.sendMessage("initialize", {
-        config: {
-          openaiApiKey: config.openaiApiKey || undefined,
-          model: config.model,
-          processorType: config.processorType,
-        },
-      });
+      const workerConfig: any = {
+        model: finalConfig.model,
+        processorType: finalConfig.processorType,
+      };
+
+      // Only include API key if it's actually present and non-empty
+      if (
+        finalConfig.openaiApiKey &&
+        finalConfig.openaiApiKey.trim().length > 0
+      ) {
+        workerConfig.openaiApiKey = finalConfig.openaiApiKey;
+        logger.info("Initializing agent worker with API key");
+      } else {
+        logger.warn(
+          "Initializing agent worker without API key - will be set when available",
+        );
+      }
+
+      await this.worker.sendMessage("initialize", { config: workerConfig });
 
       this.status = "ready";
       this.lastActivityTime = Date.now();
       logger.info("Agent service initialized successfully");
 
-      // Start monitoring profile changes (fire and forget)
+      // Start monitoring profile changes AFTER worker is ready (fire and forget)
       this.monitorProfileChanges().catch(error => {
         logger.warn("Failed to start profile monitoring:", error);
       });
@@ -345,19 +388,34 @@ export class AgentService extends EventEmitter implements IAgentService {
   /**
    * Validate agent configuration
    */
-  private validateConfig(config: AgentConfig): void {
+  private validateConfig(
+    config: AgentConfig,
+    allowEmptyApiKey: boolean = false,
+  ): void {
     if (!config || typeof config !== "object") {
       throw new Error("Invalid config: must be an object");
     }
 
-    if (
-      !config.openaiApiKey ||
-      typeof config.openaiApiKey !== "string" ||
-      config.openaiApiKey.trim().length === 0
-    ) {
-      throw new Error(
-        "Invalid config: openaiApiKey is required and must be a non-empty string",
-      );
+    if (!allowEmptyApiKey) {
+      if (
+        !config.openaiApiKey ||
+        typeof config.openaiApiKey !== "string" ||
+        config.openaiApiKey.trim().length === 0
+      ) {
+        throw new Error(
+          "Invalid config: openaiApiKey is required and must be a non-empty string",
+        );
+      }
+    } else {
+      // During initialization, API key can be empty (will be set later via profile)
+      if (
+        config.openaiApiKey !== undefined &&
+        typeof config.openaiApiKey !== "string"
+      ) {
+        throw new Error(
+          "Invalid config: openaiApiKey must be a string when provided",
+        );
+      }
     }
 
     if (config.model && typeof config.model !== "string") {
@@ -450,39 +508,72 @@ export class AgentService extends EventEmitter implements IAgentService {
    * Monitor profile changes for API key updates
    */
   private async monitorProfileChanges(): Promise<void> {
+    logger.info("Monitoring profile changes for API key updates");
     const profileService = await getProfileService();
-
+    logger.debug("Profile service ready, has worker:", !!this.worker);
     const updateApiKey = async () => {
-      if (!this.worker) return;
+      if (!this.worker) {
+        logger.debug("No worker available for API key update");
+        return;
+      }
 
+      logger.debug("Checking for OpenAI API key changes...");
       const apiKey = await getSetting("openai");
-      if (apiKey) {
-        logger.info("OpenAI API key found, importing to agent.");
+      logger.debug(
+        "Retrieved API key from profile:",
+        apiKey ? "present" : "null/undefined",
+      );
+      if (apiKey && apiKey.trim().length > 0) {
+        logger.info(
+          "OpenAI API key detected, sending update message to worker...",
+        );
         try {
+          logger.debug("Sending update-openai-api-key message to worker...");
+          logger.debug("Message structure will be:", {
+            type: "update-openai-api-key",
+            data: { apiKey: apiKey ? "present" : "null" }, // Don't log actual key
+          });
           await this.worker.sendMessage("update-openai-api-key", { apiKey });
-          logger.info("OpenAI API key updated successfully");
+          logger.info(
+            "✅ OpenAI API key message sent successfully, worker should receive it",
+          );
+
+          // Update our stored config to reflect the new key
+          if (this.config) {
+            this.config.openaiApiKey = apiKey;
+          }
         } catch (error) {
-          logger.warn("Failed to update OpenAI API key:", error);
+          logger.warn(
+            "❌ Failed to update OpenAI API key in agent worker:",
+            error,
+          );
           // Don't throw - this is a non-critical operation that shouldn't break the service
         }
       } else {
-        logger.info("No OpenAI API key found for the current profile.");
+        logger.debug("No OpenAI API key found in profile");
       }
     };
 
-    // Initial check
+    // Initial check - but let's add debugging
+    logger.debug(
+      "🔍 Starting initial API key check in monitorProfileChanges...",
+    );
     updateApiKey().catch(error => {
       logger.warn("Initial API key update failed:", error);
     });
 
     // Listen for changes
     profileService.on("profile-switched", () => {
+      logger.debug("Profile switched, checking for API key changes...");
       updateApiKey().catch(error => {
         logger.warn("Profile switch API key update failed:", error);
       });
     });
+
     profileService.on("api-key-set", data => {
+      logger.debug("API key set event received:", data);
       if (data.keyType === "openai") {
+        logger.info("🔑 OpenAI API key was set in profile, updating agent...");
         updateApiKey().catch(error => {
           logger.warn("API key set update failed:", error);
         });

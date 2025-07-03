@@ -74,6 +74,7 @@ export class ProfileService extends EventEmitter {
   private currentProfileId: string | null = null;
 
   private constructor() {
+    logger.info("ProfileService constructor");
     super();
     this.storage = getStorageService();
   }
@@ -414,13 +415,36 @@ export class ProfileService extends EventEmitter {
     logger.info(
       `Getting API key for ${keyType}, profile ${this.currentProfileId}`,
     );
-    if (!this.currentProfileId) return undefined;
+    if (!this.currentProfileId) {
+      logger.warn("No current profile ID - cannot retrieve API key");
+      return undefined;
+    }
 
-    const apiKeys = this.storage.get(
-      `secure.profile.${this.currentProfileId}.apiKeys`,
-      {},
+    const storageKey = `secure.profile.${this.currentProfileId}.apiKeys`;
+    const apiKeys = this.storage.get(storageKey, {});
+    const result = apiKeys[keyType];
+
+    logger.debug(
+      `API key storage lookup: key=${storageKey}, found=${Object.keys(apiKeys)}, result=${result ? "present" : "undefined"}`,
     );
-    return apiKeys[keyType];
+
+    // Add debugging to see what's actually in storage for this profile
+    if (Object.keys(apiKeys).length === 0) {
+      logger.debug(
+        `🔍 No API keys found. Let me check what's stored for this profile...`,
+      );
+      const allStorageKeys = this.storage.keys();
+      const profileKeys = allStorageKeys.filter(k =>
+        k.includes(this.currentProfileId!),
+      );
+      logger.debug(`Storage keys for current profile:`, profileKeys);
+
+      // Also check if there are any API keys for any profile
+      const anyApiKeys = allStorageKeys.filter(k => k.includes(".apiKeys"));
+      logger.debug(`All API key storage keys in system:`, anyApiKeys);
+    }
+
+    return result;
   }
 
   getAllApiKeys(): Record<string, string> {

@@ -197,12 +197,20 @@ class MessageHandlers {
       ),
     };
 
-    // Attempt to create the agent if not already created
-    if (!agent) {
+    // Attempt to create the agent if not already created and we have an API key
+    if (!agent && agentConfig?.openaiApiKey) {
       createAgent();
     }
 
-    logger.info("Agent initialized successfully in utility process");
+    if (agentConfig?.openaiApiKey) {
+      logger.info(
+        "Agent initialized successfully in utility process with API key",
+      );
+    } else {
+      logger.info(
+        "Agent worker initialized successfully, waiting for API key to create agent",
+      );
+    }
 
     IPCMessenger.sendResponse(message.id, { success: true });
   }
@@ -346,12 +354,22 @@ class MessageHandlers {
       hasToken: !!authToken,
     });
   }
-
+  //function that asks for the api key and watches for changes
+  // RPM
   static async handleUpdateOpenAIApiKey(message: BaseMessage): Promise<void> {
+    logger.info(
+      "🔑 handleUpdateOpenAIApiKey called - processing API key update...",
+    );
     const data = message.data as UpdateOpenAIApiKeyData;
     const apiKey = data.apiKey;
 
+    logger.debug(
+      "API key data received:",
+      apiKey ? "present" : "null/undefined",
+    );
+
     if (!apiKey || typeof apiKey !== "string" || apiKey.trim().length === 0) {
+      logger.error("Invalid API key received for update");
       throw new Error("Valid OpenAI API key is required for update");
     }
 
@@ -467,30 +485,36 @@ async function handleMessageWithErrorHandling(
 // ============================================================================
 
 const bootstrap = () => {
-  // Pre-populate config from environment variables
-  const envApiKey = process.env.OPENAI_API_KEY;
-  if (envApiKey) {
-    agentConfig = { ...agentConfig, openaiApiKey: envApiKey };
-    logger.info("OpenAI API key found in environment variables.");
-    createAgent();
-  } else {
-    logger.info(
-      "OpenAI API key not found in environment. Waiting for IPC message.",
-    );
-  }
+  // Note: API key management is now handled by AgentService
+  // Worker always waits for initialization message from AgentService
+  logger.info(
+    "Agent worker process started, waiting for initialization message from AgentService...",
+  );
 
   // Main IPC message handler
   process.parentPort?.on("message", (messageWrapper: any) => {
+    logger.debug("🔍 Worker received message:", {
+      type: messageWrapper.type,
+      hasData: !!messageWrapper.data,
+      messageId: messageWrapper.id,
+    });
+
     if (
       messageWrapper.type === "settings:changed" &&
       messageWrapper.data?.key === "openaiApiKey"
     ) {
+      logger.info("📨 Processing settings:changed message for OpenAI API key");
       MessageHandlers.handleUpdateOpenAIApiKey({
         id: "settings-update",
         type: "update-openai-api-key",
         data: { apiKey: messageWrapper.data.newValue },
       });
     } else {
+      if (messageWrapper.type === "update-openai-api-key") {
+        logger.info(
+          "📨 Received direct update-openai-api-key message, routing to handler",
+        );
+      }
       handleMessageWithErrorHandling(messageWrapper);
     }
   });
