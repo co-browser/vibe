@@ -31,32 +31,14 @@ ipcMain.handle("chat:get-agent-status", async () => {
     const agentService = getAgentService();
 
     if (!agentService) {
-      return {
-        status: "not_initialized",
-        ready: false,
-        initialized: false,
-      };
+      return false;
     }
 
     const serviceStatus = agentService.getStatus();
-
-    return {
-      status: serviceStatus.ready ? "ready" : serviceStatus.serviceStatus,
-      ready: serviceStatus.ready,
-      initialized: serviceStatus.initialized,
-      serviceStatus: serviceStatus.serviceStatus,
-      workerConnected: serviceStatus.workerStatus?.connected || false,
-      isHealthy: serviceStatus.isHealthy || false,
-      lastActivity: serviceStatus.lastActivity,
-    };
+    return serviceStatus.ready;
   } catch (error) {
     logger.error("Error getting agent status:", error);
-    return {
-      status: "error",
-      ready: false,
-      initialized: false,
-      error: error instanceof Error ? error.message : "Unknown error",
-    };
+    return false;
   }
 });
 

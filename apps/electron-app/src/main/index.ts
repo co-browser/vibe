@@ -483,6 +483,12 @@ async function initializeServices(): Promise<void> {
 
             agentService.on("ready", data => {
               logger.info("AgentService ready:", data);
+              // Broadcast agent ready status to all windows
+              browser?.getAllWindows().forEach(window => {
+                if (!window.isDestroyed()) {
+                  window.webContents.send("agent:status-changed", true);
+                }
+              });
             });
 
             // Get auth token if available
