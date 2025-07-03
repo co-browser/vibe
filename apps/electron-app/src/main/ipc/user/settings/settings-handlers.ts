@@ -35,6 +35,17 @@ ipcMain.handle("settings:set", async (_, key: string, value: any) => {
 
 ipcMain.handle("settings:remove", async (_, key: string) => {
   try {
+    // Check if it's a profile preference
+    if (isProfilePreference(key)) {
+      await profileService.removePreference(key);
+      return true;
+    }
+    // Check if it's an API key
+    if (isApiKeyType(key)) {
+      const keyType = normalizeApiKeyType(key);
+      return profileService.removeApiKey(keyType);
+    }
+    // Otherwise it's an app setting
     storage.delete(`settings.${key}`);
     return true;
   } catch {
