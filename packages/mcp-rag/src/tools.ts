@@ -112,7 +112,13 @@ function getNamespace(userId?: string) {
   // Sanitize userId to comply with Turbopuffer namespace requirements [A-Za-z0-9-_.]
   const sanitizedUserId = userId ? userId.replace(/[^A-Za-z0-9-_.]/g, '_') : null;
   const namespace = sanitizedUserId ? `user-${sanitizedUserId}` : DEFAULT_NAMESPACE;
-  log('debug', `Using namespace: ${namespace}`);
+  
+  if (sanitizedUserId) {
+    log('info', `Using user-specific namespace: ${namespace} (userId: ${userId})`);
+  } else {
+    log('info', `Using default namespace: ${namespace} (no userId provided)`);
+  }
+  
   return tpuf.namespace(namespace);
 }
 
