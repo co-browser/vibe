@@ -223,8 +223,16 @@ export class SharedStorage {
       this.parentPort!.postMessage({
         id: this.generateMessageId("watch"),
         type: "settings:watch",
+        keys: Array.from(this.watchCallbacks.keys()),
       });
       this.isWatching = true;
+    } else {
+      // Add this key to existing watch
+      this.parentPort!.postMessage({
+        id: this.generateMessageId("watch-add"),
+        type: "settings:watch",
+        keys: [key],
+      });
     }
 
     // Return unwatch function
@@ -238,6 +246,13 @@ export class SharedStorage {
           type: "settings:unwatch",
         });
         this.isWatching = false;
+      } else {
+        // Remove just this key from watch
+        this.parentPort!.postMessage({
+          id: this.generateMessageId("unwatch-remove"),
+          type: "settings:unwatch",
+          keys: [key],
+        });
       }
     };
   }

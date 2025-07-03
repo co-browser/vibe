@@ -27,11 +27,8 @@ import { setAgentServiceInstance as setChatMessagingInstance } from "@/ipc/chat/
 import { setAgentServiceInstance as setTabAgentInstance } from "@/utils/tab-agent";
 import { initializeStorage } from "@/store/initialize-storage";
 import { getStorageService } from "@/store/storage-service";
-import {
-  createLogger,
-  MAIN_PROCESS_CONFIG,
-  findFileUpwards,
-} from "@vibe/shared-types";
+import { createLogger, MAIN_PROCESS_CONFIG } from "@vibe/shared-types";
+import { findFileUpwards } from "@vibe/shared-types/utils/path";
 
 import {
   init,

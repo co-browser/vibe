@@ -31,12 +31,6 @@ export interface IAgentConfig {
   temperature?: number;
   maxTokens?: number;
   processorType?: ProcessorType;
-  keepAlive?: string;
-  mcp?: {
-    enabled: boolean;
-    url: string;
-  };
-  tools?: string[];
   systemPrompt?: string;
   conversationHistory?: [string, string][];
   authToken?: string;

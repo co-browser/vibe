@@ -8,8 +8,9 @@ import {
   broadcastSettingChange,
   cleanupWatchers,
   isProfilePreference,
+  isApiKeyType,
+  normalizeApiKeyType,
 } from "../shared-utils";
-
 /**
  * Unified settings handlers
  * Provides CRUD operations, management functionality, and change watching for app settings and profile preferences
@@ -58,6 +59,17 @@ ipcMain.handle(
         return defaultValue;
       }
       return preference;
+    }
+
+    // Check if it's an API key
+    if (isApiKeyType(key)) {
+      const keyType = normalizeApiKeyType(key);
+      const apiKey = profileService.getApiKey(keyType);
+      if (apiKey === undefined) {
+        profileService.setApiKey(keyType, defaultValue);
+        return defaultValue;
+      }
+      return apiKey;
     }
 
     // Check app settings

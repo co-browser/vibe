@@ -27,28 +27,52 @@ ipcMain.handle("profile:get-all", async () => {
 
 ipcMain.handle("profile:create", async (_, name: string) => {
   const profileService = getProfile();
-  return profileService.createProfile(name);
+  const profile = await profileService.createProfile(name);
+  if (profile) {
+    logger.info(`Created profile: ${name}`);
+  }
+  return profile;
 });
 
 ipcMain.handle("profile:switch", async (_, profileId: string) => {
   const profileService = getProfile();
-  return profileService.setActiveProfile(profileId);
+  const success = await profileService.setActiveProfile(profileId);
+  if (success) {
+    logger.info(`Switched to profile: ${profileId}`);
+  }
+  return success;
 });
 
 ipcMain.handle("profile:update", async (_, profileId: string, updates: any) => {
   const profileService = getProfile();
-  return profileService.updateProfile(profileId, updates);
+  const updater = await profileService.updateProfile(profileId, updates);
+  if (updater) {
+    logger.info(
+      `Updated profile: ${profileId}, with updates: ${JSON.stringify(updates)}`,
+    );
+  }
+  return updater;
 });
 
 ipcMain.handle("profile:delete", async (_, profileId: string) => {
   const profileService = getProfile();
-  return profileService.deleteProfile(profileId);
+  const deleter = await profileService.deleteProfile(profileId);
+  if (deleter) {
+    logger.info(`Deleted profile: ${profileId}`);
+  }
+  return deleter;
 });
 
 // API Key Management (part of profile)
 ipcMain.handle("profile:get-api-key", async (_, keyType: string) => {
   const normalizedKey = normalizeApiKeyType(keyType);
-  return getSetting(normalizedKey + "ApiKey");
+  const settinger = await getSetting(normalizedKey + "ApiKey");
+  if (settinger) {
+    logger.info(`Retrieved ${keyType} API key`);
+  } else {
+    logger.warn(`No ${keyType} API key found`);
+  }
+  return settinger;
 });
 
 ipcMain.handle(
@@ -98,6 +122,16 @@ ipcMain.handle("profile:get-history", async (_, limit?: number) => {
 ipcMain.handle(
   "profile:add-history",
   async (_, url: string, title: string, favicon?: string) => {
+    // Validate URL format
+    try {
+      new URL(url);
+    } catch {
+      throw new Error("Invalid URL format");
+    }
+
+    if (!title || title.trim().length === 0) {
+      throw new Error("Title is required");
+    }
     const profileService = getProfile();
     return profileService.addBrowsingHistory(url, title, favicon);
   },

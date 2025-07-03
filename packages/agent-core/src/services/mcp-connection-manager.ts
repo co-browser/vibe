@@ -202,7 +202,7 @@ export class MCPConnectionManager implements IMCPConnectionManager {
    * Builds the complete server URL with endpoint
    */
   private buildServerUrl(config: MCPServerConfig): string {
-    const endpoint = config.mcpEndpoint || MCP_ENDPOINTS.DEFAULT;
+    const endpoint = config.mcpEndpoint || config.path || MCP_ENDPOINTS.DEFAULT;
     return `${config.url}${endpoint}`;
   }
 

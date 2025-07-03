@@ -447,26 +447,40 @@ export class AgentService extends EventEmitter implements IAgentService {
   private monitorProfileChanges(): void {
     const profileService = getProfileService();
 
-    const updateApiKey = () => {
+    const updateApiKey = async () => {
       if (!this.worker) return;
 
       const apiKey = profileService.getApiKey("openai");
       if (apiKey) {
         logger.info("OpenAI API key found, importing to agent.");
-        this.worker.sendMessage("update-openai-api-key", { apiKey });
+        try {
+          await this.worker.sendMessage("update-openai-api-key", { apiKey });
+          logger.info("OpenAI API key updated successfully");
+        } catch (error) {
+          logger.warn("Failed to update OpenAI API key:", error);
+          // Don't throw - this is a non-critical operation that shouldn't break the service
+        }
       } else {
         logger.info("No OpenAI API key found for the current profile.");
       }
     };
 
     // Initial check
-    updateApiKey();
+    updateApiKey().catch(error => {
+      logger.warn("Initial API key update failed:", error);
+    });
 
     // Listen for changes
-    profileService.on("profile-switched", updateApiKey);
+    profileService.on("profile-switched", () => {
+      updateApiKey().catch(error => {
+        logger.warn("Profile switch API key update failed:", error);
+      });
+    });
     profileService.on("api-key-set", data => {
       if (data.keyType === "openai") {
-        updateApiKey();
+        updateApiKey().catch(error => {
+          logger.warn("API key set update failed:", error);
+        });
       }
     });
   }

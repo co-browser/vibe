@@ -41,3 +41,5 @@ export function debounce<T extends (...args: any[]) => void>(
     timeout = setTimeout(() => func(...args), wait);
   };
 }
+
+export * from "./path";

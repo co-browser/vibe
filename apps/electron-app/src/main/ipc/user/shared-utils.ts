@@ -6,6 +6,9 @@
 import { webContents } from "electron";
 import { getStorageService } from "@/store/storage-service";
 import { getProfileService } from "@/services/profile-service";
+import { createLogger } from "@vibe/shared-types";
+
+const logger = createLogger("SharedUtils");
 
 // Profile preference keys that should be stored in profile service
 export const PROFILE_PREFERENCE_KEYS = [
@@ -133,6 +136,7 @@ export async function setSetting(key: string, value: any): Promise<boolean> {
     storage.set(`settings.${key}`, value);
     return true;
   } catch {
+    logger.error(`Failed to set setting "${key}":`);
     return false;
   }
 }
