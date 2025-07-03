@@ -13,6 +13,7 @@ import type {
 } from "@vibe/shared-types";
 import { createLogger } from "@vibe/shared-types";
 import { getProfileService } from "./profile-service";
+import { getSetting } from "../ipc/user/shared-utils";
 
 const logger = createLogger("AgentService");
 
@@ -450,7 +451,7 @@ export class AgentService extends EventEmitter implements IAgentService {
     const updateApiKey = async () => {
       if (!this.worker) return;
 
-      const apiKey = profileService.getApiKey("openai");
+      const apiKey = await getSetting("openai");
       if (apiKey) {
         logger.info("OpenAI API key found, importing to agent.");
         try {

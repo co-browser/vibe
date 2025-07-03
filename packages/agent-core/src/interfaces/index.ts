@@ -29,9 +29,13 @@ export interface IAgentConfig {
   openaiApiKey?: string;
   model: string;
   temperature?: number;
-  maxTokens?: number;
+  maxTokensPerTab?: number;
   processorType?: ProcessorType;
   systemPrompt?: string;
   conversationHistory?: [string, string][];
   authToken?: string;
+  mcp?: {
+    enabled: boolean;
+    url: string;
+  };
 }

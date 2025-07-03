@@ -404,6 +404,9 @@ export class ProfileService extends EventEmitter {
   // ========== API Keys ==========
 
   getApiKey(keyType: string): string | undefined {
+    logger.info(
+      `Getting API key for ${keyType}, profile ${this.currentProfileId}`,
+    );
     if (!this.currentProfileId) return undefined;
 
     const apiKeys = this.storage.get(

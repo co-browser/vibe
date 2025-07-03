@@ -32,7 +32,7 @@ export const API_KEY_TYPES = [
 export const API_KEY_ENV_MAP: Record<string, string> = {
   openai: "OPENAI_API_KEY",
   anthropic: "ANTHROPIC_API_KEY",
-  google: "GOOGLE_API_KEY",
+  google: "GEMINI_API_KEY",
   github: "GITHUB_TOKEN",
 };
 
@@ -90,7 +90,7 @@ export async function getSetting(key: string): Promise<any> {
     const keyType = normalizeApiKeyType(key);
     const storedKey = profileService.getApiKey(keyType);
 
-    // Fallback to environment variable for backward compatibility
+    // check ENV for keys
     if (!storedKey && API_KEY_ENV_MAP[keyType]) {
       const envValue = process.env[API_KEY_ENV_MAP[keyType]];
       if (envValue) {
@@ -175,7 +175,7 @@ export function cleanupWatchers(
 /**
  * Get all settings from both storage and profile
  */
-export function getAllSettings(): Record<string, any> {
+export function getAllSettings(masked = true): Record<string, any> {
   const storage = getStorage();
   const profileService = getProfile();
   const allSettings: Record<string, any> = {};
@@ -193,10 +193,15 @@ export function getAllSettings(): Record<string, any> {
   const preferences = profileService.getPreferences();
   Object.assign(allSettings, preferences);
 
-  // Get API keys (masked for security)
+  // Get API keys
   const apiKeys = profileService.getAllApiKeys();
   Object.entries(apiKeys).forEach(([key, value]) => {
-    allSettings[`${key}ApiKey`] = value ? "***" : null;
+    const keyName = `${key}ApiKey`;
+    if (masked) {
+      allSettings[keyName] = value ? "***" : null;
+    } else {
+      allSettings[keyName] = value;
+    }
   });
 
   return allSettings;

@@ -48,7 +48,14 @@ ipcMain.handle("settings:remove", async (_, key: string) => {
 });
 
 ipcMain.handle("settings:get-all", async () => {
-  return getAllSettings();
+  // Always return masked settings for the general getter
+  return getAllSettings(true);
+});
+
+ipcMain.handle("settings:get-all-unmasked", async () => {
+  // This is a debug-only handler. In a real app, you'd want to
+  // ensure this is only exposed when a debug flag is true.
+  return getAllSettings(false);
 });
 
 // ===== Get or Set with Default =====

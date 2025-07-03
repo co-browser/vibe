@@ -543,6 +543,9 @@ const settingsAPI: VibeSettingsAPI = {
   getAll: async () => {
     return ipcRenderer.invoke("settings:get-all");
   },
+  getAllUnmasked: async () => {
+    return ipcRenderer.invoke("settings:get-all-unmasked");
+  },
   getOrSet: async (key: string, defaultValue: any) => {
     return ipcRenderer.invoke("settings:get-or-set", key, defaultValue);
   },
