@@ -14,6 +14,14 @@ interface UtilityProcessWithSettings extends UtilityProcess {
   _settingsWatchers?: Array<() => void>;
 }
 
+// Check if it's an API key - route to profile service
+const apiKeyTypes = [
+  "llmApiKey",
+  "vectorApiKey",
+  "openaiApiKey",
+  "anthropicApiKey",
+];
+
 /**
  * Set up storage handlers for a utility process
  * Call this after creating a utility process to enable storage access for settings and profile data
@@ -86,14 +94,6 @@ function handleSettingsGet(utilityProcess: UtilityProcess, message: any): void {
   const { id, key } = message;
   const storage = getStorageService();
 
-  // Check if it's an API key - route to profile service
-  const apiKeyTypes = [
-    "llmApiKey",
-    "vectorApiKey",
-    "openaiApiKey",
-    "anthropicApiKey",
-  ];
-
   if (apiKeyTypes.includes(key)) {
     const profileService = getProfileService();
     const keyType = key.replace("ApiKey", "").toLowerCase();
@@ -116,23 +116,18 @@ function handleSettingsGet(utilityProcess: UtilityProcess, message: any): void {
   }
 }
 
-function handleSettingsSet(utilityProcess: UtilityProcess, message: any): void {
+async function handleSettingsSet(
+  utilityProcess: UtilityProcess,
+  message: any,
+): Promise<void> {
   const { id, key, value } = message;
   const storage = getStorageService();
-
-  // Check if it's an API key - route to profile service
-  const apiKeyTypes = [
-    "llmApiKey",
-    "vectorApiKey",
-    "openaiApiKey",
-    "anthropicApiKey",
-  ];
 
   try {
     if (apiKeyTypes.includes(key)) {
       const profileService = getProfileService();
       const keyType = key.replace("ApiKey", "").toLowerCase();
-      const success = profileService.setApiKey(keyType, value);
+      const success = await profileService.setApiKey(keyType, value);
 
       utilityProcess.postMessage({
         id,

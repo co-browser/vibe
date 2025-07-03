@@ -22,6 +22,7 @@ const profileService = getProfile();
 // Track active watchers
 const settingsWatchers = new Map<number, Set<string>>(); // webContentsId -> Set of watched keys
 const profileWatchers = new Map<number, Set<string>>(); // webContentsId -> Set of watched preference keys
+const apiKeysWatchers = new Map<number, Set<string>>(); // webContentsId -> Set of watched API keys
 
 // ===== CRUD Operations =====
 
@@ -70,7 +71,7 @@ ipcMain.handle(
       const keyType = normalizeApiKeyType(key);
       const apiKey = profileService.getApiKey(keyType);
       if (apiKey === undefined) {
-        profileService.setApiKey(keyType, defaultValue);
+        await profileService.setApiKey(keyType, defaultValue);
         return defaultValue;
       }
       return apiKey;
@@ -98,14 +99,20 @@ ipcMain.handle("settings:watch", async (event, keys: string[]) => {
   if (!profileWatchers.has(webContentsId)) {
     profileWatchers.set(webContentsId, new Set());
   }
+  if (!apiKeysWatchers.has(webContentsId)) {
+    apiKeysWatchers.set(webContentsId, new Set());
+  }
 
   const settingsSet = settingsWatchers.get(webContentsId)!;
   const profileSet = profileWatchers.get(webContentsId)!;
+  const apiKeysSet = apiKeysWatchers.get(webContentsId)!;
 
   // Add keys to appropriate watcher sets
   keys.forEach(key => {
     if (isProfilePreference(key)) {
       profileSet.add(key);
+    } else if (isApiKeyType(key)) {
+      apiKeysSet.add(key);
     } else {
       settingsSet.add(key);
     }
@@ -119,10 +126,13 @@ ipcMain.handle("settings:unwatch", async (event, keys: string[]) => {
 
   const settingsSet = settingsWatchers.get(webContentsId);
   const profileSet = profileWatchers.get(webContentsId);
+  const apiKeysSet = apiKeysWatchers.get(webContentsId);
 
   keys.forEach(key => {
     if (isProfilePreference(key)) {
       profileSet?.delete(key);
+    } else if (isApiKeyType(key)) {
+      apiKeysSet?.delete(key);
     } else {
       settingsSet?.delete(key);
     }
@@ -134,6 +144,9 @@ ipcMain.handle("settings:unwatch", async (event, keys: string[]) => {
   }
   if (profileSet?.size === 0) {
     profileWatchers.delete(webContentsId);
+  }
+  if (apiKeysSet?.size === 0) {
+    apiKeysWatchers.delete(webContentsId);
   }
 
   return true;
@@ -159,10 +172,21 @@ profileService.on(
   },
 );
 
+// Listen for API key changes
+profileService.on(
+  "apiKeyChanged",
+  (key: string, newValue: any, oldValue: any) => {
+    // The key from the event is the API key type, e.g., "openai"
+    // We need to find the corresponding watched key, e.g., "apiKeys.openai"
+    const watchedKey = `apiKeys.${key}`;
+    broadcastSettingChange(watchedKey, newValue, oldValue, apiKeysWatchers);
+  },
+);
+
 // Clean up watchers when web contents are destroyed
 webContents.getAllWebContents().forEach(wc => {
   wc.on("destroyed", () => {
-    cleanupWatchers(wc.id, settingsWatchers, profileWatchers);
+    cleanupWatchers(wc.id, settingsWatchers, profileWatchers, apiKeysWatchers);
   });
 });
 

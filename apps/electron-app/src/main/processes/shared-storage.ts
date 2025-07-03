@@ -48,6 +48,7 @@ export class SharedStorage {
   private messageIdCounter = 0;
   private isInitialized = false;
   private isWatching = false;
+  private isDestroyed = false;
 
   private constructor() {
     if (!this.parentPort) {
@@ -176,6 +177,7 @@ export class SharedStorage {
    * Get a setting value
    */
   async get<T = any>(key: string): Promise<T | null> {
+    this.checkDestroyed();
     return this.sendRequest<T>({
       type: "settings:get",
       key,
@@ -279,6 +281,8 @@ export class SharedStorage {
    * Clean up resources
    */
   destroy(): void {
+    this.checkDestroyed();
+
     // Clear all pending requests
     this.pendingRequests.forEach(({ reject, timeoutId }) => {
       clearTimeout(timeoutId);
@@ -299,6 +303,14 @@ export class SharedStorage {
     }
 
     SharedStorage.instance = null;
+  }
+  /**
+   * Check if instance is destroyed and throw if it is
+   */
+  private checkDestroyed(): void {
+    if (this.isDestroyed) {
+      throw new Error("SharedStorage instance has been destroyed");
+    }
   }
 }
 

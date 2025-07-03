@@ -201,11 +201,15 @@ export class StorageService extends EventEmitter {
       this.store.set(key, encrypted);
       this.secureCache.set(key, value);
     } catch (error) {
-      logger.error(`Failed to encrypt ${key}:`, error);
-      // Fallback: store unencrypted with warning
-      logger.warn(`Storing ${key} unencrypted due to encryption failure`);
-      this.store.set(key, value);
-      this.secureCache.set(key, value);
+      logger.error(`Failed to encrypt and save secure key "${key}":`, error);
+      this.emit("security-warning", {
+        key,
+        error:
+          error instanceof Error
+            ? error.message
+            : "An unknown encryption error occurred.",
+      });
+      // Do not store unencrypted value, effectively failing the operation
     }
   }
 

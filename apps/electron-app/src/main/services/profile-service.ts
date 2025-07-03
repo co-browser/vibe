@@ -422,10 +422,11 @@ export class ProfileService extends EventEmitter {
     );
   }
 
-  setApiKey(keyType: string, value: string): boolean {
+  async setApiKey(keyType: string, value: string): Promise<boolean> {
     if (!this.currentProfileId) return false;
 
     const apiKeys = this.getAllApiKeys();
+    const oldValue = apiKeys[keyType];
     apiKeys[keyType] = value;
     this.storage.set(
       `secure.profile.${this.currentProfileId}.apiKeys`,
@@ -434,6 +435,7 @@ export class ProfileService extends EventEmitter {
 
     logger.info(`Set ${keyType} for profile ${this.currentProfileId}`);
     this.emit("api-key-set", { profileId: this.currentProfileId, keyType });
+    this.emit("apiKeyChanged", keyType, value, oldValue);
     return true;
   }
 
@@ -441,6 +443,7 @@ export class ProfileService extends EventEmitter {
     if (!this.currentProfileId) return false;
 
     const apiKeys = this.getAllApiKeys();
+    const oldValue = apiKeys[keyType];
     delete apiKeys[keyType];
     this.storage.set(
       `secure.profile.${this.currentProfileId}.apiKeys`,
@@ -448,6 +451,7 @@ export class ProfileService extends EventEmitter {
     );
 
     this.emit("api-key-removed", { profileId: this.currentProfileId, keyType });
+    this.emit("apiKeyChanged", keyType, undefined, oldValue);
     return true;
   }
 
@@ -463,8 +467,8 @@ export class ProfileService extends EventEmitter {
     return this.getPreferences()[key];
   }
 
-  async setPreference(key: string, value: any): Promise<void> {
-    if (!this.currentProfileId) return;
+  async setPreference(key: string, value: any): Promise<boolean> {
+    if (!this.currentProfileId) return false;
 
     const preferences = this.getPreferences();
     const oldValue = preferences[key];
@@ -482,6 +486,7 @@ export class ProfileService extends EventEmitter {
       value,
       oldValue,
     });
+    return true;
   }
 
   // ========== Broadcasting ==========

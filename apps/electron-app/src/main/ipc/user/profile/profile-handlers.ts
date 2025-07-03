@@ -45,34 +45,34 @@ ipcMain.handle("profile:switch", async (_, profileId: string) => {
 
 ipcMain.handle("profile:update", async (_, profileId: string, updates: any) => {
   const profileService = getProfile();
-  const updater = await profileService.updateProfile(profileId, updates);
-  if (updater) {
+  const updated = await profileService.updateProfile(profileId, updates);
+  if (updated) {
     logger.info(
       `Updated profile: ${profileId}, with updates: ${JSON.stringify(updates)}`,
     );
   }
-  return updater;
+  return updated;
 });
 
 ipcMain.handle("profile:delete", async (_, profileId: string) => {
   const profileService = getProfile();
-  const deleter = await profileService.deleteProfile(profileId);
-  if (deleter) {
+  const deleted = await profileService.deleteProfile(profileId);
+  if (deleted) {
     logger.info(`Deleted profile: ${profileId}`);
   }
-  return deleter;
+  return deleted;
 });
 
 // API Key Management (part of profile)
 ipcMain.handle("profile:get-api-key", async (_, keyType: string) => {
   const normalizedKey = normalizeApiKeyType(keyType);
-  const settinger = await getSetting(normalizedKey + "ApiKey");
-  if (settinger) {
+  const apikey = await getSetting(normalizedKey + "ApiKey");
+  if (apikey) {
     logger.info(`Retrieved ${keyType} API key`);
   } else {
     logger.warn(`No ${keyType} API key found`);
   }
-  return settinger;
+  return apikey;
 });
 
 ipcMain.handle(

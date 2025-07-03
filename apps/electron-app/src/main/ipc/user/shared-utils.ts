@@ -95,7 +95,7 @@ export async function getSetting(key: string): Promise<any> {
       const envValue = process.env[API_KEY_ENV_MAP[keyType]];
       if (envValue) {
         // Migrate from env to profile storage
-        profileService.setApiKey(keyType, envValue);
+        await profileService.setApiKey(keyType, envValue);
         return envValue;
       }
     }
@@ -122,7 +122,7 @@ export async function setSetting(key: string, value: any): Promise<boolean> {
 
     if (isApiKeyType(key)) {
       const keyType = normalizeApiKeyType(key);
-      const success = profileService.setApiKey(keyType, value);
+      const success = await profileService.setApiKey(keyType, value);
 
       // Also update environment for current session
       if (success && API_KEY_ENV_MAP[keyType]) {
