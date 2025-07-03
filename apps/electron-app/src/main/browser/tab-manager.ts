@@ -216,7 +216,7 @@ export class TabManager extends EventEmitter {
   /**
    * Closes a tab and manages focus
    */
-  public closeTab(tabKey: string): boolean {
+  public async closeTab(tabKey: string): Promise<boolean> {
     if (!this.tabs.has(tabKey)) {
       logger.warn(`Cannot close tab ${tabKey} - not found`);
       return false;
@@ -232,7 +232,7 @@ export class TabManager extends EventEmitter {
       }
     }
 
-    this.removeBrowserView(tabKey);
+    await this.removeBrowserView(tabKey);
     this.tabs.delete(tabKey);
 
     if (wasActive) {
@@ -750,7 +750,7 @@ export class TabManager extends EventEmitter {
     }, TAB_CONFIG.CLEANUP_INTERVAL_MS);
   }
 
-  private performTabMaintenance(): void {
+  private async performTabMaintenance(): Promise<void> {
     this.maintenanceCounter++;
     const now = Date.now();
     const totalTabs = this.tabs.size;
@@ -788,7 +788,7 @@ export class TabManager extends EventEmitter {
         tab.asleep &&
         timeSinceActive > TAB_CONFIG.ARCHIVE_THRESHOLD_MS
       ) {
-        this.closeTab(tabKey);
+        await this.closeTab(tabKey);
       }
     }
   }
@@ -814,10 +814,10 @@ export class TabManager extends EventEmitter {
     viewManager.setViewVisible(tabKey, false);
   }
 
-  private removeBrowserView(tabKey: string): void {
+  private async removeBrowserView(tabKey: string): Promise<void> {
     const viewManager = this.viewManager;
     if (viewManager) {
-      viewManager.removeView(tabKey);
+      await viewManager.removeBrowserView(tabKey);
     }
   }
 

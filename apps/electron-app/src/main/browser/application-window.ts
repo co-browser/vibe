@@ -210,11 +210,12 @@ export class ApplicationWindow extends EventEmitter {
     }
   }
 
-  private isDestroying = false;
+
 
   public destroy(): void {
     if (this.window.isDestroyed() || this.isDestroying) return;
     this.isDestroying = true;
+
 
     try {
       // Clean up TabManager (includes EventEmitter cleanup and intervals)
@@ -225,7 +226,7 @@ export class ApplicationWindow extends EventEmitter {
 
     try {
       // Clean up ViewManager
-      this.viewManager.destroy();
+      await this.viewManager.destroy();
     } catch (error) {
       logger.warn("Error destroying ViewManager:", error);
     }

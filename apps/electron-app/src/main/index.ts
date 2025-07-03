@@ -32,6 +32,7 @@ import {
   MAIN_PROCESS_CONFIG,
   findFileUpwards,
 } from "@vibe/shared-types";
+
 import {
   init,
   browserWindowSessionIntegration,

@@ -27,9 +27,6 @@ export * from "./constants";
 // Utilities
 export * from "./utils";
 
-// Path utilities (Node.js only)
-export * from "./utils/path";
-
 // Logging utilities
 export * from "./logger";
 
