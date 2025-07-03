@@ -210,8 +210,11 @@ export class ApplicationWindow extends EventEmitter {
     }
   }
 
+  private isDestroying = false;
+
   public destroy(): void {
-    if (this.window.isDestroyed()) return;
+    if (this.window.isDestroyed() || this.isDestroying) return;
+    this.isDestroying = true;
 
     try {
       // Clean up TabManager (includes EventEmitter cleanup and intervals)

@@ -4,7 +4,7 @@
  */
 
 import { AgentFactory, Agent } from "@vibe/agent-core";
-import type { ExtractedPage } from "@vibe/shared-types";
+import type { ExtractedPage, ProcessorType } from "@vibe/shared-types";
 import { createLogger } from "@vibe/shared-types";
 
 const logger = createLogger("AgentWorker");
@@ -21,9 +21,9 @@ interface BaseMessage {
 
 interface InitializeData {
   config: {
-    openaiApiKey: string;
+    openaiApiKey?: string; // Made optional
     model?: string;
-    processorType?: string;
+    processorType?: ProcessorType;
   };
 }
 
@@ -43,17 +43,38 @@ interface UpdateAuthTokenData {
   token: string | null;
 }
 
+interface UpdateOpenAIApiKeyData {
+  apiKey: string;
+}
+
 // ============================================================================
 // PROCESS STATE
 // ============================================================================
 
 let agent: Agent | null = null;
+let agentConfig: InitializeData["config"] | null = null;
 let isProcessing = false;
 let authToken: string | null = null;
 
 // ============================================================================
 // INFRASTRUCTURE UTILITIES
 // ============================================================================
+
+const createAgent = () => {
+  if (!agentConfig?.openaiApiKey) {
+    logger.warn("Agent creation skipped: OpenAI API key not available.");
+    return;
+  }
+
+  agent = AgentFactory.create({
+    ...agentConfig,
+    model: agentConfig?.model || "gpt-4o-mini",
+    processorType: agentConfig?.processorType || "react",
+    authToken: authToken ?? undefined,
+  });
+
+  logger.info("Agent created successfully in utility process");
+};
 
 class IPCMessenger {
   static sendResponse(id: string, data: any): void {
@@ -116,13 +137,12 @@ class MessageValidator {
     if (!config || typeof config !== "object") {
       throw new Error("Invalid config provided");
     }
-
+    // openaiApiKey is now optional for initialization
     if (
-      !config.openaiApiKey ||
-      typeof config.openaiApiKey !== "string" ||
-      config.openaiApiKey.trim().length === 0
+      config.openaiApiKey !== undefined &&
+      typeof config.openaiApiKey !== "string"
     ) {
-      throw new Error("Valid OpenAI API key is required");
+      throw new Error("OpenAI API key must be a string if provided");
     }
   }
 
@@ -166,14 +186,21 @@ class MessageHandlers {
 
     MessageValidator.validateConfig(config);
 
-    agent = AgentFactory.create({
-      openaiApiKey: config.openaiApiKey.trim(),
-      model: config.model || "gpt-4o-mini",
+    // Merge new config with existing config (from env vars)
+    agentConfig = {
+      ...agentConfig,
+      ...config,
+      openaiApiKey: config.openaiApiKey?.trim() || agentConfig?.openaiApiKey,
+      model: config.model || agentConfig?.model || "gpt-4o-mini",
       processorType: MessageValidator.validateProcessorType(
-        config.processorType,
+        config.processorType || agentConfig?.processorType,
       ),
-      authToken: authToken, // Pass auth token if available
-    });
+    };
+
+    // Attempt to create the agent if not already created
+    if (!agent) {
+      createAgent();
+    }
 
     logger.info("Agent initialized successfully in utility process");
 
@@ -228,7 +255,9 @@ class MessageHandlers {
     let ready: boolean = false;
 
     if (!agent) {
-      status = "not_initialized";
+      status = agentConfig?.openaiApiKey
+        ? "not_initialized"
+        : "waiting_for_api_key";
     } else if (isProcessing) {
       status = "processing";
       ready = true;
@@ -317,6 +346,33 @@ class MessageHandlers {
       hasToken: !!authToken,
     });
   }
+
+  static async handleUpdateOpenAIApiKey(message: BaseMessage): Promise<void> {
+    const data = message.data as UpdateOpenAIApiKeyData;
+    const apiKey = data.apiKey;
+
+    if (!apiKey || typeof apiKey !== "string" || apiKey.trim().length === 0) {
+      throw new Error("Valid OpenAI API key is required for update");
+    }
+
+    const trimmedKey = apiKey.trim();
+
+    if (agent) {
+      await agent.updateOpenAIApiKey(trimmedKey);
+      logger.info("OpenAI API key updated successfully");
+    } else {
+      // If agent isn't created, store key and attempt to create it
+      agentConfig = { ...agentConfig, openaiApiKey: trimmedKey };
+      createAgent();
+      if (agent) {
+        logger.info("Agent created with new OpenAI API key");
+      } else {
+        logger.warn("API key received, but agent could not be created yet.");
+      }
+    }
+
+    IPCMessenger.sendResponse(message.id, { success: true });
+  }
 }
 
 // ============================================================================
@@ -370,6 +426,10 @@ async function handleMessageWithErrorHandling(
         await MessageHandlers.handleUpdateAuthToken(message);
         break;
 
+      case "update-openai-api-key":
+        await MessageHandlers.handleUpdateOpenAIApiKey(message);
+        break;
+
       default:
         logger.warn("Unknown message type:", message.type);
         IPCMessenger.sendError(
@@ -406,39 +466,68 @@ async function handleMessageWithErrorHandling(
 // PROCESS BOOTSTRAP & LIFECYCLE
 // ============================================================================
 
-// Main IPC message handler
-process.parentPort?.on("message", handleMessageWithErrorHandling);
-
-// Process error handlers
-process.on("error", error => {
-  logger.error("Process error:", error);
-});
-
-process.on("uncaughtException", error => {
-  logger.error("Uncaught exception:", error);
-  process.exit(1);
-});
-
-process.on("unhandledRejection", (reason, _promise) => {
-  logger.error("Unhandled promise rejection:", reason);
-  process.exit(1);
-});
-
-// Signal ready state
-logger.info("Worker process started and ready");
-logger.debug("process.parentPort available:", !!process.parentPort);
-logger.debug(
-  "process.parentPort.postMessage available:",
-  !!process.parentPort?.postMessage,
-);
-
-if (process.parentPort?.postMessage) {
-  try {
-    process.parentPort.postMessage({ type: "ready" });
-    logger.debug("Ready signal sent successfully");
-  } catch (error) {
-    logger.error("Failed to send ready signal:", error);
+const bootstrap = () => {
+  // Pre-populate config from environment variables
+  const envApiKey = process.env.OPENAI_API_KEY;
+  if (envApiKey) {
+    agentConfig = { ...agentConfig, openaiApiKey: envApiKey };
+    logger.info("OpenAI API key found in environment variables.");
+    createAgent();
+  } else {
+    logger.info(
+      "OpenAI API key not found in environment. Waiting for IPC message.",
+    );
   }
-} else {
-  logger.info("No IPC channel available (running standalone)");
-}
+
+  // Main IPC message handler
+  process.parentPort?.on("message", (messageWrapper: any) => {
+    if (
+      messageWrapper.type === "settings:changed" &&
+      messageWrapper.data?.key === "openaiApiKey"
+    ) {
+      MessageHandlers.handleUpdateOpenAIApiKey({
+        id: "settings-update",
+        type: "update-openai-api-key",
+        data: { apiKey: messageWrapper.data.newValue },
+      });
+    } else {
+      handleMessageWithErrorHandling(messageWrapper);
+    }
+  });
+
+  // Process error handlers
+  process.on("error", error => {
+    logger.error("Process error:", error);
+  });
+
+  process.on("uncaughtException", error => {
+    logger.error("Uncaught exception:", error);
+    process.exit(1);
+  });
+
+  process.on("unhandledRejection", (reason, _promise) => {
+    logger.error("Unhandled promise rejection:", reason);
+    process.exit(1);
+  });
+
+  // Signal ready state
+  logger.info("Worker process started and ready");
+  logger.debug("process.parentPort available:", !!process.parentPort);
+  logger.debug(
+    "process.parentPort.postMessage available:",
+    !!process.parentPort?.postMessage,
+  );
+
+  if (process.parentPort?.postMessage) {
+    try {
+      process.parentPort.postMessage({ type: "ready" });
+      logger.debug("Ready signal sent successfully");
+    } catch (error) {
+      logger.error("Failed to send ready signal:", error);
+    }
+  } else {
+    logger.info("No IPC channel available (running standalone)");
+  }
+};
+
+bootstrap();

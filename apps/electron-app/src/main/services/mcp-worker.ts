@@ -5,6 +5,7 @@
 
 import { EventEmitter } from "events";
 import { utilityProcess, type UtilityProcess } from "electron";
+import { setupProcessStorageHandler } from "../ipc/user/settings/process-storage-handler";
 import path from "path";
 import fs from "fs";
 import { createLogger } from "@vibe/shared-types";
@@ -115,6 +116,9 @@ export class MCPWorker extends EventEmitter {
       serviceName: "mcp-manager",
       env: cleanEnv,
     });
+
+    // Set up settings access for the utility process
+    setupProcessStorageHandler(this.workerProcess);
 
     // Capture stdout and stderr
     if (this.workerProcess.stdout) {

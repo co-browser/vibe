@@ -12,6 +12,7 @@ import type {
   ExtractedPage,
 } from "@vibe/shared-types";
 import { createLogger } from "@vibe/shared-types";
+import { getProfileService } from "./profile-service";
 
 const logger = createLogger("AgentService");
 
@@ -54,17 +55,18 @@ export class AgentService extends EventEmitter implements IAgentService {
       await this.worker.start();
 
       // Send initialization to worker process
-      await this.worker.sendMessage("initialize", { config });
+      await this.worker.sendMessage("initialize", {
+        config: {
+          openaiApiKey: config.openaiApiKey || undefined,
+          model: config.model,
+          processorType: config.processorType,
+        },
+      });
 
       this.status = "ready";
       this.lastActivityTime = Date.now();
       logger.info("Agent service initialized successfully");
-
-      // Emit service ready event
-      this.emit("ready", {
-        config: this.sanitizeConfig(config),
-        status: this.status,
-      });
+      this.monitorProfileChanges();
     } catch (error) {
       this.status = "error";
       this.lastActivityTime = Date.now();
@@ -437,6 +439,36 @@ export class AgentService extends EventEmitter implements IAgentService {
       processorType: config.processorType,
       // Exclude openaiApiKey for security
     };
+  }
+
+  /**
+   * Monitor profile changes for API key updates
+   */
+  private monitorProfileChanges(): void {
+    const profileService = getProfileService();
+
+    const updateApiKey = () => {
+      if (!this.worker) return;
+
+      const apiKey = profileService.getApiKey("openai");
+      if (apiKey) {
+        logger.info("OpenAI API key found, importing to agent.");
+        this.worker.sendMessage("update-openai-api-key", { apiKey });
+      } else {
+        logger.info("No OpenAI API key found for the current profile.");
+      }
+    };
+
+    // Initial check
+    updateApiKey();
+
+    // Listen for changes
+    profileService.on("profile-switched", updateApiKey);
+    profileService.on("api-key-set", data => {
+      if (data.keyType === "openai") {
+        updateApiKey();
+      }
+    });
   }
 
   /**

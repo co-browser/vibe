@@ -104,9 +104,10 @@ const appAPI: VibeAppAPI = {
     clearAuth: () => ipcRenderer.invoke("gmail-clear-auth"),
   },
   apiKeys: {
-    get: (keyName: string) => ipcRenderer.invoke("get-api-key", keyName),
+    get: (keyName: string) =>
+      ipcRenderer.invoke("profile:get-api-key", keyName),
     set: (keyName: string, value: string) =>
-      ipcRenderer.invoke("set-api-key", keyName, value),
+      ipcRenderer.invoke("profile:set-api-key", keyName, value),
   },
   setAuthToken: async (token: string | null) => {
     return ipcRenderer.invoke("app:set-auth-token", token);
@@ -542,6 +543,15 @@ const settingsAPI: VibeSettingsAPI = {
   getAll: async () => {
     return ipcRenderer.invoke("settings:get-all");
   },
+  getOrSet: async (key: string, defaultValue: any) => {
+    return ipcRenderer.invoke("settings:get-or-set", key, defaultValue);
+  },
+  watch: async (keys: string[]) => {
+    return ipcRenderer.invoke("settings:watch", keys);
+  },
+  unwatch: async (keys: string[]) => {
+    return ipcRenderer.invoke("settings:unwatch", keys);
+  },
   reset: async () => {
     return ipcRenderer.invoke("settings:reset");
   },
@@ -663,9 +673,10 @@ const additionalAPIs = {
 
   // API Keys
   apiKeys: {
-    get: (keyName: string) => ipcRenderer.invoke("get-api-key", keyName),
+    get: (keyName: string) =>
+      ipcRenderer.invoke("profile:get-api-key", keyName),
     set: (keyName: string, value: string) =>
-      ipcRenderer.invoke("set-api-key", keyName, value),
+      ipcRenderer.invoke("profile:set-api-key", keyName, value),
   },
 
   // Legacy API bridge - deprecated, use window.vibe.chat instead

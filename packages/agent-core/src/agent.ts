@@ -110,4 +110,14 @@ export class Agent {
       throw error;
     }
   }
+
+  async updateOpenAIApiKey(apiKey: string): Promise<void> {
+    this.config.openaiApiKey = apiKey;
+    // Re-create the processor with the new API key
+    this._processor = await ProcessorFactory.create(
+      this.config,
+      this.toolManager,
+    );
+    logger.info("Agent processor re-initialized with new OpenAI API key");
+  }
 }

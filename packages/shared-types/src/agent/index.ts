@@ -4,12 +4,23 @@
 
 import type { ExtractedPage } from "../browser/index.js";
 
+export type ProcessorType = "react" | "coact";
+
 export interface AgentConfig {
-  openaiApiKey: string;
-  model?: string;
+  openaiApiKey?: string;
+  model: string;
   temperature?: number;
-  processorType?: "react" | "coact";
-  authToken?: string | null;
+  maxTokens?: number;
+  processorType?: ProcessorType;
+  keepAlive?: string;
+  mcp?: {
+    enabled: boolean;
+    url: string;
+  };
+  tools?: string[];
+  systemPrompt?: string;
+  conversationHistory?: [string, string][];
+  authToken?: string;
 }
 
 export interface AgentStatus {

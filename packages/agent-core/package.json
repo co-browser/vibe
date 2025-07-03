@@ -6,7 +6,7 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
-    "build": "tsc",
+    "build": "pnpm --filter @vibe/shared-types build && tsc",
     "dev": "tsc --watch",
     "format": "prettier --write src",
     "format:check": "prettier --check src",

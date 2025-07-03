@@ -5,6 +5,7 @@
 
 import { EventEmitter } from "events";
 import { utilityProcess, type UtilityProcess } from "electron";
+import { setupProcessStorageHandler } from "../ipc/user/settings/process-storage-handler";
 import path from "path";
 import fs from "fs";
 import { createLogger } from "@vibe/shared-types";
@@ -239,6 +240,9 @@ export class AgentWorker extends EventEmitter {
       serviceName: "agent-worker",
       env: cleanEnv,
     });
+
+    // Set up settings access for the utility process
+    setupProcessStorageHandler(this.workerProcess);
 
     // Capture stdout and stderr to see actual errors from utility process
     if (this.workerProcess.stdout) {

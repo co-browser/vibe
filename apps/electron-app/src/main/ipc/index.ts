@@ -9,7 +9,6 @@ import "@/ipc/app/clipboard";
 import "@/ipc/app/notifications";
 import "@/ipc/app/actions";
 import "@/ipc/app/gmail";
-import "@/ipc/app/api-keys";
 import "@/ipc/app/onboarding";
 
 // Chat APIs - direct imports (register themselves)
@@ -23,9 +22,9 @@ import "@/ipc/session/state-management";
 import "@/ipc/session/session-persistence";
 import { setupSessionStateSync } from "@/ipc/session/state-sync";
 
-// Settings APIs - direct imports (register themselves)
-import "@/ipc/settings/settings-crud";
-import "@/ipc/settings/settings-management";
+// User APIs - direct imports (register themselves)
+import "@/ipc/user/settings/settings-handlers";
+import "@/ipc/user/profile/profile-handlers";
 
 // Window APIs - direct imports (register themselves)
 import "@/ipc/window/window-state";
@@ -67,5 +66,3 @@ export function registerAllIpcHandlers(browser: Browser): () => void {
     sessionUnsubscribe?.(); // Clean up session subscription
   };
 }
-
-// Legacy handlers completely removed - migration complete ✅

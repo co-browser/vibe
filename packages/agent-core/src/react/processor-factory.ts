@@ -22,7 +22,7 @@ export class ProcessorFactory {
     const formattedTools = await toolManager.formatToolsForReact();
     const toolExecutor = toolManager.executeTools.bind(toolManager);
     const systemPrompt = formattedTools;
-    const model = openai(config.model || "gpt-4o-mini");
+    const model = openai.chat(config.model || "gpt-4o-mini");
 
     const processor =
       processorType === "coact"

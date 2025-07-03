@@ -25,12 +25,8 @@ import { setMCPServiceInstance } from "@/ipc/mcp/mcp-status";
 import { setAgentServiceInstance as setAgentStatusInstance } from "@/ipc/chat/agent-status";
 import { setAgentServiceInstance as setChatMessagingInstance } from "@/ipc/chat/chat-messaging";
 import { setAgentServiceInstance as setTabAgentInstance } from "@/utils/tab-agent";
-import {
-  initializeStore,
-  registerExitHandler,
-  isFirstLaunch,
-  handleStoreEncryption,
-} from "@/store/desktop-store";
+import { initializeStorage } from "@/store/initialize-storage";
+import { getStorageService } from "@/store/storage-service";
 import {
   createLogger,
   MAIN_PROCESS_CONFIG,
@@ -90,6 +86,7 @@ let mcpService: MCPService | null = null;
 
 // Track shutdown state
 let isShuttingDown = false;
+let browserDestroyed = false;
 
 // Cleanup functions
 let unsubscribeVibe: (() => void) | null = null;
@@ -179,13 +176,8 @@ async function gracefulShutdown(signal: string): Promise<void> {
   logger.info(`Graceful shutdown triggered by: ${signal}`);
 
   try {
-    // Encrypt desktop store before shutting down
-    try {
-      await handleStoreEncryption();
-      logger.info("Desktop store encrypted successfully during shutdown");
-    } catch (error) {
-      logger.error("Failed to encrypt desktop store during shutdown:", error);
-    }
+    // No need to encrypt on shutdown - new storage encrypts on write
+    logger.info("Shutting down - storage automatically encrypted");
 
     // Clean up resources
     if (memoryMonitor) {
@@ -227,8 +219,10 @@ async function gracefulShutdown(signal: string): Promise<void> {
     }
 
     // Destroy browser instance (will clean up its own menu)
-    if (browser) {
+    if (browser && !browserDestroyed) {
+      browserDestroyed = true;
       browser.destroy();
+      browser = null;
     }
 
     // Close all windows
@@ -400,9 +394,17 @@ function initializeApp(): boolean {
     memoryMonitor.setBrowserInstance(browser);
   }
 
-  app.on("will-quit", _event => {
+  app.on("will-quit", event => {
+    // If we're not already shutting down, prevent quit and use graceful shutdown
+    if (!isShuttingDown) {
+      event.preventDefault();
+      gracefulShutdown("will-quit");
+      return;
+    }
+
     // Force close any remaining resources
-    if (browser) {
+    if (browser && !browserDestroyed) {
+      browserDestroyed = true;
       browser = null;
     }
 
@@ -462,7 +464,6 @@ async function initializeServices(): Promise<void> {
       // MCP service failed to initialize - this may impact functionality
       logger.warn("Application will continue without MCP service");
     }
-
     if (process.env.OPENAI_API_KEY) {
       // Initialize agent service after MCP is ready
       await new Promise(resolve => {
@@ -539,21 +540,21 @@ async function initializeServices(): Promise<void> {
 
 // Main application initialization
 app.whenReady().then(async () => {
-  // Initialize desktop store first
+  // Initialize storage first
   try {
-    await initializeStore();
-    registerExitHandler();
+    await initializeStorage();
 
-    // On first launch, store initialization is deferred until after onboarding
-    if (isFirstLaunch()) {
-      logger.info(
-        "First launch detected - store initialization deferred until after onboarding",
-      );
+    // Check if this is first launch
+    const storage = getStorageService();
+    const firstLaunchComplete = storage.get("_firstLaunchComplete", false);
+
+    if (!firstLaunchComplete) {
+      logger.info("First launch detected - waiting for onboarding completion");
     } else {
-      logger.info("Desktop store initialized successfully");
+      logger.info("Storage initialized successfully");
     }
   } catch (error) {
-    logger.error("Failed to initialize desktop store:", error);
+    logger.error("Failed to initialize storage:", error);
   }
 
   // Register the custom protocol handler for secure context
@@ -573,7 +574,8 @@ app.whenReady().then(async () => {
 
   const initialized = initializeApp();
   if (!initialized) {
-    app.quit();
+    // Use gracefulShutdown instead of app.quit()
+    gracefulShutdown("initialization-failed");
     return;
   }
 
@@ -626,7 +628,8 @@ app.whenReady().then(async () => {
 // App lifecycle events
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
-    app.quit();
+    // Use gracefulShutdown instead of app.quit()
+    gracefulShutdown("window-all-closed");
   }
 });
 
@@ -637,18 +640,14 @@ app.on("activate", () => {
 });
 
 app.on("before-quit", async event => {
-  // Prevent default to handle encryption
-  if (!isShuttingDown) {
+  // Prevent default quit behavior if already shutting down
+  if (isShuttingDown) {
     event.preventDefault();
-
-    // Encrypt desktop store
-    try {
-      await handleStoreEncryption();
-      logger.info("Desktop store encrypted successfully");
-    } catch (error) {
-      logger.error("Failed to encrypt desktop store:", error);
-    }
+    return;
   }
+
+  // No longer need to prevent default for encryption
+  // Storage automatically encrypts on write
 
   // Track app shutdown
   try {
@@ -692,14 +691,11 @@ app.on("before-quit", async event => {
     logger.error("Error during shutdown logging:", error);
   }
 
-  // Continue with quit if not already shutting down
-  if (!isShuttingDown) {
-    app.quit();
-  }
-
   // Clean up browser resources
-  if (browser && !browser.isDestroyed()) {
+  if (browser && !browserDestroyed && !browser.isDestroyed()) {
+    browserDestroyed = true;
     browser.destroy();
+    browser = null;
   }
 
   // Clean up memory monitor
