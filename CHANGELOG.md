@@ -1,7 +1,47 @@
 
-<a name="v0.1.2"></a>
-## [v0.1.2] - 2025-06-28
+<a name="v0.1.3"></a>
+## [v0.1.3] - 2025-07-03
 ### Chore
+- simplify Docker release workflow by removing push trigger and unnecessary whitespace
+- simplify Docker release workflow by removing Node.js setup and build steps
+- enhance Docker release workflow and add simple Dockerfile
+
+### Feat
+- add persistent desktop store with Touch ID  authentication
+- add persistent desktop store with Touch ID  authentication
+
+### Fix
+- stop audio playback when closing tabs
+- enhance desktop store security
+- update Dockerfile to include legacy flag for deployment
+- update Docker release workflow to use conditional token for authentication
+- update Dockerfile to handle workspace dependencies correctly
+- **build:** resolve Node.js module warnings in shared-types
+- **mcp-rag:** implement user namespace isolation
+
+### Refactor
+- remove redundant keychain password storage
+- optimize Dockerfile for multi-stage build and improved deployment
+- improve Dockerfile for targeted builds and dependency management
+- enhance Dockerfile for simplified dependency management and build process
+- optimize Dockerfile for targeted dependency installation and build process
+- optimize Dockerfile for dependency installation and build process
+- restructure Dockerfile for multi-stage build and improved dependency management
+- update Dockerfile to improve package handling and remove workspace references
+- simplify Docker release workflow and improve Coolify deployment logic
+- **mcp-rag:** improve user context handling
+
+### Pull Requests
+- Merge pull request [#51](https://github.com/co-browser/vibe/issues/51) from co-browser/fix/rag-namespace-isolation
+- Merge pull request [#49](https://github.com/co-browser/vibe/issues/49) from co-browser/fix/shared-types-node-modules-warning
+- Merge pull request [#48](https://github.com/co-browser/vibe/issues/48) from co-browser/fix/audio-cleanup
+- Merge pull request [#37](https://github.com/co-browser/vibe/issues/37) from co-browser/feat/store
+
+
+<a name="v0.1.2"></a>
+## [v0.1.2] - 2025-06-29
+### Chore
+- add CI and Docker release workflows
 - update RAG server configuration to use structured environment variables
 - enhance RAG server configuration and error handling
 - update .gitignore to include CLAUDE.md
@@ -12,6 +52,7 @@
 - remove deployment workflow and enhance Dockerfile metadata
 - linting
 - update postinstall script and remove versioning note from README
+- **release:** v0.1.2
 
 ### Docs
 - update README to enhance features section and clarify Gmail setup
@@ -37,6 +78,15 @@
 - add RAG MCP server implementation with environment configuration and tools
 
 ### Fix
+- correct sed commands for workspace dependencies in Dockerfile
+- update Dockerfile to build packages during Docker build
+- correct release notes generation using GitHub API
+- clean up scripts and workflows for professional standards
+- resolve CI failures and workflow syntax issues
+- update paths for notarization scripts in electron-builder configuration
+- update release workflow and scripts for notarization
+- disable auto-publish in electron-builder for releases
+- update release workflow to use PAT
 - use proper updateAuthToken method instead of type assertion in factory
 - improve type safety by removing type assertion in Agent class
 - improve security and race condition handling in PrivyAuthButton
@@ -51,6 +101,7 @@
 - update pnpm version in workflows to match package.json (10.12.1)
 
 ### Refactor
+- clean up workflows and fix release changelog generation
 - revert commit 62d2484
 - replace global auth token with secure AuthTokenManager
 - simplify environment variable handling and hardcode Privy app ID
@@ -153,6 +204,7 @@
 <a name="v0.0.0"></a>
 ## v0.0.0 - 2025-06-13
 
+[v0.1.3]: https://github.com/co-browser/vibe/compare/v0.1.2...v0.1.3
 [v0.1.2]: https://github.com/co-browser/vibe/compare/v0.1.1...v0.1.2
 [v0.1.1]: https://github.com/co-browser/vibe/compare/v0.1.0...v0.1.1
 [v0.1.0]: https://github.com/co-browser/vibe/compare/v0.0.0...v0.1.0
