@@ -12,6 +12,9 @@ A clear description of what problem this feature would solve.
 ## Proposed Solution
 A clear description of what you want to happen.
 
+## Path Dependencies
+Are there other linked or adjacent features dependent on this?
+
 ## Alternative Solutions
 A clear description of any alternative solutions you've considered.
 
