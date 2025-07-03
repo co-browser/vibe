@@ -22,7 +22,6 @@ const JSON_RPC_ERROR = -32603;
 export class StreamableHTTPServer {
   server: Server;
   private userContext = new WeakMap<any, string>();
-  private currentUserId: string | undefined; // Track current request's userId
 
   constructor(server: Server) {
     this.server = server;
@@ -59,28 +58,23 @@ export class StreamableHTTPServer {
       await this.server.connect(transport as any);
       log.success('Transport connected. Handling request...');
 
-      // Store userId in context if available
+      // Store userId in transport context for request-scoped access
       if (userId) {
         this.userContext.set(transport, userId);
-        this.currentUserId = userId; // Set for current request context
-      } else {
-        this.currentUserId = undefined;
       }
 
       await transport.handleRequest(req, res, req.body);
       res.on('close', () => {
         log.success('Request closed by client');
+        // Clean up user context to prevent memory leaks
+        this.userContext.delete(transport);
         transport.close();
-        this.currentUserId = undefined; // Clear user context when request closes
       });
 
       await this.sendMessages(transport);
       log.success(
         `POST request handled successfully (status=${res.statusCode})`
       );
-      
-      // Clear user context after request completion
-      this.currentUserId = undefined;
     } catch (error) {
       log.error('Error handling MCP request:', error);
       if (!res.headersSent) {
@@ -102,7 +96,7 @@ export class StreamableHTTPServer {
     
     this.server.setRequestHandler(
       CallToolRequestSchema,
-      async (request, _extra) => {
+      async (request, extra) => {
         const args = request.params.arguments;
         const toolName = request.params.name;
         const tool = RAGTools.find((tool) => tool.name === toolName);
@@ -117,8 +111,9 @@ export class StreamableHTTPServer {
         
         try {
           log.info(`Executing tool ${toolName}...`);
-          // Get userId from current request context
-          const userId = this.currentUserId;
+          // Get userId from transport context via extra parameter
+          const transport = (extra as any)?._transport;
+          const userId = transport ? this.userContext.get(transport) : undefined;
           if (userId) {
             log.info(`Tool execution with user context: ${userId}`);
           } else {
