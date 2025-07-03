@@ -77,7 +77,7 @@ export function normalizeApiKeyType(key: string): string {
  * Get a setting value from the appropriate source
  */
 export async function getSetting(key: string): Promise<any> {
-  const profileService = getProfile();
+  const profileService = await getProfile();
   const storage = getStorage();
 
   // Check if it's a profile preference
@@ -111,18 +111,19 @@ export async function getSetting(key: string): Promise<any> {
  * Set a setting value in the appropriate location
  */
 export async function setSetting(key: string, value: any): Promise<boolean> {
-  const profileService = getProfile();
   const storage = getStorage();
 
   try {
     if (isProfilePreference(key)) {
-      await profileService.setPreference(key, value);
+      const profileService = await getProfile();
+      profileService.setPreference(key, value);
       return true;
     }
 
     if (isApiKeyType(key)) {
       const keyType = normalizeApiKeyType(key);
-      const success = await profileService.setApiKey(keyType, value);
+      const profileService = await getProfile();
+      const success = profileService.setApiKey(keyType, value);
 
       // Also update environment for current session
       if (success && API_KEY_ENV_MAP[keyType]) {
@@ -175,9 +176,11 @@ export function cleanupWatchers(
 /**
  * Get all settings from both storage and profile
  */
-export function getAllSettings(masked = true): Record<string, any> {
+export async function getAllSettings(
+  masked = true,
+): Promise<Record<string, any>> {
   const storage = getStorage();
-  const profileService = getProfile();
+  const profileService = await getProfile();
   const allSettings: Record<string, any> = {};
 
   // Get all app settings

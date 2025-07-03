@@ -67,7 +67,11 @@ export class AgentService extends EventEmitter implements IAgentService {
       this.status = "ready";
       this.lastActivityTime = Date.now();
       logger.info("Agent service initialized successfully");
-      this.monitorProfileChanges();
+
+      // Start monitoring profile changes (fire and forget)
+      this.monitorProfileChanges().catch(error => {
+        logger.warn("Failed to start profile monitoring:", error);
+      });
     } catch (error) {
       this.status = "error";
       this.lastActivityTime = Date.now();
@@ -445,8 +449,8 @@ export class AgentService extends EventEmitter implements IAgentService {
   /**
    * Monitor profile changes for API key updates
    */
-  private monitorProfileChanges(): void {
-    const profileService = getProfileService();
+  private async monitorProfileChanges(): Promise<void> {
+    const profileService = await getProfileService();
 
     const updateApiKey = async () => {
       if (!this.worker) return;

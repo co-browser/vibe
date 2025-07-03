@@ -76,14 +76,28 @@ export class ProfileService extends EventEmitter {
   private constructor() {
     super();
     this.storage = getStorageService();
-    this.initialize();
   }
 
   static getInstance(): ProfileService {
     if (!ProfileService.instance) {
-      ProfileService.instance = new ProfileService();
+      throw new Error(
+        "ProfileService has not been initialized. Call and await getProfileService() first.",
+      );
     }
     return ProfileService.instance;
+  }
+
+  /**
+   * Asynchronously initializes and returns the singleton instance of the ProfileService.
+   * This should be the primary way to get the service to ensure it's fully initialized.
+   */
+  static async init(): Promise<ProfileService> {
+    if (this.instance) {
+      return this.instance;
+    }
+    this.instance = new ProfileService();
+    await this.instance.initialize();
+    return this.instance;
   }
 
   private async initialize(): Promise<void> {
@@ -94,7 +108,7 @@ export class ProfileService extends EventEmitter {
       if (activeProfile) {
         this.currentProfileId = activeProfile.id;
       } else if (profiles.length > 0) {
-        await this.setActiveProfile(profiles[0].id);
+        this.setActiveProfile(profiles[0].id);
       } else {
         await this.createProfile("Default", true);
       }
@@ -163,13 +177,13 @@ export class ProfileService extends EventEmitter {
     this.broadcastToAllWindows("profile:created", profile);
 
     if (Object.keys(profiles).length === 1 || isDefault) {
-      await this.setActiveProfile(profile.id);
+      this.setActiveProfile(profile.id);
     }
 
     return profile;
   }
 
-  async setActiveProfile(profileId: string): Promise<boolean> {
+  setActiveProfile(profileId: string): boolean {
     const profiles = this.storage.get("profiles", {});
     const profile = profiles[profileId];
 
@@ -197,10 +211,7 @@ export class ProfileService extends EventEmitter {
     return true;
   }
 
-  async updateProfile(
-    profileId: string,
-    updates: Partial<Profile>,
-  ): Promise<boolean> {
+  updateProfile(profileId: string, updates: Partial<Profile>): boolean {
     const profiles = this.storage.get("profiles", {});
     const profile = profiles[profileId];
 
@@ -248,7 +259,7 @@ export class ProfileService extends EventEmitter {
 
     if (profile.isActive && Object.keys(profiles).length > 0) {
       const firstProfile = Object.values(profiles)[0] as Profile;
-      await this.setActiveProfile(firstProfile.id);
+      this.setActiveProfile(firstProfile.id);
     }
 
     return true;
@@ -278,11 +289,7 @@ export class ProfileService extends EventEmitter {
     return limit ? history.slice(0, limit) : history;
   }
 
-  async addBrowsingHistory(
-    url: string,
-    title: string,
-    favicon?: string,
-  ): Promise<void> {
+  addBrowsingHistory(url: string, title: string, favicon?: string): void {
     if (!this.currentProfileId) return;
 
     const history = this.getBrowsingHistory();
@@ -314,7 +321,7 @@ export class ProfileService extends EventEmitter {
     this.storage.set(`profile.${this.currentProfileId}.history`, history);
   }
 
-  async clearBrowsingHistory(): Promise<void> {
+  clearBrowsingHistory(): void {
     if (!this.currentProfileId) return;
 
     this.storage.delete(`profile.${this.currentProfileId}.history`);
@@ -336,12 +343,12 @@ export class ProfileService extends EventEmitter {
     );
   }
 
-  async savePassword(
+  savePassword(
     url: string,
     username: string,
     password: string,
     title?: string,
-  ): Promise<void> {
+  ): void {
     if (!this.currentProfileId) return;
 
     const passwords = this.getSavedPasswords();
@@ -378,7 +385,7 @@ export class ProfileService extends EventEmitter {
     });
   }
 
-  async deleteSavedPassword(passwordId: string): Promise<boolean> {
+  deleteSavedPassword(passwordId: string): boolean {
     if (!this.currentProfileId) return false;
 
     const passwords = this.getSavedPasswords();
@@ -425,7 +432,7 @@ export class ProfileService extends EventEmitter {
     );
   }
 
-  async setApiKey(keyType: string, value: string): Promise<boolean> {
+  setApiKey(keyType: string, value: string): boolean {
     if (!this.currentProfileId) return false;
 
     const apiKeys = this.getAllApiKeys();
@@ -463,14 +470,16 @@ export class ProfileService extends EventEmitter {
   getPreferences(): Record<string, any> {
     if (!this.currentProfileId) return {};
 
-    return this.storage.get(`profile.${this.currentProfileId}.preferences`, {});
+    return {
+      ...this.storage.get(`profile.${this.currentProfileId}.preferences`, {}),
+    };
   }
 
   getPreference(key: string): any {
     return this.getPreferences()[key];
   }
 
-  async setPreference(key: string, value: any): Promise<boolean> {
+  setPreference(key: string, value: any): boolean {
     if (!this.currentProfileId) return false;
 
     const preferences = this.getPreferences();
@@ -492,6 +501,32 @@ export class ProfileService extends EventEmitter {
     return true;
   }
 
+  removePreference(key: string): boolean {
+    if (!this.currentProfileId) return false;
+
+    const preferences = this.getPreferences();
+    if (!(key in preferences)) {
+      return true; // Nothing to remove, success.
+    }
+
+    const oldValue = preferences[key];
+    delete preferences[key];
+    this.storage.set(
+      `profile.${this.currentProfileId}.preferences`,
+      preferences,
+    );
+
+    // Emit event matching the format expected by settings handlers
+    this.emit("preferenceChanged", key, undefined, oldValue);
+    this.broadcastToAllWindows("profile:preference-changed", {
+      profileId: this.currentProfileId,
+      key,
+      value: undefined,
+      oldValue,
+    });
+    return true;
+  }
+
   // ========== Broadcasting ==========
 
   private broadcastToAllWindows(channel: string, data: any): void {
@@ -508,6 +543,6 @@ export class ProfileService extends EventEmitter {
 }
 
 // Export singleton getter
-export function getProfileService(): ProfileService {
-  return ProfileService.getInstance();
+export async function getProfileService(): Promise<ProfileService> {
+  return ProfileService.init();
 }

@@ -154,6 +154,7 @@ export class SharedStorage {
     message: Omit<IPCMessage, "id">,
     timeout = DEFAULT_TIMEOUT,
   ): Promise<T> {
+    this.checkDestroyed();
     const messageId = this.generateMessageId(message.type);
 
     return new Promise((resolve, reject) => {
@@ -177,7 +178,6 @@ export class SharedStorage {
    * Get a setting value
    */
   async get<T = any>(key: string): Promise<T | null> {
-    this.checkDestroyed();
     return this.sendRequest<T>({
       type: "settings:get",
       key,
@@ -217,39 +217,34 @@ export class SharedStorage {
    * Watch for changes to a specific setting
    */
   watch(key: string, callback: WatchCallback): () => void {
-    // Store callback
+    this.checkDestroyed();
     this.watchCallbacks.set(key, callback);
 
-    // Start watching if first watcher
-    if (!this.isWatching) {
-      this.parentPort!.postMessage({
-        id: this.generateMessageId("watch"),
-        type: "settings:watch",
-        keys: Array.from(this.watchCallbacks.keys()),
-      });
-      this.isWatching = true;
-    } else {
-      // Add this key to existing watch
-      this.parentPort!.postMessage({
-        id: this.generateMessageId("watch-add"),
-        type: "settings:watch",
-        keys: [key],
-      });
-    }
+    // Inform the main process to watch this key.
+    this.parentPort!.postMessage({
+      id: this.generateMessageId("watch-add"),
+      type: "settings:watch",
+      keys: [key],
+    });
+    this.isWatching = true;
 
     // Return unwatch function
     return () => {
-      this.watchCallbacks.delete(key);
+      // If delete returns false, the key wasn't in the map.
+      // This makes the unwatch function idempotent.
+      if (!this.watchCallbacks.delete(key)) {
+        return;
+      }
 
-      // Stop watching if no more callbacks
-      if (this.watchCallbacks.size === 0 && this.isWatching) {
+      if (this.watchCallbacks.size === 0) {
+        // No more watchers, tell main process to unwatch everything for us.
         this.parentPort!.postMessage({
-          id: this.generateMessageId("unwatch"),
+          id: this.generateMessageId("unwatch-all"),
           type: "settings:unwatch",
         });
         this.isWatching = false;
       } else {
-        // Remove just this key from watch
+        // Still have other watchers, just unwatch this one key.
         this.parentPort!.postMessage({
           id: this.generateMessageId("unwatch-remove"),
           type: "settings:unwatch",
@@ -263,15 +258,22 @@ export class SharedStorage {
    * Batch get multiple settings
    */
   async batchGet(keys: string[]): Promise<Record<string, any>> {
+    this.checkDestroyed();
     const results: Record<string, any> = {};
 
     // Use Promise.all for parallel fetching
-    const values = await Promise.all(
-      keys.map(key => this.get(key).catch(() => null)),
+    const settledResults = await Promise.allSettled(
+      keys.map(key => this.get(key)),
     );
 
-    keys.forEach((key, index) => {
-      results[key] = values[index];
+    settledResults.forEach((result, index) => {
+      const key = keys[index];
+      if (result.status === "fulfilled") {
+        results[key] = result.value;
+      } else {
+        results[key] = null;
+        logger.warn(`Failed to get key '${key}' in batchGet:`, result.reason);
+      }
     });
 
     return results;
@@ -281,7 +283,10 @@ export class SharedStorage {
    * Clean up resources
    */
   destroy(): void {
-    this.checkDestroyed();
+    if (this.isDestroyed) {
+      return;
+    }
+    this.isDestroyed = true;
 
     // Clear all pending requests
     this.pendingRequests.forEach(({ reject, timeoutId }) => {

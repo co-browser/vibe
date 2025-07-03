@@ -90,12 +90,15 @@ export function setupProcessStorageHandler(
   });
 }
 
-function handleSettingsGet(utilityProcess: UtilityProcess, message: any): void {
+async function handleSettingsGet(
+  utilityProcess: UtilityProcess,
+  message: any,
+): Promise<void> {
   const { id, key } = message;
   const storage = getStorageService();
 
   if (apiKeyTypes.includes(key)) {
-    const profileService = getProfileService();
+    const profileService = await getProfileService();
     const keyType = key.replace("ApiKey", "").toLowerCase();
     const value = profileService.getApiKey(keyType);
 
@@ -125,9 +128,9 @@ async function handleSettingsSet(
 
   try {
     if (apiKeyTypes.includes(key)) {
-      const profileService = getProfileService();
+      const profileService = await getProfileService();
       const keyType = key.replace("ApiKey", "").toLowerCase();
-      const success = await profileService.setApiKey(keyType, value);
+      const success = profileService.setApiKey(keyType, value);
 
       utilityProcess.postMessage({
         id,
@@ -154,11 +157,14 @@ async function handleSettingsSet(
   }
 }
 
-function handleGetProfile(utilityProcess: UtilityProcess, message: any): void {
+async function handleGetProfile(
+  utilityProcess: UtilityProcess,
+  message: any,
+): Promise<void> {
   const { id } = message;
 
   try {
-    const profileService = getProfileService();
+    const profileService = await getProfileService();
     const currentProfile = profileService.getCurrentProfile();
 
     utilityProcess.postMessage({
@@ -176,7 +182,10 @@ function handleGetProfile(utilityProcess: UtilityProcess, message: any): void {
   }
 }
 
-function handleGetAll(utilityProcess: UtilityProcess, message: any): void {
+async function handleGetAll(
+  utilityProcess: UtilityProcess,
+  message: any,
+): Promise<void> {
   const { id } = message;
   const storage = getStorageService();
 
@@ -194,7 +203,7 @@ function handleGetAll(utilityProcess: UtilityProcess, message: any): void {
     });
 
     // Add profile preferences
-    const profileService = getProfileService();
+    const profileService = await getProfileService();
     const preferences = profileService.getPreferences();
     Object.assign(allData, preferences);
 
@@ -219,10 +228,10 @@ function handleGetAll(utilityProcess: UtilityProcess, message: any): void {
   }
 }
 
-function handleWatch(
+async function handleWatch(
   utilityProcess: UtilityProcessWithSettings,
   message: any,
-): void {
+): Promise<void> {
   const { id } = message;
   const storage = getStorageService();
 
@@ -250,7 +259,6 @@ function handleWatch(
   });
 
   // Also watch profile changes for API keys
-  const profileService = getProfileService();
   const handleApiKeyChange = (data: any) => {
     if (data.keyType) {
       utilityProcess.postMessage({
@@ -264,6 +272,7 @@ function handleWatch(
     }
   };
 
+  const profileService = await getProfileService();
   profileService.on("api-key-set", handleApiKeyChange);
   profileService.on("api-key-removed", handleApiKeyChange);
 

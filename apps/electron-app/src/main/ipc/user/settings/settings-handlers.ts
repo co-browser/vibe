@@ -17,7 +17,6 @@ import {
  */
 
 const storage = getStorage();
-const profileService = getProfile();
 
 // Track active watchers
 const settingsWatchers = new Map<number, Set<string>>(); // webContentsId -> Set of watched keys
@@ -37,7 +36,11 @@ ipcMain.handle("settings:set", async (_, key: string, value: any) => {
 ipcMain.handle("settings:remove", async (_, key: string) => {
   try {
     if (isProfilePreference(key)) {
-      // await profileService.removePreference(key);
+      const profileService = await getProfile();
+      profileService.removePreference(key);
+    } else if (isApiKeyType(key)) {
+      const profileService = await getProfile();
+      profileService.removeApiKey(normalizeApiKeyType(key));
     } else {
       storage.delete(`settings.${key}`);
     }
@@ -65,9 +68,10 @@ ipcMain.handle(
   async (_, key: string, defaultValue: any) => {
     // Check if it's a profile preference
     if (isProfilePreference(key)) {
+      const profileService = await getProfile();
       const preference = profileService.getPreference(key);
       if (preference === undefined) {
-        await profileService.setPreference(key, defaultValue);
+        profileService.setPreference(key, defaultValue);
         return defaultValue;
       }
       return preference;
@@ -76,9 +80,10 @@ ipcMain.handle(
     // Check if it's an API key
     if (isApiKeyType(key)) {
       const keyType = normalizeApiKeyType(key);
+      const profileService = await getProfile();
       const apiKey = profileService.getApiKey(keyType);
       if (apiKey === undefined) {
-        await profileService.setApiKey(keyType, defaultValue);
+        profileService.setApiKey(keyType, defaultValue);
         return defaultValue;
       }
       return apiKey;
@@ -128,22 +133,29 @@ ipcMain.handle("settings:watch", async (event, keys: string[]) => {
   return true;
 });
 
-ipcMain.handle("settings:unwatch", async (event, keys: string[]) => {
+ipcMain.handle("settings:unwatch", async (event, keys?: string[]) => {
   const webContentsId = event.sender.id;
 
   const settingsSet = settingsWatchers.get(webContentsId);
   const profileSet = profileWatchers.get(webContentsId);
   const apiKeysSet = apiKeysWatchers.get(webContentsId);
 
-  keys.forEach(key => {
-    if (isProfilePreference(key)) {
-      profileSet?.delete(key);
-    } else if (isApiKeyType(key)) {
-      apiKeysSet?.delete(key);
-    } else {
-      settingsSet?.delete(key);
-    }
-  });
+  if (keys?.length) {
+    keys.forEach(key => {
+      if (isProfilePreference(key)) {
+        profileSet?.delete(key);
+      } else if (isApiKeyType(key)) {
+        apiKeysSet?.delete(key);
+      } else {
+        settingsSet?.delete(key);
+      }
+    });
+  } else {
+    // If no keys are provided, unwatch all for this sender
+    settingsWatchers.delete(webContentsId);
+    profileWatchers.delete(webContentsId);
+    apiKeysWatchers.delete(webContentsId);
+  }
 
   // Clean up empty sets
   if (settingsSet?.size === 0) {
@@ -170,25 +182,30 @@ storage.on("change", (key: string, newValue: any, oldValue: any) => {
   broadcastSettingChange(settingKey, newValue, oldValue, settingsWatchers);
 });
 
-// Listen for profile preference changes
-profileService.on(
-  "preferenceChanged",
-  (key: string, newValue: any, oldValue: any) => {
-    // Notify all watchers of this preference
-    broadcastSettingChange(key, newValue, oldValue, profileWatchers);
-  },
-);
+// Initialize profile service and set up event listeners
+(async () => {
+  const profileService = await getProfile();
 
-// Listen for API key changes
-profileService.on(
-  "apiKeyChanged",
-  (key: string, newValue: any, oldValue: any) => {
-    // The key from the event is the API key type, e.g., "openai"
-    // We need to find the corresponding watched key, e.g., "apiKeys.openai"
-    const watchedKey = `apiKeys.${key}`;
-    broadcastSettingChange(watchedKey, newValue, oldValue, apiKeysWatchers);
-  },
-);
+  // Listen for profile preference changes
+  profileService.on(
+    "preferenceChanged",
+    (key: string, newValue: any, oldValue: any) => {
+      // Notify all watchers of this preference
+      broadcastSettingChange(key, newValue, oldValue, profileWatchers);
+    },
+  );
+
+  // Listen for API key changes
+  profileService.on(
+    "apiKeyChanged",
+    (key: string, newValue: any, oldValue: any) => {
+      // The key from the event is the API key type, e.g., "openai"
+      // We need to find the corresponding watched key, e.g., "apiKeys.openai"
+      const watchedKey = `apiKeys.${key}`;
+      broadcastSettingChange(watchedKey, newValue, oldValue, apiKeysWatchers);
+    },
+  );
+})();
 
 // Clean up watchers when web contents are destroyed
 webContents.getAllWebContents().forEach(wc => {
@@ -207,8 +224,9 @@ ipcMain.handle("settings:reset", async () => {
     storage.set("settings.devTools", false);
 
     // Reset profile preferences to defaults
-    await profileService.setPreference("defaultSearchEngine", "google");
-    await profileService.setPreference("privacyMode", false);
+    const profileService = await getProfile();
+    profileService.setPreference("defaultSearchEngine", "google");
+    profileService.setPreference("privacyMode", false);
 
     return true;
   } catch {
@@ -235,6 +253,7 @@ ipcMain.handle("settings:export", async () => {
     });
 
     // Export profile preferences
+    const profileService = await getProfile();
     exportData.preferences = profileService.getPreferences();
 
     return JSON.stringify(exportData, null, 2);
@@ -256,6 +275,7 @@ ipcMain.handle("settings:import", async (_, data: string) => {
 
     // Import profile preferences
     if (importData.preferences) {
+      const profileService = await getProfile();
       Object.entries(importData.preferences).forEach(([key, value]) => {
         profileService.setPreference(key, value);
       });
