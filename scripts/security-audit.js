@@ -95,7 +95,7 @@ const insecurePatterns = [
     severity: 'low',
   },
   {
-    pattern: /(password|secret|key|token)\s*[:=]\s*["'][^"']+["']/gi,
+    pattern: /(password|secret|apikey|api_key)\s*[:=]\s*["'][^"']+["']/gi,
     message: 'Potential hardcoded secret detected',
     severity: 'high',
   },
