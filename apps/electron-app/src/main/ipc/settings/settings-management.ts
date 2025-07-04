@@ -19,3 +19,9 @@ ipcMain.handle("settings:import", async () => {
   // Settings import not implemented - return success for compatibility
   return true;
 });
+
+// Settings modal close handler
+ipcMain.on("settings-modal:close", event => {
+  // Forward the close event to the renderer process
+  event.sender.send("settings-modal:close");
+});

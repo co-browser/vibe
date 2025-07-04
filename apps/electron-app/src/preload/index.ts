@@ -726,7 +726,9 @@ const profileAPI = {
   },
 };
 
-// Overlay API for transparent overlay system
+// Consolidated electron API - moved to main API exposure section
+
+// Overlay API for transparent overlay system with performance optimizations
 const overlayAPI = {
   show: async () => ipcRenderer.invoke("overlay:show"),
   hide: async () => ipcRenderer.invoke("overlay:hide"),
@@ -735,6 +737,19 @@ const overlayAPI = {
   update: async (updates: any) => ipcRenderer.invoke("overlay:update", updates),
   execute: async (script: string) =>
     ipcRenderer.invoke("overlay:execute", script),
+  // Enhanced methods
+  getState: async () => ipcRenderer.invoke("overlay:getState"),
+};
+
+const downloadsAPI = {
+  getHistory: async () => ipcRenderer.invoke("downloads.getHistory"),
+  openFile: async (filePath: string) =>
+    ipcRenderer.invoke("downloads.openFile", filePath),
+  showFileInFolder: async (filePath: string) =>
+    ipcRenderer.invoke("downloads.showFileInFolder", filePath),
+  removeFromHistory: async (id: string) =>
+    ipcRenderer.invoke("downloads.removeFromHistory", id),
+  clearHistory: async () => ipcRenderer.invoke("downloads.clearHistory"),
 };
 
 const vibeAPI = {
@@ -750,6 +765,7 @@ const vibeAPI = {
   session: sessionAPI,
   update: updateAPI,
   profile: profileAPI,
+  downloads: downloadsAPI,
 };
 
 // Expose APIs to the renderer process
@@ -759,8 +775,10 @@ if (process.contextIsolated) {
     contextBridge.exposeInMainWorld("vibeOverlay", overlayAPI);
     contextBridge.exposeInMainWorld("electron", {
       ...electronAPI,
-      overlay: overlayAPI,
       platform: process.platform,
+      // Drag and drop functionality
+      startDrag: (fileName: string) =>
+        ipcRenderer.send("ondragstart", fileName),
       // IPC renderer for direct communication
       ipcRenderer: {
         on: (channel: string, listener: (...args: any[]) => void) => {

@@ -1,15 +1,21 @@
-import { BrowserWindow, nativeTheme, shell } from "electron";
+import { BrowserWindow, nativeTheme, shell, ipcMain } from "electron";
 import { EventEmitter } from "events";
 import { join } from "path";
 import { is } from "@electron-toolkit/utils";
 import { WINDOW_CONFIG } from "@vibe/shared-types";
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { download, CancelError } = require("electron-dl");
 
 import { TabManager } from "./tab-manager";
 import { ViewManager } from "./view-manager";
+import { DialogManager } from "./dialog-manager";
 import { createLogger } from "@vibe/shared-types";
 
 const logger = createLogger("ApplicationWindow");
 import type { CDPManager } from "../services/cdp-service";
+
+let bluetoothPinCallback;
+let selectBluetoothCallback;
 
 /**
  * ApplicationWindow - Simple window wrapper that contains per-window managers
@@ -19,6 +25,7 @@ export class ApplicationWindow extends EventEmitter {
   public readonly window: BrowserWindow;
   public readonly tabManager: TabManager;
   public readonly viewManager: ViewManager;
+  public readonly dialogManager: DialogManager;
 
   constructor(
     browser: any,
@@ -29,11 +36,48 @@ export class ApplicationWindow extends EventEmitter {
 
     // Create window with options
     this.window = new BrowserWindow(options || this.getDefaultOptions());
+
+    this.window.webContents.on(
+      "select-bluetooth-device",
+      (_event, deviceList, callback) => {
+        _event.preventDefault();
+        logger.warn("Bluetooth select!");
+
+        selectBluetoothCallback = callback;
+        const result = deviceList.find(device => {
+          return device.deviceName === "vibe";
+        });
+        if (result) {
+          callback(result.deviceId);
+        } else {
+          logger.warn("Bluetooth device not found");
+        }
+      },
+    );
+
+    ipcMain.on("cancel-bluetooth-request", _event => {
+      selectBluetoothCallback("");
+    });
+
+    // Listen for a message from the renderer to get the response for the Bluetooth pairing.
+    ipcMain.on("bluetooth-pairing-response", (_event, response) => {
+      bluetoothPinCallback(response);
+    });
+
+    this.window.webContents.session.setBluetoothPairingHandler(
+      (details, callback) => {
+        bluetoothPinCallback = callback;
+        // Send a message to the renderer to prompt the user to confirm the pairing.
+        this.window.webContents.send("bluetooth-pairing-request", details);
+      },
+    );
+
     this.id = this.window.id;
 
     // Create window-specific managers (ViewManager first, then TabManager)
     this.viewManager = new ViewManager(browser, this.window);
     this.tabManager = new TabManager(browser, this.viewManager, cdpManager);
+    this.dialogManager = new DialogManager(this.window);
 
     // Set up tab event forwarding for this window
     this.setupTabEventForwarding();
@@ -213,6 +257,13 @@ export class ApplicationWindow extends EventEmitter {
       logger.warn("Error destroying ViewManager:", error);
     }
 
+    try {
+      // Clean up DialogManager
+      this.dialogManager.destroy();
+    } catch (error) {
+      logger.warn("Error destroying DialogManager:", error);
+    }
+
     this.emit("destroy");
     this.removeAllListeners();
 
@@ -222,3 +273,18 @@ export class ApplicationWindow extends EventEmitter {
     }
   }
 }
+
+ipcMain.on("download-button", async (_event, { url }) => {
+  const win = BrowserWindow.getFocusedWindow();
+  if (win) {
+    try {
+      console.log(await download(win, url));
+    } catch (error) {
+      if (error instanceof CancelError) {
+        console.info("item.cancel() was called");
+      } else {
+        console.error(error);
+      }
+    }
+  }
+});

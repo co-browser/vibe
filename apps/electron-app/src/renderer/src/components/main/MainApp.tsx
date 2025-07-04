@@ -3,6 +3,8 @@ import NavigationBar from "../layout/NavigationBar";
 import ChromeTabBar from "../layout/TabBar";
 import { ChatPage } from "../../pages/chat/ChatPage";
 import { ChatErrorBoundary } from "../ui/error-boundary";
+import { SettingsModal } from "../modals/SettingsModal";
+import { DownloadsModal } from "../modals/DownloadsModal";
 import {
   CHAT_PANEL,
   CHAT_PANEL_RECOVERY,
@@ -360,6 +362,20 @@ function BrowserLayout(): React.JSX.Element {
 export function MainApp(): React.JSX.Element {
   const [isReady, setIsReady] = useState(false);
   const [vibeAPIReady, setVibeAPIReady] = useState(false);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [isDownloadsModalOpen, setIsDownloadsModalOpen] = useState(false);
+
+  // Debug logging for modal states
+  useEffect(() => {
+    console.log("[MainApp] Settings modal state changed:", isSettingsModalOpen);
+  }, [isSettingsModalOpen]);
+
+  useEffect(() => {
+    console.log(
+      "[MainApp] Downloads modal state changed:",
+      isDownloadsModalOpen,
+    );
+  }, [isDownloadsModalOpen]);
 
   useEffect(() => {
     const checkVibeAPI = () => {
@@ -376,6 +392,38 @@ export function MainApp(): React.JSX.Element {
     };
 
     checkVibeAPI();
+  }, []);
+
+  // Handle modal IPC events
+  useEffect(() => {
+    const handleShowSettingsModal = () => {
+      console.log("[MainApp] Received app:show-settings-modal event");
+      setIsSettingsModalOpen(true);
+    };
+
+    const handleShowDownloadsModal = () => {
+      console.log("[MainApp] Received app:show-downloads-modal event");
+      setIsDownloadsModalOpen(true);
+    };
+
+    if (typeof window !== "undefined" && window.electron?.ipcRenderer) {
+      const ipcRenderer = window.electron.ipcRenderer;
+      ipcRenderer.on("app:show-settings-modal", handleShowSettingsModal);
+      ipcRenderer.on("app:show-downloads-modal", handleShowDownloadsModal);
+
+      return () => {
+        ipcRenderer.removeListener(
+          "app:show-settings-modal",
+          handleShowSettingsModal,
+        );
+        ipcRenderer.removeListener(
+          "app:show-downloads-modal",
+          handleShowDownloadsModal,
+        );
+      };
+    }
+
+    return undefined;
   }, []);
 
   useEffect(() => {
@@ -417,6 +465,20 @@ export function MainApp(): React.JSX.Element {
             )}
           </div>
         </div>
+        <SettingsModal
+          isOpen={isSettingsModalOpen}
+          onClose={() => {
+            console.log("[MainApp] Closing settings modal");
+            setIsSettingsModalOpen(false);
+          }}
+        />
+        <DownloadsModal
+          isOpen={isDownloadsModalOpen}
+          onClose={() => {
+            console.log("[MainApp] Closing downloads modal");
+            setIsDownloadsModalOpen(false);
+          }}
+        />
       </div>
     </LayoutProvider>
   );
