@@ -90,7 +90,11 @@ export class StreamableHTTPServer {
     this.server.setRequestHandler(ListToolsRequestSchema, async (_request) => {
       return {
         jsonrpc: JSON_RPC,
-        tools: GmailTools,
+        tools: GmailTools.map(tool => ({
+          name: tool.name,
+          description: tool.description,
+          inputSchema: tool.inputSchema,
+        })),
       };
     });
 

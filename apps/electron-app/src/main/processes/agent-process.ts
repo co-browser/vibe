@@ -55,25 +55,43 @@ let agent: Agent | null = null;
 let agentConfig: InitializeData["config"] | null = null;
 let isProcessing = false;
 let authToken: string | null = null;
+let isCreatingAgent = false;
+let isDestroyingAgent = false;
+
+// Retry mechanism constants
+const MAX_UPDATE_RETRIES = 3;
+const MAX_CLEAR_RETRIES = 3;
 
 // ============================================================================
 // INFRASTRUCTURE UTILITIES
 // ============================================================================
 
-const createAgent = () => {
+const createAgent = async () => {
   if (!agentConfig?.openaiApiKey) {
     logger.warn("Agent creation skipped: OpenAI API key not available.");
     return;
   }
 
-  agent = AgentFactory.create({
-    ...agentConfig,
-    model: agentConfig?.model || "gpt-4o-mini",
-    processorType: agentConfig?.processorType || "react",
-    authToken: authToken ?? undefined,
-  });
+  // Prevent concurrent agent creation
+  if (isCreatingAgent) {
+    logger.warn("Agent creation already in progress");
+    return;
+  }
 
-  logger.info("Agent created successfully in utility process");
+  isCreatingAgent = true;
+
+  try {
+    agent = await AgentFactory.create({
+      ...agentConfig,
+      model: agentConfig?.model || "gpt-4o-mini",
+      processorType: agentConfig?.processorType || "react",
+      authToken: authToken ?? undefined,
+    });
+
+    logger.info("Agent created successfully in utility process");
+  } finally {
+    isCreatingAgent = false;
+  }
 };
 
 class IPCMessenger {
@@ -199,7 +217,7 @@ class MessageHandlers {
 
     // Attempt to create the agent if not already created and we have an API key
     if (!agent && agentConfig?.openaiApiKey) {
-      createAgent();
+      await createAgent();
     }
 
     if (agentConfig?.openaiApiKey) {
@@ -223,38 +241,42 @@ class MessageHandlers {
     );
 
     isProcessing = true;
-    logger.info(
-      "Processing chat message:",
-      userMessage.substring(0, 100) + "...",
-    );
+    try {
+      logger.info(
+        "Processing chat message:",
+        userMessage.substring(0, 100) + "...",
+      );
 
-    let streamCompleted = false;
-    let streamError: string | null = null;
+      let streamCompleted = false;
+      let streamError: string | null = null;
 
-    for await (const streamResponse of agent!.handleChatStream(userMessage)) {
-      IPCMessenger.sendStream(message.id, streamResponse);
+      for await (const streamResponse of agent!.handleChatStream(userMessage)) {
+        IPCMessenger.sendStream(message.id, streamResponse);
 
-      if (streamResponse.type === "done") {
-        streamCompleted = true;
-        break;
-      } else if (streamResponse.type === "error") {
-        streamError = streamResponse.error || "Unknown stream error";
-        break;
+        if (streamResponse.type === "done") {
+          streamCompleted = true;
+          break;
+        } else if (streamResponse.type === "error") {
+          streamError = streamResponse.error || "Unknown stream error";
+          break;
+        }
       }
-    }
 
-    logger.info("Chat stream completed");
+      logger.info("Chat stream completed");
 
-    if (streamError) {
-      IPCMessenger.sendResponse(message.id, {
-        success: false,
-        error: streamError,
-      });
-    } else {
-      IPCMessenger.sendResponse(message.id, {
-        success: true,
-        completed: streamCompleted,
-      });
+      if (streamError) {
+        IPCMessenger.sendResponse(message.id, {
+          success: false,
+          error: streamError,
+        });
+      } else {
+        IPCMessenger.sendResponse(message.id, {
+          success: true,
+          completed: streamCompleted,
+        });
+      }
+    } finally {
+      isProcessing = false;
     }
   }
 
@@ -356,7 +378,10 @@ class MessageHandlers {
   }
   //function that asks for the api key and watches for changes
   // RPM
-  static async handleUpdateOpenAIApiKey(message: BaseMessage): Promise<void> {
+  static async handleUpdateOpenAIApiKey(
+    message: BaseMessage,
+    retryCount = 0,
+  ): Promise<void> {
     logger.info(
       "🔑 handleUpdateOpenAIApiKey called - processing API key update...",
     );
@@ -375,21 +400,136 @@ class MessageHandlers {
 
     const trimmedKey = apiKey.trim();
 
-    if (agent) {
-      await agent.updateOpenAIApiKey(trimmedKey);
-      logger.info("OpenAI API key updated successfully");
-    } else {
-      // If agent isn't created, store key and attempt to create it
-      agentConfig = { ...agentConfig, openaiApiKey: trimmedKey };
-      createAgent();
-      if (agent) {
-        logger.info("Agent created with new OpenAI API key");
-      } else {
-        logger.warn("API key received, but agent could not be created yet.");
+    // Check if key actually changed
+    if (agentConfig?.openaiApiKey === trimmedKey) {
+      logger.info("API key unchanged, skipping update");
+      IPCMessenger.sendResponse(message.id, { success: true });
+      return;
+    }
+
+    // Wait if agent is being created or destroyed
+    if (isCreatingAgent || isDestroyingAgent) {
+      logger.warn("Agent operation in progress, deferring API key update");
+      if (retryCount >= MAX_UPDATE_RETRIES) {
+        logger.error("Max retries exceeded for API key update");
+        IPCMessenger.sendError(message.id, "Max retries exceeded");
+        return;
+      }
+      // Use async delay instead of setTimeout
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      return MessageHandlers.handleUpdateOpenAIApiKey(message, retryCount + 1);
+    }
+
+    // Wait if agent is processing
+    if (isProcessing) {
+      logger.warn("Agent is processing, waiting before API key update...");
+      // Wait up to 5 seconds for processing to complete
+      await Promise.race([
+        new Promise<void>(resolve => {
+          const checkInterval = setInterval(() => {
+            if (!isProcessing) {
+              clearInterval(checkInterval);
+              resolve();
+            }
+          }, 100);
+        }),
+        new Promise<void>(resolve => setTimeout(resolve, 5000)),
+      ]);
+
+      if (isProcessing) {
+        logger.warn("Agent still processing after 5s, proceeding with update");
       }
     }
 
-    IPCMessenger.sendResponse(message.id, { success: true });
+    isDestroyingAgent = true;
+    try {
+      // Always restart the agent to ensure clean MCP connections
+      if (agent) {
+        // Destroy existing agent
+        agent = null;
+        logger.info("Destroying existing agent for clean restart");
+      }
+
+      // Update config with new key
+      agentConfig = { ...agentConfig, openaiApiKey: trimmedKey };
+
+      isDestroyingAgent = false;
+
+      // Create fresh agent instance - this will reinitialize all MCP connections
+      await createAgent();
+
+      if (agent) {
+        logger.info("Agent restarted successfully with new OpenAI API key");
+      } else {
+        logger.warn("Failed to create agent with new API key");
+      }
+
+      IPCMessenger.sendResponse(message.id, { success: true });
+    } catch (error) {
+      isDestroyingAgent = false;
+      throw error;
+    }
+  }
+
+  static async handleClearAgent(
+    message: BaseMessage,
+    retryCount = 0,
+  ): Promise<void> {
+    logger.info("🔑 Clearing agent due to API key removal");
+
+    // Wait if agent is being created
+    if (isCreatingAgent) {
+      logger.warn("Agent creation in progress, deferring clear operation");
+      if (retryCount >= MAX_CLEAR_RETRIES) {
+        logger.error("Max retries exceeded for clear agent");
+        IPCMessenger.sendError(message.id, "Max retries exceeded");
+        return;
+      }
+      // Use async delay instead of setTimeout
+      await new Promise(resolve => setTimeout(resolve, 500));
+      return MessageHandlers.handleClearAgent(message, retryCount + 1);
+    }
+
+    // Wait if agent is processing
+    if (isProcessing) {
+      logger.warn("Agent is processing, waiting before clearing...");
+      // Wait up to 5 seconds for processing to complete
+      await Promise.race([
+        new Promise<void>(resolve => {
+          const checkInterval = setInterval(() => {
+            if (!isProcessing) {
+              clearInterval(checkInterval);
+              resolve();
+            }
+          }, 100);
+        }),
+        new Promise<void>(resolve => setTimeout(resolve, 5000)),
+      ]);
+
+      if (isProcessing) {
+        logger.warn("Agent still processing after 5s, forcing clear");
+      }
+    }
+
+    isDestroyingAgent = true;
+    try {
+      if (agent) {
+        agent = null;
+        logger.info("Agent cleared successfully");
+      }
+
+      // Clear the API key from config
+      if (agentConfig) {
+        delete agentConfig.openaiApiKey;
+        logger.info("Removed API key from agent config");
+      }
+
+      IPCMessenger.sendResponse(message.id, {
+        success: true,
+      });
+    } finally {
+      isDestroyingAgent = false;
+    }
   }
 }
 
@@ -446,6 +586,10 @@ async function handleMessageWithErrorHandling(
 
       case "update-openai-api-key":
         await MessageHandlers.handleUpdateOpenAIApiKey(message);
+        break;
+
+      case "clear-agent":
+        await MessageHandlers.handleClearAgent(message);
         break;
 
       default:
@@ -532,6 +676,11 @@ const bootstrap = () => {
   process.on("unhandledRejection", (reason, _promise) => {
     logger.error("Unhandled promise rejection:", reason);
     process.exit(1);
+  });
+
+  // Clean up on process exit
+  process.on("exit", () => {
+    logger.info("Agent process exiting");
   });
 
   // Signal ready state

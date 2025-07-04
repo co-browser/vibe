@@ -27,6 +27,7 @@ export interface AgentStatus {
   ready: boolean;
   initialized: boolean;
   serviceStatus:
+    | "no_api_key"
     | "disconnected"
     | "initializing"
     | "ready"
@@ -41,6 +42,7 @@ export interface AgentStatus {
   config?: Partial<AgentConfig>;
   lastActivity?: number;
   isHealthy?: boolean;
+  hasApiKey?: boolean;
 }
 
 // Interface for what IPC handlers and external components need

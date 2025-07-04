@@ -2,7 +2,7 @@
  * Storage Initialization
  */
 
-import { getStorageService } from "./storage-service";
+import { getStorageServiceAsync } from "./storage-service";
 import { createLogger } from "@vibe/shared-types";
 
 const logger = createLogger("StorageInit");
@@ -18,8 +18,8 @@ export async function initializeStorage(): Promise<void> {
   try {
     logger.info("Initializing storage system...");
 
-    // Get storage instance (auto-initializes)
-    const storage = getStorageService();
+    // Get storage instance and ensure it's fully initialized
+    const storage = await getStorageServiceAsync();
 
     // Mark as initialized
     if (!storage.has("_initialized")) {
@@ -50,7 +50,7 @@ export function isStorageReady(): boolean {
 
 // Helper to reset storage (useful for testing)
 export async function resetStorage(): Promise<void> {
-  const storage = getStorageService();
+  const storage = await getStorageServiceAsync();
   storage.clear();
   initialized = false;
   await initializeStorage();

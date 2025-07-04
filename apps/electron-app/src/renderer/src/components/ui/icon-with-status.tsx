@@ -16,8 +16,8 @@ interface IconWithStatusProps {
   className?: string;
   style?: React.CSSProperties;
 
-  // Whether to show as favicon pill, gmail pill, or privy pill
-  variant?: "gmail" | "favicon" | "privy";
+  // Whether to show as favicon pill, gmail pill, privy pill, or openai pill
+  variant?: "gmail" | "favicon" | "privy" | "openai";
 
   // Text label to show alongside icon
   label?: string;
@@ -34,7 +34,8 @@ export const IconWithStatus: React.FC<IconWithStatusProps> = ({
   variant = "gmail",
   label,
 }) => {
-  const isAuth = variant === "gmail" || variant === "privy";
+  const isAuth =
+    variant === "gmail" || variant === "privy" || variant === "openai";
   const pillClassName = isAuth ? "auth-pill" : "favicon-pill";
   const statusClass = status === "disconnected" ? "disconnected" : "";
 

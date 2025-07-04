@@ -108,11 +108,26 @@ export async function getSetting(key: string): Promise<any> {
         `getSetting: No stored key, checking environment: ${API_KEY_ENV_MAP[keyType]} = ${envValue ? "present" : "undefined"}`,
       );
       if (envValue) {
-        // Migrate from env to profile storage
-        logger.info(
-          `getSetting: Migrating ${keyType} from environment to profile storage`,
-        );
-        profileService.setApiKey(keyType, envValue);
+        // Check if we've already attempted migration for this key in this session
+        const migrationKey = `_migrated_${keyType}`;
+        if (!(global as any)[migrationKey]) {
+          // Migrate from env to profile storage (one-time operation)
+          logger.info(
+            `getSetting: Migrating ${keyType} from environment to profile storage`,
+          );
+          const success = profileService.setApiKey(keyType, envValue);
+          if (success) {
+            logger.info(
+              `getSetting: Successfully migrated ${keyType} to profile storage`,
+            );
+            // Mark as migrated for this session
+            (global as any)[migrationKey] = true;
+          } else {
+            logger.warn(
+              `getSetting: Failed to migrate ${keyType} to profile storage`,
+            );
+          }
+        }
         return envValue;
       }
     }
@@ -145,8 +160,41 @@ export async function setSetting(key: string, value: any): Promise<boolean> {
     }
 
     if (isApiKeyType(key)) {
-      const keyType = normalizeApiKeyType(key);
+      let keyType: string;
+      try {
+        keyType = normalizeApiKeyType(key);
+      } catch (error) {
+        logger.error(`Invalid API key type in setSetting: ${key}`, error);
+        return false;
+      }
+
       const profileService = await getProfile();
+
+      logger.debug(`🔍 setSetting called for API key ${keyType}:`, {
+        hasValue: !!value,
+        type: typeof value,
+        isNull: value === null,
+        isUndefined: value === undefined,
+        isEmptyString: value === "",
+      });
+
+      // If value is null or empty, remove the key instead
+      if (value === null || value === undefined || value === "") {
+        logger.info(`Removing API key ${keyType} from storage`);
+        const success = profileService.removeApiKey(keyType);
+
+        // Also remove from environment
+        if (success && API_KEY_ENV_MAP[keyType]) {
+          logger.debug(
+            `Also removing ${API_KEY_ENV_MAP[keyType]} from process.env`,
+          );
+          delete process.env[API_KEY_ENV_MAP[keyType]];
+        }
+
+        return success;
+      }
+
+      logger.info(`Setting API key ${keyType} in storage`);
       const success = profileService.setApiKey(keyType, value);
 
       // Also update environment for current session
@@ -160,8 +208,56 @@ export async function setSetting(key: string, value: any): Promise<boolean> {
     // Store as app setting
     storage.set(`settings.${key}`, value);
     return true;
-  } catch {
-    logger.error(`Failed to set setting "${key}":`);
+  } catch (error) {
+    logger.error(`Failed to set setting "${key}":`, error);
+    return false;
+  }
+}
+
+/**
+ * Remove a setting from the appropriate location
+ */
+export async function removeSetting(key: string): Promise<boolean> {
+  const storage = getStorage();
+
+  try {
+    if (isProfilePreference(key)) {
+      const profileService = await getProfile();
+      // Profile preferences don't have a remove method, set to null
+      profileService.setPreference(key, null);
+      return true;
+    }
+
+    if (isApiKeyType(key)) {
+      let keyType: string;
+      try {
+        keyType = normalizeApiKeyType(key);
+      } catch (error) {
+        logger.error(`Invalid API key type in removeSetting: ${key}`, error);
+        return false;
+      }
+
+      const profileService = await getProfile();
+
+      logger.info(`Removing API key ${keyType} from storage`);
+      const success = profileService.removeApiKey(keyType);
+
+      // Also remove from environment
+      if (success && API_KEY_ENV_MAP[keyType]) {
+        logger.debug(
+          `Also removing ${API_KEY_ENV_MAP[keyType]} from process.env`,
+        );
+        delete process.env[API_KEY_ENV_MAP[keyType]];
+      }
+
+      return success;
+    }
+
+    // Remove app setting
+    storage.delete(`settings.${key}`);
+    return true;
+  } catch (error) {
+    logger.error(`Failed to remove setting "${key}":`, error);
     return false;
   }
 }
@@ -220,16 +316,14 @@ export async function getAllSettings(
   const preferences = profileService.getPreferences();
   Object.assign(allSettings, preferences);
 
-  // Get API keys
-  const apiKeys = profileService.getAllApiKeys();
-  Object.entries(apiKeys).forEach(([key, value]) => {
-    const keyName = `${key}ApiKey`;
-    if (masked) {
-      allSettings[keyName] = value ? "***" : null;
-    } else {
-      allSettings[keyName] = value;
+  // Get API keys through getSetting to ensure env var migration
+  for (const keyType of API_KEY_TYPES) {
+    const apiKey = await getSetting(`${keyType}ApiKey`);
+    if (apiKey) {
+      const keyName = `${keyType}ApiKey`;
+      allSettings[keyName] = masked ? "***" : apiKey;
     }
-  });
+  }
 
   return allSettings;
 }

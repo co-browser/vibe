@@ -99,8 +99,16 @@ export class MCPConnectionManager implements IMCPConnectionManager {
       // Clean up transport on failure
       await this.safeCloseTransport(transport);
 
-      const errorMessage = `Failed to connect to ${config.name} MCP server`;
-      logger.error(errorMessage, error);
+      let errorMessage = `Failed to connect to ${config.name} MCP server at ${serverUrl}`;
+
+      // Check if error message contains HTML (404 response)
+      if (error instanceof Error && error.message.includes("<!DOCTYPE html>")) {
+        errorMessage +=
+          " - Server returned 404. The server may still be initializing.";
+        logger.warn(errorMessage);
+      } else {
+        logger.error(errorMessage, error);
+      }
 
       throw new MCPConnectionError(
         errorMessage,

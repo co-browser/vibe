@@ -12,8 +12,10 @@ const logger = createLogger("StorageService");
 
 export class StorageService extends EventEmitter {
   private static instance: StorageService | null = null;
+  private static initializationPromise: Promise<StorageService> | null = null;
   private store: Store;
   private secureCache: Map<string, any> = new Map();
+  private isInitialized: boolean = false;
 
   private constructor() {
     super();
@@ -22,7 +24,6 @@ export class StorageService extends EventEmitter {
       // Don't encrypt the whole store, we'll handle encryption per-key
       encryptionKey: undefined,
     });
-    this.initialize();
   }
 
   static getInstance(): StorageService {
@@ -32,7 +33,24 @@ export class StorageService extends EventEmitter {
     return StorageService.instance;
   }
 
+  static async getInstanceAsync(): Promise<StorageService> {
+    if (!StorageService.initializationPromise) {
+      StorageService.initializationPromise = (async () => {
+        const instance = StorageService.getInstance();
+        if (!instance.isInitialized) {
+          await instance.initialize();
+        }
+        return instance;
+      })();
+    }
+    return StorageService.initializationPromise;
+  }
+
   private async initialize(): Promise<void> {
+    if (this.isInitialized) {
+      return;
+    }
+
     try {
       // Load any secure items into cache on startup
       const keys = this.store.store || {};
@@ -48,9 +66,11 @@ export class StorageService extends EventEmitter {
           }
         }
       }
+      this.isInitialized = true;
       logger.info("Storage service initialized");
     } catch (error) {
       logger.error("Failed to initialize storage:", error);
+      throw error; // Re-throw to handle in getInstanceAsync
     }
   }
 
@@ -239,6 +259,15 @@ export class StorageService extends EventEmitter {
 }
 
 // Export singleton getter
+// Use this for most operations - the service will work even if not fully initialized
+// Secure keys will be loaded on-demand if not in cache
 export function getStorageService(): StorageService {
   return StorageService.getInstance();
+}
+
+// Export async getter for initialization-dependent operations
+// Use this when you need to ensure all secure keys are loaded into cache
+// This is primarily needed during app startup
+export async function getStorageServiceAsync(): Promise<StorageService> {
+  return StorageService.getInstanceAsync();
 }

@@ -165,3 +165,4 @@ scripts/release.sh
 scripts/start-vibe.sh
 CLAUDE.md
 
+.claude/settings.local.json

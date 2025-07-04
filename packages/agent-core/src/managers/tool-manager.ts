@@ -22,21 +22,26 @@ export class ToolManager implements IToolManager {
   constructor(private mcpManager?: IMCPManager) {}
 
   async getTools(): Promise<Record<string, MCPTool> | undefined> {
-    // Return cached tools if available
-    if (this.cachedTools) {
-      return this.cachedTools;
-    }
-
     if (!this.mcpManager) {
       return undefined;
     }
 
     try {
-      this.cachedTools = await this.mcpManager.getAllTools();
+      // Always fetch fresh tools from MCP manager to handle dynamic connections
+      const tools = await this.mcpManager.getAllTools();
+
+      // Check if tools have changed - more robust comparison
+      const toolsChanged = this.hasToolsChanged(tools, this.cachedTools);
+      if (toolsChanged) {
+        // Invalidate formatted tools cache when tools change
+        this.cachedFormattedTools = null;
+        this.cachedTools = tools;
+      }
+
       logger.debug(
-        `${LOG_PREFIX} Tools cached (${Object.keys(this.cachedTools || {}).length} tools from multiple servers)`,
+        `${LOG_PREFIX} Tools fetched (${Object.keys(tools || {}).length} tools from multiple servers)`,
       );
-      return this.cachedTools;
+      return tools;
     } catch (error) {
       logger.error(`${LOG_PREFIX} Failed to get MCP tools:`, error);
       return undefined;
@@ -260,6 +265,35 @@ export class ToolManager implements IToolManager {
     this.cachedTools = null;
     this.cachedFormattedTools = null;
     logger.debug(`${LOG_PREFIX} Tool cache cleared`);
+  }
+
+  /**
+   * Robust comparison to check if tools have changed
+   */
+  private hasToolsChanged(
+    newTools: Record<string, MCPTool> | null,
+    cachedTools: Record<string, MCPTool> | null,
+  ): boolean {
+    if (!newTools && !cachedTools) return false;
+    if (!newTools || !cachedTools) return true;
+
+    const newKeys = Object.keys(newTools).sort();
+    const cachedKeys = Object.keys(cachedTools).sort();
+
+    if (newKeys.length !== cachedKeys.length) return true;
+    if (newKeys.join(",") !== cachedKeys.join(",")) return true;
+
+    // Compare tool properties that matter for caching
+    return newKeys.some(key => {
+      const newTool = newTools[key];
+      const cachedTool = cachedTools[key];
+      return (
+        newTool.description !== cachedTool.description ||
+        JSON.stringify(newTool.inputSchema) !==
+          JSON.stringify(cachedTool.inputSchema) ||
+        newTool.serverName !== cachedTool.serverName
+      );
+    });
   }
 
   /**

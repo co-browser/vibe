@@ -219,7 +219,7 @@ async function gracefulShutdown(signal: string): Promise<void> {
     // Destroy browser instance (will clean up its own menu)
     if (browser && !browserDestroyed) {
       browserDestroyed = true;
-      browser.destroy();
+      await browser.destroy();
       browser = null;
     }
 
@@ -462,63 +462,123 @@ async function initializeServices(): Promise<void> {
       // MCP service failed to initialize - this may impact functionality
       logger.warn("Application will continue without MCP service");
     }
-    // Initialize agent service after MCP is ready
-    await new Promise(resolve => {
-      setTimeout(async () => {
-        try {
-          logger.info(
-            "Initializing AgentService with utility process isolation",
-          );
+    // Wait for MCP service to be ready before initializing agent
+    if (mcpService) {
+      const mcpStatus = mcpService.getStatus();
+      if (mcpStatus.serviceStatus !== "ready") {
+        logger.info(
+          "Waiting for MCP service to be ready before initializing agent...",
+        );
+        await Promise.race([
+          new Promise<void>(resolve => {
+            const checkReady = () => {
+              if (!mcpService) {
+                resolve();
+                return;
+              }
+              const status = mcpService.getStatus();
+              if (status.serviceStatus === "ready") {
+                resolve();
+              }
+            };
 
-          // Create AgentService instance
-          agentService = new AgentService();
+            // Check immediately in case it's already ready
+            checkReady();
 
-          // Set up error handling for agent service
-          agentService.on("error", error => {
-            logger.error("AgentService error:", error);
-          });
+            // If not ready, wait for ready event
+            if (
+              mcpService &&
+              mcpService.getStatus().serviceStatus !== "ready"
+            ) {
+              mcpService.once("ready", () => {
+                logger.info("MCP service is now ready");
+                resolve();
+              });
 
-          agentService.on("terminated", data => {
-            logger.info("AgentService terminated:", data);
-          });
+              // Also listen for error event to avoid hanging forever
+              mcpService.once("error", error => {
+                logger.warn("MCP service failed to initialize:", error);
+                resolve(); // Continue anyway
+              });
+            }
+          }),
+          new Promise<void>(resolve => {
+            setTimeout(() => {
+              logger.warn(
+                "MCP service readiness timeout after 30s, continuing anyway",
+              );
+              resolve();
+            }, 30000);
+          }),
+        ]);
+      }
+    } else {
+      logger.info(
+        "No MCP service available, proceeding with agent initialization",
+      );
+    }
 
-          agentService.on("ready", data => {
-            logger.info("AgentService ready:", data);
-          });
+    // Now initialize agent service
+    try {
+      logger.info("Initializing AgentService with utility process isolation");
 
-          // Get auth token if available
-          const authToken = (global as any).privyAuthToken ?? null;
+      // Create AgentService instance
+      agentService = new AgentService();
 
-          // Initialize with configuration
-          await agentService.initialize({
-            openaiApiKey: process.env.OPENAI_API_KEY!,
-            model: "gpt-4o-mini",
-            processorType: "react",
-            authToken: authToken,
-          });
+      // Set up error handling for agent service
+      agentService.on("error", error => {
+        logger.error("AgentService error:", error);
+      });
 
-          // Inject agent service into IPC handlers
-          setAgentStatusInstance(agentService);
-          setChatMessagingInstance(agentService);
-          setTabAgentInstance(agentService);
+      agentService.on("terminated", data => {
+        logger.info("AgentService terminated:", data);
+      });
 
-          logger.info(
-            "AgentService initialized successfully with utility process isolation",
-          );
-          resolve(void 0);
-        } catch (error) {
-          logger.error(
-            "AgentService initialization failed:",
-            error instanceof Error ? error.message : String(error),
-          );
+      agentService.on("ready", data => {
+        logger.info("AgentService ready:", data);
+      });
 
-          // Log agent initialization failure
-          logger.error("Agent initialization failed:", error);
+      agentService.on("status-changed", () => {
+        logger.info("AgentService status changed, broadcasting to renderers");
+        // Broadcast to all windows
+        const allWindows = browser?.getAllWindows() || [];
+        allWindows.forEach(browserWindow => {
+          if (browserWindow && !browserWindow.isDestroyed()) {
+            browserWindow.webContents.send("agent:status-changed");
+          }
+        });
+      });
 
-          resolve(void 0); // Don't fail the whole startup process
-        }
-      }, 500);
-    });
+      // Get auth token from proper storage mechanism
+      const { getAuthToken } = await import("./ipc/app/app-info.js");
+      const authToken = getAuthToken();
+
+      // Initialize with configuration
+      await agentService.initialize({
+        openaiApiKey: process.env.OPENAI_API_KEY, // Allow undefined - agent service will check storage
+        model: "gpt-4o-mini",
+        processorType: "react",
+        authToken: authToken ?? undefined,
+      });
+
+      // Inject agent service into IPC handlers
+      setAgentStatusInstance(agentService);
+      setChatMessagingInstance(agentService);
+      setTabAgentInstance(agentService);
+
+      logger.info(
+        "AgentService initialized successfully with utility process isolation",
+      );
+    } catch (error) {
+      logger.error(
+        "AgentService initialization failed:",
+        error instanceof Error ? error.message : String(error),
+      );
+
+      // Log agent initialization failure
+      logger.error("Agent initialization failed:", error);
+      // Don't fail the whole startup process - app can work without agent
+    }
   } catch (error) {
     logger.error(
       "Service initialization failed:",

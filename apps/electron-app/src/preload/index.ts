@@ -505,6 +505,19 @@ const chatAPI: VibeChatAPI = {
     return ipcRenderer.invoke("chat:get-agent-status");
   },
   initializeAgent: async (apiKey?: string) => {
+    // If apiKey provided, save it first
+    if (apiKey) {
+      await ipcRenderer.invoke("profile:set-api-key", "openai", apiKey);
+    }
+
+    // Try to create agent service if it doesn't exist
+    try {
+      await ipcRenderer.invoke("chat:create-agent-service");
+    } catch (error) {
+      // Service might already exist or key might be missing
+      logger.debug("Agent service creation:", error);
+    }
+
     return ipcRenderer.invoke("chat:initialize-agent", apiKey);
   },
 
@@ -676,10 +689,8 @@ const additionalAPIs = {
 
   // API Keys
   apiKeys: {
-    get: (keyName: string) =>
-      ipcRenderer.invoke("profile:get-api-key", keyName),
-    set: (keyName: string, value: string) =>
-      ipcRenderer.invoke("profile:set-api-key", keyName, value),
+    get: appAPI.apiKeys.get,
+    set: appAPI.apiKeys.set,
   },
 
   // Legacy API bridge - deprecated, use window.vibe.chat instead

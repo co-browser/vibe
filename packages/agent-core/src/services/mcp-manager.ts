@@ -211,6 +211,12 @@ class ConnectionOrchestrator {
     const result = await connection.client.listTools();
     const toolRouter = new MCPToolRouter();
 
+    logger.debug(
+      `Fetched tools from ${connection.serverName}:`,
+      result?.tools?.length || 0,
+      "tools",
+    );
+
     if (result?.tools) {
       const tools: Record<string, MCPTool> = {};
 
@@ -231,6 +237,12 @@ class ConnectionOrchestrator {
       }
 
       connection.tools = tools;
+      logger.debug(
+        `Registered ${Object.keys(tools).length} tools for ${connection.serverName}:`,
+        Object.keys(tools),
+      );
+    } else {
+      logger.warn(`No tools returned from ${connection.serverName}`);
     }
   }
 }
@@ -419,6 +431,9 @@ export class MCPManager implements IMCPManager {
   }
 
   async getAllTools(): Promise<Record<string, MCPTool>> {
+    // Update the registry with current connections before getting tools
+    // This ensures we have the latest tools from all connected servers
+    this.toolRegistry.registerConnections(this.orchestrator.getConnections());
     return this.toolRegistry.getAllTools();
   }
 

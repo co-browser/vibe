@@ -22,7 +22,15 @@ const server = new StreamableHTTPServer(
     },
     {
       capabilities: {
-        tools: Object.fromEntries(GmailTools.map(tool => [tool.name, tool])),
+        tools: Object.fromEntries(
+          GmailTools.map(tool => [
+            tool.name,
+            {
+              description: tool.description,
+              inputSchema: tool.inputSchema,
+            }
+          ])
+        ),
       },
     }
   )

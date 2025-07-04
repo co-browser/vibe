@@ -2,11 +2,6 @@ import React, { useState, useMemo } from "react";
 import type { Message as AiSDKMessage } from "@ai-sdk/react";
 import { useAutoScroll } from "../../hooks/useAutoScroll";
 import { createMessageContentRenderer } from "../../utils/messageContentRenderer";
-import { StatusIndicator } from "@/components/ui/status-indicator";
-import { TabContextDisplay } from "@/components/ui/tab-context-display";
-import { GmailAuthButton } from "@/components/auth/GmailAuthButton";
-import { useTabContext } from "@/hooks/useTabContextUtils";
-import { TabContextItem } from "@/types/tabContext";
 import { Edit3, Check, X } from "lucide-react";
 import { TabReferencePill } from "./TabReferencePill";
 import { useTabAliases } from "@/hooks/useTabAliases";
@@ -25,7 +20,6 @@ interface MessagesProps {
     currentReasoningText: string;
     hasLiveReasoning: boolean;
   };
-  tabContext?: TabContextItem[];
   onEditMessage?: (messageId: string, newContent: string) => void;
 }
 
@@ -33,7 +27,6 @@ export const Messages: React.FC<MessagesProps> = ({
   groupedMessages,
   isAiGenerating,
   streamingContent,
-  tabContext = [],
   onEditMessage,
 }) => {
   const { currentReasoningText = "", hasLiveReasoning = false } =
@@ -194,17 +187,6 @@ export const Messages: React.FC<MessagesProps> = ({
     return { tabs: tabsData, isCurrentTabAuto };
   };
 
-  const {
-    globalStatus,
-    globalStatusTitle,
-    shouldShowStatus,
-    sharedLoadingEntry,
-    completedTabs,
-    regularTabs,
-    hasMoreTabs,
-    moreTabsCount,
-  } = useTabContext(tabContext);
-
   const handleEditStart = (message: AiSDKMessage) => {
     setEditingMessageId(message.id);
     setEditContent(
@@ -255,20 +237,34 @@ export const Messages: React.FC<MessagesProps> = ({
             <div key={group.id} className="message-group">
               <div className="user-message">
                 <div className="user-message-bubble">
-                  <div className="user-message-status-section">
-                    <div className="user-message-status-left">
-                      <StatusIndicator
-                        status={globalStatus}
-                        title={globalStatusTitle}
-                        show={shouldShowStatus}
-                      />
-                      <TabContextDisplay
-                        sharedLoadingEntry={sharedLoadingEntry}
-                        completedTabs={completedTabs}
-                        regularTabs={regularTabs}
-                        hasMoreTabs={hasMoreTabs}
-                        moreTabsCount={moreTabsCount}
-                      />
+                  {hasTabContext && (
+                    <TabContextBar
+                      tabs={tabContextData.tabs}
+                      isCurrentTabAuto={tabContextData.isCurrentTabAuto}
+                    />
+                  )}
+                  <div className="user-message-content-wrapper">
+                    <div className="user-message-content">
+                      {isEditing ? (
+                        <textarea
+                          className="user-message-edit-field"
+                          value={editContent}
+                          onChange={e => setEditContent(e.target.value)}
+                          onKeyDown={e =>
+                            handleKeyDown(e, group.userMessage.id)
+                          }
+                          autoFocus
+                          rows={2}
+                        />
+                      ) : (
+                        <span className="user-message-text">
+                          {typeof group.userMessage.content === "string"
+                            ? renderMessageWithTabPills(
+                                group.userMessage.content,
+                              )
+                            : JSON.stringify(group.userMessage.content)}
+                        </span>
+                      )}
                     </div>
                     <div className="user-message-actions">
                       {isEditing ? (
@@ -289,42 +285,15 @@ export const Messages: React.FC<MessagesProps> = ({
                           </button>
                         </>
                       ) : (
-                        <>
-                          <button
-                            className="message-edit-button edit"
-                            onClick={() => handleEditStart(group.userMessage)}
-                            title="Edit message"
-                          >
-                            <Edit3 size={14} />
-                          </button>
-                          <GmailAuthButton />
-                        </>
+                        <button
+                          className="message-edit-button edit"
+                          onClick={() => handleEditStart(group.userMessage)}
+                          title="Edit message"
+                        >
+                          <Edit3 size={14} />
+                        </button>
                       )}
                     </div>
-                  </div>
-                  {hasTabContext && (
-                    <TabContextBar
-                      tabs={tabContextData.tabs}
-                      isCurrentTabAuto={tabContextData.isCurrentTabAuto}
-                    />
-                  )}
-                  <div className="user-message-content">
-                    {isEditing ? (
-                      <textarea
-                        className="user-message-edit-field"
-                        value={editContent}
-                        onChange={e => setEditContent(e.target.value)}
-                        onKeyDown={e => handleKeyDown(e, group.userMessage.id)}
-                        autoFocus
-                        rows={2}
-                      />
-                    ) : (
-                      <span className="user-message-text">
-                        {typeof group.userMessage.content === "string"
-                          ? renderMessageWithTabPills(group.userMessage.content)
-                          : JSON.stringify(group.userMessage.content)}
-                      </span>
-                    )}
                   </div>
                 </div>
               </div>

@@ -1,4 +1,4 @@
-import { ipcMain, webContents } from "electron";
+import { ipcMain, webContents, app } from "electron";
 import {
   getStorage,
   getProfile,
@@ -17,6 +17,18 @@ import {
  */
 
 const storage = getStorage();
+
+// Default settings configuration
+const DEFAULT_SETTINGS = {
+  theme: "system",
+  language: "en",
+  devTools: false,
+};
+
+const DEFAULT_PREFERENCES = {
+  defaultSearchEngine: "google",
+  privacyMode: false,
+};
 
 // Track active watchers
 const settingsWatchers = new Map<number, Set<string>>(); // webContentsId -> Set of watched keys
@@ -56,8 +68,9 @@ ipcMain.handle("settings:get-all", async () => {
 });
 
 ipcMain.handle("settings:get-all-unmasked", async () => {
-  // This is a debug-only handler. In a real app, you'd want to
-  // ensure this is only exposed when a debug flag is true.
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("Unmasked settings access is not allowed in production");
+  }
   return getAllSettings(false);
 });
 
@@ -208,10 +221,18 @@ storage.on("change", (key: string, newValue: any, oldValue: any) => {
 })();
 
 // Clean up watchers when web contents are destroyed
-webContents.getAllWebContents().forEach(wc => {
+const attachCleanupHandler = (wc: Electron.WebContents) => {
   wc.on("destroyed", () => {
     cleanupWatchers(wc.id, settingsWatchers, profileWatchers, apiKeysWatchers);
   });
+};
+
+// Attach to existing web contents
+webContents.getAllWebContents().forEach(attachCleanupHandler);
+
+// Attach to future web contents
+app.on("web-contents-created", (_, contents) => {
+  attachCleanupHandler(contents);
 });
 
 // ===== Management Operations =====
@@ -219,14 +240,15 @@ webContents.getAllWebContents().forEach(wc => {
 ipcMain.handle("settings:reset", async () => {
   try {
     // Reset app settings to defaults
-    storage.set("settings.theme", "system");
-    storage.set("settings.language", "en");
-    storage.set("settings.devTools", false);
+    Object.entries(DEFAULT_SETTINGS).forEach(([key, value]) => {
+      storage.set(`settings.${key}`, value);
+    });
 
     // Reset profile preferences to defaults
     const profileService = await getProfile();
-    profileService.setPreference("defaultSearchEngine", "google");
-    profileService.setPreference("privacyMode", false);
+    Object.entries(DEFAULT_PREFERENCES).forEach(([key, value]) => {
+      profileService.setPreference(key, value);
+    });
 
     return true;
   } catch {
@@ -266,18 +288,35 @@ ipcMain.handle("settings:import", async (_, data: string) => {
   try {
     const importData = JSON.parse(data);
 
+    // Validate import data structure
+    if (typeof importData !== "object" || importData === null) {
+      throw new Error("Invalid import data: must be an object");
+    }
+
     // Import app settings
     if (importData.settings) {
+      if (typeof importData.settings !== "object") {
+        throw new Error("Invalid settings data: must be an object");
+      }
       Object.entries(importData.settings).forEach(([key, value]) => {
-        storage.set(`settings.${key}`, value);
+        // Validate that the value is not undefined or a function
+        if (value !== undefined && typeof value !== "function") {
+          storage.set(`settings.${key}`, value);
+        }
       });
     }
 
     // Import profile preferences
     if (importData.preferences) {
+      if (typeof importData.preferences !== "object") {
+        throw new Error("Invalid preferences data: must be an object");
+      }
       const profileService = await getProfile();
       Object.entries(importData.preferences).forEach(([key, value]) => {
-        profileService.setPreference(key, value);
+        // Validate that the value is not undefined or a function
+        if (value !== undefined && typeof value !== "function") {
+          profileService.setPreference(key, value);
+        }
       });
     }
 

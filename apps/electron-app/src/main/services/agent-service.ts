@@ -14,6 +14,10 @@ import type {
 import { createLogger } from "@vibe/shared-types";
 import { getProfileService } from "./profile-service";
 import { getSetting } from "../ipc/user/shared-utils";
+import {
+  isValidOpenAIApiKey,
+  sanitizeApiKeyForLogging,
+} from "../utils/api-key-validation";
 
 const logger = createLogger("AgentService");
 
@@ -27,6 +31,8 @@ export class AgentService extends EventEmitter implements IAgentService {
     | "processing"
     | "error" = "disconnected";
   private lastActivityTime: number = 0;
+  private isInitializing: boolean = false;
+  private apiKeyUpdateDebounceTimer: NodeJS.Timeout | null = null;
 
   constructor() {
     super();
@@ -36,6 +42,21 @@ export class AgentService extends EventEmitter implements IAgentService {
    * Initialize the agent service with configuration
    */
   async initialize(config: AgentConfig): Promise<void> {
+    // Prevent concurrent initialization
+    if (this.isInitializing) {
+      logger.warn(
+        "Agent service is already initializing, skipping duplicate call",
+      );
+      return;
+    }
+
+    if (this.worker && this.status !== "disconnected") {
+      logger.warn("Agent service already initialized, skipping");
+      return;
+    }
+
+    this.isInitializing = true;
+
     try {
       this.status = "initializing";
       this.lastActivityTime = Date.now();
@@ -47,12 +68,7 @@ export class AgentService extends EventEmitter implements IAgentService {
       let apiKeySource = "none";
 
       try {
-        logger.debug("Getting OpenAI API key from shared settings...");
         const profileApiKey = await getSetting("openai");
-        logger.debug(
-          "API key result:",
-          profileApiKey ? "present" : "null/undefined",
-        );
 
         if (profileApiKey) {
           logger.info("Using OpenAI API key from settings");
@@ -71,7 +87,6 @@ export class AgentService extends EventEmitter implements IAgentService {
       }
 
       logger.info(`🔑 API key source: ${apiKeySource}`);
-      logger.info("Final config has API key:", !!finalConfig.openaiApiKey);
 
       // Validate final config using existing shared types (allow empty API key during init)
       this.validateConfig(finalConfig, true); // true = allowEmptyApiKey
@@ -109,6 +124,7 @@ export class AgentService extends EventEmitter implements IAgentService {
 
       this.status = "ready";
       this.lastActivityTime = Date.now();
+      this.isInitializing = false;
       logger.info("Agent service initialized successfully");
 
       // Start monitoring profile changes AFTER worker is ready (fire and forget)
@@ -118,6 +134,7 @@ export class AgentService extends EventEmitter implements IAgentService {
     } catch (error) {
       this.status = "error";
       this.lastActivityTime = Date.now();
+      this.isInitializing = false;
       logger.error("Initialization failed:", error);
 
       // Cleanup on failure
@@ -165,8 +182,6 @@ export class AgentService extends EventEmitter implements IAgentService {
 
       // Set up stream listener before sending message
       const streamHandler = (_messageId: string, data: any) => {
-        logger.debug("Stream data:", data.type);
-
         // Update activity time on stream data
         this.lastActivityTime = Date.now();
 
@@ -236,9 +251,9 @@ export class AgentService extends EventEmitter implements IAgentService {
       config: this.config ? this.sanitizeConfig(this.config) : undefined,
       lastActivity: this.lastActivityTime,
       isHealthy,
+      hasApiKey: !!this.config?.openaiApiKey, // Add flag without exposing the key
     };
 
-    logger.debug("Status requested:", status);
     return status;
   }
 
@@ -292,6 +307,12 @@ export class AgentService extends EventEmitter implements IAgentService {
     try {
       logger.info("Terminating agent service");
 
+      // Cancel any pending API key updates
+      if (this.apiKeyUpdateDebounceTimer) {
+        clearTimeout(this.apiKeyUpdateDebounceTimer);
+        this.apiKeyUpdateDebounceTimer = null;
+      }
+
       // Prevent new operations during shutdown
       const originalStatus = this.status;
       this.status = "disconnected";
@@ -299,6 +320,16 @@ export class AgentService extends EventEmitter implements IAgentService {
 
       // Remove all event listeners to prevent memory leaks
       this.removeAllListeners();
+
+      // Also remove profile service listeners
+      try {
+        const profileService = await getProfileService();
+        profileService.removeAllListeners("profile-switched");
+        profileService.removeAllListeners("api-key-set");
+        profileService.removeAllListeners("api-key-removed");
+      } catch (error) {
+        logger.debug("Failed to remove profile service listeners:", error);
+      }
 
       // Stop AgentWorker cleanly with timeout
       if (this.worker) {
@@ -397,24 +428,27 @@ export class AgentService extends EventEmitter implements IAgentService {
     }
 
     if (!allowEmptyApiKey) {
-      if (
-        !config.openaiApiKey ||
-        typeof config.openaiApiKey !== "string" ||
-        config.openaiApiKey.trim().length === 0
-      ) {
-        throw new Error(
-          "Invalid config: openaiApiKey is required and must be a non-empty string",
-        );
+      if (!config.openaiApiKey) {
+        throw new Error("Invalid config: openaiApiKey is required");
+      }
+      if (!isValidOpenAIApiKey(config.openaiApiKey)) {
+        throw new Error("Invalid config: openaiApiKey format is invalid");
       }
     } else {
       // During initialization, API key can be empty (will be set later via profile)
-      if (
-        config.openaiApiKey !== undefined &&
-        typeof config.openaiApiKey !== "string"
-      ) {
-        throw new Error(
-          "Invalid config: openaiApiKey must be a string when provided",
-        );
+      if (config.openaiApiKey !== undefined) {
+        if (typeof config.openaiApiKey !== "string") {
+          throw new Error(
+            "Invalid config: openaiApiKey must be a string when provided",
+          );
+        }
+        // If API key is provided during init, validate it
+        if (
+          config.openaiApiKey.trim().length > 0 &&
+          !isValidOpenAIApiKey(config.openaiApiKey)
+        ) {
+          throw new Error("Invalid config: openaiApiKey format is invalid");
+        }
       }
     }
 
@@ -451,7 +485,6 @@ export class AgentService extends EventEmitter implements IAgentService {
 
     // Handle worker connection events
     this.worker.on("connected", data => {
-      logger.debug("Worker connected:", data);
       this.lastActivityTime = Date.now();
       this.emit("connected", data);
     });
@@ -471,7 +504,6 @@ export class AgentService extends EventEmitter implements IAgentService {
     });
 
     this.worker.on("restarted", data => {
-      logger.debug("Worker restarted:", data);
       this.status = "ready";
       this.lastActivityTime = Date.now();
       this.emit("restarted", data);
@@ -486,7 +518,6 @@ export class AgentService extends EventEmitter implements IAgentService {
 
     // Handle streaming data from worker
     this.worker.on("stream", (messageId, data) => {
-      logger.debug("Stream data received:", messageId, data.type);
       this.lastActivityTime = Date.now();
       this.emit("stream", messageId, data);
     });
@@ -510,37 +541,57 @@ export class AgentService extends EventEmitter implements IAgentService {
   private async monitorProfileChanges(): Promise<void> {
     logger.info("Monitoring profile changes for API key updates");
     const profileService = await getProfileService();
-    logger.debug("Profile service ready, has worker:", !!this.worker);
-    const updateApiKey = async () => {
-      if (!this.worker) {
-        logger.debug("No worker available for API key update");
+    const updateApiKey = async (retryCount = 0) => {
+      if (!this.worker || this.status === "disconnected") {
+        logger.debug("Worker not ready for API key update");
         return;
       }
 
-      logger.debug("Checking for OpenAI API key changes...");
-      const apiKey = await getSetting("openai");
-      logger.debug(
-        "Retrieved API key from profile:",
-        apiKey ? "present" : "null/undefined",
-      );
+      const apiKey = await getSetting("openaiApiKey");
+
+      // Check if key actually changed
+      if (apiKey === this.config?.openaiApiKey) {
+        logger.debug("API key unchanged, skipping update");
+        return;
+      }
+
       if (apiKey && apiKey.trim().length > 0) {
-        logger.info(
-          "OpenAI API key detected, sending update message to worker...",
-        );
-        try {
-          logger.debug("Sending update-openai-api-key message to worker...");
-          logger.debug("Message structure will be:", {
-            type: "update-openai-api-key",
-            data: { apiKey: apiKey ? "present" : "null" }, // Don't log actual key
+        // Use centralized API key validation
+        if (!isValidOpenAIApiKey(apiKey)) {
+          logger.warn("Invalid OpenAI API key format detected", {
+            keyPreview: sanitizeApiKeyForLogging(apiKey),
           });
+          return;
+        }
+
+        logger.info("Valid OpenAI API key detected, updating agent...", {
+          keyPreview: sanitizeApiKeyForLogging(apiKey),
+        });
+        try {
+          // Check if agent is currently processing
+          if (this.status === "processing") {
+            if (retryCount >= 5) {
+              logger.error("Max retries exceeded for API key update");
+              return;
+            }
+            logger.warn(
+              "Agent is currently processing, deferring API key update",
+            );
+            // Retry after a delay
+            setTimeout(() => updateApiKey(retryCount + 1), 2000);
+            return;
+          }
+
           await this.worker.sendMessage("update-openai-api-key", { apiKey });
-          logger.info(
-            "✅ OpenAI API key message sent successfully, worker should receive it",
-          );
+          logger.info("✅ OpenAI API key updated successfully");
 
           // Update our stored config to reflect the new key
           if (this.config) {
             this.config.openaiApiKey = apiKey;
+
+            // Emit status change to notify renderer
+            logger.info("Emitting agent status change after API key update");
+            this.emit("status-changed", this.getStatus());
           }
         } catch (error) {
           logger.warn(
@@ -549,36 +600,96 @@ export class AgentService extends EventEmitter implements IAgentService {
           );
           // Don't throw - this is a non-critical operation that shouldn't break the service
         }
-      } else {
-        logger.debug("No OpenAI API key found in profile");
       }
     };
 
-    // Initial check - but let's add debugging
-    logger.debug(
-      "🔍 Starting initial API key check in monitorProfileChanges...",
-    );
-    updateApiKey().catch(error => {
-      logger.warn("Initial API key update failed:", error);
-    });
+    // Debounced version of updateApiKey
+    const debouncedUpdateApiKey = () => {
+      if (this.apiKeyUpdateDebounceTimer) {
+        clearTimeout(this.apiKeyUpdateDebounceTimer);
+      }
+
+      this.apiKeyUpdateDebounceTimer = setTimeout(() => {
+        updateApiKey().catch(error => {
+          logger.warn("Debounced API key update failed:", error);
+        });
+      }, 500); // 500ms debounce
+    };
 
     // Listen for changes
+    // Initial key check removed - agent already receives key during initialization
     profileService.on("profile-switched", () => {
-      logger.debug("Profile switched, checking for API key changes...");
-      updateApiKey().catch(error => {
-        logger.warn("Profile switch API key update failed:", error);
-      });
+      debouncedUpdateApiKey();
     });
 
     profileService.on("api-key-set", data => {
-      logger.debug("API key set event received:", data);
       if (data.keyType === "openai") {
         logger.info("🔑 OpenAI API key was set in profile, updating agent...");
-        updateApiKey().catch(error => {
-          logger.warn("API key set update failed:", error);
+        debouncedUpdateApiKey();
+      }
+    });
+
+    profileService.on("api-key-removed", data => {
+      if (data.keyType === "openai") {
+        logger.info(
+          "🔑 OpenAI API key was removed from profile, clearing agent...",
+        );
+        // Don't debounce removal - should be immediate
+        this.handleApiKeyRemoval().catch(error => {
+          logger.warn("API key removal handling failed:", error);
         });
       }
     });
+  }
+
+  /**
+   * Handle API key removal
+   */
+  private async handleApiKeyRemoval(): Promise<void> {
+    if (!this.worker) {
+      return;
+    }
+
+    // Cancel any pending API key updates
+    if (this.apiKeyUpdateDebounceTimer) {
+      clearTimeout(this.apiKeyUpdateDebounceTimer);
+      this.apiKeyUpdateDebounceTimer = null;
+    }
+
+    try {
+      logger.info("Handling OpenAI API key removal");
+
+      // Wait if agent is currently processing
+      if (this.status === "processing") {
+        logger.warn("Agent is processing, waiting before key removal...");
+        // Wait up to 5 seconds for processing to complete
+        const waitStart = Date.now();
+        while (this.status === "processing" && Date.now() - waitStart < 5000) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+
+        if (this.status === "processing") {
+          logger.warn("Agent still processing after 5s, forcing key removal");
+        }
+      }
+
+      // Clear the API key from our config
+      if (this.config) {
+        delete this.config.openaiApiKey;
+      }
+
+      // Send message to worker to clear the agent
+      await this.worker.sendMessage("clear-agent", {});
+
+      // Update status to reflect no API key
+      this.status = "ready";
+      logger.info("Agent cleared due to API key removal");
+
+      // Emit status change
+      this.emit("status-changed", this.getStatus());
+    } catch (error) {
+      logger.error("Failed to handle API key removal:", error);
+    }
   }
 
   /**

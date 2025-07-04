@@ -424,6 +424,34 @@ export class ProfileService extends EventEmitter {
     const apiKeys = this.storage.get(storageKey, {});
     const result = apiKeys[keyType];
 
+    // Detailed logging to debug the issue
+    logger.debug(`🔍 Raw API key value for ${keyType}:`, {
+      value: result ? "[REDACTED]" : result,
+      type: typeof result,
+      stringified: result ? "[REDACTED]" : JSON.stringify(result),
+      isNull: result === null,
+      isUndefined: result === undefined,
+      isEmptyString: result === "",
+      isStringNull: result === "null",
+      isStringUndefined: result === "undefined",
+      truthyCheck: !!result,
+    });
+
+    // Filter out null, undefined, empty string, or string representations
+    if (
+      result === null ||
+      result === undefined ||
+      result === "" ||
+      result === "null" ||
+      result === "undefined" ||
+      (typeof result === "string" && result.trim() === "")
+    ) {
+      logger.debug(
+        `API key storage lookup: found invalid value for ${keyType}, treating as undefined`,
+      );
+      return undefined;
+    }
+
     logger.debug(
       `API key storage lookup: key=${storageKey}, found=${Object.keys(apiKeys)}, result=${result ? "present" : "undefined"}`,
     );
@@ -458,6 +486,14 @@ export class ProfileService extends EventEmitter {
 
   setApiKey(keyType: string, value: string): boolean {
     if (!this.currentProfileId) return false;
+
+    // Don't allow setting null, undefined, or empty values - use removeApiKey instead
+    if (value === null || value === undefined || value === "") {
+      logger.warn(
+        `Attempted to set empty/null API key for ${keyType}. Use removeApiKey instead.`,
+      );
+      return this.removeApiKey(keyType);
+    }
 
     const apiKeys = this.getAllApiKeys();
     const oldValue = apiKeys[keyType];

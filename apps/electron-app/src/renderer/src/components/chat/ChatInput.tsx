@@ -5,10 +5,12 @@ import { StatusIndicator } from "@/components/ui/status-indicator";
 import { TabContextDisplay } from "@/components/ui/tab-context-display";
 import { GmailAuthButton } from "@/components/auth/GmailAuthButton";
 import { PrivyAuthButton } from "@/components/auth/PrivyAuthButton";
+import { OpenAIKeyButton } from "@/components/auth/OpenAIKeyButton";
 import { TabAliasSuggestions } from "./TabAliasSuggestions";
 import { TabContextBar } from "./TabContextBar";
 import { useTabContext } from "@/hooks/useTabContextUtils";
 import { useTabAliases } from "@/hooks/useTabAliases";
+import { useAgentStatus } from "@/hooks/useAgentStatus";
 import { TabContextItem } from "@/types/tabContext";
 import "@/components/styles/TabAliasSuggestions.css";
 
@@ -31,6 +33,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   disabled = false,
   tabContext,
 }) => {
+  // Import useAgentStatus to get hasApiKey status
+  const { hasApiKey } = useAgentStatus();
+
   const {
     globalStatus,
     globalStatusTitle,
@@ -204,6 +209,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           />
         </div>
         <div style={{ display: "flex", gap: "6px" }}>
+          <OpenAIKeyButton />
           <GmailAuthButton />
           <PrivyAuthButton />
         </div>
@@ -240,9 +246,13 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             }
             return false;
           }}
-          placeholder="Type @ to reference tabs"
+          placeholder={
+            !hasApiKey
+              ? "OpenAI API key required to use chat"
+              : "Type @ to reference tabs"
+          }
           disabled={disabled}
-          autoFocus
+          autoFocus={!disabled}
           rows={1}
           className="chat-input-field"
         />

@@ -14,13 +14,25 @@ interface UtilityProcessWithSettings extends UtilityProcess {
   _settingsWatchers?: Array<() => void>;
 }
 
+// Valid API key types for security
+const VALID_KEY_TYPES = [
+  "llm",
+  "vector",
+  "openai",
+  "anthropic",
+  "google",
+  "github",
+] as const;
+
 // Check if it's an API key - route to profile service
-const apiKeyTypes = [
-  "llmApiKey",
-  "vectorApiKey",
-  "openaiApiKey",
-  "anthropicApiKey",
-];
+const apiKeyTypes = VALID_KEY_TYPES.map(type => `${type}ApiKey`);
+
+// Type guard to validate key type
+function isValidKeyType(
+  keyType: string,
+): keyType is (typeof VALID_KEY_TYPES)[number] {
+  return VALID_KEY_TYPES.includes(keyType as any);
+}
 
 /**
  * Set up storage handlers for a utility process
@@ -99,7 +111,19 @@ async function handleSettingsGet(
 
   if (apiKeyTypes.includes(key)) {
     const profileService = await getProfileService();
-    const keyType = key.replace("ApiKey", "").toLowerCase();
+    const keyType = key.replace(/ApiKey$/i, "").toLowerCase();
+
+    // Validate keyType is one of the expected values
+    if (!isValidKeyType(keyType)) {
+      logger.error(`Invalid API key type requested: ${keyType}`);
+      utilityProcess.postMessage({
+        id,
+        type: "settings:error",
+        error: `Invalid API key type: ${keyType}`,
+      });
+      return;
+    }
+
     const value = profileService.getApiKey(keyType);
 
     utilityProcess.postMessage({
@@ -129,7 +153,19 @@ async function handleSettingsSet(
   try {
     if (apiKeyTypes.includes(key)) {
       const profileService = await getProfileService();
-      const keyType = key.replace("ApiKey", "").toLowerCase();
+      const keyType = key.replace(/ApiKey$/i, "").toLowerCase();
+
+      // Validate keyType is one of the expected values
+      if (!isValidKeyType(keyType)) {
+        logger.error(`Invalid API key type for set: ${keyType}`);
+        utilityProcess.postMessage({
+          id,
+          type: "settings:error",
+          error: `Invalid API key type: ${keyType}`,
+        });
+        return;
+      }
+
       const success = profileService.setApiKey(keyType, value);
 
       utilityProcess.postMessage({
@@ -207,10 +243,15 @@ async function handleGetAll(
     const preferences = profileService.getPreferences();
     Object.assign(allData, preferences);
 
-    // Add masked API keys
+    // Add masked API keys - only for valid key types
     const apiKeys = profileService.getAllApiKeys();
     Object.keys(apiKeys).forEach(keyType => {
-      allData[`${keyType}ApiKey`] = apiKeys[keyType] ? "********" : null;
+      // Validate key type before including it
+      if (isValidKeyType(keyType)) {
+        allData[`${keyType}ApiKey`] = apiKeys[keyType] ? "********" : null;
+      } else {
+        logger.warn(`Skipping invalid API key type in getAllKeys: ${keyType}`);
+      }
     });
 
     utilityProcess.postMessage({
@@ -260,7 +301,7 @@ async function handleWatch(
 
   // Also watch profile changes for API keys
   const handleApiKeyChange = (data: any) => {
-    if (data.keyType) {
+    if (data.keyType && isValidKeyType(data.keyType)) {
       utilityProcess.postMessage({
         type: "settings:changed",
         data: {
@@ -269,6 +310,8 @@ async function handleWatch(
           oldValue: "********",
         },
       });
+    } else if (data.keyType) {
+      logger.warn(`Invalid API key type in change event: ${data.keyType}`);
     }
   };
 
