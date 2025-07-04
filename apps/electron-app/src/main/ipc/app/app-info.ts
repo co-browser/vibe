@@ -30,6 +30,14 @@ ipcMain.handle("app:set-auth-token", async (_event, token: string | null) => {
     const agentService = getAgentService();
     if (agentService) {
       await agentService.updateAuthToken(token);
+
+      // Broadcast agent status change after auth token update
+      const { browser } = await import("../../index.js");
+      browser?.getAllWindows().forEach(window => {
+        if (!window.isDestroyed()) {
+          window.webContents.send("agent:status-changed", true);
+        }
+      });
     }
   } catch (error) {
     console.error("Failed to update agent auth token:", error);

@@ -4,6 +4,20 @@ export const useAgentStatus = () => {
   const [isAgentInitializing, setIsAgentInitializing] = useState(true);
 
   useEffect(() => {
+    // Check agent status immediately
+    const checkStatus = async () => {
+      try {
+        const isReady = await window.vibe?.chat?.getAgentStatus();
+        setIsAgentInitializing(!isReady);
+      } catch {
+        // On error, assume agent is initializing
+        setIsAgentInitializing(true);
+      }
+    };
+
+    checkStatus();
+
+    // Listen for status changes
     const handleAgentReady = (): void => {
       setIsAgentInitializing(false);
     };
@@ -11,17 +25,7 @@ export const useAgentStatus = () => {
     const unsubscribeStatus =
       window.vibe?.chat?.onAgentStatusChanged?.(handleAgentReady);
 
-    window.vibe?.chat
-      ?.getAgentStatus()
-      .then((isReady: boolean) => {
-        if (isReady) setIsAgentInitializing(false);
-      })
-      .catch(() => {
-        setTimeout(() => {
-          setIsAgentInitializing(false);
-        }, 3000);
-      });
-
+    // Fallback timeout to prevent infinite loading
     const fallbackTimeout = setTimeout(() => {
       setIsAgentInitializing(false);
     }, 10000);
