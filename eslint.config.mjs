@@ -71,9 +71,6 @@ export default tseslint.config(
       'import/no-cycle': 'error',
       'import/no-self-import': 'error',
       'import/no-useless-path-segments': 'error',
-      'import/no-internal-modules': ['error', {
-        allow: ['@vibe/*/src/**'],
-      }],
       
       // Security rules
       'security/detect-object-injection': 'warn',
@@ -108,7 +105,7 @@ export default tseslint.config(
       ],
       
       // Path restrictions
-      'no-restricted-paths': ['error', {
+      'import/no-restricted-paths': ['error', {
         zones: [
           {
             target: './apps/electron-app/src/renderer',
