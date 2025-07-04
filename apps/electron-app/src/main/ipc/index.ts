@@ -10,6 +10,7 @@ import "@/ipc/app/notifications";
 import "@/ipc/app/actions";
 import "@/ipc/app/gmail";
 import "@/ipc/app/api-keys";
+import "@/ipc/app/modals";
 
 // Chat APIs - direct imports (register themselves)
 import "@/ipc/chat/chat-messaging";

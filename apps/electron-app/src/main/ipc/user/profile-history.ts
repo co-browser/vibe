@@ -79,6 +79,7 @@ export function registerProfileHistoryHandlers(): void {
         createdAt: activeProfile.createdAt,
         lastActive: activeProfile.lastActive,
         settings: activeProfile.settings,
+        downloads: activeProfile.downloads || [],
       };
     } catch (error) {
       logger.error("Failed to get active profile:", error);

@@ -46,7 +46,26 @@ interface VibeProfileAPI {
     createdAt: number;
     lastActive: number;
     settings?: Record<string, any>;
+    downloads?: Array<{
+      id: string;
+      fileName: string;
+      filePath: string;
+      createdAt: number;
+    }>;
   } | null>;
+}
+
+/**
+ * Downloads API for downloads management
+ */
+interface VibeDownloadsAPI {
+  getHistory: () => Promise<any[]>;
+  openFile: (filePath: string) => Promise<{ error: string | null }>;
+  showFileInFolder: (filePath: string) => Promise<{ error: string | null }>;
+  removeFromHistory: (
+    id: string,
+  ) => Promise<{ success: boolean; error?: string }>;
+  clearHistory: () => Promise<{ success: boolean; error?: string }>;
 }
 
 /**
@@ -65,6 +84,7 @@ interface VibeAPI {
   session: VibeSessionAPI;
   update: VibeUpdateAPI;
   profile: VibeProfileAPI;
+  downloads: VibeDownloadsAPI;
 }
 
 /**
@@ -81,7 +101,6 @@ interface ElectronAPI {
     invoke: (channel: string, ...args: any[]) => Promise<any>;
   };
   platform: string;
-  overlay: OverlayAPI;
   [key: string]: any;
 }
 

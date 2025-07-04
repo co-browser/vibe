@@ -1,4 +1,10 @@
-import { ipcMain, clipboard } from "electron";
+import {
+  ipcMain,
+  clipboard,
+  Menu,
+  type MenuItemConstructorOptions,
+} from "electron";
+import { showContextMenuWithFrameMain } from "../../browser/context-menu";
 
 /**
  * User action handlers
@@ -13,10 +19,64 @@ ipcMain.on("actions:copy-link", (_event, url: string) => {
   clipboard.writeText(url);
 });
 
-ipcMain.handle("actions:show-context-menu", async () => {
-  // Context menu not implemented - return success for compatibility
-  return { success: true };
-});
+ipcMain.handle(
+  "actions:show-context-menu",
+  async (event, items: any[], context: string = "default") => {
+    try {
+      // Create menu template from items
+      const template: MenuItemConstructorOptions[] = items.map(item => {
+        if (item.type === "separator") {
+          return { type: "separator" as const };
+        }
+
+        return {
+          label: item.label,
+          enabled: item.enabled !== false,
+          click: () => {
+            // Send the click event back to the renderer
+            event.sender.send("context-menu-item-clicked", {
+              id: item.id,
+              context,
+              data: item.data,
+            });
+          },
+        };
+      });
+
+      const menu = Menu.buildFromTemplate(template);
+
+      // Get cursor position from the renderer
+      const cursorPosition = await event.sender.executeJavaScript(`
+      (() => {
+        const selection = window.getSelection();
+        if (selection && selection.rangeCount > 0) {
+          const range = selection.getRangeAt(0);
+          const rect = range.getBoundingClientRect();
+          return { x: rect.left + rect.width / 2, y: rect.bottom };
+        }
+        return { x: 0, y: 0 };
+      })()
+    `);
+
+      // Use the new WebFrameMain API utility function for better cross-platform compatibility
+      // This works across webcontent, nav, and chat areas
+      showContextMenuWithFrameMain(
+        event.sender,
+        menu,
+        cursorPosition.x || 0,
+        cursorPosition.y || 0,
+      );
+
+      return { success: true };
+    } catch (error) {
+      console.error("Failed to show context menu:", error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  },
+);
 
 ipcMain.handle(
   "actions:execute",

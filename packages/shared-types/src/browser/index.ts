@@ -26,6 +26,14 @@ export interface ChatPanelRecoveryOptions {
   powerSaveBlocker?: boolean;
 }
 
+export type DownloadItem = {
+  id: string;
+  createdAt: number;
+  fileName: string;
+  filePath: string;
+  exists: boolean;
+};
+
 /**
  * IPC Event Payload Types
  * Type-safe definitions for IPC message payloads

@@ -33,7 +33,7 @@ export default defineConfig({
     },
     build: {
       rollupOptions: {
-        external: ['@tanstack/react-virtual'],
+        external: ['@tanstack/react-virtual', 'pdfjs-dist', 'canvas', 'electron-dl', '@cliqz/adblocker-electron'],
         input: {
           index: path.resolve(__dirname, "./src/main/index.ts"),
           "processes/agent-process": path.resolve(__dirname, "./src/main/processes/agent-process.ts"),

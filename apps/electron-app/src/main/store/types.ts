@@ -5,6 +5,7 @@
 
 import { ChatMessage } from "@vibe/shared-types";
 import { TabState } from "@vibe/shared-types";
+import { DownloadItem } from "@vibe/shared-types";
 // Remove: WebsiteContext import (now handled by MCP)
 
 /**
@@ -16,5 +17,6 @@ export interface AppState {
   messages: ChatMessage[];
   requestedTabContext: TabState[];
   sessionTabs: TabState[];
+  downloads: DownloadItem[];
   // ❌ Remove: websiteContexts: WebsiteContext[]; (now handled by MCP)
 }

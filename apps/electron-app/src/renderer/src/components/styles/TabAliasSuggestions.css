@@ -1,8 +1,11 @@
 .tab-alias-suggestions {
   position: absolute;
   bottom: 100%;
-  left: 0;
-  right: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 50%;
+  min-width: 300px;
+  max-width: 500px;
   margin-bottom: 8px;
   max-height: 240px;
   overflow-y: auto;

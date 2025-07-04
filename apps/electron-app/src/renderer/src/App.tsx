@@ -4,6 +4,7 @@
  */
 
 import "./components/styles/index.css";
+import "antd/dist/reset.css";
 import { RouterProvider } from "./router/provider";
 import { Route } from "./router/route";
 

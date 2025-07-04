@@ -114,6 +114,10 @@ export interface VibeUpdateAPI {
   [key: string]: any;
 }
 
+export interface VibeProfileAPI {
+  [key: string]: any;
+}
+
 // Global window interface
 declare global {
   interface Window {
@@ -129,6 +133,7 @@ declare global {
       settings: VibeSettingsAPI;
       session: VibeSessionAPI;
       update: VibeUpdateAPI;
+      profile: VibeProfileAPI;
     };
   }
 }

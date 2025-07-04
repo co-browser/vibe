@@ -21,7 +21,9 @@
     "build:linux": "electron-vite build && electron-builder --linux",
     "clean": "rm -rf dist out .eslintcache",
     "dist": "electron-vite build && electron-builder --publish never",
-    "postinstall": "electron-builder install-app-deps && electron-rebuild"
+    "postinstall": "electron-builder install-app-deps && electron-rebuild",
+    "test:pdf": "node scripts/test-pdf-loading.js",
+    "test:pdf:interactive": "node scripts/interactive-pdf-test.js"
   },
   "dependencies": {
     "@ai-sdk/react": "^1.2.12",
@@ -46,6 +48,7 @@
     "classnames": "^2.5.1",
     "clsx": "^2.1.1",
     "dotenv": "^16.5.0",
+    "electron-dl": "^3.5.0",
     "electron-log": "^5.4.0",
     "electron-store": "^8.1.0",
     "electron-updater": "^6.6.2",

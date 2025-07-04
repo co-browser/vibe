@@ -17,6 +17,13 @@ export interface NavigationHistoryEntry {
   favicon?: string;
 }
 
+export interface DownloadHistoryItem {
+  id: string;
+  fileName: string;
+  filePath: string;
+  createdAt: number;
+}
+
 export interface UserProfile {
   /**
    * WARNING: Do NOT store sensitive data (such as passwords or API keys) in plain text in this object.
@@ -27,6 +34,7 @@ export interface UserProfile {
   createdAt: number;
   lastActive: number;
   navigationHistory: NavigationHistoryEntry[];
+  downloads?: DownloadHistoryItem[];
   settings?: {
     defaultSearchEngine?: string;
     theme?: string;
@@ -59,6 +67,15 @@ interface UserProfileState {
   ) => NavigationHistoryEntry[];
   clearNavigationHistory: (profileId: string) => void;
 
+  // Download history actions
+  addDownloadEntry: (
+    profileId: string,
+    entry: Omit<DownloadHistoryItem, "id">,
+  ) => void;
+  getDownloadHistory: (profileId: string) => DownloadHistoryItem[];
+  removeDownloadEntry: (profileId: string, downloadId: string) => void;
+  clearDownloadHistory: (profileId: string) => void;
+
   // Persistence
   saveProfiles: () => Promise<void>;
   loadProfiles: () => Promise<void>;
@@ -87,6 +104,7 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
       createdAt: Date.now(),
       lastActive: Date.now(),
       navigationHistory: [],
+      downloads: [],
       settings: {
         defaultSearchEngine: "perplexity",
       },
@@ -269,6 +287,70 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
     get().saveProfiles();
   },
 
+  addDownloadEntry: (
+    profileId: string,
+    entry: Omit<DownloadHistoryItem, "id">,
+  ) => {
+    set(state => {
+      const profile = state.profiles.get(profileId);
+      if (!profile) return state;
+
+      const newProfiles = new Map(state.profiles);
+      const updatedProfile = { ...profile };
+
+      const newEntry: DownloadHistoryItem = {
+        ...entry,
+        id: `download_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+        createdAt: Date.now(),
+      };
+      updatedProfile.downloads = updatedProfile.downloads
+        ? [...updatedProfile.downloads, newEntry]
+        : [newEntry];
+
+      newProfiles.set(profileId, updatedProfile);
+      return { profiles: newProfiles };
+    });
+    get().saveProfiles();
+  },
+
+  getDownloadHistory: (profileId: string) => {
+    const profile = get().profiles.get(profileId);
+    if (!profile || !profile.downloads) return [];
+    return profile.downloads;
+  },
+
+  removeDownloadEntry: (profileId: string, downloadId: string) => {
+    set(state => {
+      const profile = state.profiles.get(profileId);
+      if (!profile || !profile.downloads) return state;
+
+      const newProfiles = new Map(state.profiles);
+      const updatedProfile = { ...profile };
+
+      updatedProfile.downloads = (updatedProfile.downloads || []).filter(
+        download => download.id !== downloadId,
+      );
+
+      newProfiles.set(profileId, updatedProfile);
+      return { profiles: newProfiles };
+    });
+    get().saveProfiles();
+  },
+
+  clearDownloadHistory: (profileId: string) => {
+    set(state => {
+      const profile = state.profiles.get(profileId);
+      if (!profile) return state;
+
+      const newProfiles = new Map(state.profiles);
+      const updatedProfile = { ...profile, downloads: [] };
+      newProfiles.set(profileId, updatedProfile);
+
+      return { profiles: newProfiles };
+    });
+    get().saveProfiles();
+  },
+
   saveProfiles: async () => {
     try {
       const { profiles, activeProfileId } = get();
@@ -297,6 +379,7 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
         const profiles = new Map<string, UserProfile>();
         if (data.profiles && Array.isArray(data.profiles)) {
           data.profiles.forEach((profile: UserProfile) => {
+            if (!profile.downloads) profile.downloads = [];
             profiles.set(profile.id, profile);
           });
         }

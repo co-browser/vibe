@@ -9,13 +9,20 @@ import {
   shell,
   powerMonitor,
   powerSaveBlocker,
+  Tray,
+  nativeImage,
+  Menu,
+  ipcMain,
+  globalShortcut,
 } from "electron";
 import { optimizer } from "@electron-toolkit/utils";
 import { config } from "dotenv";
+import * as path from "path";
 
 import { Browser } from "@/browser/browser";
 import { registerAllIpcHandlers } from "@/ipc";
 import { setupMemoryMonitoring } from "@/utils/helpers";
+import { registerImgProtocol } from "@/browser/protocol-handler";
 import { AgentService } from "@/services/agent-service";
 import { MCPService } from "@/services/mcp-service";
 import { setMCPServiceInstance } from "@/ipc/mcp/mcp-status";
@@ -34,6 +41,9 @@ import {
   childProcessIntegration,
 } from "@sentry/electron/main";
 import AppUpdater from "./services/update-service";
+import { resourcesPath } from "process";
+
+let tray;
 
 // Set consistent log level for all processes
 if (!process.env.LOG_LEVEL) {
@@ -46,7 +56,9 @@ if (process.env.NODE_ENV === "development") {
   // Silence verbose Sentry logs
   process.env.SENTRY_LOG_LEVEL = "error";
 }
-
+app.commandLine.appendSwitch("enable-experimental-web-platform-features");
+app.commandLine.appendSwitch("optimization-guide-on-device-model");
+app.commandLine.appendSwitch("prompt-api-for-gemini-nano");
 const logger = createLogger("main-process");
 
 const isProd: boolean = process.env.NODE_ENV === "production";
@@ -61,7 +73,15 @@ init({
   onFatalError: () => {},
 });
 
-// Simple logging only for now
+if (process.defaultApp) {
+  if (process.argv.length >= 2) {
+    app.setAsDefaultProtocolClient("vibe", process.execPath, [
+      path.resolve(process.argv[1]),
+    ]);
+  }
+} else {
+  app.setAsDefaultProtocolClient("vibe");
+}
 
 // Load environment variables
 const envPath = findFileUpwards(__dirname, ".env");
@@ -88,6 +108,9 @@ let unsubscribeVibe: (() => void) | null = null;
 const unsubscribeStore: (() => void) | null = null;
 const unsubscribeBrowser: (() => void) | null = null;
 let memoryMonitor: ReturnType<typeof setupMemoryMonitoring> | null = null;
+
+// Track last C key press for double-press detection
+let lastCPressTime = 0;
 
 // Configure remote debugging for browser integration
 app.commandLine.appendSwitch(
@@ -332,6 +355,77 @@ function setupChatPanelRecovery(): void {
   }
 }
 
+/**
+ * Handles the "CC" global shortcut to open chat panel and focus chat input
+ */
+function handleCCShortcut(): void {
+  try {
+    if (!browser) {
+      logger.warn("Browser not available for CC shortcut");
+      return;
+    }
+
+    const mainWindow = browser.getMainWindow();
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      logger.warn("Main window not available for CC shortcut");
+      return;
+    }
+
+    // Get current chat panel state
+    const appWindow = browser.getApplicationWindow(mainWindow.id);
+    if (!appWindow) {
+      logger.warn("Application window not found for CC shortcut");
+      return;
+    }
+
+    const chatPanelState = appWindow.viewManager.getChatPanelState();
+
+    if (!chatPanelState.isVisible) {
+      // Chat panel is closed, open it and focus the input
+      appWindow.viewManager.toggleChatPanel(true);
+      logger.info("CC shortcut: Opened chat panel");
+
+      // Focus chat input after a short delay to ensure panel is rendered
+      setTimeout(() => {
+        mainWindow.webContents
+          .executeJavaScript(
+            `
+          const chatInput = document.querySelector('.chat-input-field');
+          if (chatInput) {
+            chatInput.focus();
+            console.log('CC shortcut: Focused chat input');
+          } else {
+            console.log('CC shortcut: Chat input not found');
+          }
+        `,
+          )
+          .catch(err => {
+            logger.error("Failed to focus chat input:", err);
+          });
+      }, 100);
+    } else {
+      // Chat panel is already open, just focus the input
+      mainWindow.webContents
+        .executeJavaScript(
+          `
+        const chatInput = document.querySelector('.chat-input-field');
+        if (chatInput) {
+          chatInput.focus();
+          console.log('CC shortcut: Focused chat input (panel already open)');
+        } else {
+          console.log('CC shortcut: Chat input not found');
+        }
+      `,
+        )
+        .catch(err => {
+          logger.error("Failed to focus chat input:", err);
+        });
+    }
+  } catch (error) {
+    logger.error("Error handling CC shortcut:", error);
+  }
+}
+
 function initializeApp(): boolean {
   const gotTheLock = app.requestSingleInstanceLock();
 
@@ -519,10 +613,51 @@ app.whenReady().then(() => {
     optimizer.watchWindowShortcuts(window);
   });
 
+  const icon = nativeImage.createFromDataURL(
+    "data:image/png;base64,AAABAAQADBACAAEAAQCwAAAARgAAABggAgABAAEAMAEAAPYAAAAkMAIAAQABADADAAAmAgAAMEACAAEAAQAwBAAAVgUAACgAAAAMAAAAIAAAAAEAAQAAAAAAQAAAAMMOAADDDgAAAgAAAAIAAAA/VwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKAAAABgAAABAAAAAAQABAAAAAACAAAAAww4AAMMOAAACAAAAAgAAAD9XAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACgAAAAkAAAAYAAAAAEAAQAAAAAAgAEAAMMOAADDDgAAAgAAAAIAAAA/VwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACgAAAAwAAAAgAAAAAEAAQAAAAAAAAIAAMMOAADDDgAAAgAAAAIAAAA/VwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+  );
+  tray = new Tray(icon);
+
+  const contextMenu = Menu.buildFromTemplate([
+    { label: "Item1", type: "radio" },
+    { label: "Item2", type: "radio" },
+    { label: "Item3", type: "radio", checked: true },
+    { label: "Item4", type: "radio" },
+  ]);
+
+  tray.setToolTip("Vibing");
+  tray.setContextMenu(contextMenu);
+
+  // Register the global img:// protocol for PDF handling
+  registerImgProtocol();
+
   const initialized = initializeApp();
   if (!initialized) {
     app.quit();
     return;
+  }
+
+  // Register global shortcuts
+  const ccShortcutRegistered = globalShortcut.register(
+    "CommandOrControl+C",
+    () => {
+      // Check if this is a double-press (CC)
+      const now = Date.now();
+      if (now - lastCPressTime < 300) {
+        // Double press detected, handle CC shortcut
+        lastCPressTime = 0;
+        handleCCShortcut();
+      } else {
+        // Set a timeout to reset if no second press
+        lastCPressTime = now;
+      }
+    },
+  );
+
+  if (ccShortcutRegistered) {
+    logger.info("CC global shortcut registered successfully");
+  } else {
+    logger.error("Failed to register CC global shortcut");
   }
 
   // Initialize services and create initial window
@@ -584,7 +719,7 @@ app.on("activate", () => {
   }
 });
 
-app.on("before-quit", async _event => {
+app.on("before-quit", async () => {
   // Track app shutdown
   try {
     const windows = browser?.getAllWindows();
@@ -627,6 +762,9 @@ app.on("before-quit", async _event => {
     logger.error("Error during shutdown logging:", error);
   }
 
+  // Clean up global shortcuts
+  globalShortcut.unregisterAll();
+
   // Clean up browser resources
   if (browser && !browser.isDestroyed()) {
     browser.destroy();
@@ -659,4 +797,19 @@ app.on("web-contents-created", (_event, contents) => {
 
 app.on("before-quit", () => {
   app.isQuitting = true;
+});
+
+const iconName = path.join(resourcesPath, "icon.png");
+
+//drag-n-drop
+ipcMain.on("ondragstart", (event, filePath) => {
+  event.sender.startDrag({
+    file: path.join(__dirname, filePath),
+    icon: iconName,
+  });
+});
+
+//deeplink handling
+app.on("open-url", (_event, url) => {
+  dialog.showErrorBox("Welcome Back", `You arrived from: ${url}`);
 });

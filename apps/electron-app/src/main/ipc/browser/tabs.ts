@@ -148,3 +148,24 @@ ipcMain.handle("tabs:wake-up", async (event, tabKey: string) => {
   const appWindow = browser?.getApplicationWindow(event.sender.id);
   return appWindow?.tabManager.wakeUpTab(tabKey);
 });
+
+// Context menu tab creation handler
+ipcMain.on("tab:create", async (event, url?: string) => {
+  try {
+    const appWindow = browser?.getApplicationWindow(event.sender.id);
+    if (!appWindow) {
+      logger.error("No application window found for context menu tab creation");
+      return;
+    }
+
+    const tabKey = appWindow.tabManager.createTab(url);
+
+    if (!appWindow.window.webContents.isDestroyed()) {
+      appWindow.window.webContents.send("tab-created", tabKey);
+    }
+
+    logger.debug("Tab created from context menu", { url, tabKey });
+  } catch (error) {
+    logger.error("Failed to create tab from context menu:", error);
+  }
+});

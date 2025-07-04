@@ -11,6 +11,8 @@ import type { CDPManager } from "../services/cdp-service";
 import { fetchFaviconAsDataUrl } from "@/utils/favicon";
 import { autoSaveTabToMemory } from "@/utils/tab-agent";
 import { useUserProfileStore } from "@/store/user-profile-store";
+import { setupContextMenuHandlers } from "./context-menu";
+// File system imports removed - now handled in protocol-handler
 
 const logger = createLogger("TabManager");
 
@@ -81,7 +83,7 @@ export class TabManager extends EventEmitter {
         // Let other console messages through normally
       },
     );
-
+    // Protocol handler is now registered globally in main process
     // Optional CDP integration
     if (this.cdpManager) {
       this.cdpManager
@@ -140,6 +142,34 @@ export class TabManager extends EventEmitter {
       });
     });
 
+    // PDF detection for URLs that don't end in .pdf
+    // Use will-download event to detect PDF downloads and convert them
+    webContents.session.on("will-download", (event, item, webContents) => {
+      const url = item.getURL();
+      const mimeType = item.getMimeType();
+
+      // Check if this is a PDF download
+      if (
+        mimeType === "application/pdf" ||
+        url.toLowerCase().endsWith(".pdf")
+      ) {
+        logger.debug(`PDF detected via download: ${url}`);
+
+        // Cancel the download
+        event.preventDefault();
+
+        // Convert the PDF URL to use our custom protocol
+        const pdfUrl = `img://${Buffer.from(url).toString("base64")}`;
+
+        // Navigate to the PDF via our custom protocol
+        setTimeout(() => {
+          webContents.loadURL(pdfUrl).catch(error => {
+            logger.error("Failed to load PDF via custom protocol:", error);
+          });
+        }, 100);
+      }
+    });
+
     // Favicon update handler
     webContents.on("page-favicon-updated", async (_event, favicons) => {
       if (favicons.length > 0) {
@@ -162,6 +192,9 @@ export class TabManager extends EventEmitter {
     if (this.cdpManager) {
       this.cdpManager.setupEventHandlers(webContents, tabKey);
     }
+
+    // Set up context menu handlers
+    setupContextMenuHandlers(view);
   }
 
   /**
@@ -1201,3 +1234,5 @@ export class TabManager extends EventEmitter {
     return false;
   }
 }
+
+// PDF to image conversion is now handled in the global protocol handler

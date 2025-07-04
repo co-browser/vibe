@@ -1,7 +1,29 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npm run typecheck:web:*)"
+      "Bash(npm run typecheck:web:*)",
+      "Bash(find:*)",
+      "Bash(grep:*)",
+      "Bash(npm run dev:*)",
+      "Bash(rg:*)",
+      "Bash(pkill:*)",
+      "Bash(pnpm add:*)",
+      "Bash(npm run typecheck:*)",
+      "Bash(npm run test:pdf:*)",
+      "Bash(true)",
+      "Bash(npm start)",
+      "Bash(timeout 10 npm start:*)",
+      "Bash(timeout 15 npm start)",
+      "mcp__ide__getDiagnostics",
+      "Bash(pnpm dev:*)",
+      "Bash(pnpm list:*)",
+      "Bash(timeout 30 pnpm dev)",
+      "Bash(npm install:*)",
+      "Bash(pnpm install:*)",
+      "Bash(npx eslint:*)",
+      "Bash(npm run build:*)",
+      "Bash(npm run:*)",
+      "Bash(pnpm format)"
     ],
     "deny": []
   }

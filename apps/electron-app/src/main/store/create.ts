@@ -5,6 +5,7 @@ export const initialState: AppState = {
   messages: [],
   requestedTabContext: [],
   sessionTabs: [],
+  downloads: [],
   // ❌ Remove: websiteContexts: [], (now handled by MCP)
 };
 
