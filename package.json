@@ -1,6 +1,6 @@
 {
   "name": "vibe",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "private": false,
   "description": "Secure agentic browser with intelligent, memory-enhanced web browsing by CoBrowser",
   "repository": {

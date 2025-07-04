@@ -522,6 +522,7 @@ async function initializeServices(): Promise<void> {
     try {
       logger.info("Initializing AgentService with utility process isolation");
 
+
       // Create AgentService instance
       agentService = new AgentService();
 

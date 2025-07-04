@@ -34,7 +34,7 @@ export class StreamableHTTPServer {
     log.info('Server shutdown complete.');
   }
 
-  async handleGetRequest(req: Request, res: Response) {
+  async handleGetRequest(_req: Request, res: Response) {
     res.status(405).json(this.createRPCErrorResponse('Method not allowed.'));
     log.info('Responded to GET with 405 Method Not Allowed');
   }
@@ -58,7 +58,7 @@ export class StreamableHTTPServer {
       await this.server.connect(transport as any);
       log.success('Transport connected. Handling request...');
 
-      // Store userId in context if available
+      // Store userId in transport context for request-scoped access
       if (userId) {
         this.userContext.set(transport, userId);
       }
@@ -66,6 +66,8 @@ export class StreamableHTTPServer {
       await transport.handleRequest(req, res, req.body);
       res.on('close', () => {
         log.success('Request closed by client');
+        // Clean up user context to prevent memory leaks
+        this.userContext.delete(transport);
         transport.close();
       });
 
@@ -109,9 +111,14 @@ export class StreamableHTTPServer {
         
         try {
           log.info(`Executing tool ${toolName}...`);
-          // Get userId from the transport context
+          // Get userId from transport context via extra parameter
           const transport = (extra as any)?._transport;
           const userId = transport ? this.userContext.get(transport) : undefined;
+          if (userId) {
+            log.info(`Tool execution with user context: ${userId}`);
+          } else {
+            log.info('Tool execution without user context (using default namespace)');
+          }
           const argsWithUserId = userId ? { ...args, userId } : args;
           const result = await tool.execute(argsWithUserId as any);
           log.success(`Tool ${toolName} executed successfully. Result:`, result);

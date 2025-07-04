@@ -60,7 +60,7 @@ export const useAgentStatus = () => {
             "unknown";
           const hasKey =
             effectiveStatus !== "no_api_key" && status.status !== "no_api_key";
-
+          
           logger.debug("Effective status:", effectiveStatus, "hasKey:", hasKey);
 
           setAgentStatus(effectiveStatus);

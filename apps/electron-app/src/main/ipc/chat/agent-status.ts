@@ -70,12 +70,7 @@ ipcMain.handle("chat:get-agent-status", async () => {
     };
   } catch (error) {
     logger.error("Error getting agent status:", error);
-    return {
-      status: "error",
-      ready: false,
-      initialized: false,
-      error: error instanceof Error ? error.message : "Unknown error",
-    };
+    return false;
   }
 });
 
