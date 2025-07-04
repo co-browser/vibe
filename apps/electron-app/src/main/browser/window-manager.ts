@@ -47,7 +47,7 @@ export class WindowManager {
       vibrancy: process.platform === "darwin" ? "fullscreen-ui" : undefined,
       webPreferences: {
         preload: require.resolve("../preload/index.js"),
-        sandbox: false,
+        sandbox: true,
         nodeIntegration: false,
         contextIsolation: true,
         webSecurity: true,
