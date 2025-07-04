@@ -78,7 +78,7 @@ After downloading the credentials file:
 
 ## Demo
 
-![Demo](./static/demo.gif)
+
 
 ## Release Notes
 

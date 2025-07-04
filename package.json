@@ -23,7 +23,7 @@
   "scripts": {
     "postinstall": "husky && turbo run build",
     "prepare": "husky",
-    "dev": "node scripts/dev.js",
+    "dev": "turbo run dev",
     "build": "turbo run build --filter=@vibe/shared-types && turbo run build",
     "build:mac": "pnpm --filter vibe build:mac",
     "build:win": "pnpm --filter @vibe/electron-app build:win",
@@ -37,8 +37,7 @@
     "typecheck": "turbo run typecheck",
     "clean": "turbo run clean && rm -rf node_modules",
     "test": "turbo run test",
-    "setup": "pnpm install && git submodule update --init --recursive",
-    "kill-port": "node scripts/kill-port.js"
+    "setup": "pnpm install && git submodule update --init --recursive"
   },
   "workspaces": [
     "packages/*",
