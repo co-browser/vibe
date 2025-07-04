@@ -36,6 +36,7 @@ import {
   childProcessIntegration,
 } from "@sentry/electron/main";
 import AppUpdater from "./services/update-service";
+import { initializeSecurity } from "./security";
 
 // Set consistent log level for all processes
 if (!process.env.LOG_LEVEL) {
@@ -62,6 +63,9 @@ init({
   tracePropagationTargets: ["localhost"],
   onFatalError: () => {},
 });
+
+// Initialize security measures before anything else
+initializeSecurity();
 
 // Simple logging only for now
 

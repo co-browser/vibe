@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from "react";
 import { TextInput } from "@/components/ui/text-input";
 import { ActionButton } from "@/components/ui/action-button";
-import { StatusIndicator } from "@/components/ui/status-indicator";
+import { StatusPill } from "@/components/ui/status-pill";
 import { TabContextDisplay } from "@/components/ui/tab-context-display";
 import { GmailAuthButton } from "@/components/auth/GmailAuthButton";
 import { PrivyAuthButton } from "@/components/auth/PrivyAuthButton";
@@ -195,7 +195,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     <div className="chat-input-container">
       <div className="chat-input-status-section">
         <div className="chat-input-status-left">
-          <StatusIndicator
+          <StatusPill
             status={globalStatus}
             title={globalStatusTitle}
             show={shouldShowStatus}
