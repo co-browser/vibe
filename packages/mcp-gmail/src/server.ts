@@ -1,18 +1,18 @@
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { Server } from "@modelcontextprotocol/sdk/server/index";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp";
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
-} from '@modelcontextprotocol/sdk/types.js';
+} from "@modelcontextprotocol/sdk/types";
 import type {
   JSONRPCError,
   JSONRPCNotification,
   LoggingMessageNotification,
   Notification,
-} from '@modelcontextprotocol/sdk/types.js';
+} from "@modelcontextprotocol/sdk/types";
 import { type Request, type Response } from 'express';
 import { randomUUID } from 'node:crypto';
-import { GmailTools } from './tools.js';
+import { GmailTools } from "./tools";
 
 // Tool type definition (should match the one in tools.ts)
 interface GmailTool {

@@ -1,21 +1,7 @@
 import React, { useState, useEffect } from "react";
+import { AgentStatus, createLogger } from "@vibe/shared-types";
 
-interface AgentStatus {
-  status: string;
-  ready: boolean;
-  initialized: boolean;
-  serviceStatus:
-    | "disconnected"
-    | "no_api_key"
-    | "initializing"
-    | "ready"
-    | "processing"
-    | "error";
-  workerConnected?: boolean;
-  isHealthy?: boolean;
-  lastActivity?: number;
-  error?: string;
-}
+const logger = createLogger("AgentStatusIndicator");
 
 interface AgentStatusIndicatorProps {
   isInitializing: boolean;
@@ -40,10 +26,9 @@ export const AgentStatusIndicator: React.FC<AgentStatusIndicatorProps> = ({
         }
       })
       .catch(error => {
-        console.error("Failed to fetch agent status:", error);
+        logger.error("Failed to fetch agent status:", error);
         if (!cancelled) {
           setStatus({
-            status: "error",
             ready: false,
             initialized: false,
             serviceStatus: "error",

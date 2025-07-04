@@ -3,8 +3,8 @@ import {
   ReActProcessor,
   CoActProcessor,
   MAX_REACT_ITERATIONS,
-} from "./index.js";
-import type { IToolManager, IAgentConfig } from "../interfaces/index.js";
+} from "./index";
+import type { IToolManager, IAgentConfig } from "../interfaces/index";
 import { createLogger } from "@vibe/shared-types";
 
 const logger = createLogger("ProcessorFactory");

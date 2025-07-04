@@ -1,7 +1,7 @@
 import CDP from "chrome-remote-interface";
 import { createLogger } from "@vibe/shared-types";
-import type { CDPTarget } from "../types/index.js";
-import { extractionConfig } from "../config/extraction.js";
+import type { CDPTarget } from "../types/index";
+import { extractionConfig } from "../config/extraction";
 
 const logger = createLogger("cdp-connector");
 

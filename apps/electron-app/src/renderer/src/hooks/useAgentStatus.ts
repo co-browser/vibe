@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { createLogger } from "@vibe/shared-types";
+import { createLogger, AgentStatus } from "@vibe/shared-types";
 
 const logger = createLogger("useAgentStatus");
 
@@ -12,17 +12,6 @@ type AgentServiceStatus =
   | "error"
   | "unknown";
 
-interface AgentStatus {
-  status: string;
-  ready: boolean;
-  initialized: boolean;
-  serviceStatus: AgentServiceStatus;
-  workerConnected?: boolean;
-  isHealthy?: boolean;
-  lastActivity?: number;
-  error?: string;
-}
-
 // Runtime validation function
 const isValidAgentStatus = (data: unknown): data is AgentStatus => {
   if (!data || typeof data !== "object") return false;
@@ -31,7 +20,6 @@ const isValidAgentStatus = (data: unknown): data is AgentStatus => {
 
   // Check required fields
   return (
-    typeof obj.status === "string" &&
     typeof obj.ready === "boolean" &&
     typeof obj.initialized === "boolean" &&
     typeof obj.serviceStatus === "string"
@@ -54,12 +42,8 @@ export const useAgentStatus = () => {
 
         if (isValidAgentStatus(status)) {
           // Use serviceStatus for more accurate status information
-          const effectiveStatus =
-            status.serviceStatus ||
-            (status.status as AgentServiceStatus) ||
-            "unknown";
-          const hasKey =
-            effectiveStatus !== "no_api_key" && status.status !== "no_api_key";
+          const effectiveStatus = status.serviceStatus || "unknown";
+          const hasKey = effectiveStatus !== "no_api_key";
 
           logger.debug("Effective status:", effectiveStatus, "hasKey:", hasKey);
 
@@ -76,8 +60,7 @@ export const useAgentStatus = () => {
           } else {
             setIsAgentInitializing(
               effectiveStatus === "initializing" ||
-                effectiveStatus === "disconnected" ||
-                status.status === "not_initialized",
+                effectiveStatus === "disconnected"
             );
           }
         } else {

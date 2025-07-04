@@ -1,8 +1,8 @@
 import { createLogger } from "@vibe/shared-types";
-import type { ExtractedPage, PageMetadata } from "../types/index.js";
-import type { CDPConnection } from "../cdp/connector.js";
-import { ReadabilityExtractor } from "./readability.js";
-import { extractionConfig } from "../config/extraction.js";
+import type { ExtractedPage, PageMetadata } from "../types/index";
+import type { CDPConnection } from "../cdp/connector";
+import { ReadabilityExtractor } from "./readability";
+import { extractionConfig } from "../config/extraction";
 
 const logger = createLogger("enhanced-extractor");
 

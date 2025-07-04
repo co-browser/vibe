@@ -6,8 +6,8 @@ import type {
   MCPCallResult,
 } from "@vibe/shared-types";
 
-import type { IToolManager } from "../interfaces/index.js";
-import type { ReactObservation } from "../react/types.js";
+import type { IToolManager } from "../interfaces/index";
+import type { ReactObservation } from "../react/types";
 import type { CoreMessage } from "ai";
 
 const logger = createLogger("ToolManager");

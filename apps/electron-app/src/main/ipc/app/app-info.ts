@@ -1,5 +1,5 @@
 import { ipcMain } from "electron";
-import { AuthTokenManager } from "../../services/auth-token-manager.js";
+import { AuthTokenManager } from "../../services/auth-token-manager";
 
 /**
  * App info and platform handlers
@@ -26,13 +26,13 @@ ipcMain.handle("app:set-auth-token", async (_event, token: string | null) => {
 
   // Forward token update to agent service
   try {
-    const { getAgentService } = await import("../chat/agent-status.js");
+    const { getAgentService } = await import("../chat/agent-status");
     const agentService = getAgentService();
     if (agentService) {
       await agentService.updateAuthToken(token);
 
       // Broadcast agent status change after auth token update
-      const { browser } = await import("../../index.js");
+      const { browser } = await import("../../index");
       browser?.getAllWindows().forEach(window => {
         if (!window.isDestroyed()) {
           window.webContents.send("agent:status-changed", true);

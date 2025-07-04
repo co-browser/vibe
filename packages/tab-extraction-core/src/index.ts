@@ -3,10 +3,10 @@ export * from "./types"; // Export all types
 export * from "./tools/pageExtractor"; // Exports functions like getCurrentPageContent and schemas
 export * from "./utils/formatting"; // Or specific functions
 // Logger now comes from @vibe/shared-types
-export { EnhancedExtractor } from "./extractors/enhanced.js";
-export { CDPConnector } from "./cdp/connector.js";
-export { ActiveTabTracker, activeTabTracker } from "./cdp/tabTracker.js";
-export { extractionConfig } from "./config/extraction.js";
+export { EnhancedExtractor } from "./extractors/enhanced";
+export { CDPConnector } from "./cdp/connector";
+export { ActiveTabTracker, activeTabTracker } from "./cdp/tabTracker";
+export { extractionConfig } from "./config/extraction";
 export {
   getCurrentPageContent,
   getCurrentPageContentSchema,
@@ -19,7 +19,7 @@ export {
   extractTextFromPageContent,
   type PageExtractionResult,
   type PageExtractionError,
-} from "./tools/pageExtractor.js";
+} from "./tools/pageExtractor";
 
 // You might want to be more explicit about what you export
 // to maintain a clear public API.

@@ -1,8 +1,8 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
-import { RAGTestClient } from './mcp-client.js';
-import { SimpleExtractor } from './utils/simple-extractor.js';
+import { RAGTestClient } from "./mcp-client";
+import { SimpleExtractor } from "./utils/simple-extractor";
 
 interface TestCase {
   name: string;

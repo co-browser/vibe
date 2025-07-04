@@ -3,17 +3,17 @@
  * Exports for ReAct (Reason + Act) and CoAct (Coordinated Act) prompting frameworks
  */
 
-export { ReActProcessor } from "./react-processor.js";
-export { CoActProcessor, type CoActStreamPart } from "./coact-processor.js";
-export { ProcessorFactory } from "./processor-factory.js";
+export { ReActProcessor } from "./react-processor";
+export { CoActProcessor, type CoActStreamPart } from "./coact-processor";
+export { ProcessorFactory } from "./processor-factory";
 export {
   REACT_XML_TAGS,
   MAX_REACT_ITERATIONS,
   REACT_SYSTEM_PROMPT_TEMPLATE,
-} from "./config.js";
-export { extractXmlTagContent, parseReactToolCall } from "./xml-parser.js";
+} from "./config";
+export { extractXmlTagContent, parseReactToolCall } from "./xml-parser";
 export type {
   ParsedReactToolCall,
   ReactObservation,
   ToolExecutor,
-} from "./types.js";
+} from "./types";

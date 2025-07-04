@@ -1,7 +1,7 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
-import { RAGAgent } from './rag-agent.js';
+import { RAGAgent } from "./rag-agent";
 
 async function runAgentTest() {
   console.log('🚀 Starting RAG Agent Conversation Test\n');

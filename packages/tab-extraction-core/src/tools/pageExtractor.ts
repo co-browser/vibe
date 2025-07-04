@@ -1,10 +1,10 @@
 import { z } from "zod";
 import { createLogger } from "@vibe/shared-types";
-import { CDPConnector } from "../cdp/connector.js";
-import { activeTabTracker } from "../cdp/tabTracker.js";
-import { EnhancedExtractor } from "../extractors/enhanced.js";
-import { ExtractionError } from "../types/errors.js";
-import type { ExtractedPage } from "../types/index.js";
+import { CDPConnector } from "../cdp/connector";
+import { activeTabTracker } from "../cdp/tabTracker";
+import { EnhancedExtractor } from "../extractors/enhanced";
+import { ExtractionError } from "../types/errors";
+import type { ExtractedPage } from "../types/index";
 
 const logger = createLogger("page-extractor-tool");
 

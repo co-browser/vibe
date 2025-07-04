@@ -1,19 +1,19 @@
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { Server } from "@modelcontextprotocol/sdk/server/index";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp";
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
-} from '@modelcontextprotocol/sdk/types.js';
+} from "@modelcontextprotocol/sdk/types";
 import type {
   JSONRPCError,
   JSONRPCNotification,
   LoggingMessageNotification,
   Notification,
-} from '@modelcontextprotocol/sdk/types.js';
+} from "@modelcontextprotocol/sdk/types";
 import type { Request, Response } from 'express';
 import { randomUUID } from 'node:crypto';
-import { logger } from './helpers/logs.js';
-import { RAGTools } from './tools.js';
+import { logger } from "./helpers/logs";
+import { RAGTools } from "./tools";
 
 const log = logger('server');
 const JSON_RPC = '2.0';

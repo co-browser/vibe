@@ -18,12 +18,12 @@ import {
   REACT_XML_TAGS,
   REACT_SYSTEM_PROMPT_TEMPLATE,
   MAX_REACT_ITERATIONS,
-} from "./config.js";
-import { extractXmlTagContent, parseReactToolCall } from "./xml-parser.js";
+} from "./config";
+import { extractXmlTagContent, parseReactToolCall } from "./xml-parser";
 import { createLogger } from "@vibe/shared-types";
 
 const logger = createLogger("ReactProcessor");
-import type { ReactObservation, ToolExecutor } from "./types.js";
+import type { ReactObservation, ToolExecutor } from "./types";
 
 // Extended ReAct stream part type
 export type ReActStreamPart =

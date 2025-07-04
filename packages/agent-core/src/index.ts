@@ -1,22 +1,22 @@
 // Agent Core - Main export module
 // Clean separation of concerns
 
-export * from "./types.js";
+export * from "./types";
 // New Agent Architecture exports
-export { Agent } from "./agent.js";
-export { AgentFactory } from "./factory.js";
+export { Agent } from "./agent";
+export { AgentFactory } from "./factory";
 
 // Managers
-export { ToolManager } from "./managers/tool-manager.js";
-export { StreamProcessor } from "./managers/stream-processor.js";
+export { ToolManager } from "./managers/tool-manager";
+export { StreamProcessor } from "./managers/stream-processor";
 
 // React framework
-export * from "./react/index.js";
+export * from "./react/index";
 
 // Interfaces
-export * from "./interfaces/index.js";
+export * from "./interfaces/index";
 
 // MCP Services
-export { MCPManager } from "./services/mcp-manager.js";
-export { MCPConnectionManager } from "./services/mcp-connection-manager.js";
-export { MCPToolRouter } from "./services/mcp-tool-router.js";
+export { MCPManager } from "./services/mcp-manager";
+export { MCPConnectionManager } from "./services/mcp-connection-manager";
+export { MCPToolRouter } from "./services/mcp-tool-router";

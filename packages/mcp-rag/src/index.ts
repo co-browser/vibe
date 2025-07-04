@@ -1,12 +1,12 @@
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { Server } from "@modelcontextprotocol/sdk/server/index";
 import express, { type Request, type Response } from 'express';
-import { StreamableHTTPServer } from './server.js';
+import { StreamableHTTPServer } from "./server";
 import { createLogger } from '@vibe/shared-types';
 import { hostname } from 'node:os';
 import { createServer } from 'node:http';
 import { Socket } from 'node:net';
-import { RAGTools } from './tools.js';
-import { validatePrivyToken } from './middleware/auth.js';
+import { RAGTools } from "./tools";
+import { validatePrivyToken } from "./middleware/auth";
 import dotenv from 'dotenv';
 
 // Load environment variables

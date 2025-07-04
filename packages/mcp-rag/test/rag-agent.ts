@@ -2,8 +2,8 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 import OpenAI from 'openai';
-import type { ChatCompletionTool, ChatCompletionMessageParam } from 'openai/resources/index.js';
-import { RAGTestClient } from './mcp-client.js';
+import type { ChatCompletionTool, ChatCompletionMessageParam } from "openai/resources/index";
+import { RAGTestClient } from "./mcp-client";
 
 interface MCPTool {
   name: string;

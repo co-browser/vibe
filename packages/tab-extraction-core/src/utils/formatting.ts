@@ -1,4 +1,4 @@
-import type { ExtractedPage } from "../types/index.js";
+import type { ExtractedPage } from "../types/index";
 
 /**
  * Format extracted page content for LLM consumption

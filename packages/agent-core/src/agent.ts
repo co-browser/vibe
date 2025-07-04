@@ -2,12 +2,12 @@ import {
   ReActProcessor,
   CoActProcessor,
   ProcessorFactory,
-} from "./react/index.js";
+} from "./react/index";
 import type {
   IToolManager,
   IStreamProcessor,
   IAgentConfig,
-} from "./interfaces/index.js";
+} from "./interfaces/index";
 import type {
   StreamResponse,
   ExtractedPage,

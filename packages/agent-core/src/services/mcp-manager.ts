@@ -15,8 +15,8 @@ import {
   createMCPServerConfig,
 } from "@vibe/shared-types";
 
-import { MCPConnectionManager } from "./mcp-connection-manager.js";
-import { MCPToolRouter } from "./mcp-tool-router.js";
+import { MCPConnectionManager } from "./mcp-connection-manager";
+import { MCPToolRouter } from "./mcp-tool-router";
 
 const logger = createLogger("McpManager");
 

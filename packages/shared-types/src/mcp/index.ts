@@ -6,12 +6,12 @@
  */
 
 // Export enhanced types and utilities
-export * from "./types.js";
-export * from "./errors.js";
-export * from "./constants.js";
+export * from "./types";
+export * from "./errors";
+export * from "./constants";
 
 // Import for use in this file
-import type { MCPServerConfig } from "./types.js";
+import type { MCPServerConfig } from "./types";
 
 /**
  * Process-level status interface for MCP server monitoring.

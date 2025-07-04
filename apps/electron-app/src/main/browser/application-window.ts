@@ -73,11 +73,13 @@ export class ApplicationWindow extends EventEmitter {
       vibrancy: process.platform === "darwin" ? "fullscreen-ui" : undefined,
       webPreferences: {
         preload: join(__dirname, "../preload/index.js"),
-        sandbox: false,
+        sandbox: true,
         nodeIntegration: false,
         contextIsolation: true,
         webSecurity: true,
         allowRunningInsecureContent: false,
+        webviewTag: false,
+        navigateOnDragDrop: false,
       },
     };
   }

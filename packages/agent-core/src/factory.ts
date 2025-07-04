@@ -1,8 +1,8 @@
-import { Agent } from "./agent.js";
-import { ToolManager } from "./managers/tool-manager.js";
-import { StreamProcessor } from "./managers/stream-processor.js";
-import { MCPManager } from "./services/mcp-manager.js";
-import type { AgentConfig } from "./types.js";
+import { Agent } from "./agent";
+import { ToolManager } from "./managers/tool-manager";
+import { StreamProcessor } from "./managers/stream-processor";
+import { MCPManager } from "./services/mcp-manager";
+import type { AgentConfig } from "./types";
 import { createLogger, getAllMCPServerConfigs } from "@vibe/shared-types";
 
 const logger = createLogger("AgentFactory");

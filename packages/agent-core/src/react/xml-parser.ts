@@ -3,7 +3,7 @@
  * Handles parsing of XML tags and tool calls in ReAct framework
  */
 
-import type { ParsedReactToolCall } from "./types.js";
+import type { ParsedReactToolCall } from "./types";
 import { createLogger } from "@vibe/shared-types";
 
 const logger = createLogger("XmlParser");

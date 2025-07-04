@@ -106,11 +106,15 @@ protocol.registerSchemesAsPrivileged([
 ]);
 
 // Configure remote debugging for browser integration
-app.commandLine.appendSwitch(
-  "remote-debugging-port",
-  MAIN_PROCESS_CONFIG.REMOTE_DEBUGGING_PORT.toString(),
-);
-app.commandLine.appendSwitch("remote-debugging-address", "127.0.0.1");
+if (process.env.DEBUG_CDP === 'true') {
+  app.commandLine.appendSwitch(
+    "remote-debugging-port",
+    MAIN_PROCESS_CONFIG.REMOTE_DEBUGGING_PORT.toString(),
+  );
+  app.commandLine.appendSwitch("remote-debugging-address", "127.0.0.1");
+  logger.info(`Remote debugging enabled on port ${MAIN_PROCESS_CONFIG.REMOTE_DEBUGGING_PORT}`);
+}
+
 app.commandLine.appendSwitch(
   "enable-features",
   "NetworkService,NetworkServiceInProcess",
@@ -550,7 +554,7 @@ async function initializeServices(): Promise<void> {
       });
 
       // Get auth token from proper storage mechanism
-      const { getAuthToken } = await import("./ipc/app/app-info.js");
+      const { getAuthToken } = await import("./ipc/app/app-info");
       const authToken = getAuthToken();
 
       // Initialize with configuration

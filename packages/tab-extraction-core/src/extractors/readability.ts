@@ -1,9 +1,9 @@
 import { Readability } from "@mozilla/readability";
 import { JSDOM } from "jsdom";
 import { createLogger } from "@vibe/shared-types";
-import { extractionConfig } from "../config/extraction.js";
-import type { PageContent } from "../types/index.js";
-import type { CDPConnection } from "../cdp/connector.js";
+import { extractionConfig } from "../config/extraction";
+import type { PageContent } from "../types/index";
+import type { CDPConnection } from "../cdp/connector";
 
 const logger = createLogger("readability-extractor");
 

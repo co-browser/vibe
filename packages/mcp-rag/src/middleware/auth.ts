@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import { PrivyClient } from '@privy-io/server-auth';
-import { logger } from '../helpers/logs.js';
+import { logger } from "../helpers/logs";
 
 const log = logger('middleware:auth');
 
@@ -59,7 +59,7 @@ export async function validatePrivyToken(
 
     // Verify token with Privy
     try {
-      log.info(`Verifying token: ${token.substring(0, 20)}...`);
+      log.info('Verifying token with Privy');
       const claims = await privyClient.verifyAuthToken(token);
       
       // Attach user info to request

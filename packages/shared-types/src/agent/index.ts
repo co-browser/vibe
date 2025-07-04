@@ -2,7 +2,7 @@
  * Agent-related shared types
  */
 
-import type { ExtractedPage } from "../browser/index.js";
+import type { ExtractedPage } from "../browser/index";
 
 export type ProcessorType = "react" | "coact";
 

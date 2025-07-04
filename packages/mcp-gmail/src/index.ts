@@ -1,11 +1,11 @@
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { Server } from "@modelcontextprotocol/sdk/server/index";
 import express, { type Request, type Response } from 'express';
-import { StreamableHTTPServer } from './server.js';
+import { StreamableHTTPServer } from "./server";
 // Simple console logger for MCP Gmail
 import { hostname } from 'node:os';
 import { createServer } from 'node:http';
 import { Socket } from 'node:net';
-import { GmailTools } from './tools.js';
+import { GmailTools } from "./tools";
 
 const log = {
   info: (msg: string, ...args: any[]) => console.log(`[INFO] [mcp-gmail] ${msg}`, ...args),

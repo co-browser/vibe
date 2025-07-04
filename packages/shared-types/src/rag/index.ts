@@ -2,7 +2,7 @@
  * RAG (Retrieval Augmented Generation) related types and interfaces
  */
 
-import type { MCPServerConfig } from "../mcp/index.js";
+import type { MCPServerConfig } from "../mcp/index";
 
 // RAG Server Configuration (extends base MCP config)
 export interface RAGServerConfig extends MCPServerConfig {

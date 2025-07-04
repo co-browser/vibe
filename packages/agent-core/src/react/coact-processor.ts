@@ -14,12 +14,12 @@ import {
   type LanguageModelV1StreamPart,
 } from "ai";
 import { openai } from "@ai-sdk/openai";
-import { REACT_XML_TAGS, MAX_REACT_ITERATIONS } from "./config.js";
-import { extractXmlTagContent, parseReactToolCall } from "./xml-parser.js";
+import { REACT_XML_TAGS, MAX_REACT_ITERATIONS } from "./config";
+import { extractXmlTagContent, parseReactToolCall } from "./xml-parser";
 import { createLogger } from "@vibe/shared-types";
 
 const logger = createLogger("CoactProcessor");
-import type { ReactObservation, ToolExecutor } from "./types.js";
+import type { ReactObservation, ToolExecutor } from "./types";
 
 // Extended CoAct stream part type
 export type CoActStreamPart =

@@ -1,8 +1,8 @@
 import type { CoreMessage } from "ai";
 import type { StreamResponse, ProcessorType } from "@vibe/shared-types";
-import type { ReActStreamPart } from "../react/react-processor.js";
-import type { CoActStreamPart } from "../react/coact-processor.js";
-import type { ReactObservation } from "../react/types.js";
+import type { ReActStreamPart } from "../react/react-processor";
+import type { CoActStreamPart } from "../react/coact-processor";
+import type { ReactObservation } from "../react/types";
 import type { ExtractedPage } from "@vibe/shared-types";
 
 export type CombinedStreamPart = ReActStreamPart | CoActStreamPart;

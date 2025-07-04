@@ -1,12 +1,12 @@
 import React from "react";
 
-interface StatusIndicatorProps {
+interface StatusPillProps {
   status: "loading" | "connected" | "disconnected";
   title: string;
   show: boolean;
 }
 
-export const StatusIndicator: React.FC<StatusIndicatorProps> = ({
+export const StatusPill: React.FC<StatusPillProps> = ({
   status,
   title,
   show,
