@@ -4,18 +4,34 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g., v0.1.4)'
+        required: true
+        type: string
 
 jobs:
   build:
     runs-on: macos-latest
 
     steps:
+      - name: Determine tag
+        id: get_tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          fi
+          
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
           token: ${{ secrets.RELEASE_PAT || github.token }}
           persist-credentials: false
+          ref: ${{ steps.get_tag.outputs.tag }}
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -52,16 +68,16 @@ jobs:
           sleep 10
 
           # Get the release ID
-          RELEASE_ID=$(gh api repos/${{ github.repository }}/releases --jq '.[] | select(.tag_name == "${{ github.ref_name }}" and .draft == true) | .id' | head -1)
+          RELEASE_ID=$(gh api repos/${{ github.repository }}/releases --jq '.[] | select(.tag_name == "${{ steps.get_tag.outputs.tag }}" and .draft == true) | .id' | head -1)
 
           if [ -z "$RELEASE_ID" ]; then
-            echo "No draft release found for ${{ github.ref_name }}"
+            echo "No draft release found for ${{ steps.get_tag.outputs.tag }}"
             exit 1
           fi
 
           echo "Found draft release ID: $RELEASE_ID"
 
-          PREVIOUS_TAG=$(git describe --tags --abbrev=0 ${{ github.ref_name }}^ 2>/dev/null || echo "")
+          PREVIOUS_TAG=$(git describe --tags --abbrev=0 ${{ steps.get_tag.outputs.tag }}^ 2>/dev/null || echo "")
 
           if [ -z "$PREVIOUS_TAG" ]; then
             PREVIOUS_TAG=$(git rev-list --max-parents=0 HEAD)
@@ -72,7 +88,7 @@ jobs:
             --method POST \
             -H "Accept: application/vnd.github+json" \
             /repos/${{ github.repository }}/releases/generate-notes \
-            -f tag_name="${{ github.ref_name }}" \
+            -f tag_name="${{ steps.get_tag.outputs.tag }}" \
             -f target_commitish="main" \
             -f previous_tag_name="$PREVIOUS_TAG" \
             --jq '.body')
@@ -97,7 +113,7 @@ jobs:
             -H "Content-Type: application/json" \
             -d "{
               \"embeds\": [{
-                \"title\": \"Release ${{ github.ref_name }}\",
+                \"title\": \"Release ${{ steps.get_tag.outputs.tag }}\",
                 \"description\": \"Build status: $STATUS\",
                 \"color\": $COLOR,
                 \"url\": \"https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\"
