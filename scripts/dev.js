@@ -95,13 +95,17 @@ async function cleanup() {
 }
 
 // Handle various exit signals
-process.on("SIGINT", () => cleanup());
-process.on("SIGTERM", () => cleanup());
+const handleSignal = () => {
+  cleanup().catch(console.error);
+};
+
+process.on("SIGINT", handleSignal);
+process.on("SIGTERM", handleSignal);
 
 // Handle uncaught exceptions
 process.on("uncaughtException", err => {
   console.error("Uncaught exception:", err);
-  cleanup();
+  cleanup().catch(console.error);
 });
 
 /**

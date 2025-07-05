@@ -34,6 +34,11 @@ export class AgentService extends EventEmitter implements IAgentService {
   private isInitializing: boolean = false;
   private apiKeyUpdateDebounceTimer: NodeJS.Timeout | null = null;
 
+  // Event listener handlers for proper cleanup
+  private profileSwitchedHandler?: () => void;
+  private apiKeySetHandler?: (data: any) => void;
+  private apiKeyRemovedHandler?: (data: any) => void;
+
   constructor() {
     super();
   }
@@ -324,9 +329,24 @@ export class AgentService extends EventEmitter implements IAgentService {
       // Also remove profile service listeners
       try {
         const profileService = await getProfileService();
-        profileService.removeAllListeners("profile-switched");
-        profileService.removeAllListeners("api-key-set");
-        profileService.removeAllListeners("api-key-removed");
+        if (this.profileSwitchedHandler) {
+          profileService.removeListener(
+            "profile-switched",
+            this.profileSwitchedHandler,
+          );
+          this.profileSwitchedHandler = undefined;
+        }
+        if (this.apiKeySetHandler) {
+          profileService.removeListener("api-key-set", this.apiKeySetHandler);
+          this.apiKeySetHandler = undefined;
+        }
+        if (this.apiKeyRemovedHandler) {
+          profileService.removeListener(
+            "api-key-removed",
+            this.apiKeyRemovedHandler,
+          );
+          this.apiKeyRemovedHandler = undefined;
+        }
       } catch (error) {
         logger.debug("Failed to remove profile service listeners:", error);
       }
@@ -618,18 +638,20 @@ export class AgentService extends EventEmitter implements IAgentService {
 
     // Listen for changes
     // Initial key check removed - agent already receives key during initialization
-    profileService.on("profile-switched", () => {
+    this.profileSwitchedHandler = () => {
       debouncedUpdateApiKey();
-    });
+    };
+    profileService.on("profile-switched", this.profileSwitchedHandler);
 
-    profileService.on("api-key-set", data => {
+    this.apiKeySetHandler = data => {
       if (data.keyType === "openai") {
         logger.info("🔑 OpenAI API key was set in profile, updating agent...");
         debouncedUpdateApiKey();
       }
-    });
+    };
+    profileService.on("api-key-set", this.apiKeySetHandler);
 
-    profileService.on("api-key-removed", data => {
+    this.apiKeyRemovedHandler = data => {
       if (data.keyType === "openai") {
         logger.info(
           "🔑 OpenAI API key was removed from profile, clearing agent...",
@@ -639,7 +661,8 @@ export class AgentService extends EventEmitter implements IAgentService {
           logger.warn("API key removal handling failed:", error);
         });
       }
-    });
+    };
+    profileService.on("api-key-removed", this.apiKeyRemovedHandler);
   }
 
   /**
