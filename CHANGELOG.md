@@ -1,16 +1,30 @@
 
+<a name="v0.1.4"></a>
+## [v0.1.4] - 2025-07-05
+### Fix
+- agent loading spinner shows correct status
+
+### Pull Requests
+- Merge pull request [#53](https://github.com/co-browser/vibe/issues/53) from co-browser/maceip-patch-1
+- Merge pull request [#52](https://github.com/co-browser/vibe/issues/52) from co-browser/fix/agent-loading-spinner
+
+
 <a name="v0.1.3"></a>
 ## [v0.1.3] - 2025-07-03
 ### Chore
 - simplify Docker release workflow by removing push trigger and unnecessary whitespace
 - simplify Docker release workflow by removing Node.js setup and build steps
 - enhance Docker release workflow and add simple Dockerfile
+- **release:** remove main branch from push triggers in release workflow
+- **release:** update release workflow
+- **release:** v0.1.3
 
 ### Feat
 - add persistent desktop store with Touch ID  authentication
 - add persistent desktop store with Touch ID  authentication
 
 ### Fix
+- add persist-credentials false to checkout step
 - stop audio playback when closing tabs
 - enhance desktop store security
 - update Dockerfile to include legacy flag for deployment
@@ -204,6 +218,7 @@
 <a name="v0.0.0"></a>
 ## v0.0.0 - 2025-06-13
 
+[v0.1.4]: https://github.com/co-browser/vibe/compare/v0.1.3...v0.1.4
 [v0.1.3]: https://github.com/co-browser/vibe/compare/v0.1.2...v0.1.3
 [v0.1.2]: https://github.com/co-browser/vibe/compare/v0.1.1...v0.1.2
 [v0.1.1]: https://github.com/co-browser/vibe/compare/v0.1.0...v0.1.1
