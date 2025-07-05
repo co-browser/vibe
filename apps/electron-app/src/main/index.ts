@@ -6,7 +6,6 @@ import {
   app,
   BrowserWindow,
   dialog,
-  shell,
   powerMonitor,
   powerSaveBlocker,
 } from "electron";
@@ -645,7 +644,11 @@ app.on("before-quit", async _event => {
 // Platform-specific handling
 app.on("web-contents-created", (_event, contents) => {
   contents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url);
+    console.log("web-contents-created", url);
+    const appWindow = browser?.getMainApplicationWindow();
+    if (appWindow) {
+      appWindow.tabManager.createTab(url);
+    }
     return { action: "deny" };
   });
 });
