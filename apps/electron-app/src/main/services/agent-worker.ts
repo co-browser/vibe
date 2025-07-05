@@ -5,6 +5,7 @@
 
 import { EventEmitter } from "events";
 import { utilityProcess, type UtilityProcess } from "electron";
+import { setupProcessStorageHandler } from "../ipc/user/settings/process-storage-handler";
 import path from "path";
 import fs from "fs";
 import { createLogger } from "@vibe/shared-types";
@@ -111,6 +112,15 @@ export class AgentWorker extends EventEmitter {
       // Add debugging for message structure (only for non-ping messages)
       if (type !== "ping") {
         logger.debug("Sending message to worker:", type, "ID:", messageId);
+        if (type === "update-openai-api-key") {
+          logger.debug("🔑 Detailed message structure for API key update:", {
+            id: messageId,
+            type: type,
+            hasData: !!data,
+            dataKeys: data ? Object.keys(data) : [],
+            hasApiKey: data && !!data.apiKey,
+          });
+        }
       }
 
       this.workerProcess!.postMessage(message);
@@ -239,6 +249,9 @@ export class AgentWorker extends EventEmitter {
       serviceName: "agent-worker",
       env: cleanEnv,
     });
+
+    // Set up settings access for the utility process
+    setupProcessStorageHandler(this.workerProcess);
 
     // Capture stdout and stderr to see actual errors from utility process
     if (this.workerProcess.stdout) {

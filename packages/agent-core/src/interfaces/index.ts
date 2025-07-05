@@ -1,11 +1,10 @@
 import type { CoreMessage } from "ai";
-import type { StreamResponse } from "@vibe/shared-types";
+import type { StreamResponse, ProcessorType } from "@vibe/shared-types";
 import type { ReActStreamPart } from "../react/react-processor.js";
 import type { CoActStreamPart } from "../react/coact-processor.js";
 import type { ReactObservation } from "../react/types.js";
 import type { ExtractedPage } from "@vibe/shared-types";
 
-export type ProcessorType = "react" | "coact";
 export type CombinedStreamPart = ReActStreamPart | CoActStreamPart;
 
 export interface IToolManager {
@@ -27,6 +26,16 @@ export interface IStreamProcessor {
 }
 
 export interface IAgentConfig {
-  model?: string;
+  openaiApiKey?: string;
+  model: string;
+  temperature?: number;
+  maxTokensPerTab?: number;
   processorType?: ProcessorType;
+  systemPrompt?: string;
+  conversationHistory?: [string, string][];
+  authToken?: string;
+  mcp?: {
+    enabled: boolean;
+    url: string;
+  };
 }

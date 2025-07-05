@@ -25,14 +25,11 @@ import { setMCPServiceInstance } from "@/ipc/mcp/mcp-status";
 import { setAgentServiceInstance as setAgentStatusInstance } from "@/ipc/chat/agent-status";
 import { setAgentServiceInstance as setChatMessagingInstance } from "@/ipc/chat/chat-messaging";
 import { setAgentServiceInstance as setTabAgentInstance } from "@/utils/tab-agent";
-import {
-  initializeStore,
-  registerExitHandler,
-  isFirstLaunch,
-  handleStoreEncryption,
-} from "@/store/desktop-store";
+import { initializeStorage } from "@/store/initialize-storage";
+import { getStorageService } from "@/store/storage-service";
 import { createLogger, MAIN_PROCESS_CONFIG } from "@vibe/shared-types";
 import { findFileUpwards } from "@vibe/shared-types/utils/path";
+
 import {
   init,
   browserWindowSessionIntegration,
@@ -87,6 +84,7 @@ let mcpService: MCPService | null = null;
 
 // Track shutdown state
 let isShuttingDown = false;
+let browserDestroyed = false;
 
 // Cleanup functions
 let unsubscribeVibe: (() => void) | null = null;
@@ -176,13 +174,8 @@ async function gracefulShutdown(signal: string): Promise<void> {
   logger.info(`Graceful shutdown triggered by: ${signal}`);
 
   try {
-    // Encrypt desktop store before shutting down
-    try {
-      await handleStoreEncryption();
-      logger.info("Desktop store encrypted successfully during shutdown");
-    } catch (error) {
-      logger.error("Failed to encrypt desktop store during shutdown:", error);
-    }
+    // No need to encrypt on shutdown - new storage encrypts on write
+    logger.info("Shutting down - storage automatically encrypted");
 
     // Clean up resources
     if (memoryMonitor) {
@@ -224,8 +217,10 @@ async function gracefulShutdown(signal: string): Promise<void> {
     }
 
     // Destroy browser instance (will clean up its own menu)
-    if (browser) {
+    if (browser && !browserDestroyed) {
+      browserDestroyed = true;
       await browser.destroy();
+      browser = null;
     }
 
     // Close all windows
@@ -397,9 +392,17 @@ function initializeApp(): boolean {
     memoryMonitor.setBrowserInstance(browser);
   }
 
-  app.on("will-quit", _event => {
+  app.on("will-quit", event => {
+    // If we're not already shutting down, prevent quit and use graceful shutdown
+    if (!isShuttingDown) {
+      event.preventDefault();
+      gracefulShutdown("will-quit");
+      return;
+    }
+
     // Force close any remaining resources
-    if (browser) {
+    if (browser && !browserDestroyed) {
+      browserDestroyed = true;
       browser = null;
     }
 
@@ -459,73 +462,122 @@ async function initializeServices(): Promise<void> {
       // MCP service failed to initialize - this may impact functionality
       logger.warn("Application will continue without MCP service");
     }
+    // Wait for MCP service to be ready before initializing agent
+    if (mcpService) {
+      const mcpStatus = mcpService.getStatus();
+      if (mcpStatus.serviceStatus !== "ready") {
+        logger.info(
+          "Waiting for MCP service to be ready before initializing agent...",
+        );
+        await Promise.race([
+          new Promise<void>(resolve => {
+            const checkReady = () => {
+              if (!mcpService) {
+                resolve();
+                return;
+              }
+              const status = mcpService.getStatus();
+              if (status.serviceStatus === "ready") {
+                resolve();
+              }
+            };
 
-    if (process.env.OPENAI_API_KEY) {
-      // Initialize agent service after MCP is ready
-      await new Promise(resolve => {
-        setTimeout(async () => {
-          try {
-            logger.info(
-              "Initializing AgentService with utility process isolation",
-            );
+            // Check immediately in case it's already ready
+            checkReady();
 
-            // Create AgentService instance
-            agentService = new AgentService();
-
-            // Set up error handling for agent service
-            agentService.on("error", error => {
-              logger.error("AgentService error:", error);
-            });
-
-            agentService.on("terminated", data => {
-              logger.info("AgentService terminated:", data);
-            });
-
-            agentService.on("ready", data => {
-              logger.info("AgentService ready:", data);
-              // Broadcast agent ready status to all windows
-              browser?.getAllWindows().forEach(window => {
-                if (!window.isDestroyed()) {
-                  window.webContents.send("agent:status-changed", true);
-                }
+            // If not ready, wait for ready event
+            if (
+              mcpService &&
+              mcpService.getStatus().serviceStatus !== "ready"
+            ) {
+              mcpService.once("ready", () => {
+                logger.info("MCP service is now ready");
+                resolve();
               });
-            });
 
-            // Get auth token if available
-            const authToken = (global as any).privyAuthToken ?? null;
-
-            // Initialize with configuration
-            await agentService.initialize({
-              openaiApiKey: process.env.OPENAI_API_KEY!,
-              model: "gpt-4o-mini",
-              processorType: "react",
-              authToken: authToken,
-            });
-
-            // Inject agent service into IPC handlers
-            setAgentStatusInstance(agentService);
-            setChatMessagingInstance(agentService);
-            setTabAgentInstance(agentService);
-
-            logger.info(
-              "AgentService initialized successfully with utility process isolation",
-            );
-            resolve(void 0);
-          } catch (error) {
-            logger.error(
-              "AgentService initialization failed:",
-              error instanceof Error ? error.message : String(error),
-            );
-
-            // Log agent initialization failure
-            logger.error("Agent initialization failed:", error);
-
-            resolve(void 0); // Don't fail the whole startup process
-          }
-        }, 500);
-      });
+              // Also listen for error event to avoid hanging forever
+              mcpService.once("error", error => {
+                logger.warn("MCP service failed to initialize:", error);
+                resolve(); // Continue anyway
+              });
+            }
+          }),
+          new Promise<void>(resolve => {
+            setTimeout(() => {
+              logger.warn(
+                "MCP service readiness timeout after 30s, continuing anyway",
+              );
+              resolve();
+            }, 30000);
+          }),
+        ]);
+      }
     } else {
-      logger.warn("OPENAI_API_KEY not found, skipping service initialization");
+      logger.info(
+        "No MCP service available, proceeding with agent initialization",
+      );
+    }
+
+    // Now initialize agent service
+    try {
+      logger.info("Initializing AgentService with utility process isolation");
+
+      // Create AgentService instance
+      agentService = new AgentService();
+
+      // Set up error handling for agent service
+      agentService.on("error", error => {
+        logger.error("AgentService error:", error);
+      });
+
+      agentService.on("terminated", data => {
+        logger.info("AgentService terminated:", data);
+      });
+
+      agentService.on("ready", data => {
+        logger.info("AgentService ready:", data);
+      });
+
+      agentService.on("status-changed", () => {
+        logger.info("AgentService status changed, broadcasting to renderers");
+        // Broadcast to all windows
+        const allWindows = browser?.getAllWindows() || [];
+        allWindows.forEach(browserWindow => {
+          if (browserWindow && !browserWindow.isDestroyed()) {
+            browserWindow.webContents.send("agent:status-changed");
+          }
+        });
+      });
+
+      // Get auth token from proper storage mechanism
+      const { getAuthToken } = await import("./ipc/app/app-info.js");
+      const authToken = getAuthToken();
+
+      // Initialize with configuration
+      await agentService.initialize({
+        openaiApiKey: process.env.OPENAI_API_KEY, // Allow undefined - agent service will check storage
+        model: "gpt-4o-mini",
+        processorType: "react",
+        authToken: authToken ?? undefined,
+      });
+
+      // Inject agent service into IPC handlers
+      setAgentStatusInstance(agentService);
+      setChatMessagingInstance(agentService);
+      setTabAgentInstance(agentService);
+
+      logger.info(
+        "AgentService initialized successfully with utility process isolation",
+      );
+    } catch (error) {
+      logger.error(
+        "AgentService initialization failed:",
+        error instanceof Error ? error.message : String(error),
+      );
+
+      // Log agent initialization failure
+      logger.error("Agent initialization failed:", error);
+      // Don't fail the whole startup process - app can work without agent
     }
   } catch (error) {
     logger.error(
@@ -542,21 +594,21 @@ async function initializeServices(): Promise<void> {
 
 // Main application initialization
 app.whenReady().then(async () => {
-  // Initialize desktop store first
+  // Initialize storage first
   try {
-    await initializeStore();
-    registerExitHandler();
+    await initializeStorage();
 
-    // On first launch, store initialization is deferred until after onboarding
-    if (isFirstLaunch()) {
-      logger.info(
-        "First launch detected - store initialization deferred until after onboarding",
-      );
+    // Check if this is first launch
+    const storage = getStorageService();
+    const firstLaunchComplete = storage.get("_firstLaunchComplete", false);
+
+    if (!firstLaunchComplete) {
+      logger.info("First launch detected - waiting for onboarding completion");
     } else {
-      logger.info("Desktop store initialized successfully");
+      logger.info("Storage initialized successfully");
     }
   } catch (error) {
-    logger.error("Failed to initialize desktop store:", error);
+    logger.error("Failed to initialize storage:", error);
   }
 
   // Register the custom protocol handler for secure context
@@ -576,7 +628,8 @@ app.whenReady().then(async () => {
 
   const initialized = initializeApp();
   if (!initialized) {
-    app.quit();
+    // Use gracefulShutdown instead of app.quit()
+    gracefulShutdown("initialization-failed");
     return;
   }
 
@@ -629,7 +682,8 @@ app.whenReady().then(async () => {
 // App lifecycle events
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
-    app.quit();
+    // Use gracefulShutdown instead of app.quit()
+    gracefulShutdown("window-all-closed");
   }
 });
 
@@ -640,18 +694,14 @@ app.on("activate", () => {
 });
 
 app.on("before-quit", async event => {
-  // Prevent default to handle encryption
-  if (!isShuttingDown) {
+  // Prevent default quit behavior if already shutting down
+  if (isShuttingDown) {
     event.preventDefault();
-
-    // Encrypt desktop store
-    try {
-      await handleStoreEncryption();
-      logger.info("Desktop store encrypted successfully");
-    } catch (error) {
-      logger.error("Failed to encrypt desktop store:", error);
-    }
+    return;
   }
+
+  // No longer need to prevent default for encryption
+  // Storage automatically encrypts on write
 
   // Track app shutdown
   try {
@@ -695,14 +745,11 @@ app.on("before-quit", async event => {
     logger.error("Error during shutdown logging:", error);
   }
 
-  // Continue with quit if not already shutting down
-  if (!isShuttingDown) {
-    app.quit();
-  }
-
   // Clean up browser resources
-  if (browser && !browser.isDestroyed()) {
-    await browser.destroy();
+  if (browser && !browserDestroyed && !browser.isDestroyed()) {
+    browserDestroyed = true;
+    browser.destroy();
+    browser = null;
   }
 
   // Clean up memory monitor

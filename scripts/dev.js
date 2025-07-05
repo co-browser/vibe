@@ -14,13 +14,51 @@ process.env.ELECTRON_DISABLE_STACK_TRACES = "true";
 
 let turboProcess;
 const childProcesses = [];
+let isCleaningUp = false;
+
+/**
+ * Check if a port is in use
+ */
+async function isPortInUse(port) {
+  try {
+    execSync(`lsof -ti:${port}`, { stdio: 'pipe' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Kill processes using a specific port
+ */
+async function killPort(port) {
+  try {
+    const pids = execSync(`lsof -ti:${port}`, { encoding: 'utf8' }).trim().split('\n');
+    for (const pid of pids) {
+      if (pid) {
+        try {
+          process.kill(parseInt(pid), 'SIGKILL');
+          console.log(`  Killed process ${pid} on port ${port}`);
+        } catch {
+          // Process might already be dead
+        }
+      }
+    }
+  } catch {
+    // No processes found on port
+  }
+}
 
 /**
  * Terminates all spawned child processes and the turbo process, then exits the current process.
  *
  * Ensures that any running development environment processes are properly cleaned up on exit or interruption.
  */
-function cleanup() {
+async function cleanup() {
+  // Prevent multiple cleanup calls
+  if (isCleaningUp) return;
+  isCleaningUp = true;
+
   console.log("\n🧹 Cleaning up processes...");
 
   // Kill all child processes
@@ -43,19 +81,31 @@ function cleanup() {
     }
   }
 
+  // Wait a bit for graceful shutdown
+  await new Promise(resolve => setTimeout(resolve, 1000));
+
+  // Check if port 3001 is still in use (MCP Gmail server)
+  if (await isPortInUse(3001)) {
+    console.log("🔍 Port 3001 still in use, forcing cleanup...");
+    await killPort(3001);
+  }
+
   console.log("✅ Cleanup complete");
   process.exit(0);
 }
 
 // Handle various exit signals
-process.on("SIGINT", cleanup);
-process.on("SIGTERM", cleanup);
-process.on("exit", cleanup);
+const handleSignal = () => {
+  cleanup().catch(console.error);
+};
+
+process.on("SIGINT", handleSignal);
+process.on("SIGTERM", handleSignal);
 
 // Handle uncaught exceptions
 process.on("uncaughtException", err => {
   console.error("Uncaught exception:", err);
-  cleanup();
+  cleanup().catch(console.error);
 });
 
 /**
@@ -64,6 +114,14 @@ process.on("uncaughtException", err => {
 
 async function main() {
   try {
+    // Check if port 3001 is already in use
+    if (await isPortInUse(3001)) {
+      console.log("⚠️  Port 3001 is already in use (MCP Gmail server)");
+      console.log("🔧 Cleaning up stale processes...");
+      await killPort(3001);
+      console.log("✅ Port 3001 freed\n");
+    }
+
     // Build dependencies first
     console.log("📦 Building required dependencies...\n");
 

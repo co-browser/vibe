@@ -302,12 +302,18 @@
   max-height: 120px;
 }
 
-.user-message-content {
+.user-message-content-wrapper {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   padding: 8px 12px;
   gap: 8px;
   min-height: 40px;
+}
+
+.user-message-content {
+  flex: 1;
+  display: flex;
+  align-items: center;
 }
 
 .user-message-text {
@@ -424,6 +430,15 @@
 
 .chat-input-container .chat-input-field::placeholder {
   color: #999;
+}
+
+.chat-input-container .chat-input-field:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.chat-input-container .chat-input-field:disabled::placeholder {
+  color: var(--text-disabled);
 }
 
 .chat-input-container .chat-action-button {
@@ -703,6 +718,12 @@
 
 .animate-spin {
   animation: spin 1s linear infinite;
+}
+
+/* OpenAI icon style - kept for IconWithStatus component */
+.openai-icon {
+  width: 12px;
+  height: 12px;
 }
 
 /* Pulsating animations */

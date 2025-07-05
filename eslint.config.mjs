@@ -8,13 +8,13 @@ import eslintConfigPrettier from 'eslint-config-prettier';
 export default tseslint.config(
   {
     ignores: [
-      "**/node_modules",
-      "**/dist",
-      "**/build",
-      "**/out",
-      "**/.turbo",
-      "**/.eslintcache",
-      "**/coverage",
+      "**/node_modules/**",
+      "**/dist/**",
+      "**/build/**",
+      "**/out/**",
+      "**/.turbo/**",
+      "**/.eslintcache/**",
+      "**/coverage/**",
       "**/*.min.js",
       "**/*.min.css",
       "**/.git/**",

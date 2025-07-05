@@ -9,15 +9,68 @@ const logger = createLogger("AgentFactory");
 
 // New AgentFactory class
 export class AgentFactory {
-  static create(config: AgentConfig): Agent {
+  /**
+   * Wait for MCP servers to be ready with timeout
+   * @param mcpManager The MCP manager instance
+   * @param serverConfigs The server configurations to check
+   * @param timeoutMs Maximum time to wait for servers to be ready
+   * @returns Promise that resolves when servers are ready or timeout is reached
+   */
+  private static async waitForMCPServersReady(
+    mcpManager: MCPManager,
+    serverConfigs: Array<{ name: string }>,
+    timeoutMs: number = 10000,
+  ): Promise<void> {
+    const startTime = Date.now();
+    const checkInterval = 500; // Check every 500ms
+
+    while (Date.now() - startTime < timeoutMs) {
+      try {
+        // Check server status
+        const status = mcpManager.getStatus();
+        const connectedServers = Object.entries(status)
+          .filter(([_, serverStatus]) => serverStatus.connected)
+          .map(([name]) => name);
+
+        // Check if all configured servers (except optional RAG) are connected
+        const requiredServers = serverConfigs.filter(
+          config => config.name !== "rag",
+        );
+        const allRequiredConnected = requiredServers.every(config =>
+          connectedServers.includes(config.name),
+        );
+
+        if (allRequiredConnected) {
+          logger.debug(`MCP servers ready: ${connectedServers.join(", ")}`);
+          return;
+        }
+
+        // Log progress
+        logger.debug(
+          `Waiting for MCP servers... Connected: ${connectedServers.length}/${requiredServers.length} ` +
+            `(${connectedServers.join(", ")})`,
+        );
+      } catch (error) {
+        logger.debug("Error checking server readiness:", error);
+      }
+
+      // Wait before next check
+      await new Promise(resolve => setTimeout(resolve, checkInterval));
+    }
+
+    logger.warn(`MCP servers readiness check timed out after ${timeoutMs}ms`);
+  }
+  static async create(config: AgentConfig): Promise<Agent> {
     // Create MCP manager for multiple server connections
     const mcpManager = new MCPManager();
 
     // Store auth token for later use
     if (config.authToken) {
-      mcpManager.updateAuthToken(config.authToken).catch((error: Error) => {
+      try {
+        await mcpManager.updateAuthToken(config.authToken);
+      } catch (error) {
         logger.error("Failed to update auth token:", error);
-      });
+      }
     }
 
     // Initialize MCP connections in background if environment variables are available
@@ -42,13 +95,20 @@ export class AgentFactory {
       );
 
       if (serverConfigs.length > 0) {
-        mcpManager.initialize(serverConfigs).catch((error: Error) => {
-          logger.error("MCP manager initialization failed:", error);
-        });
+        try {
+          // Initialize MCP connections
+          await mcpManager.initialize(serverConfigs);
 
-        logger.debug(
-          `Agent created with ${serverConfigs.length} MCP servers: ${serverConfigs.map(s => s.name).join(", ")}`,
-        );
+          // Wait for MCP servers to be ready with proper timeout
+          await this.waitForMCPServersReady(mcpManager, serverConfigs, 10000);
+
+          logger.debug(
+            `Agent created with ${serverConfigs.length} MCP servers: ${serverConfigs.map(s => s.name).join(", ")}`,
+          );
+        } catch (error) {
+          logger.error("MCP manager initialization failed:", error);
+          // Continue even if MCP initialization fails - agent can still work without tools
+        }
       } else {
         logger.warn("No MCP server configurations available");
       }
@@ -62,7 +122,13 @@ export class AgentFactory {
     const toolManager = new ToolManager(mcpManager);
     const streamProcessor = new StreamProcessor();
 
+    // Ensure model is always provided
+    const agentConfig = {
+      ...config,
+      model: config.model || "gpt-4o-mini",
+    };
+
     // Create and return configured Agent with multi-MCP implementation
-    return new Agent(toolManager, streamProcessor, config, mcpManager);
+    return new Agent(toolManager, streamProcessor, agentConfig, mcpManager);
   }
 }

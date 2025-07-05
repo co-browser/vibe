@@ -1,5 +1,5 @@
 import { ipcMain } from "electron";
-import { completeStoreInitialization } from "@/store/desktop-store";
+import { getStorageService } from "@/store/storage-service";
 import { createLogger } from "@vibe/shared-types";
 
 const logger = createLogger("onboarding");
@@ -10,9 +10,12 @@ const logger = createLogger("onboarding");
  */
 ipcMain.handle("onboarding:complete-first-step", async () => {
   try {
-    logger.info("Completing first onboarding step, initializing store");
-    const result = await completeStoreInitialization();
-    return { success: result };
+    logger.info("Completing first onboarding step");
+    // Storage is auto-initialized, just mark as no longer first launch
+    const storage = getStorageService();
+    storage.set("_initialized", true);
+    storage.set("_firstLaunchComplete", true);
+    return { success: true };
   } catch (error) {
     logger.error("Failed to complete onboarding step:", error);
     const errorMessage = error instanceof Error ? error.message : String(error);

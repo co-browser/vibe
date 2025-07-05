@@ -5,6 +5,7 @@
 
 import { EventEmitter } from "events";
 import { utilityProcess, type UtilityProcess } from "electron";
+import { setupProcessStorageHandler } from "../ipc/user/settings/process-storage-handler";
 import path from "path";
 import fs from "fs";
 import { createLogger } from "@vibe/shared-types";
@@ -43,8 +44,33 @@ export class MCPWorker extends EventEmitter {
       this.isConnected = false;
       this.isRestarting = false;
 
-      this.workerProcess.kill();
-      this.workerProcess = null;
+      try {
+        // Send stop message to allow graceful shutdown of child processes
+        this.workerProcess.postMessage({ type: "stop" });
+
+        // Wait for the manager to clean up child processes
+        await new Promise<void>(resolve => {
+          const timeout = setTimeout(() => {
+            logger.warn(
+              "Worker process did not exit gracefully, force killing",
+            );
+            resolve();
+          }, 6000); // 6 seconds total (5s for child processes + 1s buffer)
+
+          this.workerProcess!.once("exit", () => {
+            clearTimeout(timeout);
+            resolve();
+          });
+        });
+      } catch (error) {
+        logger.error("Error during graceful shutdown:", error);
+      } finally {
+        // Ensure the process is killed
+        if (this.workerProcess) {
+          this.workerProcess.kill();
+        }
+        this.workerProcess = null;
+      }
     }
   }
 
@@ -115,6 +141,9 @@ export class MCPWorker extends EventEmitter {
       serviceName: "mcp-manager",
       env: cleanEnv,
     });
+
+    // Set up settings access for the utility process
+    setupProcessStorageHandler(this.workerProcess);
 
     // Capture stdout and stderr
     if (this.workerProcess.stdout) {

@@ -29,6 +29,8 @@ export class Agent {
 
   private async getProcessor(): Promise<ReActProcessor | CoActProcessor> {
     if (!this._processor) {
+      // Clear any stale tool cache before creating processor
+      this.toolManager.clearToolCache();
       this._processor = await ProcessorFactory.create(
         this.config,
         this.toolManager,
@@ -105,9 +107,21 @@ export class Agent {
       // Update auth token and manage RAG connections dynamically
       await this.mcpManager.updateAuthToken(authToken);
       logger.info("MCP connections updated with new auth token");
+
+      // Clear tool cache and recreate processor to include new tools
+      this.toolManager.clearToolCache();
+      this._processor = await ProcessorFactory.create(
+        this.config,
+        this.toolManager,
+      );
+      logger.info("Processor recreated with updated MCP connections");
     } catch (error) {
       logger.error("Failed to update MCP connections:", error);
       throw error;
     }
   }
+
+  // Note: updateOpenAIApiKey method has been removed.
+  // When the OpenAI API key changes, the entire agent is restarted
+  // to ensure clean MCP connections. See agent-process.ts handleUpdateOpenAIApiKey.
 }

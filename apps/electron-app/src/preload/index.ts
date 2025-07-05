@@ -104,9 +104,10 @@ const appAPI: VibeAppAPI = {
     clearAuth: () => ipcRenderer.invoke("gmail-clear-auth"),
   },
   apiKeys: {
-    get: (keyName: string) => ipcRenderer.invoke("get-api-key", keyName),
+    get: (keyName: string) =>
+      ipcRenderer.invoke("profile:get-api-key", keyName),
     set: (keyName: string, value: string) =>
-      ipcRenderer.invoke("set-api-key", keyName, value),
+      ipcRenderer.invoke("profile:set-api-key", keyName, value),
   },
   setAuthToken: async (token: string | null) => {
     return ipcRenderer.invoke("app:set-auth-token", token);
@@ -504,6 +505,19 @@ const chatAPI: VibeChatAPI = {
     return ipcRenderer.invoke("chat:get-agent-status");
   },
   initializeAgent: async (apiKey?: string) => {
+    // If apiKey provided, save it first
+    if (apiKey) {
+      await ipcRenderer.invoke("profile:set-api-key", "openai", apiKey);
+    }
+
+    // Try to create agent service if it doesn't exist
+    try {
+      await ipcRenderer.invoke("chat:create-agent-service");
+    } catch (error) {
+      // Service might already exist or key might be missing
+      logger.debug("Agent service creation:", error);
+    }
+
     return ipcRenderer.invoke("chat:initialize-agent", apiKey);
   },
 
@@ -541,6 +555,18 @@ const settingsAPI: VibeSettingsAPI = {
   },
   getAll: async () => {
     return ipcRenderer.invoke("settings:get-all");
+  },
+  getAllUnmasked: async () => {
+    return ipcRenderer.invoke("settings:get-all-unmasked");
+  },
+  getOrSet: async (key: string, defaultValue: any) => {
+    return ipcRenderer.invoke("settings:get-or-set", key, defaultValue);
+  },
+  watch: async (keys: string[]) => {
+    return ipcRenderer.invoke("settings:watch", keys);
+  },
+  unwatch: async (keys: string[]) => {
+    return ipcRenderer.invoke("settings:unwatch", keys);
   },
   reset: async () => {
     return ipcRenderer.invoke("settings:reset");
@@ -663,9 +689,8 @@ const additionalAPIs = {
 
   // API Keys
   apiKeys: {
-    get: (keyName: string) => ipcRenderer.invoke("get-api-key", keyName),
-    set: (keyName: string, value: string) =>
-      ipcRenderer.invoke("set-api-key", keyName, value),
+    get: appAPI.apiKeys.get,
+    set: appAPI.apiKeys.set,
   },
 
   // Legacy API bridge - deprecated, use window.vibe.chat instead

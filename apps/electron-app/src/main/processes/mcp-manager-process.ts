@@ -31,6 +31,7 @@ class MCPManager {
   private servers: Map<string, MCPServer> = new Map();
   private restartAttempts: Map<string, number> = new Map();
   private readonly maxRestartAttempts = 3;
+  private isShuttingDown = false;
 
   constructor() {
     this.initialize();
@@ -54,9 +55,18 @@ class MCPManager {
       const serverConfigs = getAllMCPServerConfigs(envVars);
       logger.info(`Found ${serverConfigs.length} server configurations`);
 
-      for (const config of serverConfigs) {
-        await this.startMCPServer(config);
-      }
+      // Start all servers and wait for them to be ready
+      const startPromises = serverConfigs.map(config =>
+        this.startMCPServer(config),
+      );
+      await Promise.all(startPromises);
+
+      // Verify all servers are ready
+      const readyServers = Array.from(this.servers.values()).filter(
+        server => server.status === "ready",
+      ).length;
+
+      logger.info(`${readyServers}/${serverConfigs.length} servers are ready`);
 
       // Signal ready to parent process
       if (process.parentPort) {
@@ -265,8 +275,8 @@ class MCPManager {
       this.servers.delete(config.name);
       this.notifyServerStatus(config.name, "stopped");
 
-      // Attempt restart if not a clean exit
-      if (code !== 0 && code !== null) {
+      // Attempt restart if not a clean exit and not shutting down
+      if (code !== 0 && code !== null && !this.isShuttingDown) {
         const attempts = this.restartAttempts.get(config.name) || 0;
         if (attempts >= this.maxRestartAttempts) {
           logger.error(
@@ -325,6 +335,10 @@ class MCPManager {
     const checkInterval = 500; // Check every 500ms
     let lastHealthCheck = 0;
 
+    // Give the server a moment to fully start before checking
+    // This helps avoid 404 errors when the server is still initializing routes
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
     while (server.status === "starting" && Date.now() - startTime < timeout) {
       const now = Date.now();
 
@@ -366,14 +380,37 @@ class MCPManager {
 
   async stopAllServers(): Promise<void> {
     logger.info("Stopping all MCP servers");
+    this.isShuttingDown = true;
+
+    const stopPromises: Promise<void>[] = [];
 
     for (const [name, server] of this.servers) {
       logger.info(`Stopping ${name} server`);
-      server.process.kill("SIGTERM");
+
+      // Create a promise that resolves when the process exits
+      const stopPromise = new Promise<void>(resolve => {
+        const timeout = setTimeout(() => {
+          logger.warn(`${name} server did not exit gracefully, force killing`);
+          server.process.kill("SIGKILL");
+          resolve();
+        }, 5000); // 5 second timeout for graceful shutdown
+
+        server.process.once("exit", () => {
+          clearTimeout(timeout);
+          logger.info(`${name} server exited`);
+          resolve();
+        });
+
+        // Send SIGTERM to initiate graceful shutdown
+        server.process.kill("SIGTERM");
+      });
+
+      stopPromises.push(stopPromise);
     }
 
     // Wait for all servers to stop
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await Promise.all(stopPromises);
+    logger.info("All MCP servers stopped");
   }
 }
 
@@ -388,7 +425,7 @@ process.parentPort?.on("message", async (message: any) => {
     case "stop":
       await manager.stopAllServers();
       process.exit(0);
-      break;
+    // eslint-disable-next-line no-fallthrough
     default:
       logger.warn("Unknown message type:", message.type);
   }

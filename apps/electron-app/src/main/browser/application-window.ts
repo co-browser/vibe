@@ -19,6 +19,7 @@ export class ApplicationWindow extends EventEmitter {
   public readonly window: BrowserWindow;
   public readonly tabManager: TabManager;
   public readonly viewManager: ViewManager;
+  private isDestroying = false;
 
   constructor(
     browser: any,
@@ -210,8 +211,9 @@ export class ApplicationWindow extends EventEmitter {
     }
   }
 
-  public async destroy(): Promise<void> {
-    if (this.window.isDestroyed()) return;
+  public destroy(): void {
+    if (this.window.isDestroyed() || this.isDestroying) return;
+    this.isDestroying = true;
 
     try {
       // Clean up TabManager (includes EventEmitter cleanup and intervals)
@@ -222,7 +224,7 @@ export class ApplicationWindow extends EventEmitter {
 
     try {
       // Clean up ViewManager
-      await this.viewManager.destroy();
+      this.viewManager.destroy();
     } catch (error) {
       logger.warn("Error destroying ViewManager:", error);
     }

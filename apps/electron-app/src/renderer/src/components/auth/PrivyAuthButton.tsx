@@ -180,7 +180,7 @@ export const PrivyAuthButton: React.FC = () => {
       title={getTooltipText()}
       onClick={handleClick}
       variant="privy"
-      label="Memory"
+      label="Sign in"
       className={authenticated ? "" : "disconnected"}
     >
       {isAuthenticating ? (

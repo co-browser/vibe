@@ -1,4 +1,4 @@
-import { openai } from "@ai-sdk/openai";
+import { createOpenAI } from "@ai-sdk/openai";
 import {
   ReActProcessor,
   CoActProcessor,
@@ -22,7 +22,21 @@ export class ProcessorFactory {
     const formattedTools = await toolManager.formatToolsForReact();
     const toolExecutor = toolManager.executeTools.bind(toolManager);
     const systemPrompt = formattedTools;
-    const model = openai(config.model || "gpt-4o-mini");
+
+    // Validate API key presence
+    const apiKey = config.openaiApiKey || process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      throw new Error(
+        "OpenAI API key is required but not provided in config or environment variables",
+      );
+    }
+
+    // Create OpenAI instance with validated API key
+    const openai = createOpenAI({
+      apiKey: apiKey,
+    });
+
+    const model = openai.chat(config.model || "gpt-4o-mini");
 
     const processor =
       processorType === "coact"

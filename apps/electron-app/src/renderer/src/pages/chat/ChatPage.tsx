@@ -36,7 +36,7 @@ export function ChatPage(): React.JSX.Element {
 
   // Pass streaming content setter to chat events
   useChatEvents(setMessages, setIsAiGenerating, setStreamingContent);
-  const { isAgentInitializing } = useAgentStatus();
+  const { isAgentInitializing, isDisabled } = useAgentStatus();
 
   useEffect(() => {
     // Track message updates for state management
@@ -51,26 +51,23 @@ export function ChatPage(): React.JSX.Element {
   const handleInputValueChange = (value: string): void => {
     handleInputChange({
       target: { value },
-    } as React.ChangeEvent<HTMLTextAreaElement>);
+    } as React.ChangeEvent<HTMLInputElement>);
   };
 
-  const handleActionChipClick = (prompt: string): void => {
-    sendMessageInput(prompt);
+  const handleActionChipClick = (action: string): void => {
+    handleInputValueChange(action);
+    // Slightly delay sending to allow UI to update
+    setTimeout(() => {
+      sendMessageInput(action);
+    }, 50);
   };
 
   const handleEditMessage = (messageId: string, newContent: string): void => {
+    if (!newContent.trim()) return;
+
+    // Find the original message
     const originalMessage = messages.find(msg => msg.id === messageId);
     if (!originalMessage) return;
-
-    const originalContent =
-      typeof originalMessage.content === "string"
-        ? originalMessage.content
-        : JSON.stringify(originalMessage.content);
-
-    // Check if content actually changed
-    if (originalContent.trim() === newContent.trim()) {
-      return; // No changes, don't do anything
-    }
 
     // Find the index of the edited message
     const messageIndex = messages.findIndex(msg => msg.id === messageId);
@@ -101,7 +98,10 @@ export function ChatPage(): React.JSX.Element {
     >
       <AgentStatusIndicator isInitializing={isAgentInitializing} />
 
-      <div className="chat-messages-container" style={{ flex: 1 }}>
+      <div
+        className="chat-messages-container"
+        style={{ flex: 1, position: "relative" }}
+      >
         {showWelcome ? (
           <ChatWelcome onActionClick={handleActionChipClick} />
         ) : (
@@ -109,7 +109,6 @@ export function ChatPage(): React.JSX.Element {
             groupedMessages={groupedMessages}
             isAiGenerating={isAiGenerating}
             streamingContent={{ currentReasoningText, hasLiveReasoning }}
-            tabContext={tabContext}
             onEditMessage={handleEditMessage}
           />
         )}
@@ -122,6 +121,14 @@ export function ChatPage(): React.JSX.Element {
           onSend={handleSend}
           onStop={stopGeneration}
           isSending={isSending}
+          disabled={(() => {
+            const disabled = isRestoreModeRef.current || isDisabled;
+            console.log("[ChatPage] Passing disabled to ChatInput:", disabled, {
+              isRestoreMode: isRestoreModeRef.current,
+              isDisabled,
+            });
+            return disabled;
+          })()}
           tabContext={tabContext}
         />
       </div>
