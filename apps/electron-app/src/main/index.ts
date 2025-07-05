@@ -6,7 +6,6 @@ import {
   app,
   BrowserWindow,
   dialog,
-  shell,
   powerMonitor,
   powerSaveBlocker,
   protocol,
@@ -772,7 +771,14 @@ app.on("before-quit", async event => {
 // Platform-specific handling
 app.on("web-contents-created", (_event, contents) => {
   contents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url);
+    const appWindow = browser?.getMainApplicationWindow();
+    if (appWindow) {
+      appWindow.tabManager.createTab(url);
+    } else {
+      logger.warn("No main application window available, cannot open URL", {
+        url,
+      });
+    }
     return { action: "deny" };
   });
 });
