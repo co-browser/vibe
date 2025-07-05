@@ -168,6 +168,24 @@ export class OverlayManager extends EventEmitter {
                     lastClickTime = now;
                     
                     const target = e.target;
+                    
+                    // Handle delete button clicks with improved targeting
+                    const deleteButton = target.closest('[data-delete-id]') || (target.dataset && target.dataset.deleteId ? target : null);
+                    if (deleteButton && deleteButton.dataset && deleteButton.dataset.deleteId) {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      console.log('Delete button clicked for ID:', deleteButton.dataset.deleteId);
+                      if (window.electronAPI && window.electronAPI.overlay) {
+                        // Immediately provide visual feedback
+                        deleteButton.style.color = '#ff4444';
+                        deleteButton.style.transform = 'scale(1.2)';
+                        
+                        window.electronAPI.overlay.send('omnibox:delete-history', deleteButton.dataset.deleteId);
+                      }
+                      return;
+                    }
+                    
+                    // Handle suggestion clicks
                     if (target && target.dataset && target.dataset.suggestionId) {
                       if (window.electronAPI && window.electronAPI.overlay) {
                         // Immediately provide visual feedback

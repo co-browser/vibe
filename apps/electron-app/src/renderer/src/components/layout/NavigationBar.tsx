@@ -21,6 +21,8 @@ import {
   LinkOutlined,
 } from "@ant-design/icons";
 import { useOmniboxOverlay } from "../../hooks/useOmniboxOverlay";
+import type { SuggestionMetadata } from "../../../../types/metadata";
+import { MetadataHelpers } from "../../../../types/metadata";
 import "../styles/NavigationBar.css";
 
 interface Suggestion {
@@ -38,7 +40,7 @@ interface Suggestion {
   icon: React.ReactNode;
   iconType?: string;
   description?: string;
-  metadata?: any;
+  metadata?: SuggestionMetadata;
 }
 
 interface TabNavigationState {
@@ -206,9 +208,36 @@ const NavigationBar: React.FC = () => {
         setShowSuggestions(false);
         inputRef.current?.blur();
       },
-      onDeleteHistory: (suggestionId: string) => {
-        setSuggestions(prev => prev.filter(s => s.id !== suggestionId));
-        // TODO: Implement actual history deletion
+      onDeleteHistory: async (suggestionId: string) => {
+        try {
+          console.log("[NavigationBar] Deleting history item:", suggestionId);
+
+          // Remove from local state immediately for instant UI feedback
+          setSuggestions(prev => prev.filter(s => s.id !== suggestionId));
+
+          // Find the suggestion to get its URL
+          const suggestionToDelete = suggestions.find(
+            s => s.id === suggestionId,
+          );
+          if (suggestionToDelete?.url) {
+            // Delete from browser history using vibe API
+            await window.vibe.profile?.deleteFromHistory?.(
+              suggestionToDelete.url,
+            );
+
+            // Clear the history cache to ensure fresh data on next query
+            historyCache.current.clear();
+
+            console.log(
+              "[NavigationBar] Successfully deleted from history:",
+              suggestionToDelete.url,
+            );
+          }
+        } catch (error) {
+          console.error("Failed to delete history item:", error);
+          // If deletion fails, restore the item to the suggestions
+          // This would require re-fetching suggestions or keeping a backup
+        }
       },
       onNavigateAndClose: (url: string) => {
         if (currentTabKey) {
@@ -218,7 +247,7 @@ const NavigationBar: React.FC = () => {
         inputRef.current?.blur();
       },
     }),
-    [currentTabKey],
+    [currentTabKey, suggestions],
   );
 
   const {
@@ -1226,12 +1255,14 @@ const NavigationBar: React.FC = () => {
           // Switch to existing tab
           await window.vibe.tabs.switchToTab(suggestion.url);
         } else if (suggestion.type === "agent" && suggestion.metadata) {
-          // Handle agent action
-          if (suggestion.metadata.action === "ask-agent") {
-            // Open chat panel and send query
-            await window.vibe.interface.toggleChatPanel(true);
-            // In a real implementation, you would send the query to the agent
-            console.log("Asking agent:", suggestion.metadata.query);
+          // Handle agent action using type-safe metadata access
+          if (MetadataHelpers.isAgentActionMetadata(suggestion.metadata)) {
+            if (suggestion.metadata.action === "ask-agent") {
+              // Open chat panel and send query
+              await window.vibe.interface.toggleChatPanel(true);
+              // In a real implementation, you would send the query to the agent
+              console.log("Asking agent:", suggestion.metadata.query);
+            }
           }
         } else if (suggestion.url && currentTabKey) {
           // Navigate to URL

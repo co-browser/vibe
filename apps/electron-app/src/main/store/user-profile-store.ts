@@ -7,6 +7,8 @@ import { create } from "zustand";
 import * as fs from "fs-extra";
 import * as path from "path";
 import { app } from "electron";
+import { randomUUID } from "crypto";
+import { EncryptionService } from "../services/encryption-service";
 
 export interface NavigationHistoryEntry {
   url: string;
@@ -24,11 +26,24 @@ export interface DownloadHistoryItem {
   createdAt: number;
 }
 
+export interface ImportedPasswordEntry {
+  id: string;
+  url: string;
+  username: string;
+  password: string;
+  source: "chrome" | "safari" | "csv" | "manual";
+  dateCreated?: Date;
+  lastModified?: Date;
+}
+
+export interface PasswordImportData {
+  passwords: ImportedPasswordEntry[];
+  timestamp: number;
+  source: string;
+  count: number;
+}
+
 export interface UserProfile {
-  /**
-   * WARNING: Do NOT store sensitive data (such as passwords or API keys) in plain text in this object.
-   * If you need to store such data, use secure storage (e.g., OS keychain, encrypted file, or Electron's safeStorage API).
-   */
   id: string;
   name: string;
   createdAt: number;
@@ -40,12 +55,21 @@ export interface UserProfile {
     theme?: string;
     [key: string]: any;
   };
+  secureSettings?: {
+    [key: string]: string; // Encrypted sensitive data
+  };
 }
 
+/**
+ * User profile store state interface with comprehensive type safety
+ */
 interface UserProfileState {
   profiles: Map<string, UserProfile>;
   activeProfileId: string | null;
   saveTimer?: NodeJS.Timeout;
+  isInitialized: boolean;
+  initializationPromise: Promise<void> | null;
+  lastError: Error | null;
 
   // Actions
   createProfile: (name: string) => string;
@@ -66,6 +90,7 @@ interface UserProfileState {
     limit?: number,
   ) => NavigationHistoryEntry[];
   clearNavigationHistory: (profileId: string) => void;
+  deleteFromNavigationHistory: (profileId: string, url: string) => void;
 
   // Download history actions
   addDownloadEntry: (
@@ -76,25 +101,69 @@ interface UserProfileState {
   removeDownloadEntry: (profileId: string, downloadId: string) => void;
   clearDownloadHistory: (profileId: string) => void;
 
+  // Secure settings actions
+  setSecureSetting: (
+    profileId: string,
+    key: string,
+    value: string,
+  ) => Promise<void>;
+  getSecureSetting: (profileId: string, key: string) => Promise<string | null>;
+  removeSecureSetting: (profileId: string, key: string) => Promise<void>;
+  getAllSecureSettings: (profileId: string) => Promise<Record<string, string>>;
+
+  // Password storage actions (encrypted)
+  storeImportedPasswords: (
+    profileId: string,
+    source: string,
+    passwords: ImportedPasswordEntry[],
+  ) => Promise<void>;
+  getImportedPasswords: (
+    profileId: string,
+    source?: string,
+  ) => Promise<ImportedPasswordEntry[]>;
+  removeImportedPasswords: (profileId: string, source: string) => Promise<void>;
+  clearAllImportedPasswords: (profileId: string) => Promise<void>;
+  getPasswordImportSources: (profileId: string) => Promise<string[]>;
+
   // Persistence
   saveProfiles: () => Promise<void>;
   loadProfiles: () => Promise<void>;
+
+  // Initialization with proper type safety
+  initialize: () => Promise<void>;
+  ensureInitialized: () => Promise<void>;
+  isStoreReady: () => boolean;
+  getInitializationStatus: () => {
+    isInitialized: boolean;
+    isInitializing: boolean;
+    lastError: Error | null;
+  };
+
+  // Cleanup
+  cleanup: () => void;
 }
 
 // Get the path for storing user profiles
 const getUserProfilesPath = () => {
+  // Check if app is ready before accessing userData path
+  if (!app.isReady()) {
+    throw new Error("Cannot access userData path before app is ready");
+  }
   const userDataPath = app.getPath("userData");
   return path.join(userDataPath, "profiles.json");
 };
 
-// Generate a unique profile ID
+// Generate a unique profile ID using crypto.randomUUID
 const generateProfileId = () => {
-  return `profile_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+  return `profile_${randomUUID()}`;
 };
 
 export const useUserProfileStore = create<UserProfileState>((set, get) => ({
   profiles: new Map(),
   activeProfileId: null,
+  isInitialized: false,
+  initializationPromise: null,
+  lastError: null,
 
   createProfile: (name: string) => {
     const id = generateProfileId();
@@ -287,6 +356,24 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
     get().saveProfiles();
   },
 
+  deleteFromNavigationHistory: (profileId: string, url: string) => {
+    set(state => {
+      const profile = state.profiles.get(profileId);
+      if (!profile) return state;
+
+      const newProfiles = new Map(state.profiles);
+      const updatedProfile = { ...profile };
+
+      // Filter out the entry with the matching URL
+      updatedProfile.navigationHistory =
+        updatedProfile.navigationHistory.filter(entry => entry.url !== url);
+
+      newProfiles.set(profileId, updatedProfile);
+      return { profiles: newProfiles };
+    });
+    get().saveProfiles();
+  },
+
   addDownloadEntry: (
     profileId: string,
     entry: Omit<DownloadHistoryItem, "id">,
@@ -300,7 +387,7 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
 
       const newEntry: DownloadHistoryItem = {
         ...entry,
-        id: `download_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+        id: `download_${randomUUID()}`,
         createdAt: Date.now(),
       };
       updatedProfile.downloads = updatedProfile.downloads
@@ -349,6 +436,228 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
       return { profiles: newProfiles };
     });
     get().saveProfiles();
+  },
+
+  setSecureSetting: async (profileId: string, key: string, value: string) => {
+    const encryptionService = EncryptionService.getInstance();
+
+    try {
+      const encryptedValue = await encryptionService.encryptData(value);
+
+      set(state => {
+        const profile = state.profiles.get(profileId);
+        if (profile) {
+          const updatedProfile = {
+            ...profile,
+            secureSettings: {
+              ...profile.secureSettings,
+              [key]: encryptedValue,
+            },
+          };
+          const newProfiles = new Map(state.profiles);
+          newProfiles.set(profileId, updatedProfile);
+          return { profiles: newProfiles };
+        }
+        return state;
+      });
+
+      get().saveProfiles();
+    } catch (error) {
+      console.error(`Failed to set secure setting ${key}:`, error);
+      throw error;
+    }
+  },
+
+  getSecureSetting: async (profileId: string, key: string) => {
+    const encryptionService = EncryptionService.getInstance();
+    const profile = get().profiles.get(profileId);
+
+    if (!profile?.secureSettings?.[key]) {
+      return null;
+    }
+
+    try {
+      const encryptedValue = profile.secureSettings[key];
+      return await encryptionService.decryptData(encryptedValue);
+    } catch (error) {
+      console.error(`Failed to get secure setting ${key}:`, error);
+      return null;
+    }
+  },
+
+  removeSecureSetting: async (profileId: string, key: string) => {
+    set(state => {
+      const profile = state.profiles.get(profileId);
+      if (profile?.secureSettings) {
+        const updatedSecureSettings = { ...profile.secureSettings };
+        delete updatedSecureSettings[key];
+
+        const updatedProfile = {
+          ...profile,
+          secureSettings: updatedSecureSettings,
+        };
+        const newProfiles = new Map(state.profiles);
+        newProfiles.set(profileId, updatedProfile);
+        return { profiles: newProfiles };
+      }
+      return state;
+    });
+
+    get().saveProfiles();
+  },
+
+  getAllSecureSettings: async (profileId: string) => {
+    const encryptionService = EncryptionService.getInstance();
+    const profile = get().profiles.get(profileId);
+
+    if (!profile?.secureSettings) {
+      return {};
+    }
+
+    const decryptedSettings: Record<string, string> = {};
+
+    for (const [key, encryptedValue] of Object.entries(
+      profile.secureSettings,
+    )) {
+      try {
+        decryptedSettings[key] =
+          await encryptionService.decryptData(encryptedValue);
+      } catch (error) {
+        console.error(`Failed to decrypt setting ${key}:`, error);
+        // Skip failed decryptions
+      }
+    }
+
+    return decryptedSettings;
+  },
+
+  // Password storage implementation using encrypted secure settings
+  storeImportedPasswords: async (
+    profileId: string,
+    source: string,
+    passwords: ImportedPasswordEntry[],
+  ) => {
+    try {
+      const passwordData: PasswordImportData = {
+        passwords,
+        timestamp: Date.now(),
+        source,
+        count: passwords.length,
+      };
+
+      // Store encrypted password data using secure settings
+      const key = `passwords.import.${source}`;
+      await get().setSecureSetting(
+        profileId,
+        key,
+        JSON.stringify(passwordData),
+      );
+
+      console.info(
+        `Stored ${passwords.length} passwords from ${source} securely for profile ${profileId}`,
+      );
+    } catch (error) {
+      console.error(
+        `Failed to store imported passwords from ${source}:`,
+        error,
+      );
+      throw error;
+    }
+  },
+
+  getImportedPasswords: async (
+    profileId: string,
+    source?: string,
+  ): Promise<ImportedPasswordEntry[]> => {
+    try {
+      if (source) {
+        // Get passwords from specific source
+        const key = `passwords.import.${source}`;
+        const encryptedData = await get().getSecureSetting(profileId, key);
+
+        if (!encryptedData) {
+          return [];
+        }
+
+        const passwordData: PasswordImportData = JSON.parse(encryptedData);
+        return passwordData.passwords || [];
+      } else {
+        // Get passwords from all sources
+        const allSecureSettings = await get().getAllSecureSettings(profileId);
+        const allPasswords: ImportedPasswordEntry[] = [];
+
+        for (const [key, value] of Object.entries(allSecureSettings)) {
+          if (key.startsWith("passwords.import.")) {
+            try {
+              const passwordData: PasswordImportData = JSON.parse(value);
+              allPasswords.push(...(passwordData.passwords || []));
+            } catch (error) {
+              console.error(
+                `Failed to parse password data for key ${key}:`,
+                error,
+              );
+            }
+          }
+        }
+
+        return allPasswords;
+      }
+    } catch (error) {
+      console.error(`Failed to get imported passwords:`, error);
+      return [];
+    }
+  },
+
+  removeImportedPasswords: async (
+    profileId: string,
+    source: string,
+  ): Promise<void> => {
+    try {
+      const key = `passwords.import.${source}`;
+      await get().removeSecureSetting(profileId, key);
+      console.info(
+        `Removed imported passwords from ${source} for profile ${profileId}`,
+      );
+    } catch (error) {
+      console.error(
+        `Failed to remove imported passwords from ${source}:`,
+        error,
+      );
+      throw error;
+    }
+  },
+
+  clearAllImportedPasswords: async (profileId: string): Promise<void> => {
+    try {
+      const allSecureSettings = await get().getAllSecureSettings(profileId);
+      const passwordKeys = Object.keys(allSecureSettings).filter(key =>
+        key.startsWith("passwords.import."),
+      );
+
+      for (const key of passwordKeys) {
+        const source = key.replace("passwords.import.", "");
+        await get().removeImportedPasswords(profileId, source);
+      }
+
+      console.info(`Cleared all imported passwords for profile ${profileId}`);
+    } catch (error) {
+      console.error("Failed to clear all imported passwords:", error);
+      throw error;
+    }
+  },
+
+  getPasswordImportSources: async (profileId: string): Promise<string[]> => {
+    try {
+      const allSecureSettings = await get().getAllSecureSettings(profileId);
+      const sources = Object.keys(allSecureSettings)
+        .filter(key => key.startsWith("passwords.import."))
+        .map(key => key.replace("passwords.import.", ""));
+
+      return sources;
+    } catch (error) {
+      console.error("Failed to get password import sources:", error);
+      return [];
+    }
   },
 
   saveProfiles: async () => {
@@ -403,7 +712,92 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
       get().createProfile("Default");
     }
   },
+
+  initialize: async () => {
+    // Check if already initialized or initializing
+    const state = get();
+    if (state.isInitialized) {
+      return;
+    }
+
+    if (state.initializationPromise) {
+      return state.initializationPromise;
+    }
+
+    // Create initialization promise
+    const initPromise = (async () => {
+      try {
+        // Only initialize if app is ready to avoid race conditions
+        if (!app.isReady()) {
+          throw new Error(
+            "Cannot initialize profile store before app is ready",
+          );
+        }
+
+        // Load profiles after ensuring app is ready
+        await get().loadProfiles();
+
+        set({
+          isInitialized: true,
+          initializationPromise: null,
+          lastError: null,
+        });
+      } catch (error) {
+        const err = error instanceof Error ? error : new Error(String(error));
+        set({
+          isInitialized: false,
+          initializationPromise: null,
+          lastError: err,
+        });
+        throw err;
+      }
+    })();
+
+    set({ initializationPromise: initPromise });
+    return initPromise;
+  },
+
+  ensureInitialized: async () => {
+    const state = get();
+    if (state.isInitialized) {
+      return;
+    }
+
+    if (state.initializationPromise) {
+      await state.initializationPromise;
+      return;
+    }
+
+    await get().initialize();
+  },
+
+  isStoreReady: () => {
+    return get().isInitialized;
+  },
+
+  getInitializationStatus: () => {
+    const state = get();
+    return {
+      isInitialized: state.isInitialized,
+      isInitializing: state.initializationPromise !== null,
+      lastError: state.lastError,
+    };
+  },
+
+  cleanup: () => {
+    const state = get();
+    if (state.saveTimer) {
+      clearTimeout(state.saveTimer);
+    }
+
+    set({
+      saveTimer: undefined,
+      isInitialized: false,
+      initializationPromise: null,
+      lastError: null,
+    });
+  },
 }));
 
-// Initialize store on import
-useUserProfileStore.getState().loadProfiles();
+// Store initialization will be done explicitly after app is ready
+// DO NOT initialize automatically on import to avoid race conditions

@@ -14,6 +14,7 @@ export class MCPWorker extends EventEmitter {
   private restartCount = 0;
   private readonly maxRestarts = 3;
   private isRestarting = false;
+  private activeTimeouts: Set<NodeJS.Timeout> = new Set();
 
   constructor() {
     super();
@@ -39,6 +40,12 @@ export class MCPWorker extends EventEmitter {
     if (this.workerProcess) {
       this.isConnected = false;
       this.isRestarting = false;
+
+      // Clear all active timeouts
+      this.activeTimeouts.forEach(timeout => {
+        clearTimeout(timeout);
+      });
+      this.activeTimeouts.clear();
 
       this.workerProcess.kill();
       this.workerProcess = null;
@@ -244,10 +251,26 @@ export class MCPWorker extends EventEmitter {
 
       // Try again if we haven't hit the limit
       if (this.restartCount < this.maxRestarts) {
-        setTimeout(() => this.attemptRestart(), 2000);
+        this.createTimeout(() => this.attemptRestart(), 2000);
       } else {
         this.emit("error", new Error("All restart attempts failed"));
       }
     }
+  }
+
+  /**
+   * Create a tracked timeout that will be automatically cleaned up
+   */
+  private createTimeout(callback: () => void, delay: number): NodeJS.Timeout {
+    const timeout = setTimeout(() => {
+      this.activeTimeouts.delete(timeout);
+      try {
+        callback();
+      } catch (error) {
+        console.error("[MCPWorker] Timer callback error:", error);
+      }
+    }, delay);
+    this.activeTimeouts.add(timeout);
+    return timeout;
   }
 }

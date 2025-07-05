@@ -25,6 +25,7 @@ import { setupMemoryMonitoring } from "@/utils/helpers";
 import { registerImgProtocol } from "@/browser/protocol-handler";
 import { AgentService } from "@/services/agent-service";
 import { MCPService } from "@/services/mcp-service";
+import { NotificationService } from "@/services/notification-service";
 import { setMCPServiceInstance } from "@/ipc/mcp/mcp-status";
 import { setAgentServiceInstance as setAgentStatusInstance } from "@/ipc/chat/agent-status";
 import { setAgentServiceInstance as setChatMessagingInstance } from "@/ipc/chat/chat-messaging";
@@ -42,6 +43,8 @@ import {
 } from "@sentry/electron/main";
 import AppUpdater from "./services/update-service";
 import { resourcesPath } from "process";
+import { WindowBroadcast } from "./utils/window-broadcast";
+import { DebounceManager } from "./utils/debounce";
 
 let tray;
 
@@ -99,6 +102,9 @@ let agentService: AgentService | null = null;
 
 // Global MCP service instance
 let mcpService: MCPService | null = null;
+
+// Global notification service instance
+let notificationService: NotificationService | null = null;
 
 // Track shutdown state
 let isShuttingDown = false;
@@ -206,6 +212,17 @@ async function gracefulShutdown(signal: string): Promise<void> {
         logger.error("Error during agent service termination:", error);
       }
       agentService = null;
+    }
+
+    // Clean up notification service
+    if (notificationService) {
+      try {
+        await notificationService.destroy();
+        logger.info("Notification service destroyed successfully");
+      } catch (error) {
+        logger.error("Error during notification service cleanup:", error);
+      }
+      notificationService = null;
     }
 
     if (unsubscribeBrowser) {
@@ -381,9 +398,14 @@ function handleCCShortcut(): void {
     const chatPanelState = appWindow.viewManager.getChatPanelState();
 
     if (!chatPanelState.isVisible) {
-      // Chat panel is closed, open it and focus the input
+      // Use the same notification flow as the agent toggle button
+      // This ensures proper state synchronization across all components
       appWindow.viewManager.toggleChatPanel(true);
-      logger.info("CC shortcut: Opened chat panel");
+
+      // Send the same notification that the IPC handler sends
+      mainWindow.webContents.send("chat-area-visibility-changed", true);
+
+      logger.info("CC shortcut: Opened chat panel with proper notifications");
 
       // Focus chat input after a short delay to ensure panel is rendered
       setTimeout(() => {
@@ -492,8 +514,21 @@ async function initializeServices(): Promise<void> {
     // Initialize user profile store
     logger.info("Initializing user profile store");
     const userProfileStore = useUserProfileStore.getState();
-    await userProfileStore.loadProfiles();
+    await userProfileStore.initialize();
     logger.info("User profile store initialized");
+
+    // Initialize notification service
+    try {
+      logger.info("Initializing notification service");
+      notificationService = NotificationService.getInstance();
+      await notificationService.initialize();
+      logger.info("Notification service initialized successfully");
+    } catch (error) {
+      logger.error("Notification service initialization failed:", error);
+      logger.warn(
+        "Application will continue without enhanced notification features",
+      );
+    }
 
     // Initialize simple analytics instead of complex telemetry system
     logger.info("Using simplified analytics system");
@@ -773,6 +808,20 @@ app.on("before-quit", async () => {
   // Clean up memory monitor
   if (memoryMonitor) {
     memoryMonitor = null;
+  }
+
+  // Clean up window broadcast utilities
+  WindowBroadcast.cleanup();
+
+  // Clean up debounce manager
+  DebounceManager.cleanup();
+
+  // Clean up user profile store
+  try {
+    const userProfileStore = useUserProfileStore.getState();
+    userProfileStore.cleanup();
+  } catch (error) {
+    logger.error("Error cleaning up user profile store:", error);
   }
 
   // Clean up IPC handlers

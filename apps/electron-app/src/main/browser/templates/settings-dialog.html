@@ -1,0 +1,1298 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Settings</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue",
+          sans-serif;
+        background: #f5f5f7;
+        height: 100vh;
+        overflow: hidden;
+      }
+
+      .container {
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .header {
+        background: #ffffff;
+        padding: 16px 20px;
+        border-bottom: 1px solid #d1d5db;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .header h1 {
+        font-size: 18px;
+        font-weight: 600;
+        color: #1d1d1f;
+        font-family:
+          -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue",
+          sans-serif;
+        letter-spacing: 0.01em;
+      }
+
+      .close-btn {
+        background: #ef4444;
+        color: white;
+        border: none;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: bold;
+      }
+
+      .main {
+        flex: 1;
+        display: flex;
+      }
+
+      .sidebar {
+        width: 200px;
+        background: #edeef0;
+        border-right: 1px solid #d1d5db;
+      }
+
+      .menu-item {
+        padding: 12px 16px;
+        cursor: pointer;
+        color: #1d1d1f;
+        font-weight: 500;
+        font-family:
+          -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue",
+          sans-serif;
+        transition: background 0.2s;
+        border-bottom: 1px solid #e5e7eb;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .menu-item:hover:not(.disabled) {
+        background: #e0e1e3;
+      }
+
+      .menu-item.active {
+        background: #e0e1e3;
+        font-weight: 600;
+      }
+
+      .menu-item.disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      .content {
+        flex: 1;
+        padding: 20px;
+        background: #ffffff;
+        overflow-y: auto;
+        font-family:
+          -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue",
+          sans-serif;
+        color: #1d1d1f;
+      }
+
+      .content h3 {
+        margin-bottom: 8px;
+        font-size: 16px;
+        font-weight: 600;
+      }
+
+      .content p {
+        margin-bottom: 20px;
+        color: #6b7280;
+        font-size: 14px;
+      }
+
+      .form-group {
+        margin-bottom: 20px;
+      }
+
+      .form-group label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 600;
+        color: #374151;
+        font-size: 14px;
+      }
+
+      .input-container {
+        position: relative;
+      }
+
+      .form-group input,
+      .form-group select {
+        width: 100%;
+        padding: 12px 40px 12px 12px;
+        border: 2px solid #e5e7eb;
+        border-radius: 8px;
+        font-size: 14px;
+        transition: border-color 0.2s;
+        font-family: inherit;
+      }
+
+      .form-group input:focus,
+      .form-group select:focus {
+        outline: none;
+        border-color: #3b82f6;
+      }
+
+      .form-group input.error {
+        border-color: #ef4444;
+      }
+
+      .toggle-password {
+        position: absolute;
+        right: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        background: none;
+        border: none;
+        cursor: pointer;
+        color: #6b7280;
+        font-size: 12px;
+      }
+
+      .toggle-password:hover {
+        color: #374151;
+      }
+
+      .btn {
+        padding: 12px 20px;
+        border: none;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+        margin-right: 12px;
+        position: relative;
+      }
+
+      .btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      .btn-primary {
+        background: #3b82f6;
+        color: white;
+      }
+
+      .btn-primary:hover:not(:disabled) {
+        background: #2563eb;
+      }
+
+      .btn-secondary {
+        background: #6b7280;
+        color: white;
+      }
+
+      .btn-secondary:hover:not(:disabled) {
+        background: #4b5563;
+      }
+
+      .btn-danger {
+        background: #ef4444;
+        color: white;
+      }
+
+      .btn-danger:hover:not(:disabled) {
+        background: #dc2626;
+      }
+
+      .loading {
+        display: inline-block;
+        width: 16px;
+        height: 16px;
+        border: 2px solid transparent;
+        border-top: 2px solid currentColor;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin-right: 8px;
+      }
+
+      @keyframes spin {
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+
+      .notification {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 12px 16px;
+        border-radius: 8px;
+        color: white;
+        font-weight: 500;
+        z-index: 1000;
+        transform: translateX(400px);
+        transition: transform 0.3s ease;
+      }
+
+      .notification.show {
+        transform: translateX(0);
+      }
+
+      .notification.success {
+        background: #10b981;
+      }
+
+      .notification.error {
+        background: #ef4444;
+      }
+
+      .notification.info {
+        background: #3b82f6;
+      }
+
+      .tab-content {
+        display: none;
+      }
+
+      .tab-content.active {
+        display: block;
+      }
+
+      .search-box {
+        width: 100%;
+        padding: 8px 12px;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        margin-bottom: 16px;
+        font-size: 14px;
+      }
+
+      .actions-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 20px;
+        padding-top: 20px;
+        border-top: 1px solid #e5e7eb;
+      }
+
+      .confirmation-dialog {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 2000;
+      }
+
+      .confirmation-dialog.show {
+        display: flex;
+      }
+
+      .confirmation-content {
+        background: white;
+        padding: 24px;
+        border-radius: 12px;
+        max-width: 400px;
+        width: 90%;
+      }
+
+      .confirmation-content h3 {
+        margin-bottom: 12px;
+        color: #1d1d1f;
+      }
+
+      .confirmation-content p {
+        margin-bottom: 20px;
+        color: #6b7280;
+      }
+
+      .confirmation-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>Settings</h1>
+        <button class="close-btn" onclick="closeDialog()">&times;</button>
+      </div>
+
+      <div class="main">
+        <div class="sidebar">
+          <div class="menu-item active" data-tab="api-keys">🔐 API Keys</div>
+          <div class="menu-item" data-tab="general">⚙️ General</div>
+          <div class="menu-item" data-tab="appearance">🎨 Appearance</div>
+          <div class="menu-item" data-tab="notifications">🔔 Notifications</div>
+          <div class="menu-item" data-tab="privacy">🔒 Privacy</div>
+          <div class="menu-item" data-tab="advanced">🔧 Advanced</div>
+        </div>
+
+        <div class="content">
+          <input
+            type="text"
+            class="search-box"
+            placeholder="Search settings..."
+            id="search-box"
+          />
+
+          <!-- API Keys Tab -->
+          <div id="api-keys-content" class="tab-content active">
+            <h3>API Keys</h3>
+            <p>
+              Manage your API keys for external services. Keys are stored
+              securely and encrypted.
+            </p>
+
+            <div class="form-group">
+              <label for="openai-key">OpenAI API Key</label>
+              <div class="input-container">
+                <input type="password" id="openai-key" placeholder="sk-..." />
+                <button
+                  type="button"
+                  class="toggle-password"
+                  onclick="togglePassword('openai-key')"
+                >
+                  Show
+                </button>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="turbopuffer-key">TurboPuffer API Key</label>
+              <div class="input-container">
+                <input
+                  type="password"
+                  id="turbopuffer-key"
+                  placeholder="tp_..."
+                />
+                <button
+                  type="button"
+                  class="toggle-password"
+                  onclick="togglePassword('turbopuffer-key')"
+                >
+                  Show
+                </button>
+              </div>
+            </div>
+
+            <div class="actions-bar">
+              <div>
+                <button class="btn btn-secondary" onclick="clearAllKeys()">
+                  Clear All
+                </button>
+                <button class="btn btn-secondary" onclick="exportSettings()">
+                  Export
+                </button>
+                <button class="btn btn-secondary" onclick="importSettings()">
+                  Import
+                </button>
+              </div>
+              <button
+                class="btn btn-primary"
+                onclick="saveKeys()"
+                id="save-keys-btn"
+              >
+                Save Keys
+              </button>
+            </div>
+          </div>
+
+          <!-- General Tab -->
+          <div id="general-content" class="tab-content">
+            <h3>General Settings</h3>
+            <p>Configure general application behavior and preferences.</p>
+
+            <div class="form-group">
+              <label for="default-search">Default Search Engine</label>
+              <select id="default-search">
+                <option value="perplexity">Perplexity</option>
+                <option value="google">Google</option>
+                <option value="duckduckgo">DuckDuckGo</option>
+                <option value="bing">Bing</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="startup-behavior">Startup Behavior</label>
+              <select id="startup-behavior">
+                <option value="new-tab">Open new tab</option>
+                <option value="restore">Restore previous session</option>
+                <option value="home">Open home page</option>
+              </select>
+            </div>
+
+            <div class="actions-bar">
+              <div>
+                <button class="btn btn-danger" onclick="resetSettings()">
+                  Reset to Defaults
+                </button>
+              </div>
+              <button class="btn btn-primary" onclick="saveGeneralSettings()">
+                Save Changes
+              </button>
+            </div>
+          </div>
+
+          <!-- Appearance Tab -->
+          <div id="appearance-content" class="tab-content">
+            <h3>Appearance</h3>
+            <p>Customize the look and feel of the application.</p>
+
+            <div class="form-group">
+              <label for="theme">Theme</label>
+              <select id="theme">
+                <option value="light">Light</option>
+                <option value="dark">Dark</option>
+                <option value="auto">Auto (System)</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="font-size">Font Size</label>
+              <select id="font-size">
+                <option value="small">Small</option>
+                <option value="medium">Medium</option>
+                <option value="large">Large</option>
+              </select>
+            </div>
+
+            <div class="actions-bar">
+              <div></div>
+              <button
+                class="btn btn-primary"
+                onclick="saveAppearanceSettings()"
+              >
+                Save Changes
+              </button>
+            </div>
+          </div>
+
+          <!-- Notifications Tab -->
+          <div id="notifications-content" class="tab-content">
+            <h3>Notifications</h3>
+            <p>
+              Configure local and push notification settings, including Apple
+              Push Notification Service (APNS).
+            </p>
+
+            <!-- Local Notifications -->
+            <div class="form-group">
+              <label for="local-notifications">Local Notifications</label>
+              <select id="local-notifications">
+                <option value="enabled">Enabled</option>
+                <option value="disabled">Disabled</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="notification-sound">Notification Sound</label>
+              <select id="notification-sound">
+                <option value="default">Default</option>
+                <option value="none">Silent</option>
+                <option value="custom">Custom</option>
+              </select>
+            </div>
+
+            <!-- APNS Configuration Section -->
+            <h4
+              style="
+                margin-top: 30px;
+                margin-bottom: 15px;
+                font-size: 16px;
+                font-weight: 600;
+              "
+            >
+              Apple Push Notifications (APNS)
+            </h4>
+
+            <div class="form-group">
+              <label for="apns-team-id">Apple Developer Team ID</label>
+              <div class="input-container">
+                <input type="text" id="apns-team-id" placeholder="ABC123DEF4" />
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="apns-key-id">APNS Key ID</label>
+              <div class="input-container">
+                <input type="text" id="apns-key-id" placeholder="XYZ123ABC4" />
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="apns-bundle-id">App Bundle ID</label>
+              <div class="input-container">
+                <input
+                  type="text"
+                  id="apns-bundle-id"
+                  placeholder="com.example.app"
+                />
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="apns-environment">APNS Environment</label>
+              <select id="apns-environment">
+                <option value="development">Development (Sandbox)</option>
+                <option value="production">Production</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="apns-key-file">APNS Key File (.p8)</label>
+              <div style="display: flex; gap: 10px; align-items: center">
+                <input
+                  type="file"
+                  id="apns-key-file"
+                  accept=".p8"
+                  style="flex: 1"
+                />
+                <button class="btn btn-secondary" onclick="clearAPNSKey()">
+                  Clear
+                </button>
+              </div>
+              <p style="font-size: 12px; color: #6b7280; margin-top: 5px">
+                Upload your APNS authentication key file (AuthKey_XXXXXXXXXX.p8)
+              </p>
+            </div>
+
+            <!-- APNS Status -->
+            <div class="form-group">
+              <label>APNS Status</label>
+              <div
+                id="apns-status"
+                style="padding: 10px; border-radius: 6px; background: #f3f4f6"
+              >
+                <div id="apns-status-text">Not configured</div>
+                <button
+                  class="btn btn-secondary"
+                  style="margin-top: 8px"
+                  onclick="testAPNSConnection()"
+                >
+                  Test Connection
+                </button>
+              </div>
+            </div>
+
+            <!-- Device Registration -->
+            <h4
+              style="
+                margin-top: 30px;
+                margin-bottom: 15px;
+                font-size: 16px;
+                font-weight: 600;
+              "
+            >
+              Registered Devices
+            </h4>
+
+            <div class="form-group">
+              <div
+                id="registered-devices"
+                style="
+                  max-height: 200px;
+                  overflow-y: auto;
+                  border: 1px solid #e5e7eb;
+                  border-radius: 6px;
+                  padding: 10px;
+                "
+              >
+                <div style="color: #6b7280; text-align: center; padding: 20px">
+                  No devices registered
+                </div>
+              </div>
+            </div>
+
+            <div class="actions-bar">
+              <div>
+                <button class="btn btn-secondary" onclick="refreshDeviceList()">
+                  Refresh Devices
+                </button>
+                <button
+                  class="btn btn-secondary"
+                  onclick="sendTestNotification()"
+                >
+                  Send Test
+                </button>
+              </div>
+              <button
+                class="btn btn-primary"
+                onclick="saveNotificationSettings()"
+              >
+                Save Settings
+              </button>
+            </div>
+          </div>
+
+          <!-- Privacy Tab -->
+          <div id="privacy-content" class="tab-content">
+            <h3>Privacy & Security</h3>
+            <p>Manage your privacy and security preferences.</p>
+
+            <div class="form-group">
+              <label for="clear-data">Clear Browsing Data</label>
+              <button class="btn btn-secondary" onclick="clearBrowsingData()">
+                Clear Data
+              </button>
+            </div>
+
+            <div class="actions-bar">
+              <div></div>
+              <button class="btn btn-primary" onclick="savePrivacySettings()">
+                Save Changes
+              </button>
+            </div>
+          </div>
+
+          <!-- Advanced Tab -->
+          <div id="advanced-content" class="tab-content">
+            <h3>Advanced Settings</h3>
+            <p>Advanced configuration options for power users.</p>
+
+            <div class="form-group">
+              <label for="dev-mode">Developer Mode</label>
+              <select id="dev-mode">
+                <option value="false">Disabled</option>
+                <option value="true">Enabled</option>
+              </select>
+            </div>
+
+            <div class="actions-bar">
+              <div>
+                <button class="btn btn-secondary" onclick="exportAllSettings()">
+                  Export All Settings
+                </button>
+              </div>
+              <button class="btn btn-primary" onclick="saveAdvancedSettings()">
+                Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Confirmation Dialog -->
+    <div id="confirmation-dialog" class="confirmation-dialog">
+      <div class="confirmation-content">
+        <h3 id="confirmation-title">Confirm Action</h3>
+        <p id="confirmation-message">Are you sure you want to proceed?</p>
+        <div class="confirmation-actions">
+          <button class="btn btn-secondary" onclick="hideConfirmation()">
+            Cancel
+          </button>
+          <button
+            class="btn btn-danger"
+            id="confirmation-confirm"
+            onclick="confirmAction()"
+          >
+            Confirm
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // Global state
+      let currentSettings = {};
+      let pendingConfirmation = null;
+
+      // Initialize
+      document.addEventListener('DOMContentLoaded', () => {
+        setupTabs();
+        setupSearch();
+        setupKeyboardShortcuts();
+        setupSettingsListener();
+        loadAllSettings();
+      });
+
+      function setupTabs() {
+        document.querySelectorAll('.menu-item:not(.disabled)').forEach(item => {
+          item.addEventListener('click', () => {
+            const tab = item.dataset.tab;
+            switchTab(tab);
+          });
+        });
+      }
+
+      function switchTab(tabName) {
+        // Update sidebar
+        document.querySelectorAll('.menu-item').forEach(item => {
+          item.classList.remove('active');
+          if (item.dataset.tab === tabName) {
+            item.classList.add('active');
+          }
+        });
+
+        // Update content
+        document.querySelectorAll('.tab-content').forEach(content => {
+          content.classList.remove('active');
+        });
+
+        const targetContent = document.getElementById(tabName + '-content');
+        if (targetContent) {
+          targetContent.classList.add('active');
+        }
+      }
+
+      function setupSearch() {
+        const searchBox = document.getElementById('search-box');
+        searchBox.addEventListener('input', (e) => {
+          const query = e.target.value.toLowerCase();
+          // Simple search implementation
+          document.querySelectorAll('.form-group').forEach(group => {
+            const text = group.textContent.toLowerCase();
+            group.style.display = text.includes(query) ? 'block' : 'none';
+          });
+        });
+      }
+
+      function setupKeyboardShortcuts() {
+        document.addEventListener('keydown', (event) => {
+          if (event.key === 'Escape') {
+            const dialog = document.getElementById('confirmation-dialog');
+            if (dialog.classList.contains('show')) {
+              hideConfirmation();
+            } else {
+              closeDialog();
+            }
+          }
+          if ((event.metaKey || event.ctrlKey) && event.key === 's') {
+            event.preventDefault();
+            saveCurrentTab();
+          }
+        });
+      }
+
+      function setupSettingsListener() {
+        if (window.vibe?.settings?.onChange) {
+          window.vibe.settings.onChange((key, value) => {
+            showNotification(\`Setting "\${key}" updated\`, 'info');
+            // Update UI if the changed setting is currently visible
+            updateSettingInUI(key, value);
+          });
+        }
+      }
+
+      function updateSettingInUI(key, value) {
+        const element = document.getElementById(key.replace(/_/g, '-'));
+        if (element) {
+          element.value = value || '';
+        }
+      }
+
+      async function loadAllSettings() {
+        try {
+          showLoading(true);
+
+          // Load API keys
+          if (window.apiKeys) {
+            const openaiKey = await window.apiKeys.get('openai') || '';
+            const turbopufferKey = await window.apiKeys.get('turbopuffer') || '';
+
+            document.getElementById('openai-key').value = openaiKey;
+            document.getElementById('turbopuffer-key').value = turbopufferKey;
+          }
+
+          // Load general settings
+          if (window.vibe?.settings) {
+            currentSettings = await window.vibe.settings.getAll() || {};
+
+            // Populate form fields
+            Object.entries(currentSettings).forEach(([key, value]) => {
+              updateSettingInUI(key, value);
+            });
+          }
+
+          // Load notification settings and APNS status
+          if (window.vibe?.notifications) {
+            await updateAPNSStatus();
+            await refreshDeviceList();
+          }
+        } catch (error) {
+          console.error('Failed to load settings:', error);
+          showNotification('Failed to load settings', 'error');
+        } finally {
+          showLoading(false);
+        }
+      }
+
+      function togglePassword(fieldId) {
+        const field = document.getElementById(fieldId);
+        const button = field.parentElement.querySelector('.toggle-password');
+
+        if (field.type === 'password') {
+          field.type = 'text';
+          button.textContent = 'Hide';
+        } else {
+          field.type = 'password';
+          button.textContent = 'Show';
+        }
+      }
+
+      async function saveKeys() {
+        const saveBtn = document.getElementById('save-keys-btn');
+        const originalText = saveBtn.textContent;
+
+        try {
+          saveBtn.innerHTML = '<span class="loading"></span>Saving...';
+          saveBtn.disabled = true;
+
+          const openaiKey = document.getElementById('openai-key').value.trim();
+          const turbopufferKey = document.getElementById('turbopuffer-key').value.trim();
+
+          if (window.apiKeys) {
+            if (openaiKey) await window.apiKeys.set('openai', openaiKey);
+            if (turbopufferKey) await window.apiKeys.set('turbopuffer', turbopufferKey);
+
+            showNotification('API keys saved successfully!', 'success');
+          }
+        } catch (error) {
+          console.error('Failed to save keys:', error);
+          showNotification('Failed to save API keys', 'error');
+        } finally {
+          saveBtn.textContent = originalText;
+          saveBtn.disabled = false;
+        }
+      }
+
+      function clearAllKeys() {
+        showConfirmation(
+          'Clear All API Keys',
+          'Are you sure you want to clear all API keys? This action cannot be undone.',
+          () => {
+            document.getElementById('openai-key').value = '';
+            document.getElementById('turbopuffer-key').value = '';
+            showNotification('API keys cleared', 'info');
+          }
+        );
+      }
+
+      async function exportSettings() {
+        try {
+          if (window.vibe?.settings?.export) {
+            const data = await window.vibe.settings.export();
+            const blob = new Blob([data], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = \`vibe-settings-\${new Date().toISOString().split('T')[0]}.json\`;
+            a.click();
+            URL.revokeObjectURL(url);
+            showNotification('Settings exported successfully', 'success');
+          }
+        } catch (error) {
+          console.error('Failed to export settings:', error);
+          showNotification('Failed to export settings', 'error');
+        }
+      }
+
+      function importSettings() {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.json';
+        input.onchange = async (e) => {
+          const file = e.target.files[0];
+          if (file) {
+            try {
+              const text = await file.text();
+              if (window.vibe?.settings?.import) {
+                const success = await window.vibe.settings.import(text);
+                if (success) {
+                  showNotification('Settings imported successfully', 'success');
+                  loadAllSettings(); // Reload to show imported settings
+                } else {
+                  showNotification('Failed to import settings', 'error');
+                }
+              }
+            } catch (error) {
+              console.error('Failed to import settings:', error);
+              showNotification('Invalid settings file', 'error');
+            }
+          }
+        };
+        input.click();
+      }
+
+      async function saveGeneralSettings() {
+        try {
+          const defaultSearch = document.getElementById('default-search').value;
+          const startupBehavior = document.getElementById('startup-behavior').value;
+
+          if (window.vibe?.settings) {
+            await window.vibe.settings.set('defaultSearchEngine', defaultSearch);
+            await window.vibe.settings.set('startupBehavior', startupBehavior);
+            showNotification('General settings saved', 'success');
+          }
+        } catch (error) {
+          console.error('Failed to save general settings:', error);
+          showNotification('Failed to save settings', 'error');
+        }
+      }
+
+      async function saveAppearanceSettings() {
+        try {
+          const theme = document.getElementById('theme').value;
+          const fontSize = document.getElementById('font-size').value;
+
+          if (window.vibe?.settings) {
+            await window.vibe.settings.set('theme', theme);
+            await window.vibe.settings.set('fontSize', fontSize);
+            showNotification('Appearance settings saved', 'success');
+          }
+        } catch (error) {
+          console.error('Failed to save appearance settings:', error);
+          showNotification('Failed to save settings', 'error');
+        }
+      }
+
+      async function savePrivacySettings() {
+        showNotification('Privacy settings saved', 'success');
+      }
+
+      async function saveAdvancedSettings() {
+        try {
+          const devMode = document.getElementById('dev-mode').value === 'true';
+
+          if (window.vibe?.settings) {
+            await window.vibe.settings.set('developerMode', devMode);
+            showNotification('Advanced settings saved', 'success');
+          }
+        } catch (error) {
+          console.error('Failed to save advanced settings:', error);
+          showNotification('Failed to save settings', 'error');
+        }
+      }
+
+      function resetSettings() {
+        showConfirmation(
+          'Reset All Settings',
+          'Are you sure you want to reset all settings to their default values? This action cannot be undone.',
+          async () => {
+            try {
+              if (window.vibe?.settings?.reset) {
+                await window.vibe.settings.reset();
+                loadAllSettings(); // Reload to show reset settings
+                showNotification('Settings reset to defaults', 'success');
+              }
+            } catch (error) {
+              console.error('Failed to reset settings:', error);
+              showNotification('Failed to reset settings', 'error');
+            }
+          }
+        );
+      }
+
+      function clearBrowsingData() {
+        showConfirmation(
+          'Clear Browsing Data',
+          'This will clear your browsing history, cookies, and cache. Continue?',
+          () => {
+            // Implement clearing logic
+            showNotification('Browsing data cleared', 'success');
+          }
+        );
+      }
+
+      function saveCurrentTab() {
+        const activeTab = document.querySelector('.menu-item.active')?.dataset.tab;
+        switch(activeTab) {
+          case 'api-keys': saveKeys(); break;
+          case 'general': saveGeneralSettings(); break;
+          case 'appearance': saveAppearanceSettings(); break;
+          case 'notifications': saveNotificationSettings(); break;
+          case 'privacy': savePrivacySettings(); break;
+          case 'advanced': saveAdvancedSettings(); break;
+        }
+      }
+
+      function showConfirmation(title, message, onConfirm) {
+        document.getElementById('confirmation-title').textContent = title;
+        document.getElementById('confirmation-message').textContent = message;
+        document.getElementById('confirmation-dialog').classList.add('show');
+        pendingConfirmation = onConfirm;
+      }
+
+      function hideConfirmation() {
+        document.getElementById('confirmation-dialog').classList.remove('show');
+        pendingConfirmation = null;
+      }
+
+      function confirmAction() {
+        if (pendingConfirmation) {
+          pendingConfirmation();
+          hideConfirmation();
+        }
+      }
+
+      function showNotification(message, type = 'info') {
+        // Remove existing notifications
+        document.querySelectorAll('.notification').forEach(n => n.remove());
+
+        const notification = document.createElement('div');
+        notification.className = \`notification \${type}\`;
+        notification.textContent = message;
+        document.body.appendChild(notification);
+
+        // Show animation
+        setTimeout(() => notification.classList.add('show'), 100);
+
+        // Auto-hide after 3 seconds
+        setTimeout(() => {
+          notification.classList.remove('show');
+          setTimeout(() => notification.remove(), 300);
+        }, 3000);
+      }
+
+      function showLoading(isLoading) {
+        // Implement loading state
+      }
+
+      // Notification Settings Functions
+      async function saveNotificationSettings() {
+        try {
+          const localNotifications = document.getElementById('local-notifications').value;
+          const notificationSound = document.getElementById('notification-sound').value;
+          const teamId = document.getElementById('apns-team-id').value.trim();
+          const keyId = document.getElementById('apns-key-id').value.trim();
+          const bundleId = document.getElementById('apns-bundle-id').value.trim();
+          const production = document.getElementById('apns-environment').value === 'production';
+          const keyFile = document.getElementById('apns-key-file').files[0];
+
+          // Save basic notification settings
+          if (window.vibe?.settings) {
+            await window.vibe.settings.set('localNotifications', localNotifications);
+            await window.vibe.settings.set('notificationSound', notificationSound);
+          }
+
+          // Configure APNS if all required fields are provided
+          if (teamId && keyId && bundleId && keyFile) {
+            const keyData = await fileToBase64(keyFile);
+            const apnsConfig = {
+              teamId,
+              keyId,
+              bundleId,
+              keyData,
+              production
+            };
+
+            if (window.vibe?.notifications) {
+              const success = await window.vibe.notifications.configureAPNS(apnsConfig);
+              if (success) {
+                showNotification('APNS configuration saved successfully', 'success');
+                await updateAPNSStatus();
+              } else {
+                showNotification('Failed to configure APNS', 'error');
+              }
+            }
+          } else {
+            showNotification('Notification settings saved', 'success');
+          }
+        } catch (error) {
+          console.error('Failed to save notification settings:', error);
+          showNotification('Failed to save notification settings', 'error');
+        }
+      }
+
+      async function updateAPNSStatus() {
+        try {
+          if (window.vibe?.notifications) {
+            const status = await window.vibe.notifications.getAPNSStatus();
+            const statusDiv = document.getElementById('apns-status-text');
+
+            if (status.configured && status.connected) {
+              statusDiv.innerHTML = `<span style="color: #10b981;">✓ Connected</span> (${status.production ? 'Production' : 'Development'})<br><small>Team: ${status.teamId} | Bundle: ${status.bundleId}</small>`;
+            } else if (status.configured) {
+              statusDiv.innerHTML = `<span style="color: #f59e0b;">⚠ Configured but not connected</span>`;
+            } else {
+              statusDiv.innerHTML = `<span style="color: #6b7280;">Not configured</span>`;
+            }
+          }
+        } catch (error) {
+          console.error('Failed to update APNS status:', error);
+        }
+      }
+
+      async function testAPNSConnection() {
+        try {
+          if (window.vibe?.notifications) {
+            showNotification('Testing APNS connection...', 'info');
+            const success = await window.vibe.notifications.testAPNS();
+
+            if (success) {
+              showNotification('APNS connection test successful', 'success');
+            } else {
+              showNotification('APNS connection test failed', 'error');
+            }
+          }
+        } catch (error) {
+          console.error('Failed to test APNS connection:', error);
+          showNotification('APNS connection test failed', 'error');
+        }
+      }
+
+      async function refreshDeviceList() {
+        try {
+          if (window.vibe?.notifications) {
+            const devices = await window.vibe.notifications.getRegisteredDevices();
+            const container = document.getElementById('registered-devices');
+
+            if (devices.length === 0) {
+              container.innerHTML = '<div style="color: #6b7280; text-align: center; padding: 20px;">No devices registered</div>';
+            } else {
+              container.innerHTML = devices.map(device => `
+                <div style="padding: 10px; border-bottom: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center;">
+                  <div>
+                    <div style="font-weight: 600;">${device.platform.toUpperCase()}</div>
+                    <div style="font-size: 12px; color: #6b7280; font-family: monospace;">${device.deviceToken.substring(0, 20)}...</div>
+                    <div style="font-size: 12px; color: #6b7280;">Registered: ${new Date(device.timestamp).toLocaleDateString()}</div>
+                  </div>
+                  <button class="btn btn-secondary" style="font-size: 12px; padding: 4px 8px;" onclick="unregisterDevice('${device.deviceToken}', '${device.platform}')">Remove</button>
+                </div>
+              `).join('');
+            }
+          }
+        } catch (error) {
+          console.error('Failed to refresh device list:', error);
+          showNotification('Failed to load device list', 'error');
+        }
+      }
+
+      async function unregisterDevice(deviceToken, platform) {
+        try {
+          if (window.vibe?.notifications) {
+            const success = await window.vibe.notifications.unregisterDevice(deviceToken, platform);
+            if (success) {
+              showNotification('Device unregistered successfully', 'success');
+              await refreshDeviceList();
+            } else {
+              showNotification('Failed to unregister device', 'error');
+            }
+          }
+        } catch (error) {
+          console.error('Failed to unregister device:', error);
+          showNotification('Failed to unregister device', 'error');
+        }
+      }
+
+      async function sendTestNotification() {
+        try {
+          if (window.vibe?.notifications) {
+            const devices = await window.vibe.notifications.getRegisteredDevices();
+            if (devices.length === 0) {
+              showNotification('No devices registered for testing', 'error');
+              return;
+            }
+
+            // Send test notification to first device
+            const device = devices[0];
+            const payload = {
+              aps: {
+                alert: {
+                  title: 'Vibe Test Notification',
+                  body: 'This is a test notification from Vibe'
+                },
+                sound: 'default'
+              }
+            };
+
+            const success = await window.vibe.notifications.sendPush({
+              deviceToken: device.deviceToken,
+              payload
+            });
+
+            if (success) {
+              showNotification('Test notification sent successfully', 'success');
+            } else {
+              showNotification('Failed to send test notification', 'error');
+            }
+          }
+        } catch (error) {
+          console.error('Failed to send test notification:', error);
+          showNotification('Failed to send test notification', 'error');
+        }
+      }
+
+      function clearAPNSKey() {
+        document.getElementById('apns-key-file').value = '';
+        showNotification('APNS key file cleared', 'info');
+      }
+
+      // Helper function to convert file to base64
+      function fileToBase64(file) {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.readAsDataURL(file);
+          reader.onload = () => {
+            // Remove the data:application/octet-stream;base64, prefix
+            const base64 = reader.result.split(',')[1];
+            resolve(base64);
+          };
+          reader.onerror = error => reject(error);
+        });
+      }
+
+      function closeDialog() {
+        try {
+          if (window.vibe?.dialog) {
+            window.vibe.dialog.close('settings').then(() => {
+              console.log('Dialog close request sent successfully');
+            }).catch(error => {
+              console.error('Failed to close dialog:', error);
+              forceCloseDialog();
+            });
+          } else if (window.electron?.ipcRenderer) {
+            window.electron.ipcRenderer.invoke('dialog:close', 'settings').then(() => {
+              console.log('Dialog close request sent successfully');
+            }).catch(error => {
+              console.error('Failed to close dialog:', error);
+              forceCloseDialog();
+            });
+          } else {
+            console.error('No dialog API available');
+            forceCloseDialog();
+          }
+        } catch (error) {
+          console.error('Error in closeDialog:', error);
+          forceCloseDialog();
+        }
+      }
+
+      function forceCloseDialog() {
+        try {
+          if (window.vibe?.dialog) {
+            window.vibe.dialog.forceClose('settings');
+          } else if (window.electron?.ipcRenderer) {
+            window.electron.ipcRenderer.invoke('dialog:force-close', 'settings');
+          }
+        } catch (error) {
+          console.error('Error in forceCloseDialog:', error);
+        }
+      }
+    </script>
+  </body>
+</html>

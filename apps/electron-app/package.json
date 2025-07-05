@@ -5,6 +5,10 @@
   "main": "./out/main/index.js",
   "author": "CoBrowser Team",
   "homepage": "https://github.com/co-browser/vibe",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/co-browser/vibe.git"
+  },
   "scripts": {
     "format": "prettier --write src/**",
     "format:check": "prettier --check src/**",
@@ -38,6 +42,7 @@
     "@sentry/electron": "^6.7.0",
     "@sentry/react": "^6.19.7",
     "@sinm/react-chrome-tabs": "^2.5.2",
+    "@tanstack/react-virtual": "*",
     "@vibe/agent-core": "workspace:*",
     "@vibe/shared-types": "workspace:*",
     "@vibe/tab-extraction-core": "workspace:*",
@@ -61,7 +66,6 @@
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
     "sqlite3": "^5.1.7",
-    "@tanstack/react-virtual": "*",
     "tailwind-merge": "^3.2.0",
     "zustand": "^5.0.4"
   },
@@ -71,13 +75,14 @@
     "@electron-toolkit/tsconfig": "^1.0.1",
     "@electron/notarize": "^3.0.1",
     "@electron/rebuild": "^4.0.1",
+    "@indutny/rezip-electron": "^2.0.1",
     "@sentry/vite-plugin": "^3.5.0",
     "@types/node": "^22.15.8",
     "@types/react": "^19.1.1",
     "@types/react-dom": "^19.1.2",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.21",
-    "electron": "^35.1.5",
+    "electron": "37.2.0",
     "electron-builder": "^26.0.17",
     "electron-vite": "^3.1.0",
     "eslint": "^9.24.0",

@@ -1,4 +1,5 @@
 import { notarize } from "@electron/notarize";
+import { loadEnvFile, checkRequiredEnvVars } from './env-loader.js';
 /*
 *if this fails the manual way to notarize is (as of 2025) =>
 *
@@ -36,7 +37,12 @@ const appName = context.packager.appInfo.productFilename
     return;
   }
 
-  if (!process.env.APPLE_ID || !process.env.APPLE_APP_SPECIFIC_PASSWORD || !process.env.APPLE_TEAM_ID) {
+  // Load environment variables from .env file
+  loadEnvFile();
+
+  // Check for required environment variables
+  const requiredVars = ['APPLE_ID', 'APPLE_APP_SPECIFIC_PASSWORD', 'APPLE_TEAM_ID'];
+  if (!checkRequiredEnvVars(requiredVars)) {
     console.warn('[cobrowser-sign]: Skipping notarization: APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, and APPLE_TEAM_ID environment variables must be set.');
     return;
   }

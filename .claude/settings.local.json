@@ -23,7 +23,12 @@
       "Bash(npx eslint:*)",
       "Bash(npm run build:*)",
       "Bash(npm run:*)",
-      "Bash(pnpm format)"
+      "Bash(pnpm format)",
+      "WebFetch(domain:github.com)",
+      "Bash(rm:*)",
+      "Bash(ls:*)",
+      "Bash(sed:*)",
+      "Bash(npx tsc:*)"
     ],
     "deny": []
   }

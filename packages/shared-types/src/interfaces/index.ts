@@ -103,7 +103,14 @@ export interface VibeChatAPI {
 }
 
 export interface VibeSettingsAPI {
-  [key: string]: any;
+  get: (key: string) => Promise<any>;
+  set: (key: string, value: any) => Promise<boolean>;
+  remove: (key: string) => Promise<boolean>;
+  getAll: () => Promise<Record<string, any>>;
+  reset: () => Promise<boolean>;
+  export: () => Promise<string>;
+  import: (data: string) => Promise<boolean>;
+  onChange: (callback: (key: string, value: any) => void) => () => void;
 }
 
 export interface VibeSessionAPI {

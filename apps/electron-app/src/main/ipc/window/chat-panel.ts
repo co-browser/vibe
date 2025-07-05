@@ -1,4 +1,5 @@
-import { ipcMain, BrowserWindow } from "electron";
+import { ipcMain } from "electron";
+import { WindowBroadcast } from "@/utils/window-broadcast";
 import { browser } from "@/index";
 import { createLogger } from "@vibe/shared-types";
 
@@ -55,28 +56,18 @@ ipcMain.handle("interface:recover-chat-panel", async event => {
   }
 });
 
-// Forward omnibox events from overlay to main window
+// Forward omnibox events - optimized to target relevant windows only
 ipcMain.on("omnibox:suggestion-clicked", (_event, suggestion) => {
-  // Find which window this came from
-  for (const window of BrowserWindow.getAllWindows()) {
-    if (!window.isDestroyed()) {
-      window.webContents.send("omnibox:suggestion-clicked", suggestion);
-    }
-  }
+  // Send to all windows (suggestion clicks should be broadcasted)
+  WindowBroadcast.broadcastToAll("omnibox:suggestion-clicked", suggestion);
 });
 
-ipcMain.on("omnibox:escape-dropdown", () => {
-  for (const window of BrowserWindow.getAllWindows()) {
-    if (!window.isDestroyed()) {
-      window.webContents.send("omnibox:escape-dropdown");
-    }
-  }
+ipcMain.on("omnibox:escape-dropdown", event => {
+  // Send only to the sender window (escape is window-specific)
+  WindowBroadcast.replyToSender(event, "omnibox:escape-dropdown");
 });
 
 ipcMain.on("omnibox:delete-history", (_event, suggestionId) => {
-  for (const window of BrowserWindow.getAllWindows()) {
-    if (!window.isDestroyed()) {
-      window.webContents.send("omnibox:delete-history", suggestionId);
-    }
-  }
+  // Broadcast history deletion to all windows for sync
+  WindowBroadcast.broadcastToAll("omnibox:delete-history", suggestionId);
 });

@@ -48,9 +48,11 @@ export function formatForLLM(page: ExtractedPage): string {
   // Key actions
   if (page.actions.length > 0) {
     sections.push("## Available Actions");
-    page.actions.slice(0, 10).forEach(action => {
-      sections.push(`- [${action.type}] ${action.text}`);
-    });
+    page.actions
+      .slice(0, 10)
+      .forEach((action: { type: string; text: string }) => {
+        sections.push(`- [${action.type}] ${action.text}`);
+      });
     sections.push("");
   }
 

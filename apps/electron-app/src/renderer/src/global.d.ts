@@ -40,6 +40,7 @@ interface VibeProfileAPI {
     }>
   >;
   clearNavigationHistory: () => Promise<boolean>;
+  deleteFromHistory: (url: string) => Promise<boolean>;
   getActiveProfile: () => Promise<{
     id: string;
     name: string;

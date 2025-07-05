@@ -10,12 +10,16 @@ module.exports = {
     "!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}",
     "!{.env,.env.*,.npmrc,pnpm-lock.yaml}",
     "!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}",
+    "!node_modules/framer-motion/**",
+    "!node_modules/@swc/**",
+    "node_modules/fs-xattr/build/Release/*.node",
+    "!node_modules/.cache",
     "out/**/*",
   ],
   afterSign: "scripts/notarize.js",
   afterAllArtifactBuild: "scripts/notarizedmg.js",
   asarUnpack: [
-    "dist/mac-arm64/vibe.app/Contents/Resources/app.asar.unpacked/node_modules/sqlite3/build/Release/node_sqlite3.node",
+    "**/*.node"
   ],
   extraResources: [
     {
@@ -36,8 +40,25 @@ module.exports = {
   mac: {
     appId: "xyz.cobrowser.vibe",
     extendInfo: {
+      NSBonjourServices: ["_http._tcp"],
+      ASWebAuthenticationSessionWebBrowserSupportCapabilities: {
+        IsSupported: true,
+        EphemeralBrowserSessionIsSupported: true,
+        CallbackURLMatchingIsSupported: true,
+        AdditionalHeaderFieldsAreSupported: true,
+      },
+      ASWebAuthenticationSessionWebBrowserSupport: {
+        IsSupported: true,
+        EphemeralBrowserSessionIsSupported: true,
+        CallbackURLMatchingIsSupported: true,
+        AdditionalHeaderFieldsAreSupported: true,
+      },
+      ASAccountAuthenticationModificationOptOutOfSecurityPromptsOnSignIn: true,
+      UIRequiredDeviceCapabilities: ["embedded-web-browser-engine"],
+      BEEmbeddedWebBrowserEngine: "chromium",
+      BEEmbeddedWebBrowserEngineVersion: "138.0.0.0",
       NSDockTilePlugIn: "DockTile.docktileplugin",
-      NSBluetoothAlwaysUsageDescription: "passkey access",
+    NSBluetoothAlwaysUsageDescription: "passkey access",
       NSBluetoothPeripheralUsageDescription: "passkey access",
       NSCameraUsageDescription: "webrtc access",
       NSMicrophoneUsageDescription: "webrtc access",
@@ -46,13 +67,14 @@ module.exports = {
                     NSSendTypes: ["NSStringPboardType"],
                     NSMessage: "handleTextDropOnDock",
                     NSMenuItem: {
-                        default: "Open with CoBrowser",
+                        default: "vibe...",
                     },
                 },
             ],
     },
     category: "public.app-category.developer-tools",
-    entitlements: "resources/entitlements.mac.plist",
+    entitlements: "resources/entitlements.mac.plist", 
+    entitlementsInherit: "resources/entitlements.mac.plist",
     darkModeSupport: true,
     electronLanguages: ["en"],
     hardenedRuntime: true,
@@ -72,11 +94,11 @@ module.exports = {
   },
   dmg: {
     icon: "resources/icon.icns",
-    background: "resources/DMG_Background.tiff",
+    background: "resources/bg.tiff",
     sign: true,
     format: "ULFO",
     internetEnabled: true,
-    title: "COBROWSER",
+    title: "[ v i b e ]",
     window: {
       width: 600,
       height: 600,
@@ -105,11 +127,6 @@ module.exports = {
     env: "production",
   },
   npmRebuild: false,
-  // publish: {
-  //   provider: "github",
-  //   owner: "co-browser",
-  //   repo: "vibe"
-  // },
   electronDownload: {
     mirror: "https://npmmirror.com/mirrors/electron/",
   },

@@ -4,6 +4,7 @@
  */
 
 import { useCallback, useEffect, useRef, useMemo, useState } from "react";
+import type { SuggestionMetadata } from "../../../types/metadata";
 
 interface OmniboxSuggestion {
   id: string;
@@ -21,7 +22,7 @@ interface OmniboxSuggestion {
   description?: string;
   iconType?: string;
   icon?: React.ReactNode;
-  metadata?: any;
+  metadata?: SuggestionMetadata;
 }
 
 interface OmniboxOverlayOptions {
@@ -151,20 +152,6 @@ const STATIC_CSS = `
     color: #ff4444;
   }
   
-  /* Security indicator */
-  .security-indicator {
-    position: fixed;
-    top: 10px;
-    right: 10px;
-    background: #4CAF50;
-    color: white;
-    padding: 4px 8px;
-    border-radius: 4px;
-    font-size: 10px;
-    z-index: 2147483648;
-    pointer-events: none;
-    opacity: 0.8;
-  }
 `;
 
 export function useOmniboxOverlay(options: OmniboxOverlayOptions = {}) {
@@ -411,7 +398,6 @@ export function useOmniboxOverlay(options: OmniboxOverlayOptions = {}) {
             : ""
         }
       </div>
-      <div class="security-indicator">🔒 Secure Overlay</div>
     `;
 
       // Update overlay content safely

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
-import { shell, ipcMain } from "electron";
+import { shell, ipcMain, session } from "electron";
 import { createLogger } from "@vibe/shared-types";
 import { useUserProfileStore } from "../../store/user-profile-store";
 
@@ -47,11 +47,52 @@ class Downloads {
     return item;
   }
 
+  private setupGlobalDownloadTracking() {
+    // Listen for downloads in the default session
+    session.defaultSession.on("will-download", (_event, item, _webContents) => {
+      const fileName = item.getFilename();
+      const savePath = item.getSavePath();
+
+      logger.info(`Download started: ${fileName} -> ${savePath}`);
+
+      // Track when download completes
+      item.on("done", (_event, state) => {
+        if (state === "completed") {
+          logger.info(`Download completed: ${fileName}`);
+
+          // Add to download history
+          this.addDownloadHistoryItem({
+            fileName,
+            filePath: savePath,
+            createdAt: Date.now(),
+            exists: fs.existsSync(savePath),
+          });
+        } else {
+          logger.warn(`Download ${state}: ${fileName}`);
+        }
+      });
+
+      // Track download progress (optional)
+      item.on("updated", (_event, state) => {
+        if (state === "progressing") {
+          if (item.isPaused()) {
+            logger.debug(`Download paused: ${fileName}`);
+          } else {
+            const progress = Math.round(
+              (item.getReceivedBytes() / item.getTotalBytes()) * 100,
+            );
+            logger.debug(`Download progress: ${fileName} - ${progress}%`);
+          }
+        }
+      });
+    });
+  }
+
   init() {
-    // Download handling will be implemented later
-    logger.info(
-      "Downloads service initialized - download handling not yet implemented",
-    );
+    // Set up global download tracking
+    this.setupGlobalDownloadTracking();
+
+    logger.info("Downloads service initialized with global download tracking");
 
     // Handle download history requests
     ipcMain.handle("downloads.getHistory", () => {

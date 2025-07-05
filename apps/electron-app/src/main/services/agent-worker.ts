@@ -25,6 +25,7 @@ export class AgentWorker extends EventEmitter {
   private lastHealthCheck: number = 0;
   private readonly healthCheckIntervalMs: number = 30000; // 30 seconds
   private readonly healthCheckTimeoutMs: number = 5000; // 5 seconds
+  private activeTimeouts: Set<NodeJS.Timeout> = new Set();
 
   constructor() {
     super();
@@ -54,6 +55,12 @@ export class AgentWorker extends EventEmitter {
 
       // Stop health monitoring
       this.stopHealthMonitoring();
+
+      // Clear all active timeouts
+      this.activeTimeouts.forEach(timeout => {
+        clearTimeout(timeout);
+      });
+      this.activeTimeouts.clear();
 
       // Clear pending messages
       for (const pending of Array.from(this.messageQueue.values())) {
@@ -412,10 +419,26 @@ export class AgentWorker extends EventEmitter {
 
       // Try again if we haven't hit the limit
       if (this.restartCount < this.maxRestarts) {
-        setTimeout(() => this.attemptRestart(), 2000); // Wait longer before next attempt
+        this.createTimeout(() => this.attemptRestart(), 2000); // Wait longer before next attempt
       } else {
         this.emit("error", new Error("All restart attempts failed"));
       }
     }
+  }
+
+  /**
+   * Create a tracked timeout that will be automatically cleaned up
+   */
+  private createTimeout(callback: () => void, delay: number): NodeJS.Timeout {
+    const timeout = setTimeout(() => {
+      this.activeTimeouts.delete(timeout);
+      try {
+        callback();
+      } catch (error) {
+        console.error("[AgentWorker] Timer callback error:", error);
+      }
+    }, delay);
+    this.activeTimeouts.add(timeout);
+    return timeout;
   }
 }

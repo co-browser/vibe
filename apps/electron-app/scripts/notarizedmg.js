@@ -1,7 +1,7 @@
 import { notarize } from "@electron/notarize";
 import fs from 'fs';
 import path from 'path';
-
+import { loadEnvFile, checkRequiredEnvVars } from './env-loader.js';
 /*
 *if this fails the manual way to notarize is (as of 2025) =>
 *
@@ -31,6 +31,27 @@ async function retryNotarize(options, retries = 5, delay = 5000) {
   }
 }
 
+// Commented out unused function - can be enabled when needed
+// async function optimizeFile(file) {
+//   const { optimize } = await import('@indutny/rezip-electron');
+//   const tmpFolder = await mkdtemp(path.join(tmpdir(), 'rezip'));
+//   const optimizedPath = path.join(tmpFolder, path.basename(file));
+
+//   try {
+//     console.log(`Optimizing ${file} => ${optimizedPath}`);
+
+//     await optimize({
+//       inputPath: file,
+//       outputPath: optimizedPath,
+//       blockMapPath: `${file}.blockmap`,
+//     });
+
+//     console.log(`Replacing ${file}`);
+//     await rename(optimizedPath, file);
+//   } finally {
+//     await rm(tmpFolder, { recursive: true });
+//   }
+// } 
 
 function findDmgFile(directoryPath) {
   try {
@@ -59,14 +80,19 @@ export default async function notarizing(context) {
     return;
   }
 
-  if (!process.env.APPLE_ID || !process.env.APPLE_APP_SPECIFIC_PASSWORD || !process.env.APPLE_TEAM_ID) {
+  // Load environment variables from .env file
+  loadEnvFile();
+
+  // Check for required environment variables
+  const requiredVars = ['APPLE_ID', 'APPLE_APP_SPECIFIC_PASSWORD', 'APPLE_TEAM_ID'];
+  if (!checkRequiredEnvVars(requiredVars)) {
     console.warn('[cobrowser-sign]: Skipping notarization: APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, and APPLE_TEAM_ID environment variables must be set.');
     return;
   }
 
   const dmgFilePath = findDmgFile(appOutDir);
   if (dmgFilePath) {
-    console.log(`Found .dmg file: ${dmgFilePath}`);
+    console.log(`[cobrowser-sign]: Found .dmg file: ${dmgFilePath}`);
     try {
       await retryNotarize({
         tool: 'notarytool',
@@ -76,15 +102,13 @@ export default async function notarizing(context) {
         appleIdPassword: process.env.APPLE_APP_SPECIFIC_PASSWORD,
         teamId: process.env.APPLE_TEAM_ID
       });
+      //await optimizeFile(dmgFilePath);
       console.log('[cobrowser-sign]: Notarization complete!');
     } catch (error) {
-      console.error('[cobrowser-sign]: motarization failed:', error);
+      console.error('[cobrowser-sign]: Notarization failed:', error);
       throw error;
     }
   } else {
     console.error(`[cobrowser-sign]: No .dmg file found in ${appOutDir}`);
   }
-
-
-
 }

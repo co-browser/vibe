@@ -264,7 +264,36 @@ function createApplicationMenu(browser: Browser): MenuItemConstructorOptions[] {
       { role: "resetZoom" },
       { type: "separator" },
       { role: "togglefullscreen" },
-      { role: "toggleDevTools" },
+      {
+        label: "Toggle Developer Tools",
+        accelerator: isMac ? "Command+Option+I" : "Control+Shift+I",
+        click: () => {
+          const focusedWindow = BrowserWindow.getFocusedWindow();
+          if (
+            focusedWindow &&
+            focusedWindow.webContents &&
+            !focusedWindow.webContents.isDestroyed()
+          ) {
+            focusedWindow.webContents.toggleDevTools();
+          }
+        },
+      },
+      {
+        label: "Force Close All Dialogs",
+        accelerator: isMac ? "Command+Shift+Escape" : "Control+Shift+Escape",
+        click: () => {
+          // Force close all dialogs by accessing the dialog manager
+          const focusedWindow = BrowserWindow.getFocusedWindow();
+          if (focusedWindow) {
+            const appWindow = browser.getApplicationWindow(
+              focusedWindow.webContents.id,
+            );
+            if (appWindow && appWindow.dialogManager) {
+              appWindow.dialogManager.closeAllDialogs();
+            }
+          }
+        },
+      },
     ],
   };
 

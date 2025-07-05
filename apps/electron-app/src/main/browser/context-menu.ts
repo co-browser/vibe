@@ -119,7 +119,11 @@ function createContextMenuTemplate(
         click: () => {
           // Send IPC to main window to create new tab
           const mainWindow = BrowserWindow.fromWebContents(webContents);
-          if (mainWindow) {
+          if (
+            mainWindow &&
+            !mainWindow.isDestroyed() &&
+            !mainWindow.webContents.isDestroyed()
+          ) {
             mainWindow.webContents.send("tab:create", params.linkURL);
           }
         },
@@ -178,7 +182,11 @@ function createContextMenuTemplate(
         click: () => {
           const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(params.selectionText)}`;
           const mainWindow = BrowserWindow.fromWebContents(webContents);
-          if (mainWindow) {
+          if (
+            mainWindow &&
+            !mainWindow.isDestroyed() &&
+            !mainWindow.webContents.isDestroyed()
+          ) {
             mainWindow.webContents.send("tab:create", searchUrl);
           }
         },
@@ -251,19 +259,61 @@ function createContextMenuTemplate(
   }
 
   // Default browser actions
+  // Helper function to safely check navigation history
+  const safeCanGoBack = (): boolean => {
+    try {
+      return (
+        (!webContents.isDestroyed() &&
+          webContents.navigationHistory?.canGoBack()) ||
+        false
+      );
+    } catch (error) {
+      logger.warn("Failed to check canGoBack, falling back to false:", error);
+      return false;
+    }
+  };
+
+  const safeCanGoForward = (): boolean => {
+    try {
+      return (
+        (!webContents.isDestroyed() &&
+          webContents.navigationHistory?.canGoForward()) ||
+        false
+      );
+    } catch (error) {
+      logger.warn(
+        "Failed to check canGoForward, falling back to false:",
+        error,
+      );
+      return false;
+    }
+  };
+
   template.push(
     {
       label: "Back",
-      enabled: webContents.navigationHistory.canGoBack(),
+      enabled: safeCanGoBack(),
       click: () => {
-        webContents.goBack();
+        try {
+          if (!webContents.isDestroyed() && safeCanGoBack()) {
+            webContents.goBack();
+          }
+        } catch (error) {
+          logger.error("Failed to navigate back:", error);
+        }
       },
     },
     {
       label: "Forward",
-      enabled: webContents.navigationHistory.canGoForward(),
+      enabled: safeCanGoForward(),
       click: () => {
-        webContents.goForward();
+        try {
+          if (!webContents.isDestroyed() && safeCanGoForward()) {
+            webContents.goForward();
+          }
+        } catch (error) {
+          logger.error("Failed to navigate forward:", error);
+        }
       },
     },
     {
@@ -277,7 +327,11 @@ function createContextMenuTemplate(
       label: "View Page Source",
       click: () => {
         const mainWindow = BrowserWindow.fromWebContents(webContents);
-        if (mainWindow) {
+        if (
+          mainWindow &&
+          !mainWindow.isDestroyed() &&
+          !mainWindow.webContents.isDestroyed()
+        ) {
           mainWindow.webContents.send(
             "tab:create",
             `view-source:${params.pageURL}`,

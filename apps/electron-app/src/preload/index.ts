@@ -721,6 +721,9 @@ const profileAPI = {
   clearNavigationHistory: async () => {
     return ipcRenderer.invoke("profile:clearNavigationHistory");
   },
+  deleteFromHistory: async (url: string) => {
+    return ipcRenderer.invoke("profile:deleteFromNavigationHistory", url);
+  },
   getActiveProfile: async () => {
     return ipcRenderer.invoke("profile:getActiveProfile");
   },
@@ -752,6 +755,120 @@ const downloadsAPI = {
   clearHistory: async () => ipcRenderer.invoke("downloads.clearHistory"),
 };
 
+const dialogAPI = {
+  close: async (dialogType: string) => {
+    console.log(`[DialogAPI] Closing dialog: ${dialogType}`);
+    return ipcRenderer.invoke("dialog:close", dialogType);
+  },
+  forceClose: async (dialogType: string) => {
+    console.log(`[DialogAPI] Force closing dialog: ${dialogType}`);
+    return ipcRenderer.invoke("dialog:force-close", dialogType);
+  },
+  showDownloads: async () => {
+    console.log(`[DialogAPI] Showing downloads dialog`);
+    return ipcRenderer.invoke("dialog:show-downloads");
+  },
+  showSettings: async () => {
+    console.log(`[DialogAPI] Showing settings dialog`);
+    return ipcRenderer.invoke("dialog:show-settings");
+  },
+};
+
+// Enhanced Notifications API with APNS support
+const notificationsAPI = {
+  // Local notifications
+  showLocal: async (options: {
+    title: string;
+    body?: string;
+    subtitle?: string;
+    icon?: string;
+    sound?: string;
+    actions?: Array<{ type: string; text: string }>;
+    silent?: boolean;
+  }) => {
+    return ipcRenderer.invoke("notifications:show-local", options);
+  },
+
+  // Legacy method for backward compatibility
+  show: (title: string, body: string) => {
+    ipcRenderer.send("app:show-notification", title, body);
+  },
+
+  // Push notifications via APNS
+  sendPush: async (params: {
+    deviceToken: string;
+    payload: {
+      aps: {
+        alert?:
+          | {
+              title?: string;
+              body?: string;
+              subtitle?: string;
+            }
+          | string;
+        badge?: number;
+        sound?: string;
+        "content-available"?: number;
+        category?: string;
+      };
+      [key: string]: any;
+    };
+    options?: {
+      topic?: string;
+      priority?: 10 | 5;
+      expiry?: number;
+      collapseId?: string;
+    };
+  }) => {
+    return ipcRenderer.invoke("notifications:send-push", params);
+  },
+
+  // Device registration for push notifications
+  registerDevice: async (registration: {
+    deviceToken: string;
+    userId?: string;
+    platform: "ios" | "macos";
+    timestamp?: number;
+  }) => {
+    return ipcRenderer.invoke("notifications:register-device", {
+      ...registration,
+      timestamp: registration.timestamp || Date.now(),
+    });
+  },
+
+  unregisterDevice: async (deviceToken: string, platform: "ios" | "macos") => {
+    return ipcRenderer.invoke(
+      "notifications:unregister-device",
+      deviceToken,
+      platform,
+    );
+  },
+
+  getRegisteredDevices: async () => {
+    return ipcRenderer.invoke("notifications:get-registered-devices");
+  },
+
+  // APNS configuration
+  configureAPNS: async (config: {
+    teamId: string;
+    keyId: string;
+    bundleId: string;
+    keyFile?: string;
+    keyData?: string;
+    production?: boolean;
+  }) => {
+    return ipcRenderer.invoke("notifications:configure-apns", config);
+  },
+
+  getAPNSStatus: async () => {
+    return ipcRenderer.invoke("notifications:get-apns-status");
+  },
+
+  testAPNS: async (deviceToken?: string) => {
+    return ipcRenderer.invoke("notifications:test-apns", deviceToken);
+  },
+};
+
 const vibeAPI = {
   app: appAPI,
   actions: actionsAPI,
@@ -766,6 +883,8 @@ const vibeAPI = {
   update: updateAPI,
   profile: profileAPI,
   downloads: downloadsAPI,
+  dialog: dialogAPI,
+  notifications: notificationsAPI,
 };
 
 // Expose APIs to the renderer process

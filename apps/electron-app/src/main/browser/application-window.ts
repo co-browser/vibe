@@ -14,8 +14,7 @@ import { createLogger } from "@vibe/shared-types";
 const logger = createLogger("ApplicationWindow");
 import type { CDPManager } from "../services/cdp-service";
 
-let bluetoothPinCallback;
-let selectBluetoothCallback;
+// Bluetooth handlers now moved to instance variables for proper cleanup
 
 /**
  * ApplicationWindow - Simple window wrapper that contains per-window managers
@@ -26,6 +25,8 @@ export class ApplicationWindow extends EventEmitter {
   public readonly tabManager: TabManager;
   public readonly viewManager: ViewManager;
   public readonly dialogManager: DialogManager;
+  private bluetoothPinCallback?: (response: any) => void;
+  private selectBluetoothCallback?: (deviceId: string) => void;
 
   constructor(
     browser: any,
@@ -43,7 +44,7 @@ export class ApplicationWindow extends EventEmitter {
         _event.preventDefault();
         logger.warn("Bluetooth select!");
 
-        selectBluetoothCallback = callback;
+        this.selectBluetoothCallback = callback;
         const result = deviceList.find(device => {
           return device.deviceName === "vibe";
         });
@@ -55,18 +56,37 @@ export class ApplicationWindow extends EventEmitter {
       },
     );
 
-    ipcMain.on("cancel-bluetooth-request", _event => {
-      selectBluetoothCallback("");
-    });
+    // Use instance-specific handlers that can be properly cleaned up
+    const cancelBluetoothHandler = (_event: any) => {
+      if (this.selectBluetoothCallback) {
+        this.selectBluetoothCallback("");
+      }
+    };
 
-    // Listen for a message from the renderer to get the response for the Bluetooth pairing.
-    ipcMain.on("bluetooth-pairing-response", (_event, response) => {
-      bluetoothPinCallback(response);
+    const bluetoothPairingHandler = (_event: any, response: any) => {
+      if (this.bluetoothPinCallback) {
+        this.bluetoothPinCallback(response);
+      }
+    };
+
+    ipcMain.on("cancel-bluetooth-request", cancelBluetoothHandler);
+    ipcMain.on("bluetooth-pairing-response", bluetoothPairingHandler);
+
+    // Store handlers for cleanup
+    this.window.once("closed", () => {
+      ipcMain.removeListener(
+        "cancel-bluetooth-request",
+        cancelBluetoothHandler,
+      );
+      ipcMain.removeListener(
+        "bluetooth-pairing-response",
+        bluetoothPairingHandler,
+      );
     });
 
     this.window.webContents.session.setBluetoothPairingHandler(
       (details, callback) => {
-        bluetoothPinCallback = callback;
+        this.bluetoothPinCallback = callback;
         // Send a message to the renderer to prompt the user to confirm the pairing.
         this.window.webContents.send("bluetooth-pairing-request", details);
       },
@@ -81,6 +101,9 @@ export class ApplicationWindow extends EventEmitter {
 
     // Set up tab event forwarding for this window
     this.setupTabEventForwarding();
+
+    // Set up dialog event forwarding for this window
+    this.setupDialogEventForwarding();
 
     // Simple lifecycle management
     this.setupEvents();
@@ -177,6 +200,14 @@ export class ApplicationWindow extends EventEmitter {
     this.tabManager.on("tabs-reordered", tabs => {
       if (!this.window.isDestroyed()) {
         this.window.webContents.send("browser-tabs-reordered", tabs);
+      }
+    });
+  }
+
+  private setupDialogEventForwarding(): void {
+    this.dialogManager.on("dialog-closed", (dialogType: string) => {
+      if (!this.window.isDestroyed()) {
+        this.window.webContents.send("dialog-closed", dialogType);
       }
     });
   }

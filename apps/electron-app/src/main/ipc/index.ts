@@ -24,7 +24,6 @@ import "@/ipc/session/session-persistence";
 import { setupSessionStateSync } from "@/ipc/session/state-sync";
 
 // Settings APIs - direct imports (register themselves)
-import "@/ipc/settings/settings-crud";
 import "@/ipc/settings/settings-management";
 
 // Window APIs - direct imports (register themselves)
@@ -38,6 +37,7 @@ import "@/ipc/browser/tabs";
 import "@/ipc/browser/windows";
 import "@/ipc/browser/navigation";
 import "@/ipc/browser/content";
+import { downloads } from "@/ipc/browser/download";
 
 // MCP APIs - direct imports (register themselves)
 import "@/ipc/mcp/mcp-status";
@@ -56,6 +56,9 @@ export function registerAllIpcHandlers(browser: Browser): () => void {
 
   // Register user profile handlers
   registerProfileHistoryHandlers();
+
+  // Initialize downloads service
+  downloads.init();
 
   // Setup session state sync (broadcasts to all windows)
   let sessionUnsubscribe: (() => void) | null = null;

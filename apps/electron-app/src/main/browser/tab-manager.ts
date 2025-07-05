@@ -441,13 +441,38 @@ export class TabManager extends EventEmitter {
       changes.push("isLoading");
     }
 
-    const newCanGoBack = webContents.navigationHistory.canGoBack();
+    // Safely check navigation history with fallback
+    let newCanGoBack = false;
+    try {
+      newCanGoBack =
+        (!webContents.isDestroyed() &&
+          webContents.navigationHistory?.canGoBack()) ||
+        false;
+    } catch (error) {
+      logger.warn(
+        `Failed to check canGoBack for tab ${tab.key}, falling back to false:`,
+        error,
+      );
+    }
+
     if (newCanGoBack !== tab.canGoBack) {
       tab.canGoBack = newCanGoBack;
       changes.push("canGoBack");
     }
 
-    const newCanGoForward = webContents.navigationHistory.canGoForward();
+    let newCanGoForward = false;
+    try {
+      newCanGoForward =
+        (!webContents.isDestroyed() &&
+          webContents.navigationHistory?.canGoForward()) ||
+        false;
+    } catch (error) {
+      logger.warn(
+        `Failed to check canGoForward for tab ${tab.key}, falling back to false:`,
+        error,
+      );
+    }
+
     if (newCanGoForward !== tab.canGoForward) {
       tab.canGoForward = newCanGoForward;
       changes.push("canGoForward");
@@ -578,18 +603,38 @@ export class TabManager extends EventEmitter {
       if (!view || view.webContents.isDestroyed()) return false;
 
       const webContents = view.webContents;
-      const navigationHistory = webContents.navigationHistory;
 
-      // Check current URL and navigation state
-      const currentUrl = webContents.getURL();
-      const activeIndex = navigationHistory.getActiveIndex();
-      const currentEntry = navigationHistory.getEntryAtIndex(activeIndex);
+      // Safely access navigationHistory with error handling
+      let navigationHistory: Electron.NavigationHistory | null = null;
+      let currentUrl: string;
+      let activeIndex: number = -1;
+      let currentEntry: Electron.NavigationEntry | null = null;
+      let canGoBack = false;
+
+      try {
+        navigationHistory = webContents.navigationHistory;
+        currentUrl = webContents.getURL();
+        activeIndex = navigationHistory?.getActiveIndex() || -1;
+        currentEntry =
+          activeIndex >= 0
+            ? navigationHistory?.getEntryAtIndex(activeIndex) || null
+            : null;
+        canGoBack = navigationHistory?.canGoBack() || false;
+      } catch (error) {
+        logger.warn(
+          `Failed to access navigation history for tab ${tabKey}, using fallback values:`,
+          error,
+        );
+        currentUrl = webContents.getURL();
+        // Fall back to basic URL check without navigation history
+      }
 
       // Case 1: Ideal scenario - tab is at sleep URL and has history to go back to
       if (
         currentEntry &&
         currentEntry.url === TAB_CONFIG.SLEEP_MODE_URL &&
-        navigationHistory.canGoBack()
+        canGoBack &&
+        navigationHistory
       ) {
         this.wakeUpFromHistory(
           webContents,
@@ -654,8 +699,21 @@ export class TabManager extends EventEmitter {
     webContents.once("did-finish-load", onNavigationComplete);
     webContents.once("did-fail-load", onNavigationComplete);
 
-    // Initiate navigation
-    navigationHistory.goBack();
+    // Initiate navigation with error handling
+    try {
+      navigationHistory.goBack();
+    } catch (error) {
+      logger.error(
+        `Failed to navigate back from history for tab ${tabKey}:`,
+        error,
+      );
+      // Remove the listeners since navigation failed
+      webContents.removeListener("did-finish-load", onNavigationComplete);
+      webContents.removeListener("did-fail-load", onNavigationComplete);
+
+      // Fallback to wakeUpWithFallback
+      this.wakeUpWithFallback(webContents, navigationHistory, tabKey);
+    }
   }
 
   /**
@@ -737,19 +795,30 @@ export class TabManager extends EventEmitter {
 
   public goBack(tabKey: string): boolean {
     const view = this.getBrowserView(tabKey);
-    if (!view || !view.webContents.navigationHistory.canGoBack()) return false;
+    if (!view || view.webContents.isDestroyed()) return false;
 
-    view.webContents.goBack();
-    return true;
+    try {
+      if (!view.webContents.navigationHistory?.canGoBack()) return false;
+      view.webContents.goBack();
+      return true;
+    } catch (error) {
+      logger.error(`Failed to navigate back for tab ${tabKey}:`, error);
+      return false;
+    }
   }
 
   public goForward(tabKey: string): boolean {
     const view = this.getBrowserView(tabKey);
-    if (!view || !view.webContents.navigationHistory.canGoForward())
-      return false;
+    if (!view || view.webContents.isDestroyed()) return false;
 
-    view.webContents.goForward();
-    return true;
+    try {
+      if (!view.webContents.navigationHistory?.canGoForward()) return false;
+      view.webContents.goForward();
+      return true;
+    } catch (error) {
+      logger.error(`Failed to navigate forward for tab ${tabKey}:`, error);
+      return false;
+    }
   }
 
   public refresh(tabKey: string): boolean {
@@ -1207,7 +1276,14 @@ export class TabManager extends EventEmitter {
   private shouldSkipUrl(url: string): boolean {
     if (!url || typeof url !== "string") return true;
 
-    // Skip internal/system URLs
+    // Security: Check URL length to prevent memory exhaustion
+    const MAX_URL_LENGTH = 2048; // RFC 2616 recommendation
+    if (url.length > MAX_URL_LENGTH) {
+      logger.warn("URL exceeds maximum length, skipping");
+      return true;
+    }
+
+    // Skip internal/system URLs and potentially dangerous schemes
     const skipPrefixes = [
       "about:",
       "chrome:",
@@ -1216,9 +1292,13 @@ export class TabManager extends EventEmitter {
       "file:",
       "data:",
       "blob:",
+      "javascript:",
+      "vbscript:",
       "moz-extension:",
       "safari-extension:",
       "edge-extension:",
+      "ms-appx:",
+      "ms-appx-web:",
     ];
 
     const lowerUrl = url.toLowerCase();
@@ -1226,8 +1306,30 @@ export class TabManager extends EventEmitter {
       return true;
     }
 
-    // Skip very short URLs or localhost
-    if (url.length < 10 || lowerUrl.includes("localhost")) {
+    // Security: Validate URL scheme is HTTP/HTTPS
+    try {
+      const urlObj = new URL(url);
+      if (!["http:", "https:"].includes(urlObj.protocol)) {
+        logger.debug("Non-HTTP/HTTPS URL skipped:", urlObj.protocol);
+        return true;
+      }
+
+      // Additional security checks
+      if (
+        urlObj.hostname === "localhost" ||
+        urlObj.hostname === "127.0.0.1" ||
+        urlObj.hostname.endsWith(".local")
+      ) {
+        return true;
+      }
+    } catch {
+      // Invalid URL format
+      logger.debug("Invalid URL format, skipping");
+      return true;
+    }
+
+    // Skip very short URLs
+    if (url.length < 10) {
       return true;
     }
 

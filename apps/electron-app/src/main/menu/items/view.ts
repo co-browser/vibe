@@ -34,7 +34,20 @@ export function createViewMenu(browser: Browser): MenuItemConstructorOptions {
           }
         },
       },
-      { role: "toggleDevTools" },
+      {
+        label: "Toggle Developer Tools",
+        accelerator: isMac ? "Command+Option+I" : "Control+Shift+I",
+        click: () => {
+          const focusedWindow = BrowserWindow.getFocusedWindow();
+          if (
+            focusedWindow &&
+            focusedWindow.webContents &&
+            !focusedWindow.webContents.isDestroyed()
+          ) {
+            focusedWindow.webContents.toggleDevTools();
+          }
+        },
+      },
       { type: "separator" },
       { role: "resetZoom" },
       { role: "zoomIn" },
