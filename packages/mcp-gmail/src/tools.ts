@@ -1,5 +1,9 @@
 import dotenv from 'dotenv';
-dotenv.config();
+
+// Only load .env in development or when not running as subprocess
+if (process.env.NODE_ENV === 'development' || !process.env.ELECTRON_RUN_AS_NODE) {
+  dotenv.config();
+}
 
 import { google, gmail_v1 } from 'googleapis';
 import { OAuth2Client } from 'google-auth-library';

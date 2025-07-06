@@ -65,6 +65,9 @@ export class AgentFactory {
     const mcpManager = new MCPManager();
 
     // Store auth token for later use
+    logger.debug(
+      `Agent factory - auth token: ${config.authToken ? "present" : "not provided"}`,
+    );
     if (config.authToken) {
       try {
         await mcpManager.updateAuthToken(config.authToken);

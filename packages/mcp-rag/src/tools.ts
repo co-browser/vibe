@@ -1,5 +1,8 @@
 import dotenv from 'dotenv';
-dotenv.config();
+// Load environment variables only in development or when not running as subprocess
+if (process.env.NODE_ENV === 'development' || !process.env.ELECTRON_RUN_AS_NODE) {
+  dotenv.config();
+}
 
 /**
  * RAG Tools for Web Content Ingestion and Search

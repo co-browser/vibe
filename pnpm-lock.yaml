@@ -326,6 +326,9 @@ importers:
       '@types/node':
         specifier: ^22.10.5
         version: 22.15.31
+      esbuild:
+        specifier: ^0.25.5
+        version: 0.25.5
       tsx:
         specifier: ^4.19.2
         version: 4.20.1
@@ -399,6 +402,9 @@ importers:
       '@types/uuid':
         specifier: ^9.0.7
         version: 9.0.8
+      esbuild:
+        specifier: ^0.25.5
+        version: 0.25.5
       tsx:
         specifier: ^4.6.2
         version: 4.20.1

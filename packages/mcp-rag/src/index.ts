@@ -9,8 +9,11 @@ import { RAGTools } from './tools.js';
 import { validatePrivyToken } from './middleware/auth.js';
 import dotenv from 'dotenv';
 
-// Load environment variables
-dotenv.config();
+// Load environment variables only in development or when not running as subprocess
+// In production packaged app, environment variables come from parent process
+if (process.env.NODE_ENV === 'development' || !process.env.ELECTRON_RUN_AS_NODE) {
+  dotenv.config();
+}
 
 const logger = createLogger('mcp-rag');
 

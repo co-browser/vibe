@@ -12,6 +12,9 @@ export * from "./constants.js";
 
 // Import for use in this file
 import type { MCPServerConfig } from "./types.js";
+import { createLogger } from "../logger/index.js";
+
+const logger = createLogger("MCP");
 
 /**
  * Process-level status interface for MCP server monitoring.
@@ -126,15 +129,14 @@ export function createMCPServerConfig(
   name: string,
   envVars?: Record<string, string>,
 ): MCPServerConfig | undefined {
-  // Special handling for RAG server (local or cloud)
+  // Special handling for RAG server (local and remote)
   if (name === "rag") {
     const useLocalRag = envVars?.USE_LOCAL_RAG_SERVER === "true";
+    const baseConfig = getMCPServerBaseConfig(name);
+    if (!baseConfig) return undefined;
 
     if (useLocalRag) {
       // Use local RAG server configuration
-      const baseConfig = getMCPServerBaseConfig(name);
-      if (!baseConfig) return undefined;
-
       return {
         ...baseConfig,
         env: {
@@ -149,28 +151,13 @@ export function createMCPServerConfig(
         },
       };
     } else {
-      // Use cloud RAG server with default URL
-      const ragServerUrl =
-        envVars?.RAG_SERVER_URL || "https://rag.cobrowser.xyz";
-
-      let cloudUrl: URL;
-      try {
-        cloudUrl = new URL(ragServerUrl);
-      } catch {
-        throw new Error(
-          `Invalid RAG_SERVER_URL: ${ragServerUrl}. Must be a valid URL.`,
-        );
-      }
-
+      // Remote RAG server configuration
+      const remoteUrl = envVars?.RAG_SERVER_URL || "https://rag.cobrowser.xyz";
       return {
-        name: "rag",
-        url: cloudUrl.origin,
-        port:
-          parseInt(cloudUrl.port) ||
-          (cloudUrl.protocol === "https:" ? 443 : 80),
-        healthEndpoint: "/health",
-        mcpEndpoint: "/mcp",
-        env: {}, // Cloud RAG doesn't need environment variables
+        ...baseConfig,
+        url: remoteUrl,
+        port: 443, // HTTPS port
+        env: {}, // No env needed for remote connection
       };
     }
   }
@@ -213,16 +200,28 @@ export function getAllMCPServerConfigs(
 ): MCPServerConfig[] {
   const configs: MCPServerConfig[] = [];
 
-  // Add all servers including RAG (local or cloud)
-  for (const name of Object.keys(MCP_SERVERS_BASE)) {
-    // Skip RAG server if using cloud mode (it will be connected later with auth token)
-    if (name === "rag" && envVars?.USE_LOCAL_RAG_SERVER !== "true") {
-      continue;
-    }
+  // Always add Gmail server
+  const gmailConfig = createMCPServerConfig("gmail", envVars);
+  if (gmailConfig) configs.push(gmailConfig);
 
-    const config = createMCPServerConfig(name, envVars);
-    if (config) configs.push(config);
+  // Only add RAG server if explicitly set to "true"
+  // Default to false for undefined, null, empty string, or any other value
+  const useLocalRagServer = envVars?.USE_LOCAL_RAG_SERVER;
+  const shouldUseLocalRag = useLocalRagServer === "true";
+
+  // Debug logging for environment variable handling
+  logger.debug("MCP Server Configuration:", {
+    USE_LOCAL_RAG_SERVER: useLocalRagServer || "undefined",
+    shouldUseLocalRag,
+    PATH: envVars?.PATH ? `${envVars.PATH.substring(0, 50)}...` : "undefined",
+    NODE_ENV: envVars?.NODE_ENV || "undefined",
+  });
+
+  if (shouldUseLocalRag) {
+    const ragConfig = createMCPServerConfig("rag", envVars);
+    if (ragConfig) configs.push(ragConfig);
   }
 
+  logger.info(`Configured MCP servers: ${configs.map(c => c.name).join(", ")}`);
   return configs;
 }

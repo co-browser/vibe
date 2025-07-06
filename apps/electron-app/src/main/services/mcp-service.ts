@@ -6,9 +6,9 @@
 import { EventEmitter } from "events";
 import { MCPWorker } from "./mcp-worker";
 import type { IMCPService, MCPServerStatus } from "@vibe/shared-types";
-import { createLogger } from "@vibe/shared-types";
+import { createElectronLogger } from "../utils/electron-logger";
 
-const logger = createLogger("MCPService");
+const logger = createElectronLogger("MCPService");
 
 export class MCPService extends EventEmitter implements IMCPService {
   private worker: MCPWorker | null = null;
