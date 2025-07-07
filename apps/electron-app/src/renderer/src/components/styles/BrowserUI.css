@@ -7,9 +7,11 @@
   overflow: hidden;
   background: linear-gradient(
     135deg,
-    var(--glass-background-start) 0%,
-    var(--glass-background-end) 100%
+    rgba(245, 245, 250, 0.2) 0%,
+    rgba(240, 242, 248, 0.3) 100%
   );
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
 }
 
 .glass-background-root.ready {
@@ -56,7 +58,9 @@
   /* Stack vertically: tabs -> nav -> content */
   height: 100%;
   width: 100%;
-  background: var(--app-background, #f5f5f5);
+  background: var(--app-background, rgba(245, 245, 245, 0.3));
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   /* 
    * Use consistent padding on the parent to create the "frame" effect.
    * This simplifies the layout and prevents visual gaps between flex items.
@@ -73,6 +77,8 @@
   z-index: 10;
   height: 41px;
   background: var(--tab-bar-background);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 /* macOS specific adjustments for traffic lights */
@@ -97,6 +103,8 @@
 
   /* Background matches navigation bar */
   background-color: var(--nav-background);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 
   /* No rounded corners on container - let the navigation bar handle them */
   overflow: visible;
@@ -129,7 +137,9 @@
   flex-direction: column;
   min-width: 0;
   /* Important for flex shrinking */
-  background: var(--browser-content-background, #ffffff);
+  background: var(--browser-content-background, rgba(255, 255, 255, 0.9));
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
   position: relative;
   overflow: hidden;
 
@@ -155,7 +165,9 @@
   max-width: 600px;
   display: flex;
   flex-direction: column;
-  background: var(--chat-panel-background, #ffffff);
+  background: var(--chat-panel-background, rgba(255, 255, 255, 0.85));
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   /* Remove border for seamless integration */
   position: relative;
   z-index: 5;

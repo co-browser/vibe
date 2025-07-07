@@ -13,7 +13,21 @@ import App from "./App";
 // Initialize online status service
 import "./services/onlineStatusService";
 
-init({ debug: true });
+// Check if we're in production
+const isProd = process.env.NODE_ENV === "production";
+
+init({
+  debug: !isProd, // Only enable debug in development
+  tracesSampleRate: isProd ? 0.05 : 1.0, // 5% in production, 100% in dev
+  maxBreadcrumbs: 50, // Limit breadcrumb collection for performance
+  beforeBreadcrumb: breadcrumb => {
+    // Filter out noisy breadcrumbs in production
+    if (isProd && breadcrumb.category === "console") {
+      return null;
+    }
+    return breadcrumb;
+  },
+});
 
 // Create the root element and render the application
 createRoot(document.getElementById("root")!).render(

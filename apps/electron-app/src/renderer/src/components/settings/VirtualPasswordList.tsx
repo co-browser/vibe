@@ -1,5 +1,5 @@
 import { memo, useCallback, useMemo } from "react";
-import { FixedSizeList as List } from "react-window";
+// import { FixedSizeList as List } from "react-window";
 import { Lock, Eye } from "lucide-react";
 
 interface PasswordEntry {
@@ -51,10 +51,10 @@ const PasswordItem = memo<{
           </div>
           <div className="min-w-0 flex-1">
             <p className="font-medium text-gray-900 truncate text-sm">
-              {password.url}
+              {password.url.length > 40 ? `${password.url.substring(0, 40)}...` : password.url}
             </p>
             <p className="text-xs text-gray-500 truncate">
-              {password.username}
+              {password.username.length > 40 ? `${password.username.substring(0, 40)}...` : password.username}
             </p>
           </div>
         </div>
@@ -114,16 +114,16 @@ export const VirtualPasswordList = memo<VirtualPasswordListProps>(
     );
 
     return (
-      <List
-        height={height}
-        itemCount={passwords.length}
-        itemSize={76} // Height of each password item
-        width="100%"
-        itemData={itemData}
-        overscanCount={5} // Render 5 extra items outside viewport for smoother scrolling
-      >
-        {PasswordItem}
-      </List>
+      <div style={{ height, overflowY: "auto" }}>
+        {passwords.map((password, index) => (
+          <PasswordItem
+            key={password.id}
+            index={index}
+            data={itemData}
+            style={{ height: 76 }}
+          />
+        ))}
+      </div>
     );
   },
 );

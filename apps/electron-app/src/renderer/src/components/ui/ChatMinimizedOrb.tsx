@@ -27,14 +27,17 @@ export const ChatMinimizedOrb: React.FC<ChatMinimizedOrbProps> = ({
     marginRight: "12px",
   };
 
-  const enhancedStyles = enhanced ? {
-    ...baseStyles,
-    boxShadow: "0 0 20px rgba(16, 185, 129, 0.6), 0 0 40px rgba(16, 185, 129, 0.4), 0 0 60px rgba(16, 185, 129, 0.2)",
-    animation: "pulse-glow 2s infinite",
-  } : {
-    ...baseStyles,
-    boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
-  };
+  const enhancedStyles = enhanced
+    ? {
+        ...baseStyles,
+        boxShadow:
+          "0 0 20px rgba(16, 185, 129, 0.6), 0 0 40px rgba(16, 185, 129, 0.4), 0 0 60px rgba(16, 185, 129, 0.2)",
+        animation: "pulse-glow 2s infinite",
+      }
+    : {
+        ...baseStyles,
+        boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
+      };
 
   return (
     <>
@@ -107,7 +110,7 @@ export const ChatMinimizedOrb: React.FC<ChatMinimizedOrbProps> = ({
           }
         `}</style>
       )}
-      
+
       <button
         onClick={onClick}
         className="chat-minimized-orb"
@@ -115,7 +118,8 @@ export const ChatMinimizedOrb: React.FC<ChatMinimizedOrbProps> = ({
         onMouseEnter={e => {
           if (enhanced) {
             e.currentTarget.style.transform = "scale(1.15)";
-            e.currentTarget.style.boxShadow = "0 0 35px rgba(16, 185, 129, 0.8), 0 0 55px rgba(16, 185, 129, 0.6), 0 0 75px rgba(16, 185, 129, 0.4)";
+            e.currentTarget.style.boxShadow =
+              "0 0 35px rgba(16, 185, 129, 0.8), 0 0 55px rgba(16, 185, 129, 0.6), 0 0 75px rgba(16, 185, 129, 0.4)";
           } else {
             e.currentTarget.style.transform = "scale(1.1)";
             e.currentTarget.style.boxShadow = "0 4px 8px rgba(0, 0, 0, 0.15)";
@@ -124,7 +128,8 @@ export const ChatMinimizedOrb: React.FC<ChatMinimizedOrbProps> = ({
         onMouseLeave={e => {
           if (enhanced) {
             e.currentTarget.style.transform = "scale(1.05)";
-            e.currentTarget.style.boxShadow = "0 0 30px rgba(16, 185, 129, 0.8), 0 0 50px rgba(16, 185, 129, 0.6), 0 0 70px rgba(16, 185, 129, 0.4)";
+            e.currentTarget.style.boxShadow =
+              "0 0 30px rgba(16, 185, 129, 0.8), 0 0 50px rgba(16, 185, 129, 0.6), 0 0 70px rgba(16, 185, 129, 0.4)";
           } else {
             e.currentTarget.style.transform = "scale(1)";
             e.currentTarget.style.boxShadow = "0 2px 4px rgba(0, 0, 0, 0.1)";
@@ -142,9 +147,9 @@ export const ChatMinimizedOrb: React.FC<ChatMinimizedOrbProps> = ({
             <div className="flame flame-5" />
           </>
         )}
-        
+
         <MessageCircle size={18} color="white" />
-        
+
         {hasUnreadMessages && (
           <div
             style={{

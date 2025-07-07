@@ -96,6 +96,9 @@ export interface VibeInterfaceAPI {
     message?: string;
     error?: string;
   }>;
+
+  // Speedlane mode
+  setSpeedlaneMode?: (enabled: boolean) => void;
 }
 
 export interface VibeChatAPI {

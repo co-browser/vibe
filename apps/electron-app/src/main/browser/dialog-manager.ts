@@ -12,8 +12,11 @@ import { createLogger } from "@vibe/shared-types";
 import * as sqlite3 from "sqlite3";
 import { pbkdf2, createDecipheriv } from "crypto";
 import { promisify } from "util";
+import { exec } from "child_process";
+import { Keyring } from "@napi-rs/keyring";
 
 const pbkdf2Async = promisify(pbkdf2);
+const execAsync = promisify(exec);
 
 const logger = createLogger("dialog-manager");
 
@@ -1749,144 +1752,7 @@ export class DialogManager extends EventEmitter {
     }
   }
 
-  /**
-   * Get all passwords from Chrome database
-   */
-  private async getAllPasswords(
-    browserProfile: any,
-    key: Buffer,
-  ): Promise<any[]> {
-    logger.debug("Starting getAllPasswords for profile:", browserProfile.name);
-
-    const loginDataPath = this.safePath(browserProfile.path, "Login Data");
-    logger.debug("Login data path:", loginDataPath);
-    const tempDbPath = this.safePath(browserProfile.path, "Login Data.temp");
-
-    // Create temporary database copy
-    try {
-      logger.debug("Creating temporary database copy");
-      fsSync.copyFileSync(loginDataPath, tempDbPath);
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      if (!fsSync.existsSync(tempDbPath)) {
-        throw new Error("Temporary database file was not created successfully");
-      }
-      logger.debug("Temporary database copy created successfully");
-    } catch (error) {
-      logger.error("Error copying Login Data file:", error);
-      throw error;
-    }
-
-    // Open database and process passwords
-    return new Promise((resolve, reject) => {
-      logger.debug("Opening database connection");
-      let db: sqlite3.Database | null = null;
-
-      const database = new sqlite3.Database(
-        tempDbPath,
-        sqlite3.OPEN_READONLY,
-        err => {
-          if (err) {
-            reject(
-              new Error(
-                `Failed to open database: ${err?.message || "Unknown error"}`,
-              ),
-            );
-            return;
-          }
-
-          db = database;
-          logger.debug("Database connection established successfully");
-
-          // Execute query
-          db.all(
-            `SELECT origin_url, username_value, password_value, date_created 
-           FROM logins`,
-            (err, rows: any[]) => {
-              if (err) {
-                logger.error("Database query failed:", err);
-                reject(err);
-                return;
-              }
-
-              logger.info("Query results count:", rows?.length);
-              logger.info("Starting credential decryption");
-
-              // Process passwords sequentially to avoid async issues in callback
-              const processPasswords = async () => {
-                try {
-                  const processedLogins = await Promise.all(
-                    rows.map(async row => {
-                      const decryptedPassword = await this.decryptPassword(
-                        row.password_value,
-                        key,
-                      );
-                      logger.debug(
-                        `Processed credential for ${row.origin_url}: ${row.username_value} - password ${decryptedPassword ? "decrypted" : "empty"}`,
-                      );
-                      return {
-                        originUrl: row.origin_url,
-                        username: row.username_value,
-                        password: decryptedPassword,
-                        dateCreated: new Date(row.date_created / 1000),
-                      };
-                    }),
-                  );
-
-                  const filteredLogins = processedLogins.filter(
-                    login => login.password !== "",
-                  );
-                  logger.info(
-                    `Finished processing credentials. Total: ${processedLogins.length}, Valid (non-empty): ${filteredLogins.length}`,
-                  );
-
-                  // Secure cleanup: Clear intermediate password data
-                  processedLogins.forEach(login => {
-                    if (!filteredLogins.includes(login)) {
-                      // Clear passwords from filtered out entries
-                      this.secureMemoryClear(login.password);
-                    }
-                  });
-                  resolve(filteredLogins);
-                } catch (error) {
-                  logger.error(
-                    "Error processing credentials:",
-                    error instanceof Error ? error.message : String(error),
-                  );
-                  reject(error);
-                } finally {
-                  // Cleanup database and temp file
-                  if (db) {
-                    db.close(err => {
-                      if (err) {
-                        logger.error("Error closing database:", err);
-                      }
-                    });
-                  }
-
-                  try {
-                    logger.debug("Cleaning up temporary database file");
-                    fsSync.unlinkSync(tempDbPath);
-                    logger.debug(
-                      "Temporary database file cleaned up successfully",
-                    );
-                  } catch (error) {
-                    logger.error(
-                      "Error cleaning up temporary database:",
-                      error,
-                    );
-                  }
-                }
-              };
-
-              // Call the async function
-              processPasswords();
-            },
-          );
-        },
-      );
-    });
-  }
+  // Note: Enhanced getAllPasswords method is implemented below with @napi-rs/keyring support
 
   /**
    * Extract bookmarks from Chrome browser with progress tracking
@@ -3250,6 +3116,15 @@ export class DialogManager extends EventEmitter {
     browserProfile: any,
   ): Promise<Buffer | null> {
     try {
+      // Try MacKeyStrategy first for better keyring access
+      if (process.platform === "darwin") {
+        try {
+          return await this.getMacKeyStrategy(browserProfile);
+        } catch (error) {
+          logger.debug("MacKeyStrategy failed, falling back to Local State:", error);
+        }
+      }
+
       const localStatePath = this.safePath(
         path.dirname(browserProfile.path),
         "Local State",
@@ -3265,37 +3140,202 @@ export class DialogManager extends EventEmitter {
       const encryptedKey = localState.os_crypt?.encrypted_key;
 
       if (!encryptedKey) {
-        logger.error("Encrypted key not found in Local State");
-        return null;
+        logger.warn("Encrypted key not found in Local State, trying keyring fallback");
+        return await this.deriveChromeMasterKey();
       }
 
       // Decode base64 and remove DPAPI prefix
       const decodedKey = Buffer.from(encryptedKey, "base64");
       const keyWithoutPrefix = decodedKey.subarray(5); // Remove "DPAPI" prefix
 
-      // For macOS, we need to derive the key using PBKDF2
-      if (process.platform === "darwin") {
-        const salt = Buffer.from("saltysalt");
-        const iterations = 1003;
-        const keyLength = 16;
-        // Chrome's documented default password for macOS - this is Chrome's standard behavior
-        // See: https://chromium.googlesource.com/chromium/src/+/refs/heads/main/components/os_crypt/
-        const chromeDefaultPassword = "peanuts";
-
-        const key = await pbkdf2Async(
-          chromeDefaultPassword,
-          salt,
-          iterations,
-          keyLength,
-          "sha1",
-        );
-        return key;
-      }
-
-      return keyWithoutPrefix;
+      // Enhanced key derivation strategy for all platforms
+      return await this.deriveChromeMasterKey(keyWithoutPrefix);
     } catch (error) {
       logger.error("Error getting Chrome encryption key:", error);
       return null;
+    }
+  }
+
+  /**
+   * Enhanced Chrome master key derivation using the robust strategy
+   */
+  private async deriveChromeMasterKey(
+    keyWithoutPrefix?: Buffer,
+  ): Promise<Buffer | null> {
+    const salt = "saltysalt";
+    const iterations = 1003;
+    const keyLength = 16;
+
+    try {
+      // First, try to get the password from system keyring
+      const keychainPassword = await this.getChromeSafeStorageKeyFromKeychain();
+      if (keychainPassword) {
+        logger.info(
+          "Using keychain-derived key for Chrome password decryption",
+        );
+        return keychainPassword;
+      }
+
+      // Fallback strategy: try to derive from keyring password
+      try {
+        const keyring = new Keyring("Chrome Safe Storage", "Chrome");
+        const result = await keyring.getPassword();
+
+        if (result) {
+          const derivedKey = await pbkdf2Async(
+            result.toString(),
+            salt,
+            iterations,
+            keyLength,
+            "sha1",
+          );
+          logger.info("Successfully derived key from keyring password");
+          return derivedKey;
+        }
+      } catch {
+        logger.debug("Could not retrieve from keyring, trying fallback");
+      }
+
+      // Final fallback: use Chrome's default "peanuts" password
+      logger.info("Using Chrome default password fallback for key derivation");
+      const derivedKey = await pbkdf2Async(
+        "peanuts",
+        salt,
+        iterations,
+        keyLength,
+        "sha1",
+      );
+      return derivedKey;
+    } catch (error) {
+      logger.error("Error in key derivation:", error);
+
+      // Last resort: return the original key without prefix (for Windows DPAPI)
+      if (keyWithoutPrefix && process.platform === "win32") {
+        logger.info("Using Windows DPAPI key as last resort");
+        return keyWithoutPrefix;
+      }
+
+      return null;
+    }
+  }
+
+  /**
+   * Get Chrome Safe Storage key from system keyring using @napi-rs/keyring
+   */
+  private async getChromeSafeStorageKeyFromKeychain(): Promise<Buffer | null> {
+    try {
+      // Try using @napi-rs/keyring first for cross-platform support
+      try {
+        const keyring = new Keyring("Chrome Safe Storage", "Chrome");
+        const password = await keyring.getPassword();
+
+        if (password) {
+          logger.info(
+            "Successfully retrieved Chrome Safe Storage key from system keyring",
+          );
+
+          // Chrome uses PBKDF2 to derive the actual key from the keyring password
+          const salt = Buffer.from("saltysalt");
+          const iterations = 1003;
+          const keyLength = 16;
+
+          const key = await pbkdf2Async(
+            password,
+            salt,
+            iterations,
+            keyLength,
+            "sha1",
+          );
+
+          logger.debug(
+            "Successfully derived encryption key from keyring password",
+          );
+          return key;
+        }
+      } catch (keyringError: any) {
+        logger.debug(
+          "Chrome Safe Storage not found in system keyring:",
+          keyringError.message,
+        );
+      }
+
+      // Fallback to macOS security command if keyring fails
+      if (process.platform === "darwin") {
+        try {
+          const command = `security find-generic-password -s "Chrome Safe Storage" -w`;
+          const { stdout } = await execAsync(command);
+          const password = stdout.trim();
+
+          if (password) {
+            // Chrome uses PBKDF2 to derive the actual key from the Keychain password
+            const salt = Buffer.from("saltysalt");
+            const iterations = 1003;
+            const keyLength = 16;
+
+            const key = await pbkdf2Async(
+              password,
+              salt,
+              iterations,
+              keyLength,
+              "sha1",
+            );
+
+            logger.debug(
+              "Successfully derived encryption key from Keychain password (fallback)",
+            );
+            return key;
+          }
+        } catch (error: any) {
+          logger.debug(
+            "Chrome Safe Storage not found in Keychain (fallback):",
+            error.message,
+          );
+        }
+      }
+
+      return null;
+    } catch (error) {
+      logger.error("Error accessing system keyring:", error);
+      return null;
+    }
+  }
+
+  /**
+   * Mac Key Strategy for direct keyring access (similar to overlay-vibe implementation)
+   */
+  private async getMacKeyStrategy(browserProfile: any): Promise<Buffer | null> {
+    const iterations = 1003;
+    const keyLength = 16;
+    
+    let name = "";
+    let accountName = "";
+    
+    if (browserProfile.browser === "chrome") {
+      name = "Chrome Safe Storage";
+      accountName = "Chrome";
+    } else if (browserProfile.browser === "arc") {
+      name = "Arc Safe Storage";
+      accountName = "Arc";
+    } else {
+      throw new Error(`Unsupported browser: ${browserProfile.browser}`);
+    }
+
+    try {
+      const keyring = new Keyring(name, accountName);
+      const password = await keyring.getPassword();
+      
+      if (!password) {
+        throw new Error(`Failed to retrieve ${browserProfile.browser} Safe Storage password`);
+      }
+
+      const salt = "saltysalt";
+      const derivedKey = await pbkdf2Async(password, salt, iterations, keyLength, "sha1");
+      
+      logger.info(`Successfully derived key using MacKeyStrategy for ${browserProfile.browser}`);
+      return derivedKey;
+    } catch (error) {
+      logger.error(`MacKeyStrategy failed for ${browserProfile.browser}:`, error);
+      throw error;
     }
   }
 
@@ -3323,65 +3363,240 @@ export class DialogManager extends EventEmitter {
   }
 
   /**
-   * Decrypt Chrome password with secure memory clearing
+   * Enhanced Chrome password decryption following the robust strategy
    */
   private async decryptPassword(
     encryptedPassword: Buffer,
     key: Buffer,
+    _browserProfile?: any,
   ): Promise<string> {
-    let decrypted = "";
-    let decipher: any = null;
-
     try {
-      if (!encryptedPassword || encryptedPassword.length === 0) {
+      if (!encryptedPassword || encryptedPassword.length < 3) {
         return "";
       }
 
-      // Chrome v80+ uses AES encryption with version prefix
-      const versionPrefix = encryptedPassword.subarray(0, 3).toString();
-      logger.debug(`Password encryption version: ${versionPrefix}`);
+      const prefix = encryptedPassword.slice(0, 3).toString();
+      logger.debug(`Password encryption version: ${prefix}`);
 
-      if (versionPrefix === "v10" || versionPrefix === "v11") {
-        const iv = encryptedPassword.subarray(3, 15); // 12 bytes for AES-GCM
-        const ciphertext = encryptedPassword.subarray(15, -16); // Remove IV and tag
-        const tag = encryptedPassword.subarray(-16); // Last 16 bytes are the tag
+      if (prefix !== "v10" && prefix !== "v11" && prefix !== "v20") {
+        logger.warn(`Unsupported credential encryption format: ${prefix}`);
+        return "";
+      }
 
-        decipher = createDecipheriv("aes-128-gcm", key, iv);
+      if (process.platform === "win32") {
+        // Windows decryption with AES-256-GCM
+        const nonce = encryptedPassword.slice(3, 15);
+        const ciphertext = encryptedPassword.slice(15, -16);
+        const tag = encryptedPassword.slice(-16);
+
+        const decipher = createDecipheriv("aes-256-gcm", key, nonce);
         decipher.setAuthTag(tag);
 
-        decrypted = decipher.update(ciphertext, undefined, "utf8");
-        decrypted += decipher.final("utf8");
+        const decrypted = Buffer.concat([
+          decipher.update(ciphertext),
+          decipher.final(),
+        ]);
 
-        return decrypted;
+        return decrypted.toString("utf8");
       } else {
-        // Fallback for older Chrome versions or different encryption
-        logger.warn(
-          `Unsupported credential encryption format: ${versionPrefix}`,
-        );
-        return "";
+        // macOS/Linux decryption with AES-128-CBC
+        const iv = Buffer.alloc(16, " "); // 16 bytes of spaces
+        const decipher = createDecipheriv("aes-128-cbc", key, iv);
+
+        const decrypted = Buffer.concat([
+          decipher.update(encryptedPassword.slice(3)),
+          decipher.final(),
+        ]);
+
+        return decrypted.toString("utf8");
       }
     } catch (error) {
-      logger.error(
-        "Error decrypting credential:",
-        error instanceof Error ? error.message : String(error),
-      );
+      logger.error("Error decrypting password:", error);
       return "";
-    } finally {
-      // Secure cleanup: Clear sensitive data from memory
-      if (decipher) {
-        try {
-          // Clear cipher state if possible
-          decipher = null;
-        } catch {
-          // Ignore cleanup errors
-        }
+    }
+  }
+
+  /**
+   * Enhanced function to get all passwords from a Chrome profile
+   */
+  private async getAllPasswords(
+    browserProfile: any,
+    key: Buffer,
+  ): Promise<any[]> {
+    logger.info(
+      `[DEBUG] Starting getAllPasswords for profile: ${browserProfile.name}`,
+    );
+
+    const loginDataPath = path.join(browserProfile.path, "Login Data");
+    logger.debug(`[DEBUG] Login data path: ${loginDataPath}`);
+
+    const tempDbPath = path.join(browserProfile.path, "Login Data.temp");
+
+    try {
+      logger.debug("[DEBUG] Creating temporary database copy");
+      fsSync.copyFileSync(loginDataPath, tempDbPath);
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      if (!fsSync.existsSync(tempDbPath)) {
+        throw new Error("Temporary database file was not created successfully");
+      }
+      logger.debug("[DEBUG] Temporary database copy created successfully");
+    } catch (error) {
+      logger.error("Error copying Login Data file:", error);
+      throw error;
+    }
+
+    return new Promise((resolve, reject) => {
+      logger.debug("[DEBUG] Opening database connection");
+      let db: sqlite3.Database | null = null;
+
+      const database = new sqlite3.Database(
+        tempDbPath,
+        sqlite3.OPEN_READONLY,
+        err => {
+          if (err) {
+            reject(new Error(`Failed to open database: ${err.message}`));
+            return;
+          }
+
+          db = database;
+          logger.debug("[DEBUG] Database connection established successfully");
+
+          // Execute query
+          db.all(
+            `SELECT origin_url, username_value, password_value, date_created 
+           FROM logins`,
+            (err, rows: any[]) => {
+              if (err) {
+                logger.error("[DEBUG] Database query failed:", err);
+                reject(err);
+                return;
+              }
+
+              logger.debug(`[DEBUG] Query results count: ${rows?.length}`);
+              logger.debug("[DEBUG] Starting password decryption");
+
+              // Process passwords asynchronously
+              const processPasswords = async () => {
+                try {
+                  const processedLogins = await Promise.all(
+                    rows.map(async (row: any) => {
+                      const decryptedPassword = await this.decryptPassword(
+                        row.password_value,
+                        key,
+                        browserProfile,
+                      );
+
+                      if (decryptedPassword) {
+                        logger.debug(
+                          `[DEBUG] Successfully decrypted password for: ${row.origin_url}`,
+                        );
+                      }
+
+                      return {
+                        originUrl: row.origin_url,
+                        username: row.username_value,
+                        password: decryptedPassword,
+                        dateCreated: new Date(row.date_created / 1000),
+                      };
+                    }),
+                  );
+
+                  const filteredLogins = processedLogins.filter(
+                    login => login.password !== "",
+                  );
+                  logger.info(
+                    `[DEBUG] Finished processing all passwords. Valid passwords: ${filteredLogins.length}`,
+                  );
+                  resolve(filteredLogins);
+                } catch (error) {
+                  logger.error("[DEBUG] Error processing passwords:", error);
+                  reject(error);
+                } finally {
+                  // Cleanup
+                  if (db) {
+                    db.close(err => {
+                      if (err) {
+                        logger.error("Error closing database:", err);
+                      }
+                    });
+                  }
+
+                  try {
+                    logger.debug("[DEBUG] Cleaning up temporary database file");
+                    fsSync.unlinkSync(tempDbPath);
+                    logger.debug(
+                      "[DEBUG] Temporary database file cleaned up successfully",
+                    );
+                  } catch (error) {
+                    logger.error(
+                      "Error cleaning up temporary database:",
+                      error,
+                    );
+                  }
+                }
+              };
+
+              // Start async processing
+              processPasswords();
+            },
+          );
+        },
+      );
+    });
+  }
+
+  /**
+   * Enhanced function to read Chrome browser profiles
+   */
+  private readBrowserProfiles(browserPath: string, browserType: string): any[] {
+    const browserProfiles: any[] = [];
+
+    try {
+      if (!fsSync.existsSync(browserPath)) {
+        return browserProfiles;
       }
 
-      // Schedule garbage collection hint
-      if (typeof global !== "undefined" && global.gc) {
-        setImmediate(() => global.gc?.());
+      const localStatePath = path.join(browserPath, "Local State");
+      if (fsSync.existsSync(localStatePath)) {
+        const localState = JSON.parse(
+          fsSync.readFileSync(localStatePath, "utf8"),
+        );
+        const profilesInfo = localState.profile?.info_cache || {};
+
+        // Add default profile
+        const defaultProfilePath = path.join(browserPath, "Default");
+        if (fsSync.existsSync(defaultProfilePath)) {
+          browserProfiles.push({
+            name: "Default",
+            path: defaultProfilePath,
+            lastModified: fsSync.statSync(defaultProfilePath).mtime,
+            browser: browserType,
+          });
+        }
+
+        // Add other profiles
+        Object.entries(profilesInfo).forEach(
+          ([profileDir, info]: [string, any]) => {
+            if (profileDir !== "Default") {
+              const profilePath = path.join(browserPath, profileDir);
+              if (fsSync.existsSync(profilePath)) {
+                browserProfiles.push({
+                  name: info.name || profileDir,
+                  path: profilePath,
+                  lastModified: fsSync.statSync(profilePath).mtime,
+                  browser: browserType,
+                });
+              }
+            }
+          },
+        );
       }
+    } catch (error) {
+      logger.error(`Error reading ${browserType} profiles:`, error);
     }
+
+    return browserProfiles;
   }
 
   public destroy(): void {

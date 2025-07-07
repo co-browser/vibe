@@ -39,6 +39,10 @@ export class ViewManager {
   private browserViews: Map<string, WebContentsView> = new Map();
   private activeViewKey: string | null = null;
   private isChatAreaVisible: boolean = false;
+  private currentChatPanelWidth: number = CHAT_PANEL.DEFAULT_WIDTH;
+  private isSpeedlaneMode: boolean = false;
+  private speedlaneLeftViewKey: string | null = null;
+  private speedlaneRightViewKey: string | null = null;
 
   // Overlay manager
   private overlayManager: OverlayManager;
@@ -210,9 +214,14 @@ export class ViewManager {
       return false;
     }
 
-    // Hide currently visible view (if different from new active)
+    // In Speedlane mode, don't hide the previous view if it's the right view
     if (this.activeViewKey && this.activeViewKey !== tabKey) {
-      this.hideView(this.activeViewKey);
+      if (
+        !this.isSpeedlaneMode ||
+        this.activeViewKey !== this.speedlaneRightViewKey
+      ) {
+        this.hideView(this.activeViewKey);
+      }
     }
 
     // Show new active view
@@ -220,6 +229,12 @@ export class ViewManager {
     this.activeViewKey = tabKey;
 
     logger.debug(`🔧 ViewManager: Set active view to ${tabKey}`);
+
+    // In Speedlane mode, update bounds to ensure both views are positioned correctly
+    if (this.isSpeedlaneMode) {
+      this.updateBounds();
+    }
+
     return true;
   }
 
@@ -342,16 +357,23 @@ export class ViewManager {
       return;
     }
 
+    // In Speedlane mode, use the full updateBounds method to position both views correctly
+    if (this.isSpeedlaneMode) {
+      this.updateBounds();
+      return;
+    }
+
     const [windowWidth, windowHeight] = this.window.getContentSize();
     const chromeHeight = BROWSER_CHROME.TOTAL_CHROME_HEIGHT;
 
     let viewWidth = windowWidth - GLASSMORPHISM_CONFIG.PADDING * 2;
     if (this.isChatAreaVisible) {
-      // Use the shared chat panel width configuration
-      const chatPanelWidth = CHAT_PANEL.DEFAULT_WIDTH;
+      // Use the current dynamic chat panel width
       viewWidth = Math.max(
         1,
-        windowWidth - chatPanelWidth - GLASSMORPHISM_CONFIG.PADDING * 2,
+        windowWidth -
+          this.currentChatPanelWidth -
+          GLASSMORPHISM_CONFIG.PADDING * 2,
       );
     }
 
@@ -389,6 +411,72 @@ export class ViewManager {
   }
 
   /**
+   * Sets the chat panel width and updates layout
+   */
+  public setChatPanelWidth(width: number): void {
+    this.currentChatPanelWidth = width;
+    this.updateBounds();
+  }
+
+  /**
+   * Sets Speedlane mode (dual webview layout)
+   */
+  public setSpeedlaneMode(enabled: boolean): void {
+    logger.info(`Setting Speedlane mode to: ${enabled}`);
+    this.isSpeedlaneMode = enabled;
+
+    if (!enabled) {
+      // Clear Speedlane view references when disabling
+      this.speedlaneLeftViewKey = null;
+      this.speedlaneRightViewKey = null;
+    }
+
+    // Update layout to reflect the new mode
+    this.updateBounds();
+  }
+
+  /**
+   * Sets the right view for Speedlane mode (agent-controlled)
+   */
+  public setSpeedlaneRightView(tabKey: string): void {
+    if (!this.isSpeedlaneMode) {
+      logger.warn("Cannot set Speedlane right view when not in Speedlane mode");
+      return;
+    }
+
+    logger.info(`Setting Speedlane right view to: ${tabKey}`);
+    this.speedlaneRightViewKey = tabKey;
+
+    // Make sure the view is visible
+    const view = this.browserViews.get(tabKey);
+    if (view) {
+      this.visibleViews.add(tabKey);
+      view.setVisible(true);
+      logger.info(`Made right view ${tabKey} visible`);
+    } else {
+      logger.warn(`Could not find view for tabKey: ${tabKey}`);
+    }
+
+    // Update bounds to position it correctly
+    this.updateBounds();
+  }
+
+  /**
+   * Gets the current Speedlane mode state
+   */
+  public getSpeedlaneState(): {
+    enabled: boolean;
+    leftViewKey: string | null;
+    rightViewKey: string | null;
+  } {
+    return {
+      enabled: this.isSpeedlaneMode,
+      leftViewKey: this.speedlaneLeftViewKey,
+      rightViewKey: this.speedlaneRightViewKey,
+    };
+  }
+
+  /**
    * Updates bounds for visible WebContentsViews only
    */
   public updateBounds(): void {
@@ -404,31 +492,140 @@ export class ViewManager {
       windowHeight - chromeHeight - GLASSMORPHISM_CONFIG.PADDING * 2,
     );
 
-    let viewWidth = windowWidth - GLASSMORPHISM_CONFIG.PADDING * 2;
+    // Calculate available width for webviews
+    let availableWidth = windowWidth - GLASSMORPHISM_CONFIG.PADDING * 2;
     if (this.isChatAreaVisible) {
-      // Use the shared chat panel width configuration
-      const chatPanelWidth = CHAT_PANEL.DEFAULT_WIDTH;
-      viewWidth = Math.max(
+      // Subtract chat panel width when visible
+      availableWidth = Math.max(
         1,
-        windowWidth - chatPanelWidth - GLASSMORPHISM_CONFIG.PADDING * 2,
-      );
-      logger.debug(
-        `🔧 WebContentsView bounds: windowWidth=${windowWidth}, chatPanelWidth=${chatPanelWidth}, viewWidth=${viewWidth}`,
+        windowWidth -
+          this.currentChatPanelWidth -
+          GLASSMORPHISM_CONFIG.PADDING * 2,
       );
     }
 
-    // Only update bounds for visible views
-    for (const tabKey of this.visibleViews) {
-      const view = this.browserViews.get(tabKey);
-      if (view && !view.webContents.isDestroyed()) {
-        const newBounds = {
-          x: GLASSMORPHISM_CONFIG.PADDING,
-          y: chromeHeight + GLASSMORPHISM_CONFIG.PADDING,
-          width: viewWidth,
-          height: viewHeight,
-        };
-        if (newBounds.width > 0 && newBounds.height > 0) {
-          view.setBounds(newBounds);
+    if (this.isSpeedlaneMode) {
+      // In Speedlane mode, split the available width between two webviews
+      const leftViewWidth = Math.floor(availableWidth / 2);
+      const rightViewWidth = availableWidth - leftViewWidth;
+
+      logger.info(
+        `🔧 Speedlane mode bounds: total=${availableWidth}, left=${leftViewWidth}, right=${rightViewWidth}`,
+      );
+      logger.info(
+        `🔧 Speedlane views: activeKey=${this.activeViewKey}, rightKey=${this.speedlaneRightViewKey}`,
+      );
+      logger.info(
+        `🔧 Visible views before update: ${Array.from(this.visibleViews).join(", ")}`,
+      );
+      logger.info(
+        `🔧 Browser views available: ${Array.from(this.browserViews.keys()).join(", ")}`,
+      );
+
+      // First, hide all views that shouldn't be visible
+      for (const [tabKey, view] of this.browserViews) {
+        if (view && !view.webContents.isDestroyed()) {
+          const shouldBeVisible =
+            tabKey === this.activeViewKey ||
+            tabKey === this.speedlaneRightViewKey;
+
+          if (!shouldBeVisible && this.visibleViews.has(tabKey)) {
+            view.setVisible(false);
+            this.visibleViews.delete(tabKey);
+          }
+        }
+      }
+
+      // Then, set up the left view (active view)
+      if (this.activeViewKey) {
+        const leftView = this.browserViews.get(this.activeViewKey);
+        if (leftView && !leftView.webContents.isDestroyed()) {
+          this.speedlaneLeftViewKey = this.activeViewKey;
+          const leftBounds = {
+            x: GLASSMORPHISM_CONFIG.PADDING,
+            y: chromeHeight + GLASSMORPHISM_CONFIG.PADDING,
+            width: leftViewWidth,
+            height: viewHeight,
+          };
+          if (leftBounds.width > 0 && leftBounds.height > 0) {
+            leftView.setBounds(leftBounds);
+            leftView.setVisible(true);
+            this.visibleViews.add(this.activeViewKey);
+
+            // Ensure the view is added to the window
+            if (
+              this.window &&
+              !this.window.contentView.children.includes(leftView)
+            ) {
+              this.window.contentView.addChildView(leftView);
+              logger.debug(
+                `🔧 Added left view to window for ${this.activeViewKey}`,
+              );
+            }
+          }
+        }
+      }
+
+      // Set up the right view (agent-controlled)
+      if (this.speedlaneRightViewKey) {
+        const rightView = this.browserViews.get(this.speedlaneRightViewKey);
+        if (rightView && !rightView.webContents.isDestroyed()) {
+          const rightBounds = {
+            x: GLASSMORPHISM_CONFIG.PADDING + leftViewWidth,
+            y: chromeHeight + GLASSMORPHISM_CONFIG.PADDING,
+            width: rightViewWidth,
+            height: viewHeight,
+          };
+          if (rightBounds.width > 0 && rightBounds.height > 0) {
+            rightView.setBounds(rightBounds);
+            rightView.setVisible(true);
+            this.visibleViews.add(this.speedlaneRightViewKey);
+
+            // Ensure the view is added to the window
+            if (
+              this.window &&
+              !this.window.contentView.children.includes(rightView)
+            ) {
+              this.window.contentView.addChildView(rightView);
+              logger.debug(
+                `🔧 Added right view to window for ${this.speedlaneRightViewKey}`,
+              );
+            }
+
+            logger.debug(
+              `🔧 Set right view bounds and visibility for ${this.speedlaneRightViewKey}`,
+            );
+          }
+        } else {
+          logger.warn(
+            `🔧 Could not find right view for key: ${this.speedlaneRightViewKey}`,
+          );
+        }
+      } else {
+        logger.debug(`🔧 No speedlaneRightViewKey set yet`);
+      }
+
+      // Ensure overlay stays on top after setting up both views
+      this.ensureOverlayOnTop();
+    } else {
+      // Normal mode - single webview takes full available width
+      logger.debug(
+        `🔧 Normal mode bounds: windowWidth=${windowWidth}, chatPanelWidth=${this.currentChatPanelWidth}, viewWidth=${availableWidth}`,
+      );
+
+      // Only update bounds for visible views
+      for (const tabKey of this.visibleViews) {
+        const view = this.browserViews.get(tabKey);
+        if (view && !view.webContents.isDestroyed()) {
+          const newBounds = {
+            x: GLASSMORPHISM_CONFIG.PADDING,
+            y: chromeHeight + GLASSMORPHISM_CONFIG.PADDING,
+            width: availableWidth,
+            height: viewHeight,
+          };
+          if (newBounds.width > 0 && newBounds.height > 0) {
+            view.setBounds(newBounds);
+          }
         }
       }
     }
@@ -489,8 +686,9 @@ export function createBrowserView(
     },
   });
 
-  // Set transparent background and initialize as invisible
-  view.setBackgroundColor("#00000000");
+  // Use opaque white background to fix speedlane rendering issues
+  // Transparent backgrounds can cause visibility problems when multiple views overlap
+  view.setBackgroundColor("#FFFFFF");
   view.setVisible(false);
 
   // Add rounded corners for glassmorphism design

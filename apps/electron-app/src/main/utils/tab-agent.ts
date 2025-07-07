@@ -13,6 +13,7 @@ import { BrowserWindow } from "electron";
 import { createLogger } from "@vibe/shared-types";
 import type { IAgentProvider } from "@vibe/shared-types";
 import { mainStore } from "@/store/store";
+import { userAnalytics } from "@/services/user-analytics";
 
 const logger = createLogger("tab-agent");
 
@@ -84,6 +85,14 @@ export async function sendTabToAgent(browser: Browser): Promise<void> {
   }
 
   logger.info(`Processing tab: ${tabTitle}`);
+
+  // Track analyze active tab usage
+  userAnalytics.trackNavigation('analyze-active-tab', {
+    tabKey: checkKey,
+    tabUrl: tabUrl,
+    tabTitle: tabTitle,
+    chatWasHidden: !browserViewManager.getChatPanelState().isVisible
+  });
 
   // Extract content FIRST while tab still exists
   const cdpConnector = new CDPConnector("localhost", 9223);
@@ -243,6 +252,19 @@ export async function sendTabToAgent(browser: Browser): Promise<void> {
   };
   mainStore.setState(immediateState);
   logger.info(`Added loading favicon to chat context`);
+
+  // Ensure chat panel is visible when sending content to agent
+  const chatPanelState = browserViewManager.getChatPanelState();
+  if (!chatPanelState.isVisible) {
+    logger.info(`Making chat panel visible for tab analysis`);
+    browserViewManager.toggleChatPanel(true);
+    
+    // Notify the renderer about chat panel state change
+    const focusedWindow = BrowserWindow.getFocusedWindow();
+    if (focusedWindow && !focusedWindow.isDestroyed()) {
+      focusedWindow.webContents.send("chat-area-visibility-changed", true);
+    }
+  }
 
   logger.info(`Remove tab from UI`);
 

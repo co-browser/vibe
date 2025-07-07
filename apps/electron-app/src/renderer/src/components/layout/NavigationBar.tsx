@@ -19,6 +19,7 @@ import {
   ClockCircleOutlined,
   GlobalOutlined,
   LinkOutlined,
+  ThunderboltOutlined,
 } from "@ant-design/icons";
 import { useOmniboxOverlay } from "../../hooks/useOmniboxOverlay";
 import {
@@ -28,8 +29,7 @@ import {
 import type { SuggestionMetadata } from "../../../../types/metadata";
 import { MetadataHelpers } from "../../../../types/metadata";
 import { createLogger } from "@vibe/shared-types";
-import { ChatMinimizedOrb } from "../ui/ChatMinimizedOrb";
-import { useLayout } from "../main/MainApp";
+import { useLayout } from "@/hooks/useLayout";
 import "../styles/NavigationBar.css";
 
 const logger = createLogger("NavigationBar");
@@ -87,13 +87,14 @@ const NavigationBar: React.FC = () => {
   });
   const [agentStatus, setAgentStatus] = useState(false);
   const [overlaySystemWorking, setOverlaySystemWorking] = useState(true);
-  
+  const [isSpeedlaneEnabled, setIsSpeedlaneEnabled] = useState(false);
+
   // Use layout context for chat panel state
-  const { 
-    isChatPanelVisible: chatPanelVisible, 
+  const {
+    isChatPanelVisible: chatPanelVisible,
     isChatMinimizedFromResize,
     setChatPanelVisible,
-    setIsChatMinimizedFromResize
+    setIsChatMinimizedFromResize,
   } = useLayout();
 
   const inputRef = useRef<HTMLInputElement>(null);
@@ -1017,18 +1018,32 @@ const NavigationBar: React.FC = () => {
   const handleToggleChat = useCallback(async () => {
     try {
       const newVisibility = !chatPanelVisible;
-      
+
       // When manually toggling chat open, reset the enhanced mode state
       if (newVisibility) {
         setIsChatMinimizedFromResize(false);
       }
-      
+
       window.vibe.interface.toggleChatPanel(newVisibility);
       setChatPanelVisible(newVisibility);
     } catch (error) {
       logger.error("Failed to toggle chat:", error);
     }
   }, [chatPanelVisible, setChatPanelVisible, setIsChatMinimizedFromResize]);
+
+  const handleToggleSpeedlane = useCallback(() => {
+    const newState = !isSpeedlaneEnabled;
+    setIsSpeedlaneEnabled(newState);
+
+    // Notify the main process about Speedlane mode change
+    window.vibe?.interface?.setSpeedlaneMode?.(newState);
+
+    // If enabling Speedlane and chat is closed, open it
+    if (newState && !chatPanelVisible && agentStatus) {
+      setChatPanelVisible(true);
+      window.vibe?.interface?.toggleChatPanel?.(true);
+    }
+  }, [isSpeedlaneEnabled, chatPanelVisible, agentStatus, setChatPanelVisible]);
 
   // Input handling with debouncing and race condition prevention
   const handleInputChange = useCallback(
@@ -1322,7 +1337,7 @@ const NavigationBar: React.FC = () => {
           <ReloadOutlined spin={navigationState.isLoading} />
         </button>
         <button
-          className={`nav-button ${chatPanelVisible ? "active" : ""} ${agentStatus ? "enabled" : ""}`}
+          className={`nav-button ${chatPanelVisible ? "active" : ""} ${agentStatus ? "enabled" : ""} ${!chatPanelVisible && isChatMinimizedFromResize ? "sparkle-animation" : ""}`}
           onClick={handleToggleChat}
           title={
             agentStatus ? "Toggle AI assistant" : "AI assistant not available"
@@ -1330,6 +1345,21 @@ const NavigationBar: React.FC = () => {
           disabled={!agentStatus}
         >
           <RobotOutlined />
+          {!chatPanelVisible && isChatMinimizedFromResize && (
+            <>
+              <div className="sparkle sparkle-1" />
+              <div className="sparkle sparkle-2" />
+              <div className="sparkle sparkle-3" />
+              <div className="sparkle sparkle-4" />
+            </>
+          )}
+        </button>
+        <button
+          className={`nav-button ${isSpeedlaneEnabled ? "active speedlane-active" : ""}`}
+          onClick={handleToggleSpeedlane}
+          title="Toggle Speedlane mode (dual webview)"
+        >
+          <ThunderboltOutlined />
         </button>
       </div>
 
@@ -1400,15 +1430,6 @@ const NavigationBar: React.FC = () => {
             )}
         </div>
       </div>
-
-      {/* Show minimized orb when chat panel is hidden */}
-      {!chatPanelVisible && agentStatus && (
-        <ChatMinimizedOrb
-          onClick={handleToggleChat}
-          hasUnreadMessages={false}
-          enhanced={isChatMinimizedFromResize}
-        />
-      )}
     </div>
   );
 };

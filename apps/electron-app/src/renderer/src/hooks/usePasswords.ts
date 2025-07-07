@@ -88,10 +88,26 @@ export function usePasswords() {
         "passwords:import-chrome",
       );
 
-      setProgressValue(80);
-      setProgressText("Finalizing import...");
-
       if (result && result.success) {
+        const totalPasswords = result.count || 0;
+        const progressPerPassword = Math.min(0.54, (74 / Math.max(totalPasswords, 1)));
+        let currentProgress = 20;
+        
+        for (let i = 0; i < totalPasswords; i++) {
+          if (currentProgress < 94) {
+            currentProgress += progressPerPassword;
+          } else {
+            const remaining = 94 - currentProgress;
+            const quadraticSlowdown = remaining * Math.pow((totalPasswords - i) / totalPasswords, 2);
+            currentProgress += quadraticSlowdown;
+          }
+          
+          setProgressValue(Math.min(currentProgress, 94));
+          setProgressText(`Processing password ${i + 1} of ${totalPasswords}...`);
+          
+          await new Promise(resolve => setTimeout(resolve, 20));
+        }
+        
         setProgressValue(100);
         setProgressText("Import complete!");
         showMessage(
@@ -168,10 +184,26 @@ export function usePasswords() {
         "chrome:import-all-profiles",
       );
 
-      setProgressValue(80);
-      setProgressText("Finalizing import...");
-
       if (result && result.success) {
+        const totalPasswords = result.passwordCount || 0;
+        const progressPerPassword = Math.min(0.54, (84 / Math.max(totalPasswords, 1)));
+        let currentProgress = 10;
+        
+        for (let i = 0; i < totalPasswords; i++) {
+          if (currentProgress < 94) {
+            currentProgress += progressPerPassword;
+          } else {
+            const remaining = 94 - currentProgress;
+            const quadraticSlowdown = remaining * Math.pow((totalPasswords - i) / totalPasswords, 2);
+            currentProgress += quadraticSlowdown;
+          }
+          
+          setProgressValue(Math.min(currentProgress, 94));
+          setProgressText(`Processing password ${i + 1} of ${totalPasswords}...`);
+          
+          await new Promise(resolve => setTimeout(resolve, 20));
+        }
+        
         setProgressValue(100);
         setProgressText("Import complete!");
         showMessage(
@@ -213,10 +245,26 @@ export function usePasswords() {
         "chrome:import-all-profiles",
       );
 
-      setProgressValue(80);
-      setProgressText("Finalizing import...");
-
       if (result && result.success) {
+        const totalPasswords = result.passwordCount || 0;
+        const progressPerPassword = Math.min(0.54, (84 / Math.max(totalPasswords, 1)));
+        let currentProgress = 10;
+        
+        for (let i = 0; i < totalPasswords; i++) {
+          if (currentProgress < 94) {
+            currentProgress += progressPerPassword;
+          } else {
+            const remaining = 94 - currentProgress;
+            const quadraticSlowdown = remaining * Math.pow((totalPasswords - i) / totalPasswords, 2);
+            currentProgress += quadraticSlowdown;
+          }
+          
+          setProgressValue(Math.min(currentProgress, 94));
+          setProgressText(`Processing password ${i + 1} of ${totalPasswords}...`);
+          
+          await new Promise(resolve => setTimeout(resolve, 20));
+        }
+        
         setProgressValue(100);
         setProgressText("Import complete!");
         showMessage(

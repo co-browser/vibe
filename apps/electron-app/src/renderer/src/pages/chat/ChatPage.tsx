@@ -13,6 +13,7 @@ import { AgentStatusIndicator } from "@/components/chat/StatusIndicator";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { OnlineStatusStrip } from "@/components/ui/OnlineStatusStrip";
 import { useContextMenu, ChatContextMenuItems } from "@/hooks/useContextMenu";
+import { FileDropZone } from "@/components/ui/FileDropZone";
 
 import "@/components/styles/ChatView.css";
 
@@ -22,6 +23,7 @@ export function ChatPage(): React.JSX.Element {
   }));
 
   const [messages, setMessages] = useState<AiSDKMessage[]>([]);
+  const [droppedFiles, setDroppedFiles] = useState<File[]>([]);
   const { handleContextMenu } = useContextMenu();
   const { setStreamingContent, currentReasoningText, hasLiveReasoning } =
     useStreamingContent();
@@ -54,9 +56,7 @@ export function ChatPage(): React.JSX.Element {
   useEffect(() => {
     const handleSetInput = (_event: any, text: string) => {
       if (typeof text === "string") {
-        handleInputChange({
-          target: { value: text },
-        } as React.ChangeEvent<HTMLTextAreaElement>);
+        handleInputValueChange(text);
       }
     };
 
@@ -67,7 +67,7 @@ export function ChatPage(): React.JSX.Element {
         handleSetInput,
       );
     };
-  }, [handleInputChange]);
+  }, [handleInputValueChange]);
 
   useEffect(() => {
     // Track message updates for state management
@@ -82,6 +82,32 @@ export function ChatPage(): React.JSX.Element {
   const handleActionChipClick = (prompt: string): void => {
     sendMessageInput(prompt);
   };
+
+  const handleFileDrop = useCallback(
+    (files: File[]) => {
+      console.log("Files dropped:", files);
+      setDroppedFiles(prev => [...prev, ...files]);
+
+      // Auto-fill input with file information
+      const fileNames = files.map(f => f.name).join(", ");
+      const fileInfo = `Attached files: ${fileNames}`;
+
+      if (input.trim()) {
+        handleInputChange({
+          target: { value: `${input}\n\n${fileInfo}` },
+        } as React.ChangeEvent<HTMLTextAreaElement>);
+      } else {
+        handleInputChange({
+          target: { value: fileInfo },
+        } as React.ChangeEvent<HTMLTextAreaElement>);
+      }
+    },
+    [input, handleInputChange],
+  );
+
+  const handleRemoveFile = useCallback((index: number) => {
+    setDroppedFiles(prev => prev.filter((_, i) => i !== index));
+  }, []);
 
   const handleEditMessage = (messageId: string, newContent: string): void => {
     const originalMessage = messages.find(msg => msg.id === messageId);
@@ -150,14 +176,94 @@ export function ChatPage(): React.JSX.Element {
       </div>
 
       <div className="chat-input-section">
-        <ChatInput
-          value={input}
-          onChange={handleInputValueChange}
-          onSend={handleSend}
-          onStop={stopGeneration}
-          isSending={isSending}
-          tabContext={tabContext}
-        />
+        <FileDropZone
+          accept={[
+            ".txt",
+            ".md",
+            ".json",
+            ".js",
+            ".ts",
+            ".html",
+            ".css",
+            ".pdf",
+            ".doc",
+            ".docx",
+            "image/*",
+          ]}
+          maxFiles={10}
+          maxSize={50 * 1024 * 1024} // 50MB
+          onDrop={handleFileDrop}
+          className="chat-file-drop-zone"
+          showUploadButton={false}
+          style={{
+            border: droppedFiles.length > 0 ? "2px solid #3b82f6" : "none",
+            borderRadius: droppedFiles.length > 0 ? "8px" : "0",
+            padding: droppedFiles.length > 0 ? "8px" : "0",
+            backgroundColor: "transparent",
+          }}
+        >
+          {droppedFiles.length > 0 && (
+            <div
+              className="dropped-files-preview"
+              style={{ marginBottom: "12px" }}
+            >
+              <div
+                style={{
+                  fontSize: "14px",
+                  fontWeight: "600",
+                  marginBottom: "8px",
+                  color: "#374151",
+                }}
+              >
+                Attached Files ({droppedFiles.length}):
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                {droppedFiles.map((file, index) => (
+                  <div
+                    key={index}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      padding: "6px 12px",
+                      backgroundColor: "#f3f4f6",
+                      borderRadius: "6px",
+                      fontSize: "13px",
+                      border: "1px solid #e5e7eb",
+                    }}
+                  >
+                    <span style={{ color: "#374151" }}>
+                      {file.name} ({(file.size / 1024).toFixed(1)}KB)
+                    </span>
+                    <button
+                      onClick={() => handleRemoveFile(index)}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        color: "#ef4444",
+                        cursor: "pointer",
+                        padding: "0",
+                        fontSize: "14px",
+                      }}
+                      title="Remove file"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <ChatInput
+            value={input}
+            onChange={handleInputValueChange}
+            onSend={handleSend}
+            onStop={stopGeneration}
+            isSending={isSending}
+            tabContext={tabContext}
+          />
+        </FileDropZone>
         <OnlineStatusStrip />
       </div>
     </div>

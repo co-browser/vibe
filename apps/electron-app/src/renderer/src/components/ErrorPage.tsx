@@ -217,7 +217,7 @@ export function ErrorPage({ errorType, url }: ErrorPageProps) {
         Try Again
       </button>
 
-      <style jsx>{`
+      <style>{`
         @keyframes lava-move {
           0% {
             transform: translateY(0) scale(1);

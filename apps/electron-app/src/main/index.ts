@@ -38,6 +38,8 @@ import { setAgentServiceInstance as setChatMessagingInstance } from "@/ipc/chat/
 import { setAgentServiceInstance as setTabAgentInstance } from "@/utils/tab-agent";
 import { useUserProfileStore } from "@/store/user-profile-store";
 import { initializeSessionManager } from "@/browser/session-manager";
+import { FileDropService } from "@/services/file-drop-service";
+import { userAnalytics } from "@/services/user-analytics";
 import {
   createLogger,
   MAIN_PROCESS_CONFIG,
@@ -137,6 +139,9 @@ let mcpService: MCPService | null = null;
 // Global notification service instance
 let notificationService: NotificationService | null = null;
 
+// Global file drop service instance
+let fileDropService: FileDropService | null = null;
+
 // Track shutdown state
 let isShuttingDown = false;
 
@@ -218,6 +223,9 @@ async function gracefulShutdown(signal: string): Promise<void> {
   logger.info(`Graceful shutdown triggered by: ${signal}`);
 
   try {
+    // Track session end
+    userAnalytics.trackSessionEnd();
+
     // Clean up resources
     if (memoryMonitor) {
       memoryMonitor.triggerGarbageCollection();
@@ -254,6 +262,17 @@ async function gracefulShutdown(signal: string): Promise<void> {
         logger.error("Error during notification service cleanup:", error);
       }
       notificationService = null;
+    }
+
+    // Clean up file drop service
+    if (fileDropService) {
+      try {
+        // No explicit cleanup needed for FileDropService singleton
+        logger.info("File drop service cleaned up successfully");
+      } catch (error) {
+        logger.error("Error during file drop service cleanup:", error);
+      }
+      fileDropService = null;
     }
 
     if (unsubscribeBrowser) {
@@ -328,6 +347,11 @@ async function createInitialWindow(): Promise<void> {
   }
 
   const mainWindow = await browser.createWindow();
+
+  // Setup file drop handling for the new window
+  if (fileDropService) {
+    fileDropService.setupWindowDropHandling(mainWindow);
+  }
 
   if (!app.isPackaged) {
     mainWindow.webContents.openDevTools({ mode: "detach" });
@@ -587,6 +611,16 @@ async function initializeServices(): Promise<void> {
       logger.warn(
         "Application will continue without enhanced notification features",
       );
+    }
+
+    // Initialize file drop service
+    try {
+      logger.info("Initializing file drop service");
+      fileDropService = FileDropService.getInstance();
+      logger.info("File drop service initialized successfully");
+    } catch (error) {
+      logger.error("File drop service initialization failed:", error);
+      logger.warn("Application will continue without file drop functionality");
     }
 
     // Initialize simple analytics instead of complex telemetry system
@@ -950,10 +984,18 @@ app.whenReady().then(() => {
     logger.error("Failed to register CC double-press shortcut (CC)");
   }
 
-  // Initialize services and create initial window
-  initializeServices()
-    .then(() => createInitialWindow())
-    .then(() => {
+  // Initialize services and create initial window with performance monitoring
+  userAnalytics
+    .monitorPerformance("app-initialization", async () => {
+      await initializeServices();
+      await createInitialWindow();
+
+      // Initialize user analytics
+      await userAnalytics.initialize();
+
+      // Track memory usage after initialization
+      userAnalytics.trackMemoryUsage("post-initialization");
+
       // Track app startup after window is ready
       setTimeout(() => {
         const windows = browser?.getAllWindows();
@@ -970,14 +1012,14 @@ app.whenReady().then(() => {
             mainWindow.webContents
               .executeJavaScript(
                 `
-              if (window.umami && typeof window.umami.track === 'function') {
-                window.umami.track('app-started', {
-                  version: '${app.getVersion()}',
-                  platform: '${process.platform}',
-                  timestamp: ${Date.now()}
-                });
-              }
-            `,
+            if (window.umami && typeof window.umami.track === 'function') {
+              window.umami.track('app-started', {
+                version: '${app.getVersion()}',
+                platform: '${process.platform}',
+                timestamp: ${Date.now()}
+              });
+            }
+          `,
               )
               .catch(err => {
                 logger.error("Failed to track app startup", {
@@ -989,10 +1031,8 @@ app.whenReady().then(() => {
       }, 1000); // Small delay to ensure renderer is ready
     })
     .catch(error => {
-      logger.error(
-        "Error during initialization:",
-        error instanceof Error ? error.message : String(error),
-      );
+      logger.error("App initialization failed:", error);
+      userAnalytics.trackMemoryUsage("initialization-failed");
     });
 });
 
@@ -1010,6 +1050,9 @@ app.on("activate", () => {
 });
 
 app.on("before-quit", async () => {
+  // Track session end
+  userAnalytics.trackSessionEnd();
+
   // Track app shutdown
   try {
     const windows = browser?.getAllWindows();

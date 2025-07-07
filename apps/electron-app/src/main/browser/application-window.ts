@@ -136,14 +136,14 @@ export class ApplicationWindow extends EventEmitter {
       ...(process.platform === "darwin" && {
         trafficLightPosition: WINDOW_CONFIG.TRAFFIC_LIGHT_POSITION,
       }),
-      backgroundColor: process.platform === "darwin" ? "transparent" : "black",
+      backgroundColor: "transparent",
       frame: false,
       transparent: true,
       resizable: true,
       visualEffectState: "active",
-      backgroundMaterial: "none",
+      backgroundMaterial: "acrylic",
       roundedCorners: true,
-      vibrancy: process.platform === "darwin" ? "fullscreen-ui" : undefined,
+      vibrancy: process.platform === "darwin" ? "under-window" : undefined,
       webPreferences: {
         preload: join(__dirname, "../preload/index.js"),
         sandbox: false,

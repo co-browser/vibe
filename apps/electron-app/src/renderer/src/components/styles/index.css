@@ -56,21 +56,21 @@ body {
   --ring: 221.2 83.2% 53.3%;
   --radius: 0.5rem;
 
-  /* Bright, clean light theme colors */
-  --app-background: #f5f5f5;
-  /* Light grey background */
-  --nav-background: #ffffff;
-  /* Clean white navigation */
+  /* Bright, clean light theme colors with transparency for frosted glass */
+  --app-background: rgba(245, 245, 245, 0.3);
+  /* Semi-transparent light grey background */
+  --nav-background: rgba(255, 255, 255, 0.8);
+  /* Semi-transparent white navigation */
   --nav-text: #1f2937;
   /* Dark text for contrast */
   --nav-border: #d1d5db;
   /* Light grey borders */
   --nav-hover: #f3f4f6;
   /* Subtle hover state */
-  --chat-panel-background: #ffffff;
-  /* Clean white chat panel */
-  --browser-content-background: #ffffff;
-  /* White content area */
+  --chat-panel-background: rgba(255, 255, 255, 0.85);
+  /* Semi-transparent white chat panel */
+  --browser-content-background: rgba(255, 255, 255, 0.9);
+  /* Semi-transparent white content area */
   --text-primary: #1f2937;
   /* Dark text */
   --text-secondary: #6b7280;
@@ -194,4 +194,130 @@ html {
 
 .debug-layout .chat-panel-sidebar {
   outline: 2px solid green !important;
+}
+
+/* File Drop Zone Styles */
+.vibe-drop-zone {
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.vibe-drop-zone.drag-over {
+  background-color: rgba(59, 130, 246, 0.05) !important;
+  border: 2px dashed #3b82f6 !important;
+  border-radius: 8px !important;
+}
+
+.vibe-drop-zone.drag-active {
+  pointer-events: none;
+}
+
+/* Global drop overlay */
+.vibe-drop-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(59, 130, 246, 0.1);
+  backdrop-filter: blur(2px);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.vibe-drop-message {
+  background: white;
+  padding: 24px 32px;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  border: 2px dashed #3b82f6;
+  text-align: center;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.vibe-drop-icon {
+  font-size: 48px;
+  color: #3b82f6;
+  margin-bottom: 16px;
+}
+
+.vibe-drop-text {
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 8px;
+}
+
+.vibe-drop-hint {
+  font-size: 14px;
+  color: #666;
+}
+
+/* Chat file drop zone specific styles */
+.chat-file-drop-zone {
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+}
+
+.chat-file-drop-zone.drag-over {
+  background-color: rgba(59, 130, 246, 0.05) !important;
+  border: 2px dashed #3b82f6 !important;
+  border-radius: 8px !important;
+  padding: 8px !important;
+}
+
+/* File preview styles */
+.dropped-files-preview {
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Custom cursor for drag operations */
+body.dragging-files {
+  cursor:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'><circle cx='12' cy='12' r='10' fill='%23059669' stroke='%23ffffff' stroke-width='2'/><path d='M12 8v8M8 12h8' stroke='%23ffffff' stroke-width='2' stroke-linecap='round'/></svg>")
+      12 12,
+    copy !important;
+}
+
+/* Animation for drop feedback */
+@keyframes drop-bounce {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.vibe-drop-zone.drop-success {
+  animation: drop-bounce 0.3s ease-out;
+}
+
+/* Spin animation for loading spinner in recovery overlay */
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
 }

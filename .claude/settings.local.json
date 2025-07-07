@@ -33,7 +33,9 @@
       "Bash(git fetch:*)",
       "Bash(echo $VIBE_TEST_CHROME_PROFILE)",
       "Bash(pnpm lint:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(pnpm build:*)",
+      "Bash(pnpm build:*)"
     ],
     "deny": []
   }

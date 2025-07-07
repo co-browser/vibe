@@ -21,9 +21,9 @@
   }
 
   body {
-    @apply bg-white text-gray-900;
-    /* Restored proper background color */
-    background-color: var(--app-background);
+    @apply text-gray-900;
+    /* Transparent background for frosted glass effect */
+    background-color: transparent;
     color: var(--text-primary);
   }
 }
@@ -178,7 +178,7 @@
   /* Legacy Layout Support (for backward compatibility) */
   .app-container {
     @apply flex flex-col h-screen overflow-hidden;
-    background-color: var(--app-background);
+    background-color: transparent;
   }
 
   .browser-container {
@@ -198,7 +198,7 @@
 
   .main-and-chat-area {
     @apply flex flex-row flex-grow overflow-hidden relative m-0 p-0;
-    background-color: var(--app-background);
+    background-color: transparent;
   }
 
   .browser-view-placeholder {
@@ -207,7 +207,7 @@
 
   .browser-content {
     @apply w-full h-full flex items-center justify-center;
-    background-color: var(--app-background);
+    background-color: transparent;
   }
 
   .chat-panel-container {

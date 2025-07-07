@@ -479,6 +479,9 @@ const interfaceAPI: VibeInterfaceAPI = {
   recoverChatPanel: async () => {
     return ipcRenderer.invoke("interface:recover-chat-panel");
   },
+  setSpeedlaneMode: (enabled: boolean) => {
+    ipcRenderer.send("interface:set-speedlane-mode", enabled);
+  },
 };
 
 // Chat API implementation
@@ -758,6 +761,17 @@ const downloadsAPI = {
   clearHistory: async () => ipcRenderer.invoke("downloads.clearHistory"),
 };
 
+const fileDropAPI = {
+  registerZone: async (zoneId: string, config: any) =>
+    ipcRenderer.invoke("file-drop:register-zone", zoneId, config),
+  unregisterZone: async (zoneId: string) =>
+    ipcRenderer.invoke("file-drop:unregister-zone", zoneId),
+  processFiles: async (zoneId: string, filePaths: string[]) =>
+    ipcRenderer.invoke("file-drop:process-files", zoneId, filePaths),
+  getPreview: async (filePath: string) =>
+    ipcRenderer.invoke("file-drop:get-preview", filePath),
+};
+
 const dialogAPI = {
   close: async (dialogType: string) => {
     logger.debug(`[DialogAPI] Closing dialog: ${dialogType}`);
@@ -888,6 +902,7 @@ const vibeAPI = {
   downloads: downloadsAPI,
   dialog: dialogAPI,
   notifications: notificationsAPI,
+  fileDrop: fileDropAPI,
 };
 
 // Expose APIs to the renderer process

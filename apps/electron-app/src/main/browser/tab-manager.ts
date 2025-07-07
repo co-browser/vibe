@@ -15,6 +15,7 @@ import { useUserProfileStore } from "@/store/user-profile-store";
 import { setupContextMenuHandlers } from "./context-menu";
 import { WindowBroadcast } from "@/utils/window-broadcast";
 import { NavigationErrorHandler } from "./navigation-error-handler";
+import { userAnalytics } from "@/services/user-analytics";
 // File system imports removed - now handled in protocol-handler
 
 const logger = createLogger("TabManager");
@@ -144,7 +145,9 @@ export class TabManager extends EventEmitter {
       },
     });
 
-    view.setBackgroundColor("#00000000");
+    // Use opaque white background to fix speedlane rendering issues
+    // Transparent backgrounds can cause visibility problems when multiple views overlap
+    view.setBackgroundColor("#FFFFFF");
 
     // Add rounded corners for glassmorphism design
     view.setBorderRadius(GLASSMORPHISM_CONFIG.BORDER_RADIUS);
@@ -466,15 +469,17 @@ export class TabManager extends EventEmitter {
   /**
    * Creates a new tab with smart positioning
    */
-  public createTab(url?: string): string {
+  public createTab(url?: string, options?: { activate?: boolean }): string {
     const key = this.generateTabKey();
     const targetUrl = url || "https://www.google.com";
     const newTabPosition = this.calculateNewTabPosition();
+    const shouldActivate = options?.activate !== false; // Default to true
 
     logger.debug("[Download Debug] *** createTab called:", {
       key,
       targetUrl,
       newTabPosition,
+      shouldActivate,
     });
 
     const tabState: TabState = {
@@ -492,9 +497,27 @@ export class TabManager extends EventEmitter {
 
     this.tabs.set(key, tabState);
     this.createBrowserView(key, targetUrl);
-    this.setActiveTab(key);
+
+    if (shouldActivate) {
+      this.setActiveTab(key);
+    }
+
     this.normalizeTabPositions();
     this.emit("tab-created", key);
+
+    // Start feature timer for this tab
+    userAnalytics.startFeatureTimer(`tab-${key}`);
+
+    // Track tab creation
+    userAnalytics.trackNavigation("tab-created", {
+      tabKey: key,
+      url: targetUrl,
+      totalTabs: this.tabs.size,
+      activate: shouldActivate,
+    });
+
+    // Update usage stats for tab creation
+    userAnalytics.updateUsageStats({ tabCreated: true });
 
     // Track tab creation - only in main window (renderer)
     const mainWindows = this._browser
@@ -539,6 +562,18 @@ export class TabManager extends EventEmitter {
     }
 
     const wasActive = this.activeTabKey === tabKey;
+    const closedTab = this.tabs.get(tabKey);
+
+    // End feature timer for this tab
+    userAnalytics.endFeatureTimer(`tab-${tabKey}`);
+
+    // Track tab closure
+    userAnalytics.trackNavigation("tab-closed", {
+      tabKey: tabKey,
+      url: closedTab?.url || "unknown",
+      totalTabs: this.tabs.size - 1,
+      wasActive: wasActive,
+    });
 
     // Clean up CDP resources before removing the view
     if (this.cdpManager) {
@@ -637,6 +672,22 @@ export class TabManager extends EventEmitter {
 
     // Track tab switching (only if it's actually a switch, not initial creation)
     if (previousActiveKey && previousActiveKey !== tabKey) {
+      // End timer for previous tab
+      userAnalytics.endFeatureTimer(`tab-${previousActiveKey}`);
+
+      // Start timer for new tab
+      userAnalytics.startFeatureTimer(`tab-${tabKey}`);
+
+      // Track navigation
+      const tab = this.tabs.get(tabKey);
+      userAnalytics.trackNavigation("tab-switched", {
+        from: previousActiveKey,
+        to: tabKey,
+        tabUrl: tab?.url,
+        tabTitle: tab?.title,
+        totalTabs: this.tabs.size,
+      });
+
       const mainWindows = this._browser
         .getAllWindows()
         .filter(
@@ -691,8 +742,17 @@ export class TabManager extends EventEmitter {
 
     const newUrl = webContents.getURL();
     if (newUrl !== tab.url) {
+      const oldUrl = tab.url;
       tab.url = newUrl;
       changes.push("url");
+
+      // Track navigation breadcrumb
+      userAnalytics.trackNavigation("url-changed", {
+        tabKey: tabKey,
+        oldUrl: oldUrl,
+        newUrl: newUrl,
+        isActiveTab: this.activeTabKey === tabKey,
+      });
 
       // Track navigation history for user profile
       const userProfileStore = useUserProfileStore.getState();

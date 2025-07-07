@@ -1,6 +1,5 @@
-import { Notification, app, BrowserWindow, shell } from "electron";
+import { Notification, BrowserWindow } from "electron";
 import { join } from "path";
-import { autoUpdater } from "electron-updater";
 import { createLogger } from "@vibe/shared-types";
 
 const logger = createLogger("update-notifier");
@@ -179,59 +178,6 @@ export class UpdateNotifier {
         },
       ],
     });
-  }
-
-  private async _checkForUpdates(): Promise<void> {
-    try {
-      // Show a notification that we're checking for updates
-      const checkingNotification = new Notification({
-        title: "Checking for Updates",
-        body: "Looking for new versions of Vibe...",
-        icon: join(__dirname, "..", "..", "resources", "tray.png"),
-      });
-      checkingNotification.show();
-
-      // Trigger the actual update check
-      const result = await autoUpdater.checkForUpdates();
-
-      if (!result || !result.updateInfo) {
-        // No update available
-        const noUpdateNotification = new Notification({
-          title: "No Updates Available",
-          body: "Vibe is up to date!",
-          icon: join(__dirname, "..", "..", "resources", "tray.png"),
-        });
-        noUpdateNotification.show();
-      }
-      // If update is available, the update-service will handle showing the notification
-    } catch (error) {
-      logger.error("Failed to check for updates", { error });
-      const errorNotification = new Notification({
-        title: "Update Check Failed",
-        body: "Unable to check for updates. Please try again later.",
-        icon: join(__dirname, "..", "..", "resources", "tray.png"),
-      });
-      errorNotification.show();
-    }
-  }
-
-  private _showUpdateHistory(): void {
-    // For now, show a notification with the current version
-    // In a full implementation, this would open a dialog or window with update history
-    const currentVersion = app.getVersion();
-
-    const historyNotification = new Notification({
-      title: "Vibe Update History",
-      body: `Current version: ${currentVersion}\nClick to view full history on GitHub`,
-      icon: join(__dirname, "..", "..", "resources", "tray.png"),
-    });
-
-    historyNotification.on("click", () => {
-      // Open the releases page in the default browser
-      shell.openExternal("https://github.com/omnibox-vibe/releases");
-    });
-
-    historyNotification.show();
   }
 
   private showMainWindow(): void {

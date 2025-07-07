@@ -1,4 +1,10 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, {
+  useState,
+  useRef,
+  useEffect,
+  useCallback,
+  useMemo,
+} from "react";
 
 // Simple throttle function optimized for frequent events like mousemove
 function throttle<T extends (...args: any[]) => any>(
@@ -47,13 +53,14 @@ export const DraggableDivider: React.FC<DraggableDividerProps> = ({
   const dividerRef = useRef<HTMLDivElement>(null);
   const startXRef = useRef(0);
   const startWidthRef = useRef(0);
-  
+
   // Create throttled resize function to limit calls to 60fps
-  const throttledResize = useCallback(
-    throttle((width: number) => {
-      onResize(width);
-    }, 16), // 16ms = ~60fps
-    [onResize]
+  const throttledResize = useMemo(
+    () =>
+      throttle((width: number) => {
+        onResize(width);
+      }, 16), // 16ms = ~60fps
+    [onResize],
   );
 
   const handleMouseDown = useCallback(
@@ -101,7 +108,9 @@ export const DraggableDivider: React.FC<DraggableDividerProps> = ({
     };
 
     if (isDragging) {
-      document.addEventListener("mousemove", handleMouseMove, { passive: true });
+      document.addEventListener("mousemove", handleMouseMove, {
+        passive: true,
+      });
       document.addEventListener("mouseup", handleMouseUp);
     }
 
