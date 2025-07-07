@@ -64,7 +64,6 @@ export class ApplicationWindow extends EventEmitter {
         trafficLightPosition: WINDOW_CONFIG.TRAFFIC_LIGHT_POSITION,
       }),
       backgroundColor: process.platform === "darwin" ? "#00000000" : "#000000",
-      frame: false,
       transparent: true,
       resizable: true,
       visualEffectState: "active",

@@ -38,7 +38,6 @@ export class WindowManager {
         trafficLightPosition: WINDOW_CONFIG.TRAFFIC_LIGHT_POSITION,
       }),
       backgroundColor: process.platform === "darwin" ? "#00000000" : "#000000",
-      frame: false,
       transparent: true,
       resizable: true,
       visualEffectState: "active",
@@ -59,6 +58,14 @@ export class WindowManager {
     const applicationWindow =
       this.browser.createApplicationWindow(windowOptions);
     this.windows.set(applicationWindow.id, applicationWindow);
+
+    // Clean up window reference when closed
+    applicationWindow.window.once("closed", () => {
+      this.windows.delete(applicationWindow.id);
+      if (this.mainWindow === applicationWindow) {
+        this.mainWindow = null;
+      }
+    });
 
     // Set as main window if first window
     if (!this.mainWindow) {
@@ -98,7 +105,18 @@ export class WindowManager {
    * Gets all windows
    */
   public getAllWindows(): BrowserWindow[] {
-    return Array.from(this.windows.values()).map(appWindow => appWindow.window);
+    return Array.from(this.windows.values())
+      .filter(appWindow => {
+        try {
+          return (
+            appWindow && appWindow.window && !appWindow.window.isDestroyed()
+          );
+        } catch {
+          // Window is destroyed, filter it out
+          return false;
+        }
+      })
+      .map(appWindow => appWindow.window);
   }
 
   /**
