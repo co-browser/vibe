@@ -7,6 +7,7 @@ import "./components/styles/index.css";
 import "antd/dist/reset.css";
 import { RouterProvider } from "./router/provider";
 import { Route } from "./router/route";
+import { ContextMenuProvider } from "./providers/ContextMenuProvider";
 
 // Browser Route
 import BrowserRoute from "./routes/browser/route";
@@ -16,11 +17,13 @@ import BrowserRoute from "./routes/browser/route";
  */
 function Routes() {
   return (
-    <RouterProvider>
-      <Route>
-        <BrowserRoute />
-      </Route>
-    </RouterProvider>
+    <ContextMenuProvider>
+      <RouterProvider>
+        <Route>
+          <BrowserRoute />
+        </Route>
+      </RouterProvider>
+    </ContextMenuProvider>
   );
 }
 

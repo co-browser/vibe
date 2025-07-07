@@ -5,6 +5,7 @@ import { ChatPage } from "../../pages/chat/ChatPage";
 import { ChatErrorBoundary } from "../ui/error-boundary";
 import { SettingsModal } from "../modals/SettingsModal";
 import { DownloadsModal } from "../modals/DownloadsModal";
+
 import {
   CHAT_PANEL,
   CHAT_PANEL_RECOVERY,
@@ -465,6 +466,7 @@ export function MainApp(): React.JSX.Element {
             )}
           </div>
         </div>
+
         <SettingsModal
           isOpen={isSettingsModalOpen}
           onClose={() => {

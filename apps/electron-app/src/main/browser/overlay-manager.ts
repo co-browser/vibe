@@ -38,6 +38,9 @@ export interface OverlayOptions {
 }
 
 export class OverlayManager extends EventEmitter {
+  private static instances: Map<number, OverlayManager> = new Map();
+  private static handlersRegistered = false;
+
   private window: BrowserWindow;
   private overlayView: WebContentsView | null = null;
   private isInitialized: boolean = false;
@@ -57,7 +60,15 @@ export class OverlayManager extends EventEmitter {
       maxCacheSize: options.maxCacheSize ?? 50,
       batchDelay: options.batchDelay ?? 1, // Ultra-fast response for clicks
     };
-    this.setupIpcHandlers();
+
+    // Register this instance
+    OverlayManager.instances.set(window.id, this);
+
+    // Register IPC handlers only once, globally
+    if (!OverlayManager.handlersRegistered) {
+      OverlayManager.registerGlobalHandlers();
+      OverlayManager.handlersRegistered = true;
+    }
   }
 
   /**
@@ -103,7 +114,7 @@ export class OverlayManager extends EventEmitter {
             margin: 0; 
             padding: 0; 
             overflow: hidden; 
-            background: transparent;
+            background: theme('colors.transparent');
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
           }
           #vibe-overlay-container { 
@@ -123,8 +134,8 @@ export class OverlayManager extends EventEmitter {
             position: fixed;
             top: 10px;
             right: 10px;
-            background: #ff4444;
-            color: white;
+            background: theme('colors.red.500');
+            color: theme('colors.white');
             padding: 8px 12px;
             border-radius: 4px;
             font-size: 12px;
@@ -177,7 +188,7 @@ export class OverlayManager extends EventEmitter {
                       console.log('Delete button clicked for ID:', deleteButton.dataset.deleteId);
                       if (window.electronAPI && window.electronAPI.overlay) {
                         // Immediately provide visual feedback
-                        deleteButton.style.color = '#ff4444';
+                        deleteButton.style.color = theme('colors.red.500');
                         deleteButton.style.transform = 'scale(1.2)';
                         
                         window.electronAPI.overlay.send('omnibox:delete-history', deleteButton.dataset.deleteId);
@@ -189,7 +200,7 @@ export class OverlayManager extends EventEmitter {
                     if (target && target.dataset && target.dataset.suggestionId) {
                       if (window.electronAPI && window.electronAPI.overlay) {
                         // Immediately provide visual feedback
-                        target.style.backgroundColor = 'rgba(59, 130, 246, 0.2)';
+                        target.style.backgroundColor = theme('colors.blue.200');
                         
                         window.electronAPI.overlay.send('omnibox:suggestion-clicked', {
                           id: target.dataset.suggestionId,
@@ -902,57 +913,95 @@ export class OverlayManager extends EventEmitter {
   }
 
   /**
-   * Setup IPC handlers for overlay commands
+   * Setup IPC handlers for overlay commands (static registration)
    */
-  private setupIpcHandlers(): void {
+  private static registerGlobalHandlers(): void {
     // Batched show handler
-    ipcMain.handle("overlay:show", async () => {
-      this.queueCommand({ type: "show" });
+    ipcMain.handle("overlay:show", async event => {
+      const windowId = BrowserWindow.fromWebContents(event.sender)?.id;
+      if (!windowId) return false;
+
+      const manager = OverlayManager.instances.get(windowId);
+      if (!manager) return false;
+
+      manager.queueCommand({ type: "show" });
       return true;
     });
 
     // Batched hide handler
-    ipcMain.handle("overlay:hide", async () => {
-      this.queueCommand({ type: "hide" });
+    ipcMain.handle("overlay:hide", async event => {
+      const windowId = BrowserWindow.fromWebContents(event.sender)?.id;
+      if (!windowId) return false;
+
+      const manager = OverlayManager.instances.get(windowId);
+      if (!manager) return false;
+
+      manager.queueCommand({ type: "hide" });
       return true;
     });
 
     // Batched render handler
-    ipcMain.handle(
-      "overlay:render",
-      async (_event, content: OverlayContent) => {
-        this.queueCommand({ type: "render", data: content });
-        return true;
-      },
-    );
+    ipcMain.handle("overlay:render", async (event, content: OverlayContent) => {
+      const windowId = BrowserWindow.fromWebContents(event.sender)?.id;
+      if (!windowId) return false;
+
+      const manager = OverlayManager.instances.get(windowId);
+      if (!manager) return false;
+
+      manager.queueCommand({ type: "render", data: content });
+      return true;
+    });
 
     // Batched clear handler
-    ipcMain.handle("overlay:clear", async () => {
-      this.queueCommand({ type: "clear" });
+    ipcMain.handle("overlay:clear", async event => {
+      const windowId = BrowserWindow.fromWebContents(event.sender)?.id;
+      if (!windowId) return false;
+
+      const manager = OverlayManager.instances.get(windowId);
+      if (!manager) return false;
+
+      manager.queueCommand({ type: "clear" });
       return true;
     });
 
     // Batched update handler
     ipcMain.handle(
       "overlay:update",
-      async (_event, updates: Partial<OverlayContent>) => {
-        this.queueCommand({ type: "update", data: updates });
+      async (event, updates: Partial<OverlayContent>) => {
+        const windowId = BrowserWindow.fromWebContents(event.sender)?.id;
+        if (!windowId) return false;
+
+        const manager = OverlayManager.instances.get(windowId);
+        if (!manager) return false;
+
+        manager.queueCommand({ type: "update", data: updates });
         return true;
       },
     );
 
     // Direct execute handler (not batched for immediate response)
-    ipcMain.handle("overlay:execute", async (_event, script: string) => {
-      if (!this.overlayView) return null;
-      return await this.overlayView.webContents.executeJavaScript(script);
+    ipcMain.handle("overlay:execute", async (event, script: string) => {
+      const windowId = BrowserWindow.fromWebContents(event.sender)?.id;
+      if (!windowId) return null;
+
+      const manager = OverlayManager.instances.get(windowId);
+      if (!manager || !manager.overlayView) return null;
+
+      return await manager.overlayView.webContents.executeJavaScript(script);
     });
 
     // Get current state
-    ipcMain.handle("overlay:getState", async () => {
+    ipcMain.handle("overlay:getState", async event => {
+      const windowId = BrowserWindow.fromWebContents(event.sender)?.id;
+      if (!windowId) return null;
+
+      const manager = OverlayManager.instances.get(windowId);
+      if (!manager) return null;
+
       return {
-        isVisible: this.isVisible,
-        hasContent: this.currentContent !== null,
-        cacheSize: this.contentCache.size,
+        isVisible: manager.isVisible,
+        hasContent: manager.currentContent !== null,
+        cacheSize: manager.contentCache.size,
       };
     });
   }
@@ -1062,14 +1111,12 @@ export class OverlayManager extends EventEmitter {
       this.overlayView = null;
     }
 
-    // Remove IPC handlers
-    ipcMain.removeHandler("overlay:show");
-    ipcMain.removeHandler("overlay:hide");
-    ipcMain.removeHandler("overlay:render");
-    ipcMain.removeHandler("overlay:clear");
-    ipcMain.removeHandler("overlay:update");
-    ipcMain.removeHandler("overlay:execute");
-    ipcMain.removeHandler("overlay:getState");
+    // Remove this instance from the static map
+    OverlayManager.instances.delete(this.window.id);
+
+    // Note: We don't remove IPC handlers here anymore since they're global
+    // and might still be needed by other windows. They'll be cleaned up
+    // when the app closes.
 
     // Remove all event listeners
     this.removeAllListeners();

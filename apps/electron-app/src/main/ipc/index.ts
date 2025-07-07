@@ -1,5 +1,6 @@
 import type { Browser } from "@/browser/browser";
 import { createLogger } from "@vibe/shared-types";
+import { useUserProfileStore } from "@/store/user-profile-store";
 
 const logger = createLogger("ipc-handlers");
 
@@ -45,6 +46,9 @@ import "@/ipc/mcp/mcp-status";
 // User APIs
 import { registerProfileHistoryHandlers } from "@/ipc/user/profile-history";
 
+// Settings APIs - Password handlers for settings dialog
+import { registerPasswordHandlers } from "@/ipc/settings/password-handlers";
+
 /**
  * Registers all IPC handlers
  */
@@ -57,8 +61,18 @@ export function registerAllIpcHandlers(browser: Browser): () => void {
   // Register user profile handlers
   registerProfileHistoryHandlers();
 
+  // Register password handlers for settings dialog
+  registerPasswordHandlers();
+
   // Initialize downloads service
   downloads.init();
+
+  // Test downloads service
+  logger.info("Downloads service test:", {
+    downloadsInitialized: true,
+    profileStoreReady: useUserProfileStore.getState().isStoreReady(),
+    activeProfile: useUserProfileStore.getState().getActiveProfile()?.id,
+  });
 
   // Setup session state sync (broadcasts to all windows)
   let sessionUnsubscribe: (() => void) | null = null;

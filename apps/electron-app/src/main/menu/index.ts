@@ -12,6 +12,7 @@ import {
 import { Browser } from "@/browser/browser";
 import { createLogger } from "@vibe/shared-types";
 import { sendTabToAgent } from "@/utils/tab-agent";
+import { autoUpdater } from "electron-updater";
 
 const logger = createLogger("ApplicationMenu");
 
@@ -364,6 +365,43 @@ function createApplicationMenu(browser: Browser): MenuItemConstructorOptions[] {
         label: "Keyboard Shortcuts",
         accelerator: isMac ? "Command+/" : "Control+/",
         click: showKeyboardShortcuts,
+      },
+      { type: "separator" },
+      {
+        label: "Check for Updates",
+        click: async () => {
+          try {
+            await autoUpdater.checkForUpdates();
+            const focusedWindow = BrowserWindow.getFocusedWindow();
+            if (focusedWindow) {
+              dialog.showMessageBox(focusedWindow, {
+                type: "info",
+                title: "Update Check",
+                message: "Checking for updates...",
+                detail:
+                  "The system is checking for available updates. You'll be notified if any updates are found.",
+                buttons: ["OK"],
+              });
+            }
+          } catch (error) {
+            const focusedWindow = BrowserWindow.getFocusedWindow();
+            if (focusedWindow) {
+              dialog.showErrorBox(
+                "Update Check Failed",
+                `Failed to check for updates: ${error instanceof Error ? error.message : String(error)}`,
+              );
+            }
+          }
+        },
+      },
+      {
+        label: "View Update History",
+        click: () => {
+          const focusedWindow = BrowserWindow.getFocusedWindow();
+          if (focusedWindow) {
+            focusedWindow.webContents.send("app:show-update-history");
+          }
+        },
       },
       { type: "separator" },
       {

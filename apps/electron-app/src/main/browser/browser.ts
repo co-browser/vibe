@@ -1,4 +1,4 @@
-import { BrowserWindow, WebContents, app, session } from "electron";
+import { BrowserWindow, WebContents, app } from "electron";
 import { EventEmitter } from "events";
 
 import { WindowManager } from "@/browser/window-manager";
@@ -33,8 +33,10 @@ export class Browser extends EventEmitter {
     this.windowManager = new WindowManager(this);
     this.cdpManager = new CDPManager();
 
-    // Set up Content Security Policy
-    this.setupContentSecurityPolicy();
+    // Session manager will handle CSP and other session-level features
+    logger.debug(
+      "[Browser] Session manager initialized with CSP and feature parity",
+    );
   }
 
   /**
@@ -44,26 +46,6 @@ export class Browser extends EventEmitter {
   private setupMenu(): void {
     setupApplicationMenu(this);
     logger.debug("[Browser] Application menu initialized (static structure)");
-  }
-
-  /**
-   * Sets up Content Security Policy for the application
-   */
-  private setupContentSecurityPolicy(): void {
-    session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
-      // Allow Vite dev server in development
-      const isDev = process.env.NODE_ENV === "development";
-      const cspPolicy = isDev
-        ? "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' http://localhost:5173 ws://localhost:5173 http://127.0.0.1:8000 ws://127.0.0.1:8000 https:; object-src 'none';"
-        : "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' http://127.0.0.1:8000 ws://127.0.0.1:8000 https:;";
-
-      callback({
-        responseHeaders: {
-          ...details.responseHeaders,
-          "Content-Security-Policy": [cspPolicy],
-        },
-      });
-    });
   }
 
   /**
@@ -168,6 +150,19 @@ export class Browser extends EventEmitter {
    */
   public getCDPManager(): CDPManager {
     return this.cdpManager;
+  }
+
+  /**
+   * Gets the dialog manager from the main window
+   */
+  public getDialogManager(): any {
+    const mainWindow = this.getMainWindow();
+    if (mainWindow) {
+      // Fix: Use webContents.id instead of window.id
+      const appWindow = this.getApplicationWindow(mainWindow.webContents.id);
+      return appWindow?.dialogManager || null;
+    }
+    return null;
   }
 
   /**

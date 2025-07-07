@@ -80,6 +80,8 @@ export default defineConfig({
         input: {
           index: path.resolve(__dirname, "./src/renderer/index.html"),
           overlay: path.resolve(__dirname, "./src/renderer/overlay.html"),
+          settings: path.resolve(__dirname, "./src/renderer/settings.html"),
+          downloads: path.resolve(__dirname, "./src/renderer/downloads.html"),
         },
       },
     },

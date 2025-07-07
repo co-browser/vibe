@@ -40,15 +40,24 @@ const STATIC_CSS = `
   .vibe-overlay-interactive.omnibox-dropdown {
     position: fixed;
     box-sizing: border-box;
-    background: rgba(255, 255, 255, 0.95);
-    backdrop-filter: blur(8px) saturate(120%);
-    -webkit-backdrop-filter: blur(8px) saturate(120%);
-    border-radius: 0 0 8px 8px;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1), 
-                0 1px 4px rgba(0, 0, 0, 0.05);
+    /* Optimized transparent background with better performance */
+    background: rgba(248, 249, 251, 0.85);
+    /* Use will-change for better performance with transparency */
+    will-change: transform, opacity;
+    /* Lighter backdrop filter for performance */
+    backdrop-filter: blur(12px) saturate(150%);
+    -webkit-backdrop-filter: blur(12px) saturate(150%);
+    /* Better corner smoothing for electron */
+    border-radius: 0 0 12px 12px;
+    -webkit-corner-smoothing: 100%;
+    -electron-corner-smoothing: 100%;
+    /* Softer shadows for cleaner look */
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08), 
+                0 2px 8px rgba(0, 0, 0, 0.04),
+                inset 0 0 0 1px rgba(255, 255, 255, 0.2);
     overflow: auto;
     padding: 4px 0;
-    border: 1px solid rgba(0, 0, 0, 0.1);
+    border: 1px solid rgba(209, 213, 219, 0.3);
     border-top: none;
     max-height: 300px;
     z-index: 2147483647;
@@ -56,19 +65,22 @@ const STATIC_CSS = `
     max-width: 60%;
     left: 0;
     top: 40px;
+    /* Smooth transitions */
+    transition: opacity 0.15s ease, transform 0.15s ease;
   }
   
   .suggestion-item {
     display: flex;
     align-items: center;
-    padding: 10px 12px;
+    padding: 10px 14px;
     cursor: pointer;
-    transition: background-color 0.15s ease;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    transition: all 0.15s ease;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.03);
     box-sizing: border-box;
     width: 100%;
     max-width: 100%;
     overflow: hidden;
+    position: relative;
   }
   
   .suggestion-item:last-child {
@@ -76,23 +88,27 @@ const STATIC_CSS = `
   }
   
   .suggestion-item:hover {
-    background-color: rgba(0, 0, 0, 0.05);
+    background-color: rgba(59, 130, 246, 0.08);
+    transform: translateX(2px);
   }
   
   .suggestion-item.selected {
-    background-color: rgba(59, 130, 246, 0.1);
-    box-shadow: inset 0 0 0 1px rgba(59, 130, 246, 0.2);
+    background-color: rgba(59, 130, 246, 0.12);
+    box-shadow: inset 0 0 0 1.5px rgba(59, 130, 246, 0.25);
   }
   
   .suggestion-icon {
-    width: 16px;
-    height: 16px;
-    margin-right: 8px;
-    color: #666;
+    width: 24px;
+    height: 24px;
+    margin-right: 12px;
     flex-shrink: 0;
     display: flex;
     align-items: center;
     justify-content: center;
+    /* Better icon container styling */
+    background: rgba(0, 0, 0, 0.02);
+    border-radius: 6px;
+    padding: 2px;
   }
   
   .suggestion-content {
@@ -339,7 +355,9 @@ export function useOmniboxOverlay(options: OmniboxOverlayOptions = {}) {
         width: 100%;
         max-width: 100%;
         margin: 0;
-        border-radius: 0 0 8px 8px;
+        border-radius: 0 0 12px 12px;
+        -webkit-corner-smoothing: 100%;
+        -electron-corner-smoothing: 100%;
         border-top: none;
         position: fixed;
         transform: translateX(calc(var(--omnibar-left, 0px)));
@@ -661,17 +679,22 @@ function escapeHtml(text: string): string {
 }
 
 function getIconHTML(type: string): string {
+  // Use better-looking Unicode icons with span wrapping for styling
   const iconMap: Record<string, string> = {
-    url: "🌐",
-    search: "🔍",
-    history: "⏰",
-    bookmark: "⭐",
-    context: "📄",
-    perplexity: "🤖",
-    agent: "🧠",
+    url: '<span style="font-size: 18px; filter: hue-rotate(240deg);">🌐</span>',
+    search: '<span style="font-size: 18px;">🔎</span>',
+    history: '<span style="font-size: 18px; filter: sepia(0.3);">🕐</span>',
+    bookmark:
+      '<span style="font-size: 18px; filter: brightness(1.2);">⭐</span>',
+    context:
+      '<span style="font-size: 18px; filter: hue-rotate(180deg);">🔗</span>',
+    perplexity:
+      '<span style="font-size: 18px; filter: hue-rotate(200deg);">🤖</span>',
+    agent:
+      '<span style="font-size: 18px; filter: hue-rotate(280deg);">✨</span>',
   };
 
-  return iconMap[type] || "📄";
+  return iconMap[type] || '<span style="font-size: 18px;">📑</span>';
 }
 
 // Fast hash function for suggestion comparison (much faster than JSON.stringify)

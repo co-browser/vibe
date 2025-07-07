@@ -129,7 +129,7 @@ ipcMain.handle("settings:reset", async (_event: IpcMainInvokeEvent) => {
 
     // Reset to default settings
     const defaultSettings = {
-      defaultSearchEngine: "perplexity",
+      defaultSearchEngine: "google",
       theme: "light",
     };
 

@@ -25,15 +25,14 @@
     "build:linux": "electron-vite build && electron-builder --linux",
     "clean": "rm -rf dist out .eslintcache",
     "dist": "electron-vite build && electron-builder --publish never",
-    "postinstall": "electron-builder install-app-deps && electron-rebuild",
-    "test:pdf": "node scripts/test-pdf-loading.js",
-    "test:pdf:interactive": "node scripts/interactive-pdf-test.js"
+    "postinstall": "electron-builder install-app-deps && electron-rebuild"
   },
   "dependencies": {
     "@ai-sdk/react": "^1.2.12",
     "@ant-design/icons": "^6.0.0",
     "@electron-toolkit/preload": "^3.0.1",
     "@electron-toolkit/utils": "^4.0.0",
+    "@getstation/electron-google-oauth2": "^14.0.0",
     "@modelcontextprotocol/sdk": "1.11.0",
     "@radix-ui/react-collapsible": "^1.1.11",
     "@radix-ui/react-scroll-area": "^1.2.8",

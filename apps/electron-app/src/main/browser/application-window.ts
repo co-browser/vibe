@@ -84,12 +84,19 @@ export class ApplicationWindow extends EventEmitter {
       );
     });
 
+    // Set up Bluetooth handler for this window's session
+    const bluetoothHandler = (
+      details: any,
+      callback: (response: any) => void,
+    ) => {
+      this.bluetoothPinCallback = callback;
+      // Send a message to the renderer to prompt the user to confirm the pairing.
+      this.window.webContents.send("bluetooth-pairing-request", details);
+    };
+
+    // Apply to this window's session
     this.window.webContents.session.setBluetoothPairingHandler(
-      (details, callback) => {
-        this.bluetoothPinCallback = callback;
-        // Send a message to the renderer to prompt the user to confirm the pairing.
-        this.window.webContents.send("bluetooth-pairing-request", details);
-      },
+      bluetoothHandler,
     );
 
     this.id = this.window.id;
@@ -124,12 +131,12 @@ export class ApplicationWindow extends EventEmitter {
       titleBarOverlay: {
         height: 30,
         symbolColor: nativeTheme.shouldUseDarkColors ? "white" : "black",
-        color: "rgba(0,0,0,0)",
+        color: "transparent",
       },
       ...(process.platform === "darwin" && {
         trafficLightPosition: WINDOW_CONFIG.TRAFFIC_LIGHT_POSITION,
       }),
-      backgroundColor: process.platform === "darwin" ? "#00000000" : "#000000",
+      backgroundColor: process.platform === "darwin" ? "transparent" : "black",
       frame: false,
       transparent: true,
       resizable: true,
@@ -166,8 +173,99 @@ export class ApplicationWindow extends EventEmitter {
     });
 
     this.window.webContents.setWindowOpenHandler(details => {
-      shell.openExternal(details.url);
-      return { action: "deny" };
+      // This handler is redundant since we already handle it in main/index.ts
+      // But we'll keep it for consistency with the same OAuth logic
+      try {
+        const parsedUrl = new URL(details.url);
+
+        // Check if this is an OAuth callback URL
+        const isOAuthCallback =
+          parsedUrl.pathname.includes("callback") ||
+          parsedUrl.pathname.includes("oauth") ||
+          parsedUrl.searchParams.has("code") ||
+          parsedUrl.searchParams.has("token") ||
+          parsedUrl.searchParams.has("access_token") ||
+          parsedUrl.searchParams.has("state");
+
+        // List of known OAuth provider domains
+        const allowedOAuthDomains = [
+          "accounts.google.com",
+          "login.microsoftonline.com",
+          "github.com",
+          "api.github.com",
+          "oauth.github.com",
+          "login.live.com",
+          "login.windows.net",
+          "facebook.com",
+          "www.facebook.com",
+          "twitter.com",
+          "api.twitter.com",
+          "linkedin.com",
+          "www.linkedin.com",
+          "api.linkedin.com",
+          "discord.com",
+          "discord.gg",
+          "slack.com",
+          "api.slack.com",
+          "dropbox.com",
+          "www.dropbox.com",
+          "api.dropbox.com",
+          "reddit.com",
+          "www.reddit.com",
+          "oauth.reddit.com",
+          "twitch.tv",
+          "api.twitch.tv",
+          "id.twitch.tv",
+          "spotify.com",
+          "accounts.spotify.com",
+          "api.spotify.com",
+          "amazon.com",
+          "www.amazon.com",
+          "api.amazon.com",
+          "apple.com",
+          "appleid.apple.com",
+          "developer.apple.com",
+          "paypal.com",
+          "www.paypal.com",
+          "api.paypal.com",
+          "stripe.com",
+          "connect.stripe.com",
+          "dashboard.stripe.com",
+          "zoom.us",
+          "api.zoom.us",
+          "salesforce.com",
+          "login.salesforce.com",
+          "test.salesforce.com",
+          "box.com",
+          "app.box.com",
+          "account.box.com",
+          "atlassian.com",
+          "auth.atlassian.com",
+          "id.atlassian.com",
+          "gitlab.com",
+          "bitbucket.org",
+          "auth.bitbucket.org",
+        ];
+
+        const isFromOAuthProvider = allowedOAuthDomains.some(
+          domain =>
+            parsedUrl.hostname === domain ||
+            parsedUrl.hostname.endsWith("." + domain),
+        );
+
+        // Allow OAuth callbacks or OAuth provider domains to open in the app
+        if (isOAuthCallback || isFromOAuthProvider) {
+          return { action: "allow" };
+        }
+
+        // For all other URLs, open externally
+        shell.openExternal(details.url);
+        return { action: "deny" };
+      } catch {
+        // If URL parsing fails, default to opening externally
+        shell.openExternal(details.url);
+        return { action: "deny" };
+      }
     });
   }
 

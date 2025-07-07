@@ -4,6 +4,7 @@
 .glass-background-root {
   width: 100vw;
   height: 100vh;
+  overflow: hidden;
   background: linear-gradient(
     135deg,
     var(--glass-background-start) 0%,
@@ -30,8 +31,8 @@
 
 /* Root Layout Container */
 .browser-layout-root {
-  height: 100vh;
-  width: 100vw;
+  height: 100%;
+  width: 100%;
   display: flex;
   flex-direction: column;
   --chat-panel-width: 400px;
@@ -56,7 +57,11 @@
   height: 100%;
   width: 100%;
   background: var(--app-background, #f5f5f5);
-  padding: 8px; /* Must match GLASSMORPHISM_CONFIG.PADDING in shared constants */
+  /* 
+   * Use consistent padding on the parent to create the "frame" effect.
+   * This simplifies the layout and prevents visual gaps between flex items.
+   */
+  padding: 8px;
   box-sizing: border-box;
 }
 
@@ -70,6 +75,14 @@
   background: var(--tab-bar-background);
 }
 
+/* macOS specific adjustments for traffic lights */
+.platform-darwin .tab-bar-container {
+  /* This padding creates space on the left for the macOS window controls
+     (traffic lights) when using a frameless window. */
+  padding-left: 78px;
+  box-sizing: border-box;
+}
+
 .navigation-bar-container {
   /* Layout */
   height: 48px;
@@ -80,11 +93,13 @@
   position: relative;
   z-index: 10;
   box-sizing: border-box;
+  margin: 0;
 
-  /* Glassmorphism corner radius - matches GLASSMORPHISM_CONFIG.BORDER_RADIUS */
-  border-top-left-radius: 8px !important;
-  border-top-right-radius: 8px !important;
-  overflow: hidden;
+  /* Background matches navigation bar */
+  background-color: var(--nav-background);
+
+  /* No rounded corners on container - let the navigation bar handle them */
+  overflow: visible;
 
   /* Interaction */
   -webkit-app-region: no-drag;
@@ -102,6 +117,8 @@
   overflow: hidden;
   position: relative;
   z-index: 1; /* Lower z-index than navigation */
+  margin: 0;
+  background-color: var(--browser-content-background, #ffffff);
 }
 
 /* Browser Content Area - Flexible width, contains web page */
@@ -115,6 +132,10 @@
   background: var(--browser-content-background, #ffffff);
   position: relative;
   overflow: hidden;
+
+  /* Extend background to top edge to prevent gaps */
+  margin-top: -1px;
+  padding-top: 1px;
 }
 
 .browser-view-content {

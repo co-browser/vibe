@@ -32,6 +32,11 @@ export type DownloadItem = {
   fileName: string;
   filePath: string;
   exists: boolean;
+  status?: "downloading" | "completed" | "cancelled" | "error";
+  progress?: number; // 0-100
+  totalBytes?: number;
+  receivedBytes?: number;
+  startTime?: number;
 };
 
 /**

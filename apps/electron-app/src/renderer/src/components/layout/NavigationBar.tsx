@@ -21,6 +21,10 @@ import {
   LinkOutlined,
 } from "@ant-design/icons";
 import { useOmniboxOverlay } from "../../hooks/useOmniboxOverlay";
+import {
+  useContextMenu,
+  NavigationContextMenuItems,
+} from "../../hooks/useContextMenu";
 import type { SuggestionMetadata } from "../../../../types/metadata";
 import { MetadataHelpers } from "../../../../types/metadata";
 import "../styles/NavigationBar.css";
@@ -84,6 +88,7 @@ const NavigationBar: React.FC = () => {
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const blurTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastOperationRef = useRef<number>(0);
+  const { handleContextMenu } = useContextMenu();
 
   // Performance optimization: Cache recent history queries
   const historyCache = useRef<Map<string, { data: any[]; timestamp: number }>>(
@@ -114,131 +119,91 @@ const NavigationBar: React.FC = () => {
     }
   }, [CACHE_DURATION]);
 
+  // --- Performance Improvement: Stabilize overlay callbacks ---
+  // By wrapping callbacks in useCallback, we prevent them from being recreated on every render,
+  // which makes the useOmniboxOverlay hook more efficient.
+  const handleOverlaySuggestionClick = useCallback(
+    (suggestion: any) => {
+      try {
+        console.log("[NavigationBar] Overlay suggestion clicked:", suggestion);
+
+        // Immediately hide suggestions and blur for instant UI response
+        setShowSuggestions(false);
+        inputRef.current?.blur();
+
+        // Clear any pending blur timeout when suggestion is clicked
+        if (blurTimeoutRef.current) {
+          clearTimeout(blurTimeoutRef.current);
+          blurTimeoutRef.current = null;
+        }
+
+        // Handle navigation asynchronously without blocking UI
+        setTimeout(async () => {
+          try {
+            if (suggestion.type === "context" && suggestion.url) {
+              await window.vibe.tabs.switchToTab(suggestion.url);
+            } else if (suggestion.type === "agent" && suggestion.metadata) {
+              if (suggestion.metadata.action === "ask-agent") {
+                await window.vibe.interface.toggleChatPanel(true);
+              }
+            } else if (suggestion.url && currentTabKey) {
+              await window.vibe.page.navigate(currentTabKey, suggestion.url);
+              setInputValue(suggestion.text);
+            } else if (suggestion.type === "search" && currentTabKey) {
+              const defaultSearchEngine =
+                (await window.vibe.settings.get("defaultSearchEngine")) ||
+                "perplexity";
+              let searchUrl = `https://www.${defaultSearchEngine}.com/search?q=${encodeURIComponent(suggestion.text)}`;
+              if (defaultSearchEngine === "perplexity") {
+                searchUrl = `https://www.perplexity.ai/search?q=${encodeURIComponent(suggestion.text)}`;
+              } else if (defaultSearchEngine === "google") {
+                searchUrl = `https://www.google.com/search?q=${encodeURIComponent(suggestion.text)}`;
+              }
+              await window.vibe.page.navigate(currentTabKey, searchUrl);
+              setInputValue(suggestion.text);
+            }
+          } catch (error) {
+            console.error("Failed to handle navigation:", error);
+          }
+        }, 0);
+      } catch (error) {
+        console.error("Failed to handle overlay suggestion click:", error);
+        setShowSuggestions(false);
+      }
+    },
+    [currentTabKey],
+  );
+
+  const handleOverlayEscape = useCallback(() => {
+    setShowSuggestions(false);
+    inputRef.current?.blur();
+  }, []);
+
+  const handleDeleteHistory = useCallback(
+    async (suggestionId: string) => {
+      try {
+        console.log("[NavigationBar] Deleting history item:", suggestionId);
+        const suggestionToDelete = suggestions.find(s => s.id === suggestionId);
+        setSuggestions(prev => prev.filter(s => s.id !== suggestionId));
+        if (suggestionToDelete?.url) {
+          await window.vibe.profile?.deleteFromHistory?.(
+            suggestionToDelete.url,
+          );
+          historyCache.current.clear();
+        }
+      } catch (error) {
+        console.error("Failed to delete history item:", error);
+      }
+    },
+    [suggestions],
+  );
+
   // Initialize overlay hook early to avoid initialization errors
   const overlayCallbacks = useMemo(
     () => ({
-      onSuggestionClick: (suggestion: any) => {
-        try {
-          console.log(
-            "[NavigationBar] Overlay suggestion clicked:",
-            suggestion,
-          );
-
-          // Immediately hide suggestions and blur for instant UI response
-          setShowSuggestions(false);
-          inputRef.current?.blur();
-
-          // Clear any pending blur timeout when suggestion is clicked
-          if (blurTimeoutRef.current) {
-            clearTimeout(blurTimeoutRef.current);
-            blurTimeoutRef.current = null;
-          }
-
-          // Handle navigation asynchronously without blocking UI
-          setTimeout(async () => {
-            try {
-              if (suggestion.type === "context" && suggestion.url) {
-                // Switch to existing tab
-                await window.vibe.tabs.switchToTab(suggestion.url);
-              } else if (suggestion.type === "agent" && suggestion.metadata) {
-                // Handle agent action
-                if (suggestion.metadata.action === "ask-agent") {
-                  // Open chat panel and send query
-                  await window.vibe.interface.toggleChatPanel(true);
-                }
-              } else if (suggestion.url && currentTabKey) {
-                // Navigate to URL
-                await window.vibe.page.navigate(currentTabKey, suggestion.url);
-                setInputValue(suggestion.text);
-
-                // Track navigation via suggestion
-                (window as any).umami?.track?.("page-navigated", {
-                  action: "suggestion-clicked",
-                  suggestionType: suggestion.type,
-                  timestamp: Date.now(),
-                });
-              } else if (suggestion.type === "search" && currentTabKey) {
-                // Handle search suggestions that might not have a URL
-                console.log(
-                  "[NavigationBar] Handling search suggestion without URL:",
-                  suggestion,
-                );
-
-                // Generate search URL for the suggestion text
-                const defaultSearchEngine =
-                  (await window.vibe.settings.get("defaultSearchEngine")) ||
-                  "perplexity";
-                let searchUrl;
-
-                if (defaultSearchEngine === "perplexity") {
-                  searchUrl = `https://www.perplexity.ai/search?q=${encodeURIComponent(suggestion.text)}`;
-                } else if (defaultSearchEngine === "google") {
-                  searchUrl = `https://www.google.com/search?q=${encodeURIComponent(suggestion.text)}`;
-                } else {
-                  searchUrl = `https://www.${defaultSearchEngine}.com/search?q=${encodeURIComponent(suggestion.text)}`;
-                }
-
-                // Navigate to the search URL
-                await window.vibe.page.navigate(currentTabKey, searchUrl);
-                setInputValue(suggestion.text);
-
-                // Track navigation via suggestion
-                (window as any).umami?.track?.("page-navigated", {
-                  action: "suggestion-clicked",
-                  suggestionType: suggestion.type,
-                  timestamp: Date.now(),
-                });
-              } else {
-                console.warn(
-                  "[NavigationBar] Unhandled suggestion type:",
-                  suggestion,
-                );
-              }
-            } catch (error) {
-              console.error("Failed to handle navigation:", error);
-            }
-          }, 0);
-        } catch (error) {
-          console.error("Failed to handle overlay suggestion click:", error);
-          // Ensure suggestions are hidden even on error
-          setShowSuggestions(false);
-        }
-      },
-      onEscape: () => {
-        setShowSuggestions(false);
-        inputRef.current?.blur();
-      },
-      onDeleteHistory: async (suggestionId: string) => {
-        try {
-          console.log("[NavigationBar] Deleting history item:", suggestionId);
-
-          // Remove from local state immediately for instant UI feedback
-          setSuggestions(prev => prev.filter(s => s.id !== suggestionId));
-
-          // Find the suggestion to get its URL
-          const suggestionToDelete = suggestions.find(
-            s => s.id === suggestionId,
-          );
-          if (suggestionToDelete?.url) {
-            // Delete from browser history using vibe API
-            await window.vibe.profile?.deleteFromHistory?.(
-              suggestionToDelete.url,
-            );
-
-            // Clear the history cache to ensure fresh data on next query
-            historyCache.current.clear();
-
-            console.log(
-              "[NavigationBar] Successfully deleted from history:",
-              suggestionToDelete.url,
-            );
-          }
-        } catch (error) {
-          console.error("Failed to delete history item:", error);
-          // If deletion fails, restore the item to the suggestions
-          // This would require re-fetching suggestions or keeping a backup
-        }
-      },
+      onSuggestionClick: handleOverlaySuggestionClick,
+      onEscape: handleOverlayEscape,
+      onDeleteHistory: handleDeleteHistory,
       onNavigateAndClose: (url: string) => {
         if (currentTabKey) {
           window.vibe.page.navigate(currentTabKey, url);
@@ -247,8 +212,14 @@ const NavigationBar: React.FC = () => {
         inputRef.current?.blur();
       },
     }),
-    [currentTabKey, suggestions],
+    [
+      handleOverlaySuggestionClick,
+      handleOverlayEscape,
+      handleDeleteHistory,
+      currentTabKey,
+    ],
   );
+  // -------------------------------------------------------------
 
   const {
     showSuggestions: showOverlaySuggestions,
@@ -547,8 +518,30 @@ const NavigationBar: React.FC = () => {
   // Validation helpers
   const isValidURL = (string: string): boolean => {
     try {
-      new URL(string.includes("://") ? string : `https://${string}`);
-      return true;
+      // First check if it's obviously a search query (contains spaces or question words)
+      const searchIndicators =
+        /\s|^(what|when|where|why|how|who|is|are|do|does|can|will|should)/i;
+      if (searchIndicators.test(string.trim())) {
+        return false;
+      }
+
+      const withProtocol = string.includes("://")
+        ? string
+        : `https://${string}`;
+
+      // Try to create URL
+      const url = new URL(withProtocol);
+
+      // Additional validation: must have a valid hostname with at least one dot
+      // and shouldn't contain spaces in the hostname
+      if (!url.hostname.includes(".") || url.hostname.includes(" ")) {
+        return false;
+      }
+
+      // Check if hostname looks like a real domain (basic validation)
+      const hostnamePattern =
+        /^[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]*(\.[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]*)*\.[a-zA-Z]{2,}$/;
+      return hostnamePattern.test(url.hostname);
     } catch {
       return false;
     }
@@ -721,6 +714,19 @@ const NavigationBar: React.FC = () => {
       const inputLower = input.toLowerCase();
       console.log("[NavigationBar] Input type detected:", inputType);
 
+      // --- Performance Improvement: Parallelize async data fetching ---
+      // Start fetching non-dependent data sources concurrently.
+      const tabsPromise = window.vibe.tabs.getTabs();
+      const agentPromise =
+        inputType === "search"
+          ? getLocalAgentSuggestions(input)
+          : Promise.resolve([]);
+      const perplexityPromise =
+        inputType === "search" && input.length > 2
+          ? fetchPerplexitySuggestions(input)
+          : Promise.resolve(null);
+      // ----------------------------------------------------------------
+
       try {
         // Get browsing history FIRST with high priority
         let historySuggestions: Suggestion[] = [];
@@ -882,8 +888,14 @@ const NavigationBar: React.FC = () => {
           }
         }
 
-        // Get current tabs for "switch to tab" suggestions
-        const tabs = await window.vibe.tabs.getTabs();
+        // --- Performance Improvement: Await parallel fetches ---
+        const [tabs, agentSuggestions, perplexityResponse] = await Promise.all([
+          tabsPromise,
+          agentPromise,
+          perplexityPromise,
+        ]);
+
+        // Process tab suggestions
         const tabMatches = tabs
           .filter(
             tab =>
@@ -904,20 +916,11 @@ const NavigationBar: React.FC = () => {
         suggestions.push(...tabMatches);
 
         // Add local agent suggestions
-        if (inputType === "search") {
-          const agentSuggestions = await getLocalAgentSuggestions(input);
-          suggestions.push(...agentSuggestions);
-        }
+        suggestions.push(...agentSuggestions);
 
-        // Fetch Perplexity suggestions for search queries
-        if (inputType === "search" && input.length > 2) {
-          console.log("[NavigationBar] Fetching Perplexity suggestions...");
+        // Process Perplexity suggestions
+        if (perplexityResponse) {
           try {
-            const perplexityResponse = await fetchPerplexitySuggestions(input);
-            console.log(
-              "[NavigationBar] Perplexity response:",
-              perplexityResponse,
-            );
             const perplexitySuggestions = perplexityResponse.suggestions.map(
               (s, index) => ({
                 id: `perplexity-${index}`,
@@ -933,6 +936,7 @@ const NavigationBar: React.FC = () => {
             console.error("Failed to fetch Perplexity suggestions:", error);
           }
         }
+        // ---------------------------------------------------------
       } catch (error) {
         console.error("Failed to generate suggestions:", error);
 
@@ -1209,8 +1213,7 @@ const NavigationBar: React.FC = () => {
         } else {
           // Search query
           const searchEngine =
-            (await window.vibe.settings.get("defaultSearchEngine")) ||
-            "perplexity";
+            (await window.vibe.settings.get("defaultSearchEngine")) || "google";
 
           if (searchEngine === "perplexity") {
             finalUrl = `https://www.perplexity.ai/search?q=${encodeURIComponent(inputValue)}`;
@@ -1289,8 +1292,26 @@ const NavigationBar: React.FC = () => {
 
   // Removed old dropdown IPC listeners - now handled by overlay hook
 
+  // Context menu items for navigation
+  const getNavigationContextMenuItems = () => [
+    { ...NavigationContextMenuItems.back, enabled: navigationState.canGoBack },
+    {
+      ...NavigationContextMenuItems.forward,
+      enabled: navigationState.canGoForward,
+    },
+    NavigationContextMenuItems.reload,
+    NavigationContextMenuItems.separator,
+    {
+      ...NavigationContextMenuItems.copyUrl,
+      data: { url: navigationState.url },
+    },
+  ];
+
   return (
-    <div className="navigation-bar">
+    <div
+      className="navigation-bar"
+      onContextMenu={handleContextMenu(getNavigationContextMenuItems())}
+    >
       <div className="nav-controls">
         <button
           className={`nav-button ${navigationState.canGoBack ? "enabled" : ""}`}

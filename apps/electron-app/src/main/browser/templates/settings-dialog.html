@@ -344,6 +344,7 @@
       <div class="main">
         <div class="sidebar">
           <div class="menu-item active" data-tab="api-keys">🔐 API Keys</div>
+          <div class="menu-item" data-tab="passwords">🔑 Passwords</div>
           <div class="menu-item" data-tab="general">⚙️ General</div>
           <div class="menu-item" data-tab="appearance">🎨 Appearance</div>
           <div class="menu-item" data-tab="notifications">🔔 Notifications</div>
@@ -417,6 +418,111 @@
                 id="save-keys-btn"
               >
                 Save Keys
+              </button>
+            </div>
+          </div>
+
+          <!-- Passwords Tab -->
+          <div id="passwords-content" class="tab-content">
+            <h3>Password Management</h3>
+            <p>
+              Manage your imported passwords from browsers and other sources.
+              All passwords are stored securely and encrypted.
+            </p>
+
+            <div class="form-group">
+              <label>Import Passwords</label>
+              <div
+                style="
+                  display: flex;
+                  gap: 10px;
+                  align-items: center;
+                  margin-bottom: 10px;
+                "
+              >
+                <button class="btn btn-secondary" onclick="importFromChrome()">
+                  Import from Chrome
+                </button>
+                <button class="btn btn-secondary" onclick="importFromSafari()">
+                  Import from Safari
+                </button>
+                <button class="btn btn-secondary" onclick="importFromCSV()">
+                  Import from CSV
+                </button>
+              </div>
+              <p style="font-size: 12px; color: #6b7280">
+                Import passwords from other browsers or CSV files. Passwords are
+                encrypted before storage.
+              </p>
+            </div>
+
+            <div class="form-group">
+              <label for="password-search">Search Passwords</label>
+              <input
+                type="text"
+                id="password-search"
+                placeholder="Search by website or username..."
+                oninput="searchPasswords()"
+              />
+            </div>
+
+            <div class="form-group">
+              <label>Stored Passwords</label>
+              <div
+                id="password-list"
+                style="
+                  max-height: 300px;
+                  overflow-y: auto;
+                  border: 1px solid #d1d5db;
+                  border-radius: 6px;
+                  padding: 10px;
+                "
+              >
+                <div
+                  id="password-loading"
+                  style="text-align: center; padding: 20px; color: #6b7280"
+                >
+                  Loading passwords...
+                </div>
+                <div
+                  id="password-empty"
+                  style="
+                    text-align: center;
+                    padding: 20px;
+                    color: #6b7280;
+                    display: none;
+                  "
+                >
+                  No passwords stored. Import passwords from your browser or add
+                  them manually.
+                </div>
+                <div id="password-items">
+                  <!-- Password items will be populated here -->
+                </div>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>Import Sources</label>
+              <div
+                id="import-sources"
+                style="display: flex; flex-wrap: wrap; gap: 10px"
+              >
+                <!-- Import source tags will be populated here -->
+              </div>
+            </div>
+
+            <div class="actions-bar">
+              <div>
+                <button class="btn btn-secondary" onclick="exportPasswords()">
+                  Export Passwords
+                </button>
+                <button class="btn btn-danger" onclick="clearAllPasswords()">
+                  Clear All
+                </button>
+              </div>
+              <button class="btn btn-secondary" onclick="refreshPasswords()">
+                Refresh
               </button>
             </div>
           </div>
@@ -756,6 +862,11 @@
         const targetContent = document.getElementById(tabName + '-content');
         if (targetContent) {
           targetContent.classList.add('active');
+
+          // Load data for specific tabs
+          if (tabName === 'passwords') {
+            loadPasswords();
+          }
         }
       }
 
@@ -1292,6 +1403,321 @@
         } catch (error) {
           console.error('Error in forceCloseDialog:', error);
         }
+      }
+
+      // Password Management Functions
+      let allPasswords = [];
+      let filteredPasswords = [];
+
+      async function loadPasswords() {
+        try {
+          showPasswordLoading(true);
+
+          if (window.vibe?.passwords) {
+            allPasswords = await window.vibe.passwords.getAll();
+            filteredPasswords = [...allPasswords];
+            displayPasswords(filteredPasswords);
+            await loadImportSources();
+          } else {
+            console.warn('Password API not available');
+            showPasswordEmpty();
+          }
+        } catch (error) {
+          console.error('Failed to load passwords:', error);
+          showNotification('Failed to load passwords', 'error');
+          showPasswordEmpty();
+        } finally {
+          showPasswordLoading(false);
+        }
+      }
+
+      function showPasswordLoading(show) {
+        const loading = document.getElementById('password-loading');
+        const empty = document.getElementById('password-empty');
+        const items = document.getElementById('password-items');
+
+        if (show) {
+          loading.style.display = 'block';
+          empty.style.display = 'none';
+          items.style.display = 'none';
+        } else {
+          loading.style.display = 'none';
+        }
+      }
+
+      function showPasswordEmpty() {
+        document.getElementById('password-loading').style.display = 'none';
+        document.getElementById('password-empty').style.display = 'block';
+        document.getElementById('password-items').style.display = 'none';
+      }
+
+      function displayPasswords(passwords) {
+        const container = document.getElementById('password-items');
+        const loading = document.getElementById('password-loading');
+        const empty = document.getElementById('password-empty');
+
+        loading.style.display = 'none';
+
+        if (passwords.length === 0) {
+          empty.style.display = 'block';
+          container.style.display = 'none';
+          return;
+        }
+
+        empty.style.display = 'none';
+        container.style.display = 'block';
+
+        container.innerHTML = passwords.map(password => `
+          <div class="password-item" style="display: flex; justify-content: space-between; align-items: center; padding: 12px; border: 1px solid #e5e7eb; border-radius: 6px; margin-bottom: 8px; background: #f9fafb;">
+            <div style="flex: 1;">
+              <div style="font-weight: 600; font-size: 14px; color: #1f2937;">${escapeHtml(password.url)}</div>
+              <div style="font-size: 12px; color: #6b7280; margin-top: 2px;">
+                Username: ${escapeHtml(password.username)} | Source: ${escapeHtml(password.source)}
+                ${password.dateCreated ? ` | Added: ${new Date(password.dateCreated).toLocaleDateString()}` : ''}
+              </div>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <button class="btn btn-sm" onclick="viewPassword('${password.id}')" style="padding: 4px 8px; font-size: 12px;">
+                View
+              </button>
+              <button class="btn btn-sm btn-danger" onclick="deletePassword('${password.id}')" style="padding: 4px 8px; font-size: 12px;">
+                Delete
+              </button>
+            </div>
+          </div>
+        `).join('');
+      }
+
+      function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+      }
+
+      function searchPasswords() {
+        const query = document.getElementById('password-search').value.toLowerCase();
+        if (!query) {
+          filteredPasswords = [...allPasswords];
+        } else {
+          filteredPasswords = allPasswords.filter(password =>
+            password.url.toLowerCase().includes(query) ||
+            password.username.toLowerCase().includes(query)
+          );
+        }
+        displayPasswords(filteredPasswords);
+      }
+
+      async function loadImportSources() {
+        try {
+          if (window.vibe?.passwords) {
+            const sources = await window.vibe.passwords.getSources();
+            const container = document.getElementById('import-sources');
+
+            if (sources.length === 0) {
+              container.innerHTML = '<span style="color: #6b7280; font-size: 12px;">No import sources found</span>';
+              return;
+            }
+
+            container.innerHTML = sources.map(source => `
+              <div style="display: flex; align-items: center; gap: 8px; padding: 6px 12px; background: #e5e7eb; border-radius: 16px; font-size: 12px;">
+                <span>${escapeHtml(source)}</span>
+                <button onclick="removeImportSource('${source}')" style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 0; width: 16px; height: 16px; border-radius: 50%; display: flex; align-items: center; justify-content: center;">&times;</button>
+              </div>
+            `).join('');
+          }
+        } catch (error) {
+          console.error('Failed to load import sources:', error);
+        }
+      }
+
+      async function viewPassword(passwordId) {
+        try {
+          const password = allPasswords.find(p => p.id === passwordId);
+          if (!password) return;
+
+          const decryptedPassword = await window.vibe.passwords.decrypt(password.password);
+
+          const modal = document.createElement('div');
+          modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000;';
+          modal.innerHTML = `
+            <div style="background: white; padding: 24px; border-radius: 8px; max-width: 400px; width: 90%;">
+              <h3 style="margin: 0 0 16px 0;">${escapeHtml(password.url)}</h3>
+              <div style="margin-bottom: 12px;">
+                <label style="display: block; font-weight: 600; margin-bottom: 4px;">Username:</label>
+                <input type="text" value="${escapeHtml(password.username)}" readonly style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 4px; background: #f9fafb;">
+              </div>
+              <div style="margin-bottom: 16px;">
+                <label style="display: block; font-weight: 600; margin-bottom: 4px;">Password:</label>
+                <div style="display: flex; gap: 8px;">
+                  <input type="password" id="view-password-field" value="${escapeHtml(decryptedPassword)}" readonly style="flex: 1; padding: 8px; border: 1px solid #d1d5db; border-radius: 4px; background: #f9fafb;">
+                  <button onclick="toggleViewPassword()" style="padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 4px; background: white; cursor: pointer;">Show</button>
+                </div>
+              </div>
+              <div style="display: flex; gap: 8px; justify-content: flex-end;">
+                <button onclick="copyPassword('${escapeHtml(decryptedPassword)}')" style="padding: 8px 16px; border: 1px solid #d1d5db; border-radius: 4px; background: white; cursor: pointer;">Copy</button>
+                <button onclick="closePasswordModal()" style="padding: 8px 16px; border: 1px solid #d1d5db; border-radius: 4px; background: #ef4444; color: white; cursor: pointer;">Close</button>
+              </div>
+            </div>
+          `;
+          document.body.appendChild(modal);
+          modal.onclick = (e) => { if (e.target === modal) closePasswordModal(); };
+        } catch (error) {
+          console.error('Failed to view password:', error);
+          showNotification('Failed to decrypt password', 'error');
+        }
+      }
+
+      function toggleViewPassword() {
+        const field = document.getElementById('view-password-field');
+        const button = field.nextElementSibling;
+        if (field.type === 'password') {
+          field.type = 'text';
+          button.textContent = 'Hide';
+        } else {
+          field.type = 'password';
+          button.textContent = 'Show';
+        }
+      }
+
+      function copyPassword(password) {
+        navigator.clipboard.writeText(password).then(() => {
+          showNotification('Password copied to clipboard', 'success');
+        }).catch(() => {
+          showNotification('Failed to copy password', 'error');
+        });
+      }
+
+      function closePasswordModal() {
+        const modal = document.querySelector('div[style*="position: fixed"]');
+        if (modal) modal.remove();
+      }
+
+      async function deletePassword(passwordId) {
+        if (!confirm('Are you sure you want to delete this password?')) return;
+
+        try {
+          if (window.vibe?.passwords) {
+            await window.vibe.passwords.delete(passwordId);
+            allPasswords = allPasswords.filter(p => p.id !== passwordId);
+            searchPasswords(); // Refresh display
+            showNotification('Password deleted successfully', 'success');
+          }
+        } catch (error) {
+          console.error('Failed to delete password:', error);
+          showNotification('Failed to delete password', 'error');
+        }
+      }
+
+      async function removeImportSource(source) {
+        if (!confirm(`Remove all passwords from "${source}"?`)) return;
+
+        try {
+          if (window.vibe?.passwords) {
+            await window.vibe.passwords.removeSource(source);
+            await loadPasswords(); // Reload everything
+            showNotification(`Removed passwords from ${source}`, 'success');
+          }
+        } catch (error) {
+          console.error('Failed to remove import source:', error);
+          showNotification('Failed to remove import source', 'error');
+        }
+      }
+
+      async function importFromChrome() {
+        try {
+          if (window.vibe?.passwords) {
+            const result = await window.vibe.passwords.importFromChrome();
+            if (result.success) {
+              await loadPasswords();
+              showNotification(`Imported ${result.count} passwords from Chrome`, 'success');
+            } else {
+              showNotification(result.error || 'Failed to import from Chrome', 'error');
+            }
+          }
+        } catch (error) {
+          console.error('Failed to import from Chrome:', error);
+          showNotification('Failed to import from Chrome', 'error');
+        }
+      }
+
+      async function importFromSafari() {
+        try {
+          if (window.vibe?.passwords) {
+            const result = await window.vibe.passwords.importFromSafari();
+            if (result.success) {
+              await loadPasswords();
+              showNotification(`Imported ${result.count} passwords from Safari`, 'success');
+            } else {
+              showNotification(result.error || 'Failed to import from Safari', 'error');
+            }
+          }
+        } catch (error) {
+          console.error('Failed to import from Safari:', error);
+          showNotification('Failed to import from Safari', 'error');
+        }
+      }
+
+      async function importFromCSV() {
+        try {
+          const input = document.createElement('input');
+          input.type = 'file';
+          input.accept = '.csv';
+          input.onchange = async (e) => {
+            const file = e.target.files[0];
+            if (file && window.vibe?.passwords) {
+              const result = await window.vibe.passwords.importFromCSV(file);
+              if (result.success) {
+                await loadPasswords();
+                showNotification(`Imported ${result.count} passwords from CSV`, 'success');
+              } else {
+                showNotification(result.error || 'Failed to import from CSV', 'error');
+              }
+            }
+          };
+          input.click();
+        } catch (error) {
+          console.error('Failed to import from CSV:', error);
+          showNotification('Failed to import from CSV', 'error');
+        }
+      }
+
+      async function exportPasswords() {
+        try {
+          if (window.vibe?.passwords) {
+            const result = await window.vibe.passwords.export();
+            if (result.success) {
+              showNotification('Passwords exported successfully', 'success');
+            } else {
+              showNotification(result.error || 'Failed to export passwords', 'error');
+            }
+          }
+        } catch (error) {
+          console.error('Failed to export passwords:', error);
+          showNotification('Failed to export passwords', 'error');
+        }
+      }
+
+      async function clearAllPasswords() {
+        if (!confirm('Are you sure you want to delete ALL stored passwords? This cannot be undone.')) return;
+
+        try {
+          if (window.vibe?.passwords) {
+            await window.vibe.passwords.clearAll();
+            allPasswords = [];
+            filteredPasswords = [];
+            displayPasswords([]);
+            await loadImportSources();
+            showNotification('All passwords cleared', 'success');
+          }
+        } catch (error) {
+          console.error('Failed to clear passwords:', error);
+          showNotification('Failed to clear passwords', 'error');
+        }
+      }
+
+      async function refreshPasswords() {
+        await loadPasswords();
+        showNotification('Passwords refreshed', 'success');
       }
     </script>
   </body>

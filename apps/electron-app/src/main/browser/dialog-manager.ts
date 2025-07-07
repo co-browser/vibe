@@ -27,6 +27,9 @@ interface DialogOptions {
 }
 
 export class DialogManager extends EventEmitter {
+  private static instances: Map<number, DialogManager> = new Map();
+  private static ipcHandlersRegistered = false;
+
   private parentWindow: BrowserWindow;
   private activeDialogs: Map<string, BaseWindow> = new Map();
   private pendingOperations: Map<string, Promise<any>> = new Map();
@@ -35,7 +38,16 @@ export class DialogManager extends EventEmitter {
   constructor(parentWindow: BrowserWindow) {
     super();
     this.parentWindow = parentWindow;
-    this.setupIpcHandlers();
+
+    // Register this instance
+    DialogManager.instances.set(parentWindow.id, this);
+
+    // Register IPC handlers only once, globally
+    if (!DialogManager.ipcHandlersRegistered) {
+      DialogManager.registerGlobalHandlers();
+      DialogManager.ipcHandlersRegistered = true;
+      logger.info("DialogManager IPC handlers registered");
+    }
   }
 
   /**
@@ -81,28 +93,430 @@ export class DialogManager extends EventEmitter {
     return path.join(...pathSegments);
   }
 
-  private setupIpcHandlers(): void {
-    ipcMain.handle("dialog:show-downloads", async () => {
-      return this.showDownloadsDialog();
+  private static getManagerForWindow(
+    webContents: Electron.WebContents,
+  ): DialogManager | undefined {
+    const window = BrowserWindow.fromWebContents(webContents);
+    if (!window) return undefined;
+
+    // First, check if this window has a DialogManager
+    let manager = DialogManager.instances.get(window.id);
+    if (manager) return manager;
+
+    // If not, check if this is a dialog window by looking for its parent
+    const parent = window.getParentWindow();
+    if (parent) {
+      manager = DialogManager.instances.get(parent.id);
+      if (manager) return manager;
+    }
+
+    // As a fallback, return the first available DialogManager (usually from main window)
+    if (DialogManager.instances.size > 0) {
+      return DialogManager.instances.values().next().value;
+    }
+
+    return undefined;
+  }
+
+  private static registerGlobalHandlers(): void {
+    logger.info("Setting up DialogManager IPC handlers");
+
+    ipcMain.handle("dialog:show-downloads", async event => {
+      const manager = DialogManager.getManagerForWindow(event.sender);
+      if (!manager)
+        return { success: false, error: "No dialog manager for window" };
+      return manager.showDownloadsDialog();
     });
 
-    ipcMain.handle("dialog:show-settings", async () => {
-      return this.showSettingsDialog();
+    ipcMain.handle("dialog:show-settings", async event => {
+      const manager = DialogManager.getManagerForWindow(event.sender);
+      if (!manager)
+        return { success: false, error: "No dialog manager for window" };
+      return manager.showSettingsDialog();
     });
 
-    ipcMain.handle("dialog:close", async (_event, dialogType: string) => {
+    ipcMain.handle("dialog:close", async (event, dialogType: string) => {
       logger.info(`IPC handler: dialog:close called for ${dialogType}`);
-      return this.closeDialog(dialogType);
+      const manager = DialogManager.getManagerForWindow(event.sender);
+      if (!manager)
+        return { success: false, error: "No dialog manager for window" };
+      return manager.closeDialog(dialogType);
     });
 
-    ipcMain.handle("dialog:force-close", async (_event, dialogType: string) => {
+    ipcMain.handle("dialog:force-close", async (event, dialogType: string) => {
       logger.info(`IPC handler: dialog:force-close called for ${dialogType}`);
-      return this.forceCloseDialog(dialogType);
+      const manager = DialogManager.getManagerForWindow(event.sender);
+      if (!manager)
+        return { success: false, error: "No dialog manager for window" };
+      return manager.forceCloseDialog(dialogType);
     });
 
     // Password extraction handlers
     ipcMain.handle("password:extract-chrome", async () => {
-      return this.extractChromePasswords();
+      const tempManager = new DialogManager(new BrowserWindow({ show: false }));
+      return tempManager.extractChromePasswords();
+    });
+
+    ipcMain.handle("passwords:import-chrome", async () => {
+      try {
+        logger.info("passwords:import-chrome IPC handler called");
+        const tempManager = new DialogManager(
+          new BrowserWindow({ show: false }),
+        );
+        const result = await tempManager.extractChromePasswords();
+        logger.info("Chrome extraction result:", result);
+
+        if (!result.success) {
+          logger.warn("Chrome extraction failed:", result.error);
+          return result;
+        }
+
+        const { useUserProfileStore } = await import(
+          "@/store/user-profile-store"
+        );
+        const userProfileStore = useUserProfileStore.getState();
+        const activeProfile = userProfileStore.getActiveProfile();
+
+        if (!activeProfile) {
+          logger.warn("No active profile found");
+          return { success: false, error: "No active profile" };
+        }
+
+        if (result.passwords && result.passwords.length > 0) {
+          logger.info(
+            `Storing ${result.passwords.length} passwords for profile ${activeProfile.id}`,
+          );
+          await userProfileStore.storeImportedPasswords(
+            activeProfile.id,
+            "chrome",
+            result.passwords,
+          );
+        }
+
+        logger.info(
+          `Chrome import completed successfully with ${result.passwords?.length || 0} passwords`,
+        );
+        return { success: true, count: result.passwords?.length || 0 };
+      } catch (error) {
+        logger.error("Failed to import Chrome passwords:", error);
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
+    });
+
+    ipcMain.handle("passwords:import-safari", async () => {
+      // Safari import not implemented for security reasons
+      return {
+        success: false,
+        error: "Safari import not supported for security reasons",
+      };
+    });
+
+    ipcMain.handle(
+      "passwords:import-csv",
+      async (_event, { filename, content }) => {
+        try {
+          const { useUserProfileStore } = await import(
+            "@/store/user-profile-store"
+          );
+          const userProfileStore = useUserProfileStore.getState();
+          const activeProfile = userProfileStore.getActiveProfile();
+
+          if (!activeProfile) {
+            return { success: false, error: "No active profile" };
+          }
+
+          // Parse CSV content (basic implementation)
+          const lines = content.split("\n").filter(line => line.trim());
+          const headers = lines[0].split(",").map(h => h.trim().toLowerCase());
+
+          const urlIndex = headers.findIndex(
+            h => h.includes("url") || h.includes("site"),
+          );
+          const usernameIndex = headers.findIndex(
+            h =>
+              h.includes("username") ||
+              h.includes("email") ||
+              h.includes("user"),
+          );
+          const passwordIndex = headers.findIndex(
+            h => h.includes("password") || h.includes("pass"),
+          );
+
+          if (urlIndex === -1 || usernameIndex === -1 || passwordIndex === -1) {
+            return {
+              success: false,
+              error: "CSV must contain URL, Username, and Password columns",
+            };
+          }
+
+          const passwords = lines
+            .slice(1)
+            .map((line, index) => {
+              const columns = line
+                .split(",")
+                .map(c => c.trim().replace(/^"|"$/g, ""));
+              return {
+                id: `csv_${filename}_${index}`,
+                url: columns[urlIndex] || "",
+                username: columns[usernameIndex] || "",
+                password: columns[passwordIndex] || "",
+                source: "csv" as const,
+                dateCreated: new Date(),
+                lastModified: new Date(),
+              };
+            })
+            .filter(p => p.url && p.username && p.password);
+
+          if (passwords.length > 0) {
+            await userProfileStore.storeImportedPasswords(
+              activeProfile.id,
+              `csv_${filename}`,
+              passwords,
+            );
+          }
+
+          return { success: true, count: passwords.length };
+        } catch (error) {
+          logger.error("Failed to import CSV passwords:", error);
+          return {
+            success: false,
+            error: error instanceof Error ? error.message : String(error),
+          };
+        }
+      },
+    );
+
+    // Comprehensive Chrome profile import handlers
+    ipcMain.handle("chrome:import-comprehensive", async () => {
+      try {
+        logger.info("Starting comprehensive Chrome profile import");
+        // Create a temporary DialogManager instance to access the methods
+        const tempManager = new DialogManager(
+          new BrowserWindow({ show: false }),
+        );
+        const result = await tempManager.extractAllChromeData();
+
+        if (!result.success) {
+          logger.warn("Chrome comprehensive extraction failed:", result.error);
+          return result;
+        }
+
+        const { useUserProfileStore } = await import(
+          "@/store/user-profile-store"
+        );
+        const userProfileStore = useUserProfileStore.getState();
+        const activeProfile = userProfileStore.getActiveProfile();
+
+        if (!activeProfile) {
+          logger.warn("No active profile found");
+          return { success: false, error: "No active profile" };
+        }
+
+        const data = result.data;
+        let totalSaved = 0;
+
+        // Save passwords if extracted
+        if (data?.passwords?.passwords && data.passwords.passwords.length > 0) {
+          logger.info(
+            `Storing ${data.passwords.passwords.length} passwords for profile ${activeProfile.id}`,
+          );
+          await userProfileStore.storeImportedPasswords(
+            activeProfile.id,
+            "chrome",
+            data.passwords.passwords,
+          );
+          totalSaved += data.passwords.passwords.length;
+        }
+
+        // Save bookmarks if extracted
+        if (data?.bookmarks?.bookmarks && data.bookmarks.bookmarks.length > 0) {
+          logger.info(
+            `Storing ${data.bookmarks.bookmarks.length} bookmarks for profile ${activeProfile.id}`,
+          );
+          await userProfileStore.storeImportedBookmarks(
+            activeProfile.id,
+            "chrome",
+            data.bookmarks.bookmarks,
+          );
+          totalSaved += data.bookmarks.bookmarks.length;
+        }
+
+        // Save history if extracted
+        if (data?.history?.entries && data.history.entries.length > 0) {
+          logger.info(
+            `Storing ${data.history.entries.length} history entries for profile ${activeProfile.id}`,
+          );
+          await userProfileStore.storeImportedHistory(
+            activeProfile.id,
+            "chrome",
+            data.history.entries,
+          );
+          totalSaved += data.history.entries.length;
+        }
+
+        // Save autofill if extracted
+        if (
+          data?.autofill &&
+          (data.autofill.entries?.length > 0 ||
+            data.autofill.profiles?.length > 0)
+        ) {
+          const autofillCount =
+            (data.autofill.entries?.length || 0) +
+            (data.autofill.profiles?.length || 0);
+          logger.info(
+            `Storing ${autofillCount} autofill items for profile ${activeProfile.id}`,
+          );
+          await userProfileStore.storeImportedAutofill(
+            activeProfile.id,
+            "chrome",
+            data.autofill,
+          );
+          totalSaved += autofillCount;
+        }
+
+        // Save search engines if extracted
+        if (
+          data?.searchEngines?.engines &&
+          data.searchEngines.engines.length > 0
+        ) {
+          logger.info(
+            `Storing ${data.searchEngines.engines.length} search engines for profile ${activeProfile.id}`,
+          );
+          await userProfileStore.storeImportedSearchEngines(
+            activeProfile.id,
+            "chrome",
+            data.searchEngines.engines,
+          );
+          totalSaved += data.searchEngines.engines.length;
+        }
+
+        logger.info(
+          `Comprehensive Chrome import completed successfully with ${totalSaved} total items saved`,
+        );
+        return {
+          success: true,
+          data: {
+            ...data,
+            totalSaved,
+          },
+        };
+      } catch (error) {
+        logger.error("Comprehensive Chrome import failed:", error);
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
+    });
+
+    ipcMain.handle("chrome:import-bookmarks", async () => {
+      try {
+        logger.info("Starting Chrome bookmarks import with progress");
+        const tempManager = new DialogManager(
+          new BrowserWindow({ show: false }),
+        );
+        const browserProfiles = tempManager.findBrowserProfiles();
+        const chromeProfiles = browserProfiles.filter(
+          p => p.browser === "chrome",
+        );
+
+        if (chromeProfiles.length === 0) {
+          return { success: false, error: "No Chrome profiles found" };
+        }
+
+        return await tempManager.extractChromeBookmarks(
+          chromeProfiles[0],
+          true,
+        ); // Enable progress
+      } catch (error) {
+        logger.error("Chrome bookmarks import failed:", error);
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
+    });
+
+    ipcMain.handle("chrome:import-history", async () => {
+      try {
+        logger.info("Starting Chrome history import with progress");
+        const tempManager = new DialogManager(
+          new BrowserWindow({ show: false }),
+        );
+        const browserProfiles = tempManager.findBrowserProfiles();
+        const chromeProfiles = browserProfiles.filter(
+          p => p.browser === "chrome",
+        );
+
+        if (chromeProfiles.length === 0) {
+          return { success: false, error: "No Chrome profiles found" };
+        }
+
+        return await tempManager.extractChromeHistoryWithProgress(
+          chromeProfiles[0],
+        );
+      } catch (error) {
+        logger.error("Chrome history import failed:", error);
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
+    });
+
+    ipcMain.handle("chrome:import-autofill", async () => {
+      try {
+        logger.info("Starting Chrome autofill import with progress");
+        const tempManager = new DialogManager(
+          new BrowserWindow({ show: false }),
+        );
+        const browserProfiles = tempManager.findBrowserProfiles();
+        const chromeProfiles = browserProfiles.filter(
+          p => p.browser === "chrome",
+        );
+
+        if (chromeProfiles.length === 0) {
+          return { success: false, error: "No Chrome profiles found" };
+        }
+
+        return await tempManager.extractChromeAutofillWithProgress(
+          chromeProfiles[0],
+        );
+      } catch (error) {
+        logger.error("Chrome autofill import failed:", error);
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
+    });
+
+    ipcMain.handle("chrome:import-search-engines", async () => {
+      try {
+        logger.info("Starting Chrome search engines import");
+        const tempManager = new DialogManager(
+          new BrowserWindow({ show: false }),
+        );
+        const browserProfiles = tempManager.findBrowserProfiles();
+        const chromeProfiles = browserProfiles.filter(
+          p => p.browser === "chrome",
+        );
+
+        if (chromeProfiles.length === 0) {
+          return { success: false, error: "No Chrome profiles found" };
+        }
+
+        return await tempManager.extractChromeSearchEngines(chromeProfiles[0]);
+      } catch (error) {
+        logger.error("Chrome search engines import failed:", error);
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
     });
   }
 
@@ -164,23 +578,39 @@ export class DialogManager extends EventEmitter {
     });
 
     // Create WebContentsView for the dialog content
+    const preloadPath = path.join(__dirname, "../preload/index.js");
+    logger.debug(`Creating dialog with preload path: ${preloadPath}`);
+
     const view = new WebContentsView({
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
-        sandbox: true,
-        preload: path.join(__dirname, "../../../preload/index.js"),
+        sandbox: false,
+        preload: preloadPath,
+        webSecurity: true,
+        allowRunningInsecureContent: false,
       },
     });
 
     // Set view bounds to fill the dialog
-    view.setBounds({
-      x: 0,
-      y: 0,
-      width: options.width,
-      height: options.height,
-    });
+    const updateViewBounds = () => {
+      const [width, height] = dialog.getContentSize();
+      view.setBounds({
+        x: 0,
+        y: 0,
+        width: width,
+        height: height,
+      });
+    };
+
+    // Set initial bounds
+    updateViewBounds();
     dialog.setContentView(view);
+
+    // Update bounds when window is resized
+    dialog.on("resize", () => {
+      updateViewBounds();
+    });
 
     // Position dialog as a side panel from the right edge
     const parentBounds = this.parentWindow.getBounds();
@@ -196,6 +626,26 @@ export class DialogManager extends EventEmitter {
 
     // Handle escape key after content is loaded
     view.webContents.once("did-finish-load", () => {
+      logger.debug(`Dialog ${type} finished loading`);
+
+      // Check if preload script loaded correctly
+      view.webContents
+        .executeJavaScript(
+          `
+        console.log('[Dialog Manager] Preload script check:');
+        console.log('window.electron available:', !!window.electron);
+        console.log('window.electron.ipcRenderer available:', !!window.electron?.ipcRenderer);
+        console.log('window.vibe available:', !!window.vibe);
+        window.electron && window.electron.ipcRenderer ? 'PRELOAD_OK' : 'PRELOAD_FAILED';
+      `,
+        )
+        .then(result => {
+          logger.debug(`Dialog ${type} preload check result: ${result}`);
+        })
+        .catch(err => {
+          logger.error(`Dialog ${type} preload check error:`, err);
+        });
+
       view.webContents.on("before-input-event", (_event, input) => {
         if (input.key === "Escape" && input.type === "keyDown") {
           logger.info(`Escape key pressed, closing dialog: ${type}`);
@@ -203,6 +653,30 @@ export class DialogManager extends EventEmitter {
         }
       });
     });
+
+    // Handle preload script errors
+    view.webContents.on("preload-error", (_event, preloadPath, error) => {
+      logger.error(`Preload script error for dialog ${type}:`, {
+        preloadPath,
+        error,
+      });
+    });
+
+    // Handle console messages from the dialog
+    view.webContents.on(
+      "console-message",
+      (_event, level, message, line, sourceId) => {
+        if (
+          message.includes("[Dialog Manager]") ||
+          message.includes("password") ||
+          level >= 2
+        ) {
+          logger.debug(
+            `Dialog ${type} console [${level}]: ${message} (${sourceId}:${line})`,
+          );
+        }
+      },
+    );
 
     // Store view reference for content loading
     (dialog as any).contentView = view;
@@ -245,14 +719,11 @@ export class DialogManager extends EventEmitter {
 
     try {
       dialog = this.createDialog("downloads", {
-        width: 340,
-        height: 620,
+        width: 880,
+        height: 560,
         title: "Downloads",
         resizable: true,
       });
-
-      const htmlContent = this.generateDownloadsHTML();
-      const dataUrl = `data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`;
 
       view = (dialog as any).contentView as WebContentsView;
 
@@ -261,12 +732,26 @@ export class DialogManager extends EventEmitter {
         throw new Error("Invalid WebContents for downloads dialog");
       }
 
-      await this.loadContentWithTimeout(view.webContents, dataUrl, "downloads");
+      // Load the React downloads app instead of HTML template
+      let downloadsUrl: string;
+      if (process.env.NODE_ENV === "development") {
+        // In development, use the dev server
+        downloadsUrl = "http://localhost:5173/downloads.html";
+      } else {
+        // In production, use the built files
+        downloadsUrl = `file://${path.join(__dirname, "../renderer/downloads.html")}`;
+      }
+
+      await this.loadContentWithTimeout(
+        view.webContents,
+        downloadsUrl,
+        "downloads",
+      );
 
       dialog.show();
       this.activeDialogs.set("downloads", dialog);
 
-      logger.info("Downloads dialog opened successfully");
+      logger.info("Downloads dialog opened successfully with React app");
     } catch (error) {
       logger.error("Failed to create downloads dialog:", error);
 
@@ -327,11 +812,8 @@ export class DialogManager extends EventEmitter {
         width: 800,
         height: 600,
         title: "Settings",
-        resizable: true,
+        resizable: false,
       });
-
-      const htmlContent = this.generateSettingsHTML();
-      const dataUrl = `data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`;
 
       view = (dialog as any).contentView as WebContentsView;
 
@@ -340,12 +822,26 @@ export class DialogManager extends EventEmitter {
         throw new Error("Invalid WebContents for settings dialog");
       }
 
-      await this.loadContentWithTimeout(view.webContents, dataUrl, "settings");
+      // Load the React settings app instead of HTML template
+      let settingsUrl: string;
+      if (process.env.NODE_ENV === "development") {
+        // In development, use the dev server
+        settingsUrl = "http://localhost:5173/settings.html";
+      } else {
+        // In production, use the built files
+        settingsUrl = `file://${path.join(__dirname, "../renderer/settings.html")}`;
+      }
+
+      await this.loadContentWithTimeout(
+        view.webContents,
+        settingsUrl,
+        "settings",
+      );
 
       dialog.show();
       this.activeDialogs.set("settings", dialog);
 
-      logger.info("Settings dialog opened successfully");
+      logger.info("Settings dialog opened successfully with React app");
     } catch (error) {
       logger.error("Failed to create settings dialog:", error);
 
@@ -468,7 +964,10 @@ export class DialogManager extends EventEmitter {
     this.loadingTimeouts.clear();
   }
 
-  private generateDownloadsHTML(): string {
+  // Downloads dialog now uses React app instead of HTML template
+
+  // @ts-expect-error - Old method kept for reference but not used
+  private generateDownloadsHTML_OLD_UNUSED(): string {
     return `
       <!DOCTYPE html>
       <html>
@@ -890,871 +1389,28 @@ export class DialogManager extends EventEmitter {
     `;
   }
 
-  private generateSettingsHTML(): string {
-    return `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src 'self' data:; font-src 'self';">
-        <title>Settings</title>
-        <style>
-          * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-          }
-          
-          body {
-            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Helvetica Neue', sans-serif;
-            background: #fafafa;
-            height: 100vh;
-            overflow: hidden;
-            font-size: 13px;
-            line-height: 1.47;
-          }
-          
-          .container {
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-          }
-          
-          .header {
-            position: relative;
-            background: #ffffff;
-            padding: 16px 20px;
-            border-bottom: 1px solid #e8e8e8;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-          }
-          
-          .header h1 {
-            font-size: 18px;
-            font-weight: 600;
-            color: #1f2937;
-          }
-          
-          .close-btn {
-            background: #c7c7cc;
-            color: #1d1d1f;
-            border: none;
-            width: 22px;
-            height: 22px;
-            border-radius: 50%;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: 300;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            position: absolute;
-            top: 18px;
-            right: 18px;
-            z-index: 1000;
-            transition: all 0.15s ease;
-          }
-          
-          .close-btn:hover {
-            background: #a1a1a6;
-            transform: scale(1.05);
-          }
-          
-          .main {
-            flex: 1;
-            display: flex;
-          }
-          
-          .sidebar {
-            width: 200px;
-            background: #f8f8f8;
-            border-right: 1px solid #e8e8e8;
-          }
-          
-          .menu-item {
-            padding: 12px 16px;
-            cursor: pointer;
-            color: #333;
-            font-weight: 500;
-            transition: background 0.2s;
-            border-bottom: 1px solid #e8e8e8;
-          }
-          
-          .menu-item:hover {
-            background: #e8e8e8;
-          }
-          
-          .menu-item.active {
-            background: #d8d8d8;
-          }
-          
-          .menu-item.disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-          }
-          
-          .content {
-            flex: 1;
-            padding: 20px;
-            background: #ffffff;
-            overflow-y: auto;
-          }
-          
-          .form-group {
-            margin-bottom: 20px;
-          }
-          
-          .form-group label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: 600;
-            color: #374151;
-          }
-          
-          .form-group input {
-            width: 100%;
-            padding: 12px;
-            border: 2px solid #e5e7eb;
-            border-radius: 8px;
-            font-size: 14px;
-            transition: border-color 0.2s;
-          }
-          
-          .form-group input:hover {
-            border-color: #999;
-          }
-          
-          .form-group input:focus {
-            outline: none;
-            border-color: #666;
-            box-shadow: 0 0 0 2px rgba(102, 102, 102, 0.1);
-          }
-          
-          .btn {
-            padding: 12px 24px;
-            border: none;
-            border-radius: 8px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            margin-right: 12px;
-          }
-          
-          .btn-primary {
-            background: #666;
-            color: white;
-            border: 1px solid #666;
-          }
-          
-          .btn-primary:hover {
-            background: #555;
-            border: 1px solid #555;
-            box-shadow: none;
-          }
-          
-          .btn-secondary {
-            background: #999;
-            color: white;
-            border: 1px solid #999;
-          }
-          
-          .btn-secondary:hover {
-            background: #777;
-            border: 1px solid #777;
-            box-shadow: none;
-          }
-          
-          /* Toggle Switch Styles */
-          .toggle-switch {
-            position: relative;
-            display: inline-block;
-            width: 50px;
-            height: 24px;
-          }
-          
-          .toggle-switch input {
-            opacity: 0;
-            width: 0;
-            height: 0;
-          }
-          
-          .toggle-slider {
-            position: absolute;
-            cursor: pointer;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background-color: #ccc;
-            border-radius: 24px;
-            transition: .4s;
-          }
-          
-          .toggle-slider:before {
-            position: absolute;
-            content: "";
-            height: 18px;
-            width: 18px;
-            left: 3px;
-            bottom: 3px;
-            background-color: white;
-            border-radius: 50%;
-            transition: .4s;
-          }
-          
-          input:checked + .toggle-slider {
-            background-color: #666;
-          }
-          
-          input:focus + .toggle-slider {
-            box-shadow: none;
-          }
-          
-          input:checked + .toggle-slider:before {
-            transform: translateX(26px);
-          }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="header">
-            <h1>Settings</h1>
-            <button class="close-btn" onclick="closeDialog()">×</button>
-          </div>
-          
-          <div class="main">
-            <div class="sidebar">
-              <div class="menu-item active" data-tab="api-keys"><KeyOutlined />API Keys</div>
-              <div class="menu-item" data-tab="passwords"><LockOutlined /> Passwords</div>
-              <div class="menu-item" data-tab="agents"><RobotOutlined /> Agents</div>
-              <div class="menu-item" data-tab="privacy"><ShieldOutlined /> Privacy</div>
-              <div class="menu-item disabled">e
-
-<ShoppingCartOutlined /> Marketplace</div>
-              <div class="menu-item disabled"><TrophyOutlined /> Leaderboard</div>
-            </div>
-            
-            <div class="content">
-              <div id="api-keys-content" class="tab-content">
-                <h3>API Keys</h3>
-                <p style="margin-bottom: 20px; color: #6b7280;">Manage your API keys for external services.</p>
-                
-                <div class="form-group">
-                  <label>OpenAI API Key</label>
-                  <input type="password" id="openai-key" placeholder="sk-..." />
-                </div>
-                
-                <div class="form-group">
-                  <label>TurboPuffer API Key</label>
-                  <input type="password" id="turbopuffer-key" placeholder="tp_..." />
-                </div>
-                
-                <button class="btn btn-primary" onclick="saveKeys()">Save Keys</button>
-                <button class="btn btn-secondary" onclick="clearKeys()">Clear All</button>
-              </div>
-
-              <div id="passwords-content" class="tab-content" style="display: none;">
-                <h3>Password Management</h3>
-                <p style="margin-bottom: 20px; color: #6b7280;">Import and manage your saved passwords.</p>
-                
-                <div class="form-group">
-                  <label>Import from Chrome</label>
-                  <button class="btn btn-primary" onclick="importChromePasswords()">Import Chrome Passwords</button>
-                </div>
-                
-                <div class="form-group">
-                  <label>Import from Safari</label>
-                  <button class="btn btn-primary" onclick="importSafariPasswords()">Import Safari Passwords</button>
-                </div>
-                
-                <div class="form-group">
-                  <label>Import from CSV File</label>
-                  <button class="btn btn-secondary" onclick="importPasswordsCSV()">Choose CSV File</button>
-                </div>
-                
-                <div class="form-group">
-                  <label>Export Passwords</label>
-                  <button class="btn btn-secondary" onclick="exportPasswords()">Export to CSV</button>
-                </div>
-                
-                <div class="form-group">
-                  <label>Security</label>
-                  <button class="btn btn-primary" onclick="clearAllPasswords()">Clear All Passwords</button>
-                </div>
-              </div>
-
-              <div id="agents-content" class="tab-content" style="display: none;">
-                <h3>AI Agents</h3>
-                <p style="margin-bottom: 20px; color: #6b7280;">Configure and manage your AI agents.</p>
-                
-                <div class="form-group">
-                  <label>Default Agent Model</label>
-                  <select id="default-agent-model" style="padding: 12px; border: 1px solid #d1d5db; border-radius: 8px; width: 100%;">
-                    <option value="gpt-4">GPT-4</option>
-                    <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
-                    <option value="claude-3">Claude 3</option>
-                  </select>
-                </div>
-                
-                <div class="form-group">
-                  <label>Agent Response Temperature</label>
-                  <input type="range" id="agent-temperature" min="0" max="1" step="0.1" value="0.7" style="width: 100%;" />
-                  <span id="temperature-value">0.7</span>
-                </div>
-                
-                <div class="form-group">
-                  <label>Auto-activate Agent</label>
-                  <input type="checkbox" id="auto-activate-agent" checked /> Automatically activate agent on startup
-                </div>
-                
-                <div class="form-group">
-                  <label>Agent Memory</label>
-                  <button class="btn btn-secondary" onclick="clearAgentMemory()">Clear Agent Memory</button>
-                </div>
-                
-                <button class="btn btn-primary" onclick="saveAgentSettings()">Save Agent Settings</button>
-              </div>
-
-              <div id="privacy-content" class="tab-content" style="display: none;">
-                <h3>Privacy & Security</h3>
-                <p style="margin-bottom: 20px; color: #6b7280;">Configure privacy and security settings for your browsing experience.</p>
-                
-                <div class="form-group">
-                  <label style="display: flex; align-items: center; justify-content: space-between;">
-                    <div>
-                      <strong>AdBlocking (via Ghostery)</strong>
-                      <br />
-                      <span style="color: #6b7280; font-size: 13px;">Block ads, trackers, and malicious content for faster browsing</span>
-                    </div>
-                    <div class="toggle-switch">
-                      <input type="checkbox" id="adblock-toggle" checked onchange="toggleAdBlocking(this.checked)" />
-                      <span class="toggle-slider"></span>
-                    </div>
-                  </label>
-                </div>
-                
-                <div class="form-group">
-                  <label>Tracking Protection</label>
-                  <select id="tracking-protection" style="padding: 12px; border: 1px solid #d1d5db; border-radius: 8px; width: 100%;" onchange="updateTrackingProtection(this.value)">
-                    <option value="strict">Strict - Block all trackers</option>
-                    <option value="balanced" selected>Balanced - Block known trackers</option>
-                    <option value="minimal">Minimal - Allow some trackers</option>
-                    <option value="disabled">Disabled - Allow all trackers</option>
-                  </select>
-                </div>
-                
-                <div class="form-group">
-                  <label style="display: flex; align-items: center; justify-content: space-between;">
-                    <div>
-                      <strong>Enhanced Privacy Mode</strong>
-                      <br />
-                      <span style="color: #6b7280; font-size: 13px;">Additional privacy protections and anti-fingerprinting</span>
-                    </div>
-                    <div class="toggle-switch">
-                      <input type="checkbox" id="enhanced-privacy-toggle" onchange="toggleEnhancedPrivacy(this.checked)" />
-                      <span class="toggle-slider"></span>
-                    </div>
-                  </label>
-                </div>
-                
-                <div class="form-group">
-                  <label style="display: flex; align-items: center; justify-content: space-between;">
-                    <div>
-                      <strong>Cookie Auto-Delete</strong>
-                      <br />
-                      <span style="color: #6b7280; font-size: 13px;">Automatically delete cookies when tabs are closed</span>
-                    </div>
-                    <div class="toggle-switch">
-                      <input type="checkbox" id="cookie-autodelete-toggle" onchange="toggleCookieAutoDelete(this.checked)" />
-                      <span class="toggle-slider"></span>
-                    </div>
-                  </label>
-                </div>
-                
-                <button class="btn btn-primary" onclick="savePrivacySettings()">Save Privacy Settings</button>
-                <button class="btn btn-secondary" onclick="resetPrivacySettings()">Reset to Defaults</button>
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        <script>
-          function closeDialog() {
-            console.log('[Settings Dialog] Attempting to close dialog');
-            
-            // Try multiple close methods for better reliability
-            if (window.vibe?.dialog?.close) {
-              console.log('[Settings Dialog] Using vibe.dialog.close');
-              window.vibe.dialog.close('settings')
-                .then((result) => {
-                  console.log('[Settings Dialog] Vibe close result:', result);
-                  if (!result) {
-                    // If normal close fails, try force close
-                    console.log('[Settings Dialog] Normal close failed, trying force close');
-                    tryForceClose();
-                  }
-                })
-                .catch((error) => {
-                  console.error('[Settings Dialog] Vibe close error:', error);
-                  tryForceClose();
-                });
-            } else if (window.electron?.ipcRenderer) {
-              console.log('[Settings Dialog] Using electron.ipcRenderer');
-              window.electron.ipcRenderer.invoke('dialog:close', 'settings')
-                .then((result) => {
-                  console.log('[Settings Dialog] IPC close result:', result);
-                  if (!result) {
-                    // If normal close fails, try force close
-                    console.log('[Settings Dialog] Normal close failed, trying force close');
-                    tryForceClose();
-                  }
-                })
-                .catch((error) => {
-                  console.error('[Settings Dialog] IPC close error:', error);
-                  tryForceClose();
-                });
-            } else {
-              console.error('[Settings Dialog] No close API available');
-              tryForceClose();
-            }
-          }
-          
-          function tryForceClose() {
-            console.log('[Settings Dialog] Attempting force close');
-            if (window.electron?.ipcRenderer) {
-              window.electron.ipcRenderer.invoke('dialog:force-close', 'settings')
-                .then((result) => {
-                  console.log('[Settings Dialog] Force close result:', result);
-                })
-                .catch((error) => {
-                  console.error('[Settings Dialog] Force close error:', error);
-                  // Last resort: try to close window directly
-                  if (window.close) {
-                    console.log('[Settings Dialog] Using window.close as last resort');
-                    window.close();
-                  }
-                });
-            }
-          }
-          
-          // Password management functions
-          async function importChromePasswords() {
-            console.log('[Settings] Extracting Chrome passwords...');
-            try {
-              if (window.electron?.ipcRenderer) {
-                const result = await window.electron.ipcRenderer.invoke('password:extract-chrome');
-                
-                if (result.success) {
-                  const passwordCount = result.passwords ? result.passwords.length : 0;
-                  console.log('[Settings] Chrome passwords extracted:', passwordCount);
-                  alert('Successfully extracted ' + passwordCount + ' passwords from Chrome. Authentication may be required.');
-                  
-                  // Store the extracted passwords securely
-                  if (result.passwords && result.passwords.length > 0) {
-                    try {
-                      // Convert passwords to proper format
-                      const passwordEntries = result.passwords.map(pwd => ({
-                        id: pwd.id,
-                        url: pwd.url,
-                        username: pwd.username,
-                        password: pwd.password,
-                        source: 'chrome' as const,
-                        dateCreated: pwd.dateCreated ? new Date(pwd.dateCreated) : new Date(),
-                        lastModified: new Date()
-                      }));
-                      
-                      // Use secure encrypted storage via IPC
-                      await window.electron.ipcRenderer.invoke('profile:store-passwords', {
-                        source: 'chrome',
-                        passwords: passwordEntries
-                      });
-                      
-                      console.log('[Settings] Passwords stored securely using encryption');
-                    } catch (storageError) {
-                      console.error('[Settings] Failed to store passwords securely:', storageError);
-                      alert('Passwords extracted but failed to store securely: ' + storageError.message);
-                    }
-                  }
-                } else {
-                  throw new Error(result.error || 'Chrome password extraction failed');
-                }
-              } else {
-                throw new Error('Electron IPC not available');
-              }
-            } catch (error) {
-              console.error('[Settings] Chrome password extraction failed:', error);
-              alert('Chrome password extraction failed: ' + error.message + '. Please ensure Chrome is installed and accessible.');
-            }
-          }
-          
-          // Safari/Keychain password extraction removed for security
-          // Only Chrome extraction is supported via SQLite database
-          
-          async function importPasswordsCSV() {
-            console.log('[Settings] Importing passwords from CSV...');
-            try {
-              // Create a file input element
-              const fileInput = document.createElement('input');
-              fileInput.type = 'file';
-              fileInput.accept = '.csv';
-              fileInput.style.display = 'none';
-              
-              fileInput.onchange = async (e) => {
-                const file = e.target.files[0];
-                if (file) {
-                  console.log('[Settings] CSV file selected:', file.name);
-                  
-                  // Security: Check file size before processing (max 10MB)
-                  const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
-                  if (file.size > MAX_FILE_SIZE) {
-                    alert('File too large. Maximum size is 10MB.');
-                    return;
-                  }
-
-                  const reader = new FileReader();
-                  reader.onload = async (event) => {
-                    try {
-                      const csvContent = event.target.result;
-                      
-                      // Security: Validate CSV content
-                      if (!csvContent || typeof csvContent !== 'string') {
-                        throw new Error('Invalid file content');
-                      }
-                      
-                      // Security: Check content length after reading
-                      if (csvContent.length > MAX_FILE_SIZE) {
-                        throw new Error('File content too large');
-                      }
-                      
-                      console.log('[Settings] CSV content loaded, length:', csvContent.length);
-                      
-                      // Security: Sanitize filename before storing
-                      const safeFilename = file.name.replace(/[<>:"/\\|?*]/g, '_').substring(0, 255);
-                      
-                      // Parse CSV and count entries with validation
-                      const lines = csvContent.split('\\n').filter(line => line.trim());
-                      const passwordCount = Math.max(0, lines.length - 1); // Subtract header
-                      
-                      // Security: Limit number of password entries
-                      const MAX_PASSWORDS = 10000;
-                      if (passwordCount > MAX_PASSWORDS) {
-                        throw new Error('Too many password entries. Maximum allowed: ' + MAX_PASSWORDS);
-                      }
-                      
-                      if (window.vibe?.settings) {
-                        await window.vibe.settings.set('password.import.csv', {
-                          content: csvContent,
-                          filename: safeFilename,
-                          timestamp: Date.now()
-                        });
-                        
-                        alert('Successfully imported ' + passwordCount + ' passwords from ' + safeFilename);
-                        console.log('[Settings] Successfully imported ' + passwordCount + ' credentials');
-                      }
-                    } catch (error) {
-                      console.error('[Settings] CSV parsing failed:', error);
-                      alert('Failed to parse CSV file: ' + (error.message || 'Unknown error'));
-                    }
-                  };
-                  
-                  reader.readAsText(file);
-                }
-              };
-              
-              document.body.appendChild(fileInput);
-              fileInput.click();
-              document.body.removeChild(fileInput);
-              
-            } catch (error) {
-              console.error('[Settings] CSV password import failed:', error);
-              alert('CSV password import failed. Please try again.');
-            }
-          }
-          
-          async function exportPasswords() {
-            console.log('[Settings] Exporting passwords...');
-            try {
-              if (window.vibe?.settings) {
-                // Get stored passwords
-                const chromePasswords = await window.vibe.settings.get('password.import.chrome') || [];
-                const safariPasswords = await window.vibe.settings.get('password.import.safari') || [];
-                const csvPasswords = await window.vibe.settings.get('password.import.csv') || [];
-                
-                const totalPasswords = [chromePasswords, safariPasswords, csvPasswords].flat().length;
-                
-                if (totalPasswords > 0) {
-                  // Create CSV export
-                  const csvHeader = 'URL,Username,Password,Notes\\n';
-                  const csvData = 'Sample export data would be generated here';
-                  const csvContent = csvHeader + csvData;
-                  
-                  const blob = new Blob([csvContent], { type: 'text/csv' });
-                  const url = window.URL.createObjectURL(blob);
-                  
-                  const a = document.createElement('a');
-                  a.href = url;
-                  a.download = 'passwords-export-' + new Date().toISOString().split('T')[0] + '.csv';
-                  a.style.display = 'none';
-                  
-                  document.body.appendChild(a);
-                  a.click();
-                  document.body.removeChild(a);
-                  
-                  window.URL.revokeObjectURL(url);
-                  
-                  alert('Successfully exported ' + totalPasswords + ' passwords to CSV file.');
-                } else {
-                  alert('No passwords found to export. Please import passwords first.');
-                }
-              }
-            } catch (error) {
-              console.error('[Settings] Password export failed:', error);
-              alert('Password export failed. Please try again.');
-            }
-          }
-          
-          async function clearAllPasswords() {
-            if (confirm('Are you sure you want to clear all saved passwords? This action cannot be undone.')) {
-              console.log('[Settings] Clearing all passwords...');
-              try {
-                if (window.vibe?.settings) {
-                  await window.vibe.settings.remove('password.import.chrome');
-                  await window.vibe.settings.remove('password.import.safari');
-                  await window.vibe.settings.remove('password.import.csv');
-                  
-                  console.log('[Settings] All passwords cleared successfully');
-                  alert('All saved passwords have been cleared.');
-                } else {
-                  throw new Error('Settings API not available');
-                }
-              } catch (error) {
-                console.error('[Settings] Password clearing failed:', error);
-                alert('Failed to clear passwords. Please try again.');
-              }
-            }
-          }
-          
-          // Agent management functions
-          async function saveAgentSettings() {
-            const model = document.getElementById('default-agent-model').value;
-            const temperature = document.getElementById('agent-temperature').value;
-            const autoActivate = document.getElementById('auto-activate-agent').checked;
-            
-            console.log('[Settings] Saving agent settings:', { model, temperature, autoActivate });
-            // TODO: Implement agent settings save
-            alert('Agent settings saved!');
-          }
-          
-          async function clearAgentMemory() {
-            if (confirm('Are you sure you want to clear the agent memory? This will remove conversation history.')) {
-              console.log('[Settings] Clearing agent memory...');
-              // TODO: Implement agent memory clearing
-              alert('Agent memory cleared!');
-            }
-          }
-          
-          // Update temperature display
-          document.addEventListener('DOMContentLoaded', () => {
-            const temperatureSlider = document.getElementById('agent-temperature');
-            const temperatureValue = document.getElementById('temperature-value');
-            
-            if (temperatureSlider && temperatureValue) {
-              temperatureSlider.addEventListener('input', (e) => {
-                temperatureValue.textContent = e.target.value;
-              });
-            }
-          });
-
-          // Privacy settings functions
-          async function toggleAdBlocking(enabled) {
-            console.log('[Settings] AdBlocking (Ghostery):', enabled ? 'ENABLED' : 'DISABLED');
-            try {
-              if (window.vibe?.settings) {
-                await window.vibe.settings.set('adblocking.enabled', enabled);
-                await window.vibe.settings.set('adblocking.provider', 'ghostery');
-                console.log('[Settings] AdBlocking setting saved successfully');
-              }
-            } catch (error) {
-              console.error('[Settings] Failed to save AdBlocking setting:', error);
-            }
-          }
-          
-          async function updateTrackingProtection(level) {
-            console.log('[Settings] Tracking Protection level:', level);
-            try {
-              if (window.vibe?.settings) {
-                await window.vibe.settings.set('privacy.trackingProtection', level);
-                console.log('[Settings] Tracking protection setting saved successfully');
-              }
-            } catch (error) {
-              console.error('[Settings] Failed to save tracking protection setting:', error);
-            }
-          }
-          
-          async function toggleEnhancedPrivacy(enabled) {
-            console.log('[Settings] Enhanced Privacy Mode:', enabled ? 'ENABLED' : 'DISABLED');
-            try {
-              if (window.vibe?.settings) {
-                await window.vibe.settings.set('privacy.enhanced', enabled);
-                console.log('[Settings] Enhanced privacy setting saved successfully');
-              }
-            } catch (error) {
-              console.error('[Settings] Failed to save enhanced privacy setting:', error);
-            }
-          }
-          
-          async function toggleCookieAutoDelete(enabled) {
-            console.log('[Settings] Cookie Auto-Delete:', enabled ? 'ENABLED' : 'DISABLED');
-            try {
-              if (window.vibe?.settings) {
-                await window.vibe.settings.set('privacy.cookieAutoDelete', enabled);
-                console.log('[Settings] Cookie auto-delete setting saved successfully');
-              }
-            } catch (error) {
-              console.error('[Settings] Failed to save cookie auto-delete setting:', error);
-            }
-          }
-          
-          async function savePrivacySettings() {
-            const adblockEnabled = document.getElementById('adblock-toggle').checked;
-            const trackingLevel = document.getElementById('tracking-protection').value;
-            const enhancedPrivacy = document.getElementById('enhanced-privacy-toggle').checked;
-            const cookieAutoDelete = document.getElementById('cookie-autodelete-toggle').checked;
-            
-            console.log('[Settings] Saving all privacy settings:', {
-              adblockEnabled, trackingLevel, enhancedPrivacy, cookieAutoDelete
-            });
-            
-            try {
-              await toggleAdBlocking(adblockEnabled);
-              await updateTrackingProtection(trackingLevel);
-              await toggleEnhancedPrivacy(enhancedPrivacy);
-              await toggleCookieAutoDelete(cookieAutoDelete);
-              
-              alert('Privacy settings saved successfully!');
-            } catch (error) {
-              console.error('[Settings] Failed to save privacy settings:', error);
-              alert('Failed to save privacy settings. Please try again.');
-            }
-          }
-          
-          async function resetPrivacySettings() {
-            if (confirm('Reset all privacy settings to defaults? This will enable AdBlocking and set balanced tracking protection.')) {
-              // Reset to defaults: AdBlocking ON, Balanced tracking, Enhanced privacy OFF, Cookie auto-delete OFF
-              document.getElementById('adblock-toggle').checked = true;
-              document.getElementById('tracking-protection').value = 'balanced';
-              document.getElementById('enhanced-privacy-toggle').checked = false;
-              document.getElementById('cookie-autodelete-toggle').checked = false;
-              
-              await savePrivacySettings();
-              console.log('[Settings] Privacy settings reset to defaults');
-            }
-          }
-          
-          // Load privacy settings on page load
-          async function loadPrivacySettings() {
-            try {
-              if (window.vibe?.settings) {
-                const adblockEnabled = await window.vibe.settings.get('adblocking.enabled') ?? true; // Default to true
-                const trackingLevel = await window.vibe.settings.get('privacy.trackingProtection') ?? 'balanced';
-                const enhancedPrivacy = await window.vibe.settings.get('privacy.enhanced') ?? false;
-                const cookieAutoDelete = await window.vibe.settings.get('privacy.cookieAutoDelete') ?? false;
-                
-                document.getElementById('adblock-toggle').checked = adblockEnabled;
-                document.getElementById('tracking-protection').value = trackingLevel;
-                document.getElementById('enhanced-privacy-toggle').checked = enhancedPrivacy;
-                document.getElementById('cookie-autodelete-toggle').checked = cookieAutoDelete;
-                
-                console.log('[Settings] Privacy settings loaded:', {
-                  adblockEnabled, trackingLevel, enhancedPrivacy, cookieAutoDelete
-                });
-              }
-            } catch (error) {
-              console.error('[Settings] Failed to load privacy settings:', error);
-            }
-          }
-
-          async function saveKeys() {
-            const openaiKey = document.getElementById('openai-key').value;
-            const turbopufferKey = document.getElementById('turbopuffer-key').value;
-            
-            try {
-              if (window.apiKeys) {
-                if (openaiKey) await window.apiKeys.set('openai', openaiKey);
-                if (turbopufferKey) await window.apiKeys.set('turbopuffer', turbopufferKey);
-                alert('Keys saved successfully!');
-              }
-            } catch (error) {
-              console.error('Failed to save keys:', error);
-              alert('Failed to save keys');
-            }
-          }
-          
-          function clearKeys() {
-            document.getElementById('openai-key').value = '';
-            document.getElementById('turbopuffer-key').value = '';
-          }
-          
-          // Load existing keys
-          document.addEventListener('DOMContentLoaded', async () => {
-            try {
-              // Load API keys
-              if (window.apiKeys) {
-                const openaiKey = await window.apiKeys.get('openai') || '';
-                const turbopufferKey = await window.apiKeys.get('turbopuffer') || '';
-                
-                document.getElementById('openai-key').value = openaiKey;
-                document.getElementById('turbopuffer-key').value = turbopufferKey;
-              }
-              
-              // Load privacy settings
-              await loadPrivacySettings();
-              
-            } catch (error) {
-              console.error('Failed to load settings:', error);
-            }
-          });
-          
-          // Tab switching
-          document.querySelectorAll('.menu-item:not(.disabled)').forEach(item => {
-            item.addEventListener('click', () => {
-              const tab = item.dataset.tab;
-              
-              // Update active state
-              document.querySelectorAll('.menu-item').forEach(i => i.classList.remove('active'));
-              item.classList.add('active');
-              
-              // Hide all tab content
-              document.querySelectorAll('.tab-content').forEach(content => {
-                content.style.display = 'none';
-              });
-              
-              // Show selected tab content
-              const targetContent = document.getElementById(tab + '-content');
-              if (targetContent) {
-                targetContent.style.display = 'block';
-              }
-            });
-          });
-        </script>
-      </body>
-      </html>
-    `;
-  }
+  // Settings dialog now uses React app instead of HTML template
 
   /**
-   * Extract passwords from Chrome browser using SQLite database
+   * Extract passwords from Chrome browser using SQLite database with progress tracking
    */
   private async extractChromePasswords(): Promise<{
     success: boolean;
     passwords?: any[];
     error?: string;
   }> {
+    const INCREMENT = 0.05;
+    const INTERVAL_DELAY = 120; // ms
+    let progressInterval: NodeJS.Timeout | null = null;
+    let currentProgress = 0;
+
     try {
-      logger.info("Starting Chrome credential extraction");
+      logger.info(
+        "Starting Chrome credential extraction with progress tracking",
+      );
+
+      // Step 1: Initial progress
+      this.updateProgress(0.02);
 
       // Find Chrome profiles
       const browserProfiles = this.findBrowserProfiles();
@@ -1763,6 +1419,7 @@ export class DialogManager extends EventEmitter {
       );
 
       if (chromeProfiles.length === 0) {
+        this.clearProgress();
         return {
           success: false,
           error: "No Chrome profiles found. Please ensure Chrome is installed.",
@@ -1772,17 +1429,48 @@ export class DialogManager extends EventEmitter {
       // Use the most recently used Chrome profile
       const profile = chromeProfiles[0];
 
-      // Get Chrome encryption key
+      // Step 2: Start extraction immediately
+      this.updateProgress(0.05);
+
+      // Step 3: Start progress animation
+      currentProgress = 0.05;
+      progressInterval = setInterval(() => {
+        if (currentProgress < 0.95) {
+          currentProgress += INCREMENT;
+          this.updateProgress(currentProgress);
+        }
+      }, INTERVAL_DELAY);
+
+      // Step 4: Get Chrome encryption key
+      logger.info("Retrieving Chrome encryption key...");
       const key = await this.getChromeEncryptionKey(profile);
       if (!key) {
+        if (progressInterval) {
+          clearInterval(progressInterval);
+        }
+        this.clearProgress();
         return {
           success: false,
           error: "Failed to retrieve Chrome encryption key",
         };
       }
 
-      // Extract passwords from the profile
+      // Step 5: Extract passwords from the profile
+      logger.info("Extracting and decrypting passwords...");
       const passwords = await this.getAllPasswords(profile, key);
+
+      // Step 6: Complete progress
+      if (progressInterval) {
+        clearInterval(progressInterval);
+        progressInterval = null;
+      }
+
+      this.updateProgress(1.0); // Complete
+
+      // Hold at 100% for a moment, then clear
+      setTimeout(() => {
+        this.clearProgress();
+      }, 1500);
 
       logger.info(
         `Successfully extracted ${passwords.length} Chrome credentials`,
@@ -1799,6 +1487,12 @@ export class DialogManager extends EventEmitter {
         })),
       };
     } catch (error) {
+      // Cleanup progress on error
+      if (progressInterval) {
+        clearInterval(progressInterval);
+      }
+      this.clearProgress();
+
       logger.error(
         "Chrome credential extraction failed:",
         error instanceof Error ? error.message : String(error),
@@ -1951,12 +1645,815 @@ export class DialogManager extends EventEmitter {
   }
 
   /**
+   * Extract bookmarks from Chrome browser with progress tracking
+   */
+  private async extractChromeBookmarks(
+    browserProfile: any,
+    showProgress: boolean = false,
+  ): Promise<{
+    success: boolean;
+    bookmarks?: any[];
+    error?: string;
+  }> {
+    const INCREMENT = 0.1;
+    const INTERVAL_DELAY = 100;
+    let progressInterval: NodeJS.Timeout | null = null;
+    let currentProgress = 0;
+
+    try {
+      logger.info("Starting Chrome bookmarks extraction");
+
+      if (showProgress) {
+        this.updateProgress(0.05);
+
+        // Start progress animation
+        currentProgress = 0.05;
+        progressInterval = setInterval(() => {
+          if (currentProgress < 0.9) {
+            currentProgress += INCREMENT;
+            this.updateProgress(currentProgress);
+          }
+        }, INTERVAL_DELAY);
+      }
+
+      const bookmarksPath = this.safePath(browserProfile.path, "Bookmarks");
+      if (!fsSync.existsSync(bookmarksPath)) {
+        if (showProgress) {
+          if (progressInterval) clearInterval(progressInterval);
+          this.clearProgress();
+        }
+        return {
+          success: false,
+          error: "Bookmarks file not found in Chrome profile",
+        };
+      }
+
+      const bookmarksData = JSON.parse(
+        fsSync.readFileSync(bookmarksPath, "utf8"),
+      );
+      const bookmarks = this.parseBookmarksRecursive(bookmarksData.roots);
+
+      if (showProgress) {
+        if (progressInterval) {
+          clearInterval(progressInterval);
+          progressInterval = null;
+        }
+        this.updateProgress(1.0);
+        setTimeout(() => this.clearProgress(), 1500);
+      }
+
+      logger.info(
+        `Successfully extracted ${bookmarks.length} Chrome bookmarks`,
+      );
+      return {
+        success: true,
+        bookmarks: bookmarks.map((bookmark, index) => ({
+          ...bookmark,
+          id: bookmark.id || `chrome_bookmark_${index}`,
+          source: "chrome",
+        })),
+      };
+    } catch (error) {
+      if (showProgress) {
+        if (progressInterval) clearInterval(progressInterval);
+        this.clearProgress();
+      }
+
+      logger.error(
+        "Chrome bookmarks extraction failed:",
+        error instanceof Error ? error.message : String(error),
+      );
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  /**
+   * Extract Chrome history with progress tracking
+   */
+  private async extractChromeHistoryWithProgress(browserProfile: any): Promise<{
+    success: boolean;
+    history?: any[];
+    error?: string;
+  }> {
+    const INCREMENT = 0.08;
+    const INTERVAL_DELAY = 120;
+    let progressInterval: NodeJS.Timeout | null = null;
+    let currentProgress = 0;
+
+    try {
+      logger.info("Starting Chrome history extraction with progress");
+      this.updateProgress(0.05);
+
+      // Start progress animation
+      currentProgress = 0.05;
+      progressInterval = setInterval(() => {
+        if (currentProgress < 0.9) {
+          currentProgress += INCREMENT;
+          this.updateProgress(currentProgress);
+        }
+      }, INTERVAL_DELAY);
+
+      const result = await this.extractChromeHistory(browserProfile);
+
+      if (progressInterval) {
+        clearInterval(progressInterval);
+        progressInterval = null;
+      }
+
+      this.updateProgress(1.0);
+      setTimeout(() => this.clearProgress(), 1500);
+
+      return result;
+    } catch (error) {
+      if (progressInterval) clearInterval(progressInterval);
+      this.clearProgress();
+      throw error;
+    }
+  }
+
+  /**
+   * Extract Chrome autofill with progress tracking
+   */
+  private async extractChromeAutofillWithProgress(
+    browserProfile: any,
+  ): Promise<{
+    success: boolean;
+    autofill?: { entries: any[]; profiles: any[] };
+    error?: string;
+  }> {
+    const INCREMENT = 0.08;
+    const INTERVAL_DELAY = 120;
+    let progressInterval: NodeJS.Timeout | null = null;
+    let currentProgress = 0;
+
+    try {
+      logger.info("Starting Chrome autofill extraction with progress");
+      this.updateProgress(0.05);
+
+      // Start progress animation
+      currentProgress = 0.05;
+      progressInterval = setInterval(() => {
+        if (currentProgress < 0.9) {
+          currentProgress += INCREMENT;
+          this.updateProgress(currentProgress);
+        }
+      }, INTERVAL_DELAY);
+
+      const result = await this.extractChromeAutofill(browserProfile);
+
+      if (progressInterval) {
+        clearInterval(progressInterval);
+        progressInterval = null;
+      }
+
+      this.updateProgress(1.0);
+      setTimeout(() => this.clearProgress(), 1500);
+
+      return result;
+    } catch (error) {
+      if (progressInterval) clearInterval(progressInterval);
+      this.clearProgress();
+      throw error;
+    }
+  }
+
+  /**
+   * Parse Chrome bookmarks recursively
+   */
+  private parseBookmarksRecursive(root: any, parentId?: string): any[] {
+    const bookmarks: any[] = [];
+
+    for (const [key, folder] of Object.entries(root as Record<string, any>)) {
+      if (folder && typeof folder === "object") {
+        if (folder.type === "folder") {
+          const folderEntry = {
+            id: folder.id,
+            name: folder.name,
+            type: "folder",
+            dateAdded: folder.date_added
+              ? parseInt(folder.date_added) / 1000
+              : Date.now(),
+            dateModified: folder.date_modified
+              ? parseInt(folder.date_modified) / 1000
+              : undefined,
+            parentId,
+            children: [],
+          };
+
+          bookmarks.push(folderEntry);
+
+          if (folder.children && Array.isArray(folder.children)) {
+            const childBookmarks = folder.children.map((child: any) => ({
+              id: child.id,
+              name: child.name,
+              url: child.url,
+              type: child.type,
+              dateAdded: child.date_added
+                ? parseInt(child.date_added) / 1000
+                : Date.now(),
+              parentId: folder.id,
+            }));
+            bookmarks.push(...childBookmarks);
+          }
+        } else if (folder.children && Array.isArray(folder.children)) {
+          const childBookmarks = this.parseBookmarksRecursive(
+            { [key]: folder },
+            parentId,
+          );
+          bookmarks.push(...childBookmarks);
+        }
+      }
+    }
+
+    return bookmarks;
+  }
+
+  /**
+   * Extract browsing history from Chrome browser
+   */
+  private async extractChromeHistory(browserProfile: any): Promise<{
+    success: boolean;
+    history?: any[];
+    error?: string;
+  }> {
+    try {
+      logger.info("Starting Chrome history extraction");
+
+      const historyPath = this.safePath(browserProfile.path, "History");
+      const tempDbPath = this.safePath(browserProfile.path, "History.temp");
+
+      if (!fsSync.existsSync(historyPath)) {
+        return {
+          success: false,
+          error: "History database not found in Chrome profile",
+        };
+      }
+
+      // Create temporary database copy
+      fsSync.copyFileSync(historyPath, tempDbPath);
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      return new Promise((resolve, reject) => {
+        const db = new sqlite3.Database(
+          tempDbPath,
+          sqlite3.OPEN_READONLY,
+          (err: any) => {
+            if (err) {
+              reject(
+                new Error(`Failed to open History database: ${err.message}`),
+              );
+              return;
+            }
+
+            const query = `
+            SELECT 
+              u.url,
+              u.title,
+              u.visit_count,
+              u.last_visit_time,
+              v.visit_time,
+              v.transition,
+              v.visit_duration
+            FROM urls u
+            LEFT JOIN visits v ON u.id = v.url
+            WHERE u.hidden = 0 AND u.url NOT LIKE 'chrome://%' AND u.url NOT LIKE 'chrome-extension://%'
+            ORDER BY u.last_visit_time DESC
+            LIMIT 5000
+          `;
+
+            db.all(query, (err: any, rows: any[]) => {
+              if (err) {
+                reject(err);
+                return;
+              }
+
+              const history = rows.map(row => ({
+                url: row.url,
+                title: row.title || "",
+                timestamp: row.visit_time || row.last_visit_time,
+                visitCount: row.visit_count || 1,
+                lastVisit: row.last_visit_time,
+                transitionType: this.getTransitionType(row.transition),
+                visitDuration: row.visit_duration,
+                source: "chrome",
+              }));
+
+              db.close();
+              try {
+                fsSync.unlinkSync(tempDbPath);
+              } catch (cleanupError) {
+                logger.warn(
+                  "Failed to cleanup history temp file:",
+                  cleanupError,
+                );
+              }
+
+              logger.info(
+                `Successfully extracted ${history.length} Chrome history entries`,
+              );
+              resolve({ success: true, history });
+            });
+          },
+        );
+      });
+    } catch (error) {
+      logger.error(
+        "Chrome history extraction failed:",
+        error instanceof Error ? error.message : String(error),
+      );
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  /**
+   * Get transition type from Chrome transition number
+   */
+  private getTransitionType(transition: number): string {
+    const types: Record<number, string> = {
+      0: "link",
+      1: "typed",
+      2: "auto_bookmark",
+      3: "auto_subframe",
+      4: "manual_subframe",
+      5: "generated",
+      6: "auto_toplevel",
+      7: "form_submit",
+      8: "reload",
+      9: "keyword",
+      10: "keyword_generated",
+    };
+    return types[transition] || "unknown";
+  }
+
+  /**
+   * Extract autofill data from Chrome browser
+   */
+  private async extractChromeAutofill(browserProfile: any): Promise<{
+    success: boolean;
+    autofill?: { entries: any[]; profiles: any[] };
+    error?: string;
+  }> {
+    try {
+      logger.info("Starting Chrome autofill extraction");
+
+      const webDataPath = this.safePath(browserProfile.path, "Web Data");
+      const tempDbPath = this.safePath(browserProfile.path, "Web Data.temp");
+
+      if (!fsSync.existsSync(webDataPath)) {
+        return {
+          success: false,
+          error: "Web Data database not found in Chrome profile",
+        };
+      }
+
+      // Create temporary database copy
+      fsSync.copyFileSync(webDataPath, tempDbPath);
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      return new Promise((resolve, reject) => {
+        const db = new sqlite3.Database(
+          tempDbPath,
+          sqlite3.OPEN_READONLY,
+          (err: any) => {
+            if (err) {
+              reject(
+                new Error(`Failed to open Web Data database: ${err.message}`),
+              );
+              return;
+            }
+
+            // Get autofill entries
+            db.all(
+              "SELECT name, value, count, date_created, date_last_used FROM autofill",
+              (err: any, autofillRows: any[]) => {
+                if (err) {
+                  reject(err);
+                  return;
+                }
+
+                // Get autofill profiles
+                db.all(
+                  `
+              SELECT 
+                guid, company_name, street_address, city, state, zipcode, country_code,
+                date_modified, use_count, use_date
+              FROM autofill_profiles
+            `,
+                  (err: any, profileRows: any[]) => {
+                    if (err) {
+                      reject(err);
+                      return;
+                    }
+
+                    const autofillEntries = autofillRows.map(row => ({
+                      id: `autofill_${Date.now()}_${Math.random()}`,
+                      name: row.name,
+                      value: row.value,
+                      count: row.count,
+                      dateCreated: row.date_created,
+                      dateLastUsed: row.date_last_used,
+                      source: "chrome",
+                    }));
+
+                    const autofillProfiles = profileRows.map(row => ({
+                      id: row.guid,
+                      company: row.company_name,
+                      addressLine1: row.street_address,
+                      city: row.city,
+                      state: row.state,
+                      zipCode: row.zipcode,
+                      country: row.country_code,
+                      dateModified: row.date_modified,
+                      useCount: row.use_count,
+                      source: "chrome",
+                    }));
+
+                    db.close();
+                    try {
+                      fsSync.unlinkSync(tempDbPath);
+                    } catch (cleanupError) {
+                      logger.warn(
+                        "Failed to cleanup autofill temp file:",
+                        cleanupError,
+                      );
+                    }
+
+                    logger.info(
+                      `Successfully extracted ${autofillEntries.length} autofill entries and ${autofillProfiles.length} profiles`,
+                    );
+                    resolve({
+                      success: true,
+                      autofill: {
+                        entries: autofillEntries,
+                        profiles: autofillProfiles,
+                      },
+                    });
+                  },
+                );
+              },
+            );
+          },
+        );
+      });
+    } catch (error) {
+      logger.error(
+        "Chrome autofill extraction failed:",
+        error instanceof Error ? error.message : String(error),
+      );
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  /**
+   * Extract search engines from Chrome browser
+   */
+  private async extractChromeSearchEngines(browserProfile: any): Promise<{
+    success: boolean;
+    searchEngines?: any[];
+    error?: string;
+  }> {
+    try {
+      logger.info("Starting Chrome search engines extraction");
+
+      const webDataPath = this.safePath(browserProfile.path, "Web Data");
+      const tempDbPath = this.safePath(browserProfile.path, "Web Data.temp");
+
+      if (!fsSync.existsSync(webDataPath)) {
+        return {
+          success: false,
+          error: "Web Data database not found in Chrome profile",
+        };
+      }
+
+      // Create temporary database copy
+      fsSync.copyFileSync(webDataPath, tempDbPath);
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      return new Promise((resolve, reject) => {
+        const db = new sqlite3.Database(
+          tempDbPath,
+          sqlite3.OPEN_READONLY,
+          (err: any) => {
+            if (err) {
+              reject(
+                new Error(`Failed to open Web Data database: ${err.message}`),
+              );
+              return;
+            }
+
+            const query = `
+            SELECT 
+              id, short_name, keyword, favicon_url, url, 
+              date_created, usage_count, last_modified
+            FROM keywords
+            WHERE url IS NOT NULL AND url != ''
+            ORDER BY usage_count DESC, last_modified DESC
+          `;
+
+            db.all(query, (err: any, rows: any[]) => {
+              if (err) {
+                reject(err);
+                return;
+              }
+
+              const searchEngines = rows.map(row => ({
+                id: `search_engine_${row.id}`,
+                name: row.short_name,
+                keyword: row.keyword,
+                searchUrl: row.url,
+                favIconUrl: row.favicon_url,
+                isDefault: false, // Chrome doesn't store this in keywords table
+                dateCreated: row.date_created,
+                usageCount: row.usage_count,
+                source: "chrome",
+              }));
+
+              db.close();
+              try {
+                fsSync.unlinkSync(tempDbPath);
+              } catch (cleanupError) {
+                logger.warn(
+                  "Failed to cleanup search engines temp file:",
+                  cleanupError,
+                );
+              }
+
+              logger.info(
+                `Successfully extracted ${searchEngines.length} Chrome search engines`,
+              );
+              resolve({ success: true, searchEngines });
+            });
+          },
+        );
+      });
+    } catch (error) {
+      logger.error(
+        "Chrome search engines extraction failed:",
+        error instanceof Error ? error.message : String(error),
+      );
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  /**
+   * Comprehensive Chrome profile import with progress tracking
+   */
+  private async extractAllChromeData(browserProfile?: any): Promise<{
+    success: boolean;
+    data?: any;
+    error?: string;
+  }> {
+    const INCREMENT = 0.03;
+    const INTERVAL_DELAY = 100; // ms
+    let progressInterval: NodeJS.Timeout | null = null;
+    let currentProgress = 0;
+
+    try {
+      logger.info(
+        "Starting comprehensive Chrome profile extraction with progress tracking",
+      );
+
+      // Find Chrome profiles if not provided
+      let profile = browserProfile;
+      if (!profile) {
+        const browserProfiles = this.findBrowserProfiles();
+        const chromeProfiles = browserProfiles.filter(
+          p => p.browser === "chrome",
+        );
+
+        if (chromeProfiles.length === 0) {
+          return {
+            success: false,
+            error:
+              "No Chrome profiles found. Please ensure Chrome is installed.",
+          };
+        }
+
+        profile = chromeProfiles[0];
+      }
+
+      // Step 1: Start progress immediately (skip slow counting for better UX)
+      this.updateProgress(0.05);
+
+      // Step 2: Start progress animation for import process
+      currentProgress = 0.05;
+      progressInterval = setInterval(() => {
+        if (currentProgress < 0.95) {
+          currentProgress += INCREMENT;
+          this.updateProgress(currentProgress);
+        }
+      }, INTERVAL_DELAY);
+
+      // Step 3: Extract all data types with progress tracking
+      logger.info("Extracting Chrome data with progress tracking...");
+
+      const results = await Promise.allSettled([
+        this.extractChromePasswords(),
+        this.extractChromeBookmarks(profile),
+        this.extractChromeHistory(profile),
+        this.extractChromeAutofill(profile),
+        this.extractChromeSearchEngines(profile),
+      ]);
+
+      const [
+        passwordResult,
+        bookmarkResult,
+        historyResult,
+        autofillResult,
+        searchEngineResult,
+      ] = results;
+
+      // Step 4: Process results and build comprehensive data
+      const comprehensiveData: any = {
+        source: "chrome",
+        timestamp: Date.now(),
+        totalItems: 0,
+      };
+
+      // Process password results
+      if (
+        passwordResult.status === "fulfilled" &&
+        passwordResult.value.success
+      ) {
+        comprehensiveData.passwords = {
+          passwords: passwordResult.value.passwords || [],
+          timestamp: Date.now(),
+          source: "chrome",
+          count: (passwordResult.value.passwords || []).length,
+        };
+        comprehensiveData.totalItems += comprehensiveData.passwords.count;
+      }
+
+      // Process bookmark results
+      if (
+        bookmarkResult.status === "fulfilled" &&
+        bookmarkResult.value.success
+      ) {
+        comprehensiveData.bookmarks = {
+          bookmarks: bookmarkResult.value.bookmarks || [],
+          timestamp: Date.now(),
+          source: "chrome",
+          count: (bookmarkResult.value.bookmarks || []).length,
+        };
+        comprehensiveData.totalItems += comprehensiveData.bookmarks.count;
+      }
+
+      // Process history results
+      if (historyResult.status === "fulfilled" && historyResult.value.success) {
+        comprehensiveData.history = {
+          entries: historyResult.value.history || [],
+          timestamp: Date.now(),
+          source: "chrome",
+          count: (historyResult.value.history || []).length,
+        };
+        comprehensiveData.totalItems += comprehensiveData.history.count;
+      }
+
+      // Process autofill results
+      if (
+        autofillResult.status === "fulfilled" &&
+        autofillResult.value.success
+      ) {
+        const autofillData = autofillResult.value.autofill || {
+          entries: [],
+          profiles: [],
+        };
+        comprehensiveData.autofill = {
+          entries: autofillData.entries,
+          profiles: autofillData.profiles,
+          timestamp: Date.now(),
+          source: "chrome",
+          count: autofillData.entries.length + autofillData.profiles.length,
+        };
+        comprehensiveData.totalItems += comprehensiveData.autofill.count;
+      }
+
+      // Process search engine results
+      if (
+        searchEngineResult.status === "fulfilled" &&
+        searchEngineResult.value.success
+      ) {
+        comprehensiveData.searchEngines = {
+          engines: searchEngineResult.value.searchEngines || [],
+          timestamp: Date.now(),
+          source: "chrome",
+          count: (searchEngineResult.value.searchEngines || []).length,
+        };
+        comprehensiveData.totalItems += comprehensiveData.searchEngines.count;
+      }
+
+      // Step 5: Complete progress and cleanup
+      if (progressInterval) {
+        clearInterval(progressInterval);
+        progressInterval = null;
+      }
+
+      this.updateProgress(1.0); // Complete
+
+      // Hold at 100% for a moment, then clear
+      setTimeout(() => {
+        this.clearProgress();
+      }, 2000);
+
+      logger.info(
+        `Successfully extracted comprehensive Chrome data with ${comprehensiveData.totalItems}/${comprehensiveData.expectedItems} items`,
+      );
+      return {
+        success: true,
+        data: comprehensiveData,
+      };
+    } catch (error) {
+      // Cleanup progress on error
+      if (progressInterval) {
+        clearInterval(progressInterval);
+      }
+      this.clearProgress();
+
+      logger.error(
+        "Comprehensive Chrome extraction failed:",
+        error instanceof Error ? error.message : String(error),
+      );
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  // Removed unused _countChromeProfileItems method
+
+  // Removed unused countBookmarksRecursive method
+
+  /**
+   * Update progress bar for main window
+   */
+  private updateProgress(progress: number): void {
+    try {
+      const mainWindow = BrowserWindow.getAllWindows().find(
+        win => !win.isDestroyed() && win.webContents,
+      );
+      if (mainWindow) {
+        mainWindow.setProgressBar(progress);
+        logger.debug(`Progress updated to: ${(progress * 100).toFixed(1)}%`);
+      }
+    } catch (error) {
+      logger.warn("Failed to update progress bar:", error);
+    }
+  }
+
+  /**
+   * Clear progress bar
+   */
+  private clearProgress(): void {
+    try {
+      const mainWindow = BrowserWindow.getAllWindows().find(
+        win => !win.isDestroyed() && win.webContents,
+      );
+      if (mainWindow) {
+        mainWindow.setProgressBar(-1); // Clear progress bar
+        logger.debug("Progress bar cleared");
+      }
+    } catch (error) {
+      logger.warn("Failed to clear progress bar:", error);
+    }
+  }
+
+  /**
    * Read browser profiles from the system
    */
   private readBrowserProfiles(browserPath: string, browserType: string): any[] {
     const browserProfiles: any[] = [];
     try {
       if (!fsSync.existsSync(browserPath)) {
+        return browserProfiles;
+      }
+
+      // Check if this is a test profile (single profile directory)
+      if (
+        process.env.VIBE_TEST_CHROME_PROFILE &&
+        browserPath === process.env.VIBE_TEST_CHROME_PROFILE
+      ) {
+        const localStatePath = this.safePath(browserPath, "Local State");
+        if (fsSync.existsSync(localStatePath)) {
+          browserProfiles.push({
+            name: "Test Profile",
+            path: browserPath,
+            lastModified: fsSync.statSync(browserPath).mtime,
+            browser: browserType,
+          });
+        }
         return browserProfiles;
       }
 
@@ -2007,31 +2504,37 @@ export class DialogManager extends EventEmitter {
     let arcPath = "";
     let safariPath = "";
 
-    switch (process.platform) {
-      case "win32":
-        chromePath = path.join(
-          process.env.LOCALAPPDATA || "",
-          "Google/Chrome/User Data",
-        );
-        arcPath = path.join(process.env.LOCALAPPDATA || "", "Arc/User Data");
-        break;
-      case "darwin":
-        chromePath = path.join(
-          os.homedir(),
-          "Library/Application Support/Google/Chrome",
-        );
-        arcPath = path.join(
-          os.homedir(),
-          "Library/Application Support/Arc/User Data",
-        );
-        safariPath = path.join(os.homedir(), "Library/Safari");
-        break;
-      case "linux":
-        chromePath = path.join(os.homedir(), ".config/google-chrome");
-        arcPath = path.join(os.homedir(), ".config/arc");
-        break;
-      default:
-        logger.info("Unsupported operating system");
+    // Check for test Chrome profile environment variable
+    if (process.env.VIBE_TEST_CHROME_PROFILE) {
+      chromePath = process.env.VIBE_TEST_CHROME_PROFILE;
+      logger.info(`Using test Chrome profile: ${chromePath}`);
+    } else {
+      switch (process.platform) {
+        case "win32":
+          chromePath = path.join(
+            process.env.LOCALAPPDATA || "",
+            "Google/Chrome/User Data",
+          );
+          arcPath = path.join(process.env.LOCALAPPDATA || "", "Arc/User Data");
+          break;
+        case "darwin":
+          chromePath = path.join(
+            os.homedir(),
+            "Library/Application Support/Google/Chrome",
+          );
+          arcPath = path.join(
+            os.homedir(),
+            "Library/Application Support/Arc/User Data",
+          );
+          safariPath = path.join(os.homedir(), "Library/Safari");
+          break;
+        case "linux":
+          chromePath = path.join(os.homedir(), ".config/google-chrome");
+          arcPath = path.join(os.homedir(), ".config/arc");
+          break;
+        default:
+          logger.info("Unsupported operating system");
+      }
     }
 
     const allProfiles = [
@@ -2198,6 +2701,9 @@ export class DialogManager extends EventEmitter {
     logger.debug("Destroying DialogManager");
 
     try {
+      // Remove this instance from the static map
+      DialogManager.instances.delete(this.parentWindow.id);
+
       // Close all dialogs first
       this.closeAllDialogs();
 
@@ -2222,16 +2728,9 @@ export class DialogManager extends EventEmitter {
         global.gc?.();
       }
 
-      // Remove IPC handlers
-      try {
-        ipcMain.removeHandler("dialog:show-downloads");
-        ipcMain.removeHandler("dialog:show-settings");
-        ipcMain.removeHandler("dialog:close");
-        ipcMain.removeHandler("dialog:force-close");
-        ipcMain.removeHandler("password:extract-chrome");
-      } catch (error) {
-        logger.error("Error removing IPC handlers:", error);
-      }
+      // Note: We don't remove IPC handlers here since they're global
+      // and might still be needed by other windows. They'll be cleaned up
+      // automatically when the app closes.
 
       // Remove all listeners
       this.removeAllListeners();

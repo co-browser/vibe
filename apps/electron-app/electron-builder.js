@@ -122,6 +122,13 @@ module.exports = {
     maintainer: "vibe-maintainers@example.com",
     category: "Utility",
   },
+  publish: {
+    provider: "github",
+    owner: "co-browser",
+    repo: "vibe",
+    private: false,
+    releaseType: "release"
+  },
   extraMetadata: {
     version: process.env.VIBE_VERSION || require("./package.json").version,
     env: "production",

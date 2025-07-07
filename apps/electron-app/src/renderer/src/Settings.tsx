@@ -1,0 +1,906 @@
+import { useState, useEffect, lazy, Suspense } from "react";
+import {
+  User,
+  Sparkles,
+  MousePointerClick,
+  Bell,
+  Command,
+  Puzzle,
+  Lock,
+  ChevronLeft,
+  ChevronRight,
+  ChevronRight as ChevronRightIcon,
+  Download,
+  Search,
+  Eye,
+  EyeOff,
+  Copy,
+  FileDown,
+  X,
+  Loader2,
+} from "lucide-react";
+import { ProgressBar } from "./components/common/ProgressBar";
+import { usePasswords } from "./hooks/usePasswords";
+import { UserOutlined } from "@ant-design/icons";
+import { Avatar } from "antd";
+
+// Type declaration for webkit corner smoothing
+declare module "react" {
+  interface CSSProperties {
+    "-webkit-corner-smoothing"?: string;
+    "-webkit-app-region"?: string;
+  }
+}
+
+// Loading spinner component
+const LoadingSpinner = () => (
+  <div className="flex items-center justify-center h-full">
+    <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+  </div>
+);
+
+// Lazy load all settings components
+const AppleAccountsSettings = lazy(() =>
+  Promise.resolve({ default: AppleAccountsSettingsComponent }),
+);
+const PasswordsSettings = lazy(() =>
+  Promise.resolve({ default: PasswordsSettingsComponent }),
+);
+const NotificationsSettings = lazy(() =>
+  Promise.resolve({ default: NotificationsSettingsComponent }),
+);
+const ShortcutsSettings = lazy(() =>
+  Promise.resolve({ default: ShortcutsSettingsComponent }),
+);
+const ComponentsSettings = lazy(() =>
+  Promise.resolve({ default: ComponentsSettingsComponent }),
+);
+
+// Main App Component
+export default function Settings() {
+  const [activeTab, setActiveTab] = useState("passwords");
+
+  const toolbarButtons = [
+    { id: "apple-accounts", label: "Accounts", icon: User },
+    { id: "passwords", label: "Passwords", icon: Lock },
+    { id: "intelligence", label: "Agents", icon: Sparkles },
+    { id: "behaviors", label: "Behaviors", icon: MousePointerClick },
+    { id: "notifications", label: "Notifications", icon: Bell },
+    { id: "shortcuts", label: "Shortcuts", icon: Command },
+    { id: "components", label: "Components", icon: Puzzle },
+  ];
+
+  const activeLabel =
+    toolbarButtons.find(b => b.id === activeTab)?.label || "Settings";
+
+  const handleCloseDialog = () => {
+    if (window.electron?.ipcRenderer) {
+      window.electron.ipcRenderer.invoke("dialog:close", "settings");
+    }
+  };
+
+  const renderContent = () => {
+    // Wrap components in Suspense for lazy loading
+    const content = (() => {
+      switch (activeTab) {
+        case "apple-accounts":
+          return <AppleAccountsSettings />;
+        case "passwords":
+          return <PasswordsSettings />;
+        case "notifications":
+          return <NotificationsSettings />;
+        case "shortcuts":
+          return <ShortcutsSettings />;
+        case "components":
+          return <ComponentsSettings />;
+        default:
+          return <PlaceholderContent title={activeLabel} />;
+      }
+    })();
+
+    return <Suspense fallback={<LoadingSpinner />}>{content}</Suspense>;
+  };
+
+  return (
+    <div className="dialog-window h-screen w-full font-sans text-black">
+      <div
+        className="w-full h-full flex bg-white relative"
+        style={{ "-webkit-corner-smoothing": "subpixel" }}
+      >
+        {/* Close button */}
+        <button
+          onClick={handleCloseDialog}
+          className="absolute top-4 right-4 z-50 p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+          title="Close Settings"
+        >
+          <X className="h-5 w-5" />
+        </button>
+
+        {/* Sidebar Column */}
+        <div className="w-56 bg-[#F6F6F6] flex flex-col flex-shrink-0 border-r border-gray-300">
+          {/* Sidebar's top bar section with traffic lights */}
+          <div className="h-[52px] flex-shrink-0 flex items-center pl-4">
+            <div className="flex space-x-2">
+              <div className="w-3 h-3 rounded-full bg-[#FF5F57]"></div>
+              <div className="w-3 h-3 rounded-full bg-[#FEBC2E]"></div>
+              <div className="w-3 h-3 rounded-full bg-[#28C840]"></div>
+            </div>
+          </div>
+          {/* The actual list of tabs */}
+          <div className="px-4 flex flex-col space-y-1">
+            {toolbarButtons.map(({ id, label, icon: Icon }) => (
+              <button
+                key={id}
+                onClick={() => setActiveTab(id)}
+                className={`flex items-center space-x-2.5 px-2.5 py-1.5 text-sm font-medium transition-colors duration-150 w-full text-left
+                                    ${
+                                      activeTab === id
+                                        ? "bg-gray-500 text-white"
+                                        : "text-gray-800 hover:bg-gray-200"
+                                    }
+                                    focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 focus:ring-offset-[#F6F6F6]
+                                `}
+                style={{
+                  borderRadius: "6px",
+                  "-webkit-corner-smoothing": "subpixel",
+                }}
+              >
+                <Icon
+                  className={`w-4 h-4 ${activeTab === id ? "text-white" : "text-gray-600"}`}
+                />
+                <span>{label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Content Column */}
+        <div className="flex-1 flex flex-col bg-white">
+          {/* Content's Title Bar */}
+          <div className="h-[52px] border-b border-gray-200 flex-shrink-0 flex items-center px-4 space-x-4">
+            {/* Forward/backward buttons */}
+            <div className="flex items-center">
+              <div
+                className="flex items-center bg-gray-200/80 p-0.5"
+                style={{
+                  borderRadius: "6px",
+                  "-webkit-corner-smoothing": "subpixel",
+                }}
+              >
+                <button
+                  className="p-1 text-gray-400 hover:bg-gray-300/80 hover:text-gray-700 transition-colors"
+                  style={{
+                    borderRadius: "4px",
+                    "-webkit-corner-smoothing": "subpixel",
+                  }}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <div className="w-px h-4 bg-gray-300"></div>
+                <button
+                  className="p-1 text-gray-400 hover:bg-gray-300/80 hover:text-gray-700 transition-colors"
+                  style={{
+                    borderRadius: "4px",
+                    "-webkit-corner-smoothing": "subpixel",
+                  }}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+            <h1 className="font-semibold text-base text-gray-800 flex-1">
+              {activeLabel}
+            </h1>
+          </div>
+          {/* The actual content panel */}
+          <div className="flex-1 p-8 overflow-hidden">{renderContent()}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Settings Components
+const AppleAccountsSettingsComponent = () => (
+  <div className="space-y-4">
+    <div
+      className="bg-white border border-gray-200/80"
+      style={{ borderRadius: "8px", "-webkit-corner-smoothing": "subpixel" }}
+    >
+      <button
+        className="w-full flex items-center justify-between p-3 text-left hover:bg-gray-50 transition-colors"
+        style={{ borderRadius: "8px", "-webkit-corner-smoothing": "subpixel" }}
+      >
+        <div className="flex items-center space-x-3">
+          <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
+            <Avatar
+              style={{ backgroundColor: "#87d068" }}
+              icon={<UserOutlined />}
+            />
+          </div>
+          <div>
+            <p className="font-medium text-gray-800">John Doe</p>
+            <p className="text-sm text-gray-600">john.doe@example.com</p>
+          </div>
+        </div>
+        <ChevronRightIcon className="h-5 w-5 text-gray-400" />
+      </button>
+    </div>
+    <div className="flex justify-end">
+      <button
+        className="px-4 py-1.5 text-sm font-medium bg-gray-200/80 text-gray-800 hover:bg-gray-300/80 transition-colors border border-gray-300/80"
+        style={{ borderRadius: "6px", "-webkit-corner-smoothing": "subpixel" }}
+      >
+        Add Apple Account...
+      </button>
+    </div>
+  </div>
+);
+
+const PasswordsSettingsComponent = () => {
+  const {
+    filteredPasswords,
+    searchQuery,
+    setSearchQuery,
+    isPasswordModalVisible,
+    setIsPasswordModalVisible,
+    selectedPassword,
+    showPassword,
+    setShowPassword,
+    loading,
+    statusMessage,
+    statusType,
+    isImporting,
+    importedSources,
+    progressValue,
+    progressText,
+    handleComprehensiveImportFromChrome,
+    handleExportPasswords,
+    handleViewPassword,
+    copyToClipboard,
+  } = usePasswords();
+
+  // Show loading state for initial load
+  if (loading && filteredPasswords.length === 0) {
+    return <LoadingSpinner />;
+  }
+
+  return (
+    <div className="max-w-4xl mx-auto space-y-8">
+      {/* Status Message */}
+      {statusMessage && (
+        <div
+          className={`px-4 py-3 rounded-xl border-l-4 ${
+            statusType === "success"
+              ? "bg-green-50 border-green-400 text-green-700"
+              : statusType === "error"
+                ? "bg-red-50 border-red-400 text-red-700"
+                : "bg-blue-50 border-blue-400 text-blue-700"
+          }`}
+        >
+          {statusMessage}
+        </div>
+      )}
+
+      {/* Progress Bar */}
+      {isImporting && (
+        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+          <ProgressBar
+            value={progressValue}
+            title="Importing from Chrome"
+            label={progressText}
+            className=""
+          />
+        </div>
+      )}
+
+      {/* Import Section */}
+      <div className="text-center py-3">
+        <div className="w-10 h-10 mx-auto mb-3 bg-blue-100 rounded-full flex items-center justify-center">
+          <Lock className="h-5 w-5 text-blue-600" />
+        </div>
+        <h2 className="text-lg font-semibold text-gray-800 mb-2">
+          Password Manager
+        </h2>
+        <p className="text-sm text-gray-600 mb-4 max-w-md mx-auto">
+          {filteredPasswords.length === 0
+            ? "Import your passwords from Chrome to get started. All data is encrypted and stored securely."
+            : "Search and manage your imported passwords. Quick copy username and password with one click."}
+        </p>
+        {filteredPasswords.length === 0 && (
+          <button
+            onClick={handleComprehensiveImportFromChrome}
+            disabled={
+              isImporting || importedSources.has("chrome-comprehensive")
+            }
+            className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+            style={{
+              borderRadius: "6px",
+              "-webkit-corner-smoothing": "subpixel",
+            }}
+          >
+            <Download className="h-4 w-4" />
+            {importedSources.has("chrome-comprehensive")
+              ? "Already Imported"
+              : "Import from Chrome"}
+          </button>
+        )}
+      </div>
+
+      {/* Quick Search & Copy Area */}
+      {filteredPasswords.length > 0 && (
+        <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-card-foreground">
+              Local Storage
+            </h3>
+            <div className="flex gap-2">
+              <button
+                onClick={handleComprehensiveImportFromChrome}
+                disabled={
+                  isImporting || importedSources.has("chrome-comprehensive")
+                }
+                className="inline-flex items-center gap-2 px-3 py-1.5 bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
+                style={{
+                  borderRadius: "6px",
+                  "-webkit-corner-smoothing": "subpixel",
+                }}
+              >
+                <Download className="h-4 w-4" />
+                {importedSources.has("chrome-comprehensive")
+                  ? "Imported"
+                  : "Import"}
+              </button>
+              <button
+                onClick={handleExportPasswords}
+                className="inline-flex items-center gap-2 px-3 py-1.5 bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors text-sm"
+                style={{
+                  borderRadius: "6px",
+                  "-webkit-corner-smoothing": "subpixel",
+                }}
+              >
+                <FileDown className="h-4 w-4" />
+                Export
+              </button>
+            </div>
+          </div>
+
+          {/* Search */}
+          <div className="relative mb-4">
+            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search by website or username..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className="w-full pl-12 pr-4 py-3 bg-input border border-border focus:ring-2 focus:ring-ring focus:border-transparent focus:bg-background outline-none transition-all"
+              style={{
+                borderRadius: "6px",
+                "-webkit-corner-smoothing": "subpixel",
+              }}
+            />
+          </div>
+
+          {/* Quick Copy Cards */}
+          <div className="space-y-2 max-h-96 overflow-y-auto">
+            {filteredPasswords.map((password: any) => (
+              <div
+                key={password.id}
+                className="group flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-all"
+              >
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <div className="w-8 h-8 bg-white rounded-md flex items-center justify-center flex-shrink-0 border">
+                    <Lock className="h-4 w-4 text-gray-500" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-gray-900 truncate text-sm">
+                      {password.url}
+                    </p>
+                    <p className="text-xs text-gray-500 truncate">
+                      {password.username}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => copyToClipboard(password.username)}
+                    className="px-2 py-1 text-xs text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                    style={{
+                      borderRadius: "4px",
+                      "-webkit-corner-smoothing": "subpixel",
+                    }}
+                    title="Copy username"
+                  >
+                    Copy User
+                  </button>
+                  <button
+                    onClick={() => copyToClipboard(password.password)}
+                    className="px-2 py-1 text-xs text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                    style={{
+                      borderRadius: "4px",
+                      "-webkit-corner-smoothing": "subpixel",
+                    }}
+                    title="Copy password"
+                  >
+                    Copy Pass
+                  </button>
+                  <button
+                    onClick={() => handleViewPassword(password)}
+                    className="p-1 text-muted-foreground hover:text-foreground hover:bg-background transition-colors"
+                    style={{
+                      borderRadius: "4px",
+                      "-webkit-corner-smoothing": "subpixel",
+                    }}
+                    title="View details"
+                  >
+                    <Eye className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {filteredPasswords.length === 0 && searchQuery && (
+            <div className="text-center py-8 text-gray-500">
+              <p>No passwords found matching "{searchQuery}"</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Password Detail Modal */}
+      {isPasswordModalVisible && selectedPassword && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-semibold text-gray-800">
+                Password Details
+              </h3>
+              <button
+                onClick={() => setIsPasswordModalVisible(false)}
+                className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                style={{
+                  borderRadius: "6px",
+                  "-webkit-corner-smoothing": "subpixel",
+                }}
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Website
+                </label>
+                <div
+                  className="px-3 py-2 bg-gray-50 text-gray-900"
+                  style={{
+                    borderRadius: "6px",
+                    "-webkit-corner-smoothing": "subpixel",
+                  }}
+                >
+                  {selectedPassword.url}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Username
+                </label>
+                <div
+                  className="px-3 py-2 bg-gray-50 text-gray-900"
+                  style={{
+                    borderRadius: "6px",
+                    "-webkit-corner-smoothing": "subpixel",
+                  }}
+                >
+                  {selectedPassword.username}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Password
+                </label>
+                <div className="flex gap-2">
+                  <div
+                    className="flex-1 px-3 py-2 bg-gray-50 text-gray-900 font-mono"
+                    style={{
+                      borderRadius: "6px",
+                      "-webkit-corner-smoothing": "subpixel",
+                    }}
+                  >
+                    {showPassword ? selectedPassword.password : "••••••••••••"}
+                  </div>
+                  <button
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="px-3 py-2 bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors"
+                    style={{
+                      borderRadius: "6px",
+                      "-webkit-corner-smoothing": "subpixel",
+                    }}
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => copyToClipboard(selectedPassword.password)}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+                style={{
+                  borderRadius: "6px",
+                  "-webkit-corner-smoothing": "subpixel",
+                }}
+              >
+                <Copy className="h-4 w-4" />
+                Copy Password
+              </button>
+              <button
+                onClick={() => setIsPasswordModalVisible(false)}
+                className="px-4 py-2 bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors"
+                style={{
+                  borderRadius: "6px",
+                  "-webkit-corner-smoothing": "subpixel",
+                }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const PlaceholderContent = ({ title }) => (
+  <div>
+    <div
+      className="text-center text-gray-500 border-2 border-dashed border-gray-300 p-16"
+      style={{ borderRadius: "8px", "-webkit-corner-smoothing": "subpixel" }}
+    >
+      <h2 className="text-xl font-semibold mb-2 text-gray-700">{title}</h2>
+      <p>Settings for {title} would be displayed here.</p>
+    </div>
+  </div>
+);
+
+// Notifications Settings Component
+const NotificationsSettingsComponent = () => {
+  const [notifications, setNotifications] = useState({
+    enabled: true,
+    sound: true,
+    badge: true,
+    preview: false,
+  });
+  const [loading, setLoading] = useState(true);
+
+  const handleToggle = async (key: keyof typeof notifications) => {
+    const newValue = !notifications[key];
+    setNotifications(prev => ({ ...prev, [key]: newValue }));
+
+    // Save to backend
+    if (window.electron?.ipcRenderer) {
+      await window.electron.ipcRenderer.invoke(
+        "settings:update-notifications",
+        {
+          [key]: newValue,
+        },
+      );
+    }
+  };
+
+  useEffect(() => {
+    // Load saved settings
+    const loadSettings = async () => {
+      setLoading(true);
+      try {
+        if (window.electron?.ipcRenderer) {
+          const result = await window.electron.ipcRenderer.invoke(
+            "settings:get-notifications",
+          );
+          if (result?.success) {
+            setNotifications(result.settings);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to load notification settings:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    // Delay load to improve perceived performance
+    const timer = setTimeout(loadSettings, 100);
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (loading) {
+    return <LoadingSpinner />;
+  }
+
+  return (
+    <div className="space-y-6">
+      <div
+        className="bg-white border border-gray-200 p-6"
+        style={{ borderRadius: "8px", "-webkit-corner-smoothing": "subpixel" }}
+      >
+        <h3 className="text-lg font-semibold text-gray-800 mb-6">
+          Notification Preferences
+        </h3>
+
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h4 className="font-medium text-gray-800">
+                Enable Notifications
+              </h4>
+              <p className="text-sm text-gray-600">
+                Show desktop notifications for important events
+              </p>
+            </div>
+            <button
+              onClick={() => handleToggle("enabled")}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full ${
+                notifications.enabled ? "bg-blue-600" : "bg-gray-200"
+              } transition-colors`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
+                  notifications.enabled ? "translate-x-6" : "translate-x-1"
+                }`}
+              />
+            </button>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <h4 className="font-medium text-gray-800">Notification Sound</h4>
+              <p className="text-sm text-gray-600">
+                Play a sound when notifications appear
+              </p>
+            </div>
+            <button
+              onClick={() => handleToggle("sound")}
+              disabled={!notifications.enabled}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full ${
+                notifications.sound && notifications.enabled
+                  ? "bg-blue-600"
+                  : "bg-gray-200"
+              } transition-colors disabled:opacity-50`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
+                  notifications.sound && notifications.enabled
+                    ? "translate-x-6"
+                    : "translate-x-1"
+                }`}
+              />
+            </button>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <h4 className="font-medium text-gray-800">Show Badge Count</h4>
+              <p className="text-sm text-gray-600">
+                Display unread count on app icon
+              </p>
+            </div>
+            <button
+              onClick={() => handleToggle("badge")}
+              disabled={!notifications.enabled}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full ${
+                notifications.badge && notifications.enabled
+                  ? "bg-blue-600"
+                  : "bg-gray-200"
+              } transition-colors disabled:opacity-50`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
+                  notifications.badge && notifications.enabled
+                    ? "translate-x-6"
+                    : "translate-x-1"
+                }`}
+              />
+            </button>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <h4 className="font-medium text-gray-800">Message Preview</h4>
+              <p className="text-sm text-gray-600">
+                Show message content in notifications
+              </p>
+            </div>
+            <button
+              onClick={() => handleToggle("preview")}
+              disabled={!notifications.enabled}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full ${
+                notifications.preview && notifications.enabled
+                  ? "bg-blue-600"
+                  : "bg-gray-200"
+              } transition-colors disabled:opacity-50`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
+                  notifications.preview && notifications.enabled
+                    ? "translate-x-6"
+                    : "translate-x-1"
+                }`}
+              />
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Shortcuts Settings Component
+const ShortcutsSettingsComponent = () => {
+  const shortcuts = [
+    { action: "Open Omnibox", keys: ["⌘", "K"] },
+    { action: "New Tab", keys: ["⌘", "T"] },
+    { action: "Close Tab", keys: ["⌘", "W"] },
+    { action: "Switch Tab", keys: ["⌘", "1-9"] },
+    { action: "Reload Page", keys: ["⌘", "R"] },
+    { action: "Go Back", keys: ["⌘", "["] },
+    { action: "Go Forward", keys: ["⌘", "]"] },
+    { action: "Find in Page", keys: ["⌘", "F"] },
+    { action: "Downloads", keys: ["⌘", "Shift", "J"] },
+    { action: "Settings", keys: ["⌘", ","] },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <div
+        className="bg-white border border-gray-200 p-6"
+        style={{ borderRadius: "8px", "-webkit-corner-smoothing": "subpixel" }}
+      >
+        <h3 className="text-lg font-semibold text-gray-800 mb-6">
+          Keyboard Shortcuts
+        </h3>
+
+        <div className="space-y-3">
+          {shortcuts.map((shortcut, index) => (
+            <div
+              key={index}
+              className="flex items-center justify-between py-2 border-b border-gray-100 last:border-b-0"
+            >
+              <span className="text-gray-700">{shortcut.action}</span>
+              <div className="flex items-center gap-1">
+                {shortcut.keys.map((key, keyIndex) => (
+                  <kbd
+                    key={keyIndex}
+                    className="px-2 py-1 text-xs font-semibold text-gray-800 bg-gray-100 border border-gray-300 rounded"
+                  >
+                    {key}
+                  </kbd>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <p className="text-sm text-gray-500 mt-4">
+          Keyboard shortcuts cannot be customized at this time.
+        </p>
+      </div>
+    </div>
+  );
+};
+
+// Components Settings Component
+const ComponentsSettingsComponent = () => {
+  const [components, setComponents] = useState({
+    adBlocker: true,
+    bluetooth: false,
+  });
+  const [loading, setLoading] = useState(true);
+
+  const handleToggle = async (component: keyof typeof components) => {
+    const newValue = !components[component];
+    setComponents(prev => ({ ...prev, [component]: newValue }));
+
+    // Save to backend
+    if (window.electron?.ipcRenderer) {
+      await window.electron.ipcRenderer.invoke("settings:update-components", {
+        [component]: newValue,
+      });
+    }
+  };
+
+  useEffect(() => {
+    // Load saved settings
+    const loadSettings = async () => {
+      setLoading(true);
+      try {
+        if (window.electron?.ipcRenderer) {
+          const result = await window.electron.ipcRenderer.invoke(
+            "settings:get-components",
+          );
+          if (result?.success) {
+            setComponents(result.settings);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to load component settings:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    // Delay load to improve perceived performance
+    const timer = setTimeout(loadSettings, 100);
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (loading) {
+    return <LoadingSpinner />;
+  }
+
+  return (
+    <div className="space-y-6">
+      <div
+        className="bg-white border border-gray-200 p-6"
+        style={{ borderRadius: "8px", "-webkit-corner-smoothing": "subpixel" }}
+      >
+        <h3 className="text-lg font-semibold text-gray-800 mb-6">
+          Browser Components
+        </h3>
+
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h4 className="font-medium text-gray-800">Ad Blocker</h4>
+              <p className="text-sm text-gray-600">
+                Block ads and trackers for faster, cleaner browsing
+              </p>
+            </div>
+            <button
+              onClick={() => handleToggle("adBlocker")}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full ${
+                components.adBlocker ? "bg-blue-600" : "bg-gray-200"
+              } transition-colors`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
+                  components.adBlocker ? "translate-x-6" : "translate-x-1"
+                }`}
+              />
+            </button>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <h4 className="font-medium text-gray-800">Bluetooth Support</h4>
+              <p className="text-sm text-gray-600">
+                Enable web pages to connect to Bluetooth devices
+              </p>
+            </div>
+            <button
+              onClick={() => handleToggle("bluetooth")}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full ${
+                components.bluetooth ? "bg-blue-600" : "bg-gray-200"
+              } transition-colors`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
+                  components.bluetooth ? "translate-x-6" : "translate-x-1"
+                }`}
+              />
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};

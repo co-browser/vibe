@@ -244,12 +244,12 @@ const renderContent = (selectedKey: string) => {
               >
                 <Text strong>Search Engine:</Text>
                 <Select
-                  defaultValue="perplexity"
+                  defaultValue="google"
                   style={{ width: 200 }}
                   size="small"
                 >
-                  <Option value="perplexity">Perplexity (AI-powered)</Option>
                   <Option value="google">Google</Option>
+                  <Option value="perplexity">Perplexity (AI-powered)</Option>
                   <Option value="bing">Bing</Option>
                   <Option value="duckduckgo">DuckDuckGo</Option>
                 </Select>

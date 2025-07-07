@@ -66,6 +66,7 @@ export function showContextMenuWithFrameMain(
   menu: Menu,
   x: number,
   y: number,
+  frame: Electron.WebFrameMain,
 ): void {
   try {
     const currentWindow = BrowserWindow.fromWebContents(webContents);
@@ -73,10 +74,10 @@ export function showContextMenuWithFrameMain(
       logger.warn("Main window not found for context menu");
       return;
     }
-
     // Use standard popup method
     menu.popup({
       window: currentWindow,
+      frame,
       x,
       y,
     });
@@ -86,8 +87,10 @@ export function showContextMenuWithFrameMain(
     // Final fallback
     try {
       const currentWindow = BrowserWindow.fromWebContents(webContents);
-      if (currentWindow) {
-        menu.popup({ window: currentWindow, x, y });
+      const fallbackFrame = currentWindow?.webContents.focusedFrame;
+
+      if (currentWindow && fallbackFrame) {
+        menu.popup({ window: currentWindow, x, y, frame: fallbackFrame });
       }
     } catch (fallbackError) {
       logger.error("Final fallback context menu failed", { fallbackError });
@@ -356,13 +359,20 @@ function createContextMenuTemplate(
 export function showContextMenu(
   view: WebContentsView,
   params: ContextMenuParams,
+  frame: Electron.WebFrameMain,
 ): void {
   try {
     const template = createContextMenuTemplate(view, params);
     const menu = Menu.buildFromTemplate(template);
 
     // Use the new utility function that supports WebFrameMain API
-    showContextMenuWithFrameMain(view.webContents, menu, params.x, params.y);
+    showContextMenuWithFrameMain(
+      view.webContents,
+      menu,
+      params.x,
+      params.y,
+      frame,
+    );
 
     logger.debug("Context menu shown", {
       pageURL: params.pageURL,
@@ -385,7 +395,12 @@ export function setupContextMenuHandlers(view: WebContentsView): void {
   // Handle context menu events
   webContents.on("context-menu", (event, params) => {
     event.preventDefault();
-    showContextMenu(view, params);
+    const focusedFrame = webContents.focusedFrame;
+    if (focusedFrame) {
+      showContextMenu(view, params, focusedFrame);
+    } else {
+      logger.warn("No focused frame available for context menu");
+    }
   });
 
   logger.debug("Context menu handlers set up for WebContentsView");

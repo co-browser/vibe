@@ -5,13 +5,15 @@ import {
   createLogger,
   truncateUrl,
 } from "@vibe/shared-types";
-import { WebContentsView } from "electron";
+import { WebContentsView, BrowserWindow, session } from "electron";
 import { EventEmitter } from "events";
+import fs from "fs-extra";
 import type { CDPManager } from "../services/cdp-service";
 import { fetchFaviconAsDataUrl } from "@/utils/favicon";
 import { autoSaveTabToMemory } from "@/utils/tab-agent";
 import { useUserProfileStore } from "@/store/user-profile-store";
 import { setupContextMenuHandlers } from "./context-menu";
+import { WindowBroadcast } from "@/utils/window-broadcast";
 // File system imports removed - now handled in protocol-handler
 
 const logger = createLogger("TabManager");
@@ -31,6 +33,88 @@ export class TabManager extends EventEmitter {
   private activeSaves: Set<string> = new Set(); // Track tabs currently being saved
   private saveQueue: string[] = []; // Queue for saves when at max concurrency
   private readonly maxConcurrentSaves = 3; // Limit concurrent saves
+  private downloadIdMap = new Map<any, string>(); // Map download items to their IDs
+
+  private updateTaskbarProgress(progress: number): void {
+    try {
+      const mainWindow = BrowserWindow.getAllWindows().find(
+        win => !win.isDestroyed() && win.webContents,
+      );
+      if (mainWindow) {
+        mainWindow.setProgressBar(progress);
+        logger.debug(
+          `Download progress updated to: ${(progress * 100).toFixed(1)}%`,
+        );
+      }
+    } catch (error) {
+      logger.warn("Failed to update download progress bar:", error);
+    }
+  }
+
+  private clearTaskbarProgress(): void {
+    try {
+      const mainWindow = BrowserWindow.getAllWindows().find(
+        win => !win.isDestroyed() && win.webContents,
+      );
+      if (mainWindow) {
+        mainWindow.setProgressBar(-1); // Clear progress bar
+        logger.debug("Download progress bar cleared");
+      }
+    } catch (error) {
+      logger.warn("Failed to clear download progress bar:", error);
+    }
+  }
+
+  private updateTaskbarProgressFromOldestDownload(): void {
+    try {
+      const userProfileStore = useUserProfileStore.getState();
+      const activeProfile = userProfileStore.getActiveProfile();
+
+      if (!activeProfile) return;
+
+      const downloads = userProfileStore.getDownloadHistory(activeProfile.id);
+      const downloadingItems = downloads.filter(
+        d => d.status === "downloading",
+      );
+
+      if (downloadingItems.length === 0) {
+        this.clearTaskbarProgress();
+        return;
+      }
+
+      // Find the oldest downloading item
+      const oldestDownloading = downloadingItems.sort(
+        (a, b) => a.createdAt - b.createdAt,
+      )[0];
+
+      if (oldestDownloading && oldestDownloading.progress !== undefined) {
+        const progress = oldestDownloading.progress / 100; // Convert percentage to 0-1 range
+        this.updateTaskbarProgress(progress);
+      }
+    } catch (error) {
+      logger.warn(
+        "Failed to update taskbar progress from oldest download:",
+        error,
+      );
+    }
+  }
+
+  /**
+   * Broadcasts an event to all renderer windows to signal that the download history has been updated.
+   * This is used to trigger a refresh in the downloads window without polling.
+   */
+  private sendDownloadsUpdate(): void {
+    try {
+      // Using a debounced broadcast to prevent spamming renderers during rapid progress updates.
+      WindowBroadcast.debouncedBroadcast(
+        "downloads:history-updated",
+        null,
+        250,
+      );
+    } catch (error) {
+      logger.warn("Failed to broadcast download update:", error);
+    }
+  }
 
   constructor(browser: any, viewManager: any, cdpManager?: CDPManager) {
     super();
@@ -44,14 +128,9 @@ export class TabManager extends EventEmitter {
    * Creates a WebContentsView for a tab
    */
   private createWebContentsView(tabKey: string, url?: string): WebContentsView {
-    // Get active user profile to determine session partition
+    // Get active session from user profile store
     const userProfileStore = useUserProfileStore.getState();
-    const activeProfile = userProfileStore.getActiveProfile();
-
-    // Use profile ID as partition, fallback to default if no profile
-    const partition = activeProfile
-      ? `persist:${activeProfile.id}`
-      : "persist:default";
+    const activeSession = userProfileStore.getActiveSession();
 
     const view = new WebContentsView({
       webPreferences: {
@@ -60,7 +139,7 @@ export class TabManager extends EventEmitter {
         sandbox: true,
         webSecurity: true,
         allowRunningInsecureContent: false,
-        partition, // Use profile-specific partition for session isolation
+        session: activeSession, // Use profile-specific session
       },
     });
 
@@ -109,6 +188,10 @@ export class TabManager extends EventEmitter {
    * Extracted from ViewManager for clean architecture
    */
   private setupNavigationHandlers(view: WebContentsView, tabKey: string): void {
+    console.log(
+      "[Download Debug] *** setupNavigationHandlers called for tab:",
+      tabKey,
+    );
     const webContents = view.webContents;
 
     // Navigation event handlers for tab state updates
@@ -144,9 +227,33 @@ export class TabManager extends EventEmitter {
 
     // PDF detection for URLs that don't end in .pdf
     // Use will-download event to detect PDF downloads and convert them
+    console.log(
+      "[Download Debug] Setting up will-download listener for tab:",
+      tabKey,
+    );
+    console.log("[Download Debug] Session info:", {
+      tabKey,
+      isDefaultSession: webContents.session === session.defaultSession,
+      sessionType: webContents.session.isPersistent()
+        ? "persistent"
+        : "in-memory",
+    });
     webContents.session.on("will-download", (event, item, webContents) => {
       const url = item.getURL();
       const mimeType = item.getMimeType();
+      const fileName = item.getFilename();
+
+      console.log("[Download Debug] *** DOWNLOAD EVENT TRIGGERED ***");
+      console.log("[Download Debug] Tab manager will-download event:", {
+        tabKey,
+        url,
+        mimeType,
+        fileName,
+        isPDF:
+          mimeType === "application/pdf" || url.toLowerCase().endsWith(".pdf"),
+        sessionType:
+          webContents.session === session.defaultSession ? "default" : "custom",
+      });
 
       // Check if this is a PDF download
       if (
@@ -154,6 +261,7 @@ export class TabManager extends EventEmitter {
         url.toLowerCase().endsWith(".pdf")
       ) {
         logger.debug(`PDF detected via download: ${url}`);
+        console.log("[Download Debug] PDF download intercepted and cancelled");
 
         // Cancel the download
         event.preventDefault();
@@ -167,6 +275,160 @@ export class TabManager extends EventEmitter {
             logger.error("Failed to load PDF via custom protocol:", error);
           });
         }, 100);
+      } else {
+        console.log("[Download Debug] Non-PDF download allowed to proceed");
+
+        // Track the download for non-PDF files
+        const savePath = item.getSavePath();
+        const downloadId = `download_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+        console.log("[Download Debug] Tracking download:", {
+          downloadId,
+          fileName,
+          savePath,
+          totalBytes: item.getTotalBytes(),
+        });
+
+        // Add download to history immediately as "downloading"
+        const userProfileStore = useUserProfileStore.getState();
+        const activeProfile = userProfileStore.getActiveProfile();
+
+        if (activeProfile) {
+          console.log("[Download Debug] Adding download to profile:", {
+            profileId: activeProfile.id,
+            fileName,
+            savePath,
+            totalBytes: item.getTotalBytes(),
+          });
+
+          const downloadEntry = userProfileStore.addDownloadEntry(
+            activeProfile.id,
+            {
+              fileName,
+              filePath: savePath,
+              createdAt: Date.now(),
+              status: "downloading",
+              progress: 0,
+              totalBytes: item.getTotalBytes(),
+              receivedBytes: 0,
+              startTime: Date.now(),
+            },
+          );
+
+          console.log("[Download Debug] Download entry created:", {
+            downloadId: downloadEntry.id,
+            fileName: downloadEntry.fileName,
+            status: downloadEntry.status,
+          });
+
+          // Store the actual download ID for later use
+          this.downloadIdMap.set(item, downloadEntry.id);
+
+          // Verify the download was added to the profile
+          const downloads = userProfileStore.getDownloadHistory(
+            activeProfile.id,
+          );
+          console.log("[Download Debug] Profile downloads after adding:", {
+            profileId: activeProfile.id,
+            downloadsCount: downloads.length,
+            latestDownload: downloads[downloads.length - 1],
+          });
+        } else {
+          console.log(
+            "[Download Debug] No active profile for download tracking",
+          );
+        }
+
+        // Track download progress
+        item.on("updated", (_event, state) => {
+          if (state === "progressing" && activeProfile) {
+            const receivedBytes = item.getReceivedBytes();
+            const totalBytes = item.getTotalBytes();
+            const progress = Math.round((receivedBytes / totalBytes) * 100);
+            const actualDownloadId = this.downloadIdMap.get(item);
+
+            if (actualDownloadId) {
+              userProfileStore.updateDownloadProgress(
+                activeProfile.id,
+                actualDownloadId,
+                progress,
+                receivedBytes,
+                totalBytes,
+              );
+
+              // Update taskbar progress based on oldest downloading item
+              this.updateTaskbarProgressFromOldestDownload();
+
+              // Notify renderer of the update
+              this.sendDownloadsUpdate();
+            }
+          }
+        });
+
+        // Track when download completes
+        item.on("done", (_event, state) => {
+          const actualDownloadId = this.downloadIdMap.get(item);
+          console.log("[Download Debug] Download done event (tab manager):", {
+            downloadId: actualDownloadId,
+            fileName,
+            state,
+            savePath,
+          });
+
+          if (state === "completed" && activeProfile && actualDownloadId) {
+            logger.info(`Download completed: ${fileName}`);
+
+            // Update download status to completed
+            userProfileStore.completeDownload(
+              activeProfile.id,
+              actualDownloadId,
+            );
+
+            // Update file existence
+            const exists = fs.existsSync(savePath);
+            console.log(
+              "[Download Debug] Download completed and updated in profile:",
+              {
+                profileId: activeProfile.id,
+                downloadId: actualDownloadId,
+                fileName,
+                fileExists: exists,
+              },
+            );
+
+            // Clean up the download ID mapping
+            this.downloadIdMap.delete(item);
+
+            // Update taskbar progress (will clear if no more downloads)
+            this.updateTaskbarProgressFromOldestDownload();
+
+            // Notify renderer of the update
+            this.sendDownloadsUpdate();
+          } else if (activeProfile && actualDownloadId) {
+            logger.warn(`Download ${state}: ${fileName}`);
+
+            if (state === "cancelled") {
+              userProfileStore.cancelDownload(
+                activeProfile.id,
+                actualDownloadId,
+              );
+            } else {
+              userProfileStore.errorDownload(
+                activeProfile.id,
+                actualDownloadId,
+              );
+            }
+
+            // Clean up the download ID mapping
+            this.downloadIdMap.delete(item);
+
+            // Update taskbar progress even for failed/cancelled downloads
+            this.updateTaskbarProgressFromOldestDownload();
+
+            // Notify renderer of the update
+            this.sendDownloadsUpdate();
+          }
+        });
       }
     });
 
@@ -204,6 +466,12 @@ export class TabManager extends EventEmitter {
     const key = this.generateTabKey();
     const targetUrl = url || "https://www.google.com";
     const newTabPosition = this.calculateNewTabPosition();
+
+    console.log("[Download Debug] *** createTab called:", {
+      key,
+      targetUrl,
+      newTabPosition,
+    });
 
     const tabState: TabState = {
       key,
@@ -923,10 +1191,20 @@ export class TabManager extends EventEmitter {
   }
 
   private createBrowserView(tabKey: string, url: string): void {
+    console.log(
+      "[Download Debug] *** createBrowserView called for tab:",
+      tabKey,
+      "with URL:",
+      url,
+    );
     // Create the WebContentsView internally (moved from ViewManager)
     const view = this.createWebContentsView(tabKey, url);
 
     // Set up navigation events here (moved from ViewManager)
+    console.log(
+      "[Download Debug] *** About to call setupNavigationHandlers for tab:",
+      tabKey,
+    );
     this.setupNavigationHandlers(view, tabKey);
 
     // Register with pure ViewManager utility
@@ -1139,8 +1417,8 @@ export class TabManager extends EventEmitter {
               bottom: 0;
               pointer-events: none;
               z-index: 2147483647;
-              box-shadow: inset 0 0 0 10px rgba(0, 255, 0, 0.2);
-              border: 5px solid rgba(0, 200, 0, 0.3);
+              box-shadow: inset 0 0 0 10px theme('colors.green.200');
+              border: 5px solid theme('colors.green.300');
               box-sizing: border-box;
             }
           \`;

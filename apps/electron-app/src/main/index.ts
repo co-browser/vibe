@@ -12,12 +12,15 @@ import {
   Tray,
   nativeImage,
   Menu,
+  clipboard,
   ipcMain,
   globalShortcut,
 } from "electron";
 import { optimizer } from "@electron-toolkit/utils";
 import { config } from "dotenv";
 import * as path from "path";
+import { autoUpdater } from "electron-updater";
+import ElectronGoogleOAuth2 from "@getstation/electron-google-oauth2";
 
 import { Browser } from "@/browser/browser";
 import { registerAllIpcHandlers } from "@/ipc";
@@ -28,23 +31,25 @@ import { MCPService } from "@/services/mcp-service";
 import { NotificationService } from "@/services/notification-service";
 import { setMCPServiceInstance } from "@/ipc/mcp/mcp-status";
 import { setAgentServiceInstance as setAgentStatusInstance } from "@/ipc/chat/agent-status";
+import { sendTabToAgent } from "@/utils/tab-agent";
 import { setAgentServiceInstance as setChatMessagingInstance } from "@/ipc/chat/chat-messaging";
 import { setAgentServiceInstance as setTabAgentInstance } from "@/utils/tab-agent";
 import { useUserProfileStore } from "@/store/user-profile-store";
+import { initializeSessionManager } from "@/browser/session-manager";
 import {
   createLogger,
   MAIN_PROCESS_CONFIG,
   findFileUpwards,
 } from "@vibe/shared-types";
 import {
-  init,
   browserWindowSessionIntegration,
   childProcessIntegration,
 } from "@sentry/electron/main";
-import AppUpdater from "./services/update-service";
+import { UpdateService } from "./services/update-service";
 import { resourcesPath } from "process";
 import { WindowBroadcast } from "./utils/window-broadcast";
 import { DebounceManager } from "./utils/debounce";
+import { init } from "@sentry/electron/main";
 
 let tray;
 
@@ -76,14 +81,38 @@ init({
   onFatalError: () => {},
 });
 
-if (process.defaultApp) {
+// Set up protocol handler for deep links
+const isDefaultApp =
+  process.defaultApp || process.mas || process.env.NODE_ENV === "development";
+
+if (isDefaultApp) {
   if (process.argv.length >= 2) {
-    app.setAsDefaultProtocolClient("vibe", process.execPath, [
+    const result = app.setAsDefaultProtocolClient("vibe", process.execPath, [
       path.resolve(process.argv[1]),
     ]);
+    logger.info(
+      `Protocol handler registration (dev): ${result ? "success" : "failed"}`,
+    );
   }
 } else {
-  app.setAsDefaultProtocolClient("vibe");
+  const result = app.setAsDefaultProtocolClient("vibe");
+  logger.info(
+    `Protocol handler registration (prod): ${result ? "success" : "failed"}`,
+  );
+}
+
+// Check if we're already the default protocol client
+if (app.isDefaultProtocolClient("vibe")) {
+  logger.info(
+    "Vibe is registered as the default protocol client for vibe:// URLs",
+  );
+} else {
+  logger.warn(
+    "Vibe is NOT registered as the default protocol client for vibe:// URLs",
+  );
+  logger.warn(
+    "Deep links may not work until the app is set as the default handler",
+  );
 }
 
 // Load environment variables
@@ -465,8 +494,18 @@ function initializeApp(): boolean {
   setupChatPanelRecovery();
 
   // Setup second instance handler
-  app.on("second-instance", () => {
+  app.on("second-instance", (event, commandLine, workingDirectory) => {
+    logger.info("Second instance detected", { commandLine, workingDirectory });
+
     if (!browser) return;
+
+    // Check if there's a protocol URL in the command line arguments
+    const protocolUrl = commandLine.find(arg => arg.startsWith("vibe://"));
+    if (protocolUrl) {
+      logger.info(`Second instance with protocol URL: ${protocolUrl}`);
+      // Trigger the open-url handler manually for second instance
+      app.emit("open-url", event, protocolUrl);
+    }
 
     const mainWindow = browser.getMainWindow();
     if (mainWindow) {
@@ -511,11 +550,26 @@ function initializeApp(): boolean {
  */
 async function initializeServices(): Promise<void> {
   try {
+    // Initialize session manager first
+    logger.info("Initializing session manager");
+    initializeSessionManager();
+    logger.info("Session manager initialized");
+
     // Initialize user profile store
     logger.info("Initializing user profile store");
     const userProfileStore = useUserProfileStore.getState();
     await userProfileStore.initialize();
     logger.info("User profile store initialized");
+
+    // Test profile system
+    const testProfile = userProfileStore.getActiveProfile();
+    logger.info("Profile system test:", {
+      hasActiveProfile: !!testProfile,
+      profileId: testProfile?.id,
+      profileName: testProfile?.name,
+      isStoreReady: userProfileStore.isStoreReady(),
+      profilesCount: userProfileStore.profiles.size,
+    });
 
     // Initialize notification service
     try {
@@ -540,6 +594,17 @@ async function initializeServices(): Promise<void> {
       environment: process.env.NODE_ENV || "development",
       has_openai_key: !!process.env.OPENAI_API_KEY,
     });
+
+    // Initialize update service
+    try {
+      logger.info("Initializing update service");
+      const updateService = new UpdateService();
+      await updateService.initialize();
+      logger.info("Update service initialized successfully");
+    } catch (error) {
+      logger.error("Update service initialization failed:", error);
+      logger.warn("Application will continue without update service");
+    }
 
     // Initialize MCP service first (before agent)
     try {
@@ -644,6 +709,20 @@ app.whenReady().then(() => {
   if (isProd) {
     //updater.init();
   }
+
+  app.on("ready", () => {
+    const myApiOauth = new ElectronGoogleOAuth2(
+      "756422833444-057sg8uit7bh2ocoepbahb0h9gsghh74.apps.googleusercontent.com",
+      "CLIENT_SECRET",
+      ["https://www.googleapis.com/auth/drive.metadata.readonly"],
+    );
+
+    myApiOauth.openAuthWindowAndGetTokens().then(token => {
+      console.log(token);
+      // use your token.access_token
+    });
+  });
+
   app.on("browser-window-created", (_, window) => {
     optimizer.watchWindowShortcuts(window);
   });
@@ -653,15 +732,100 @@ app.whenReady().then(() => {
   );
   tray = new Tray(icon);
 
+  // --- Differentiated Tray Menu ---
+  // Provides quick access to Vibe's core AI features without needing to open the main window.
+
+  const handleSendClipboardToAgent = async () => {
+    const text = clipboard.readText();
+    if (text.trim() && agentService) {
+      logger.info(`Sending clipboard to agent: "${text.substring(0, 50)}..."`);
+      // This action will open the chat panel and pre-fill the input with clipboard content.
+      const mainWindow = browser?.getMainWindow();
+      if (mainWindow) {
+        const appWindow = browser?.getApplicationWindow(
+          mainWindow.webContents.id,
+        );
+        appWindow?.viewManager.toggleChatPanel(true);
+        // The renderer should listen for this event to update its state.
+        mainWindow.webContents.send("chat:set-input", text);
+        mainWindow.focus();
+      }
+    } else if (!agentService) {
+      logger.warn("Agent service not available to process clipboard content.");
+    } else {
+      logger.info("Clipboard is empty, nothing to send to agent.");
+    }
+  };
+
   const contextMenu = Menu.buildFromTemplate([
-    { label: "Item1", type: "radio" },
-    { label: "Item2", type: "radio" },
-    { label: "Item3", type: "radio", checked: true },
-    { label: "Item4", type: "radio" },
+    {
+      label: "Open New Window",
+      click: () => browser?.createWindow(),
+    },
+    { type: "separator" },
+    {
+      label: "Agent Actions",
+      submenu: [
+        {
+          label: "Quick Action...",
+          // TODO: Implement a dedicated input window for quick agent commands.
+          enabled: false,
+          click: () => logger.info("Quick Action clicked (not implemented)"),
+        },
+        {
+          label: "Send Clipboard to Agent",
+          click: handleSendClipboardToAgent,
+        },
+        {
+          label: "Analyze Active Tab",
+          click: async () => browser && (await sendTabToAgent(browser)),
+        },
+      ],
+    },
+    {
+      label: "Agent Status: Idle", // TODO: Make this label dynamic based on agentService state.
+      enabled: false,
+    },
+    { type: "separator" },
+    {
+      label: "Settings...",
+      click: () => browser?.getDialogManager()?.showSettingsDialog(),
+    },
+    {
+      label: "Downloads...",
+      click: () => browser?.getDialogManager()?.showDownloadsDialog(),
+    },
+    { type: "separator" },
+    {
+      label: "Check for Updates...",
+      click: () => autoUpdater.checkForUpdates(),
+    },
+    { type: "separator" },
+    { label: "Quit Vibe", role: "quit" },
   ]);
 
   tray.setToolTip("Vibing");
   tray.setContextMenu(contextMenu);
+
+  // --- Dock Menu (macOS) ---
+  if (process.platform === "darwin") {
+    const dockMenu = Menu.buildFromTemplate([
+      {
+        label: "New Window",
+        click: () => browser?.createWindow(),
+      },
+      {
+        label: "Quick Action...",
+        enabled: false,
+        click: () => logger.info("Quick Action clicked (not implemented)"),
+      },
+      {
+        label: "Analyze Active Tab",
+        click: async () => browser && (await sendTabToAgent(browser)),
+      },
+    ]);
+    app.dock?.setMenu(dockMenu);
+  }
 
   // Register the global img:// protocol for PDF handling
   registerImgProtocol();
@@ -672,13 +836,21 @@ app.whenReady().then(() => {
     return;
   }
 
-  // Register global shortcuts
+  // Register global shortcuts - using a dedicated shortcut instead of double-press
   const ccShortcutRegistered = globalShortcut.register(
+    "CommandOrControl+Shift+C",
+    () => {
+      handleCCShortcut();
+    },
+  );
+
+  // Also register the old double-press CC shortcut as fallback
+  const ccDoublePressRegistered = globalShortcut.register(
     "CommandOrControl+C",
     () => {
       // Check if this is a double-press (CC)
       const now = Date.now();
-      if (now - lastCPressTime < 300) {
+      if (now - lastCPressTime < 400) {
         // Double press detected, handle CC shortcut
         lastCPressTime = 0;
         handleCCShortcut();
@@ -690,9 +862,15 @@ app.whenReady().then(() => {
   );
 
   if (ccShortcutRegistered) {
-    logger.info("CC global shortcut registered successfully");
+    logger.info("CC global shortcut (Ctrl+Shift+C) registered successfully");
   } else {
-    logger.error("Failed to register CC global shortcut");
+    logger.error("Failed to register CC global shortcut (Ctrl+Shift+C)");
+  }
+
+  if (ccDoublePressRegistered) {
+    logger.info("CC double-press shortcut (CC) registered successfully");
+  } else {
+    logger.error("Failed to register CC double-press shortcut (CC)");
   }
 
   // Initialize services and create initial window
@@ -710,8 +888,8 @@ app.whenReady().then(() => {
             !mainWindow.webContents.isDestroyed()
           ) {
             //TODO: move to ipc service
-            const appUpdater = new AppUpdater(mainWindow);
-            appUpdater.checkForUpdates();
+            // UpdateService is now initialized globally and handles updates automatically
+            // No need to manually check for updates here as it's handled by the service
             mainWindow.webContents
               .executeJavaScript(
                 `
@@ -839,8 +1017,105 @@ app.on("before-quit", async () => {
 // Platform-specific handling
 app.on("web-contents-created", (_event, contents) => {
   contents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url);
-    return { action: "deny" };
+    // Parse the URL to check if it's an OAuth callback
+    try {
+      const parsedUrl = new URL(url);
+
+      // Check if this is an OAuth callback URL
+      // Common OAuth callback patterns:
+      // - Contains 'callback' in the path
+      // - Contains 'oauth' in the path
+      // - Contains 'code=' or 'token=' in query params
+      // - Is from a known OAuth provider domain
+      const isOAuthCallback =
+        parsedUrl.pathname.includes("callback") ||
+        parsedUrl.pathname.includes("oauth") ||
+        parsedUrl.searchParams.has("code") ||
+        parsedUrl.searchParams.has("token") ||
+        parsedUrl.searchParams.has("access_token") ||
+        parsedUrl.searchParams.has("state");
+
+      // List of known OAuth provider domains that should be allowed
+      const allowedOAuthDomains = [
+        "accounts.google.com",
+        "login.microsoftonline.com",
+        "github.com",
+        "api.github.com",
+        "oauth.github.com",
+        "login.live.com",
+        "login.windows.net",
+        "facebook.com",
+        "www.facebook.com",
+        "twitter.com",
+        "api.twitter.com",
+        "linkedin.com",
+        "www.linkedin.com",
+        "api.linkedin.com",
+        "discord.com",
+        "discord.gg",
+        "slack.com",
+        "api.slack.com",
+        "dropbox.com",
+        "www.dropbox.com",
+        "api.dropbox.com",
+        "reddit.com",
+        "www.reddit.com",
+        "oauth.reddit.com",
+        "twitch.tv",
+        "api.twitch.tv",
+        "id.twitch.tv",
+        "spotify.com",
+        "accounts.spotify.com",
+        "api.spotify.com",
+        "amazon.com",
+        "www.amazon.com",
+        "api.amazon.com",
+        "apple.com",
+        "appleid.apple.com",
+        "developer.apple.com",
+        "paypal.com",
+        "www.paypal.com",
+        "api.paypal.com",
+        "stripe.com",
+        "connect.stripe.com",
+        "dashboard.stripe.com",
+        "zoom.us",
+        "api.zoom.us",
+        "salesforce.com",
+        "login.salesforce.com",
+        "test.salesforce.com",
+        "box.com",
+        "app.box.com",
+        "account.box.com",
+        "atlassian.com",
+        "auth.atlassian.com",
+        "id.atlassian.com",
+        "gitlab.com",
+        "bitbucket.org",
+        "auth.bitbucket.org",
+      ];
+
+      const isFromOAuthProvider = allowedOAuthDomains.some(
+        domain =>
+          parsedUrl.hostname === domain ||
+          parsedUrl.hostname.endsWith("." + domain),
+      );
+
+      // Allow OAuth callbacks or OAuth provider domains to open in the app
+      if (isOAuthCallback || isFromOAuthProvider) {
+        logger.info(`Allowing OAuth-related URL to open in app: ${url}`);
+        return { action: "allow" };
+      }
+
+      // For all other URLs, open externally
+      shell.openExternal(url);
+      return { action: "deny" };
+    } catch (error) {
+      // If URL parsing fails, default to opening externally
+      logger.error("Failed to parse URL for OAuth check:", error);
+      shell.openExternal(url);
+      return { action: "deny" };
+    }
   });
 });
 
@@ -848,7 +1123,7 @@ app.on("before-quit", () => {
   app.isQuitting = true;
 });
 
-const iconName = path.join(resourcesPath, "icon.png");
+const iconName = path.join(resourcesPath, "tray.png");
 
 //drag-n-drop
 ipcMain.on("ondragstart", (event, filePath) => {
@@ -859,6 +1134,56 @@ ipcMain.on("ondragstart", (event, filePath) => {
 });
 
 //deeplink handling
-app.on("open-url", (_event, url) => {
-  dialog.showErrorBox("Welcome Back", `You arrived from: ${url}`);
+app.on("open-url", async (_event, url) => {
+  logger.info(`Deep link received: ${url}`);
+
+  try {
+    const urlObj = new URL(url);
+
+    if (urlObj.protocol === "vibe:" && urlObj.hostname === "import-chrome") {
+      logger.info("Handling vibe://import-chrome deep link");
+
+      // Ensure browser is ready
+      if (!browser) {
+        logger.warn("Browser not ready for deep link handling");
+        return;
+      }
+
+      // Get or create main window
+      let mainWindow = browser.getMainWindow();
+      if (!mainWindow) {
+        await createInitialWindow();
+        mainWindow = browser.getMainWindow();
+      }
+
+      if (mainWindow) {
+        // Focus the main window
+        mainWindow.focus();
+
+        // Open settings dialog
+        logger.info("Opening settings dialog for password import");
+        const dialogManager = browser.getDialogManager();
+        if (dialogManager) {
+          await dialogManager.showSettingsDialog();
+
+          // Send message to settings dialog to trigger Chrome import
+          setTimeout(() => {
+            mainWindow.webContents.send("trigger-chrome-import");
+          }, 1000); // Wait for dialog to be ready
+
+          logger.info("Chrome password import triggered via deep link");
+        } else {
+          logger.error("Dialog manager not available");
+        }
+      } else {
+        logger.error("Main window not available for deep link handling");
+      }
+    } else {
+      // Handle other deep links or show generic message
+      dialog.showErrorBox("Deep Link", `You arrived from: ${url}`);
+    }
+  } catch (error) {
+    logger.error("Error handling deep link:", error);
+    dialog.showErrorBox("Deep Link Error", `Failed to handle: ${url}`);
+  }
 });

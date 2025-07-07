@@ -7,6 +7,10 @@ import { Tabs } from "@sinm/react-chrome-tabs";
 import "@sinm/react-chrome-tabs/css/chrome-tabs.css";
 import type { TabState } from "@vibe/shared-types";
 import { GMAIL_CONFIG } from "@vibe/shared-types";
+import {
+  useContextMenu,
+  TabContextMenuItems,
+} from "../../hooks/useContextMenu";
 import "../styles/TabBar.css";
 
 // Default favicon for tabs that don't have one
@@ -59,6 +63,7 @@ export const ChromeTabBar: React.FC = () => {
   const [tabs, setTabs] = React.useState<TabState[]>([]);
   const [activeTabKey, setActiveTabKey] = React.useState<string | null>(null);
   const [isMacos, setIsMacos] = React.useState(false);
+  const { handleContextMenu } = useContextMenu();
 
   // Platform detection
   useEffect(() => {
@@ -255,9 +260,27 @@ export const ChromeTabBar: React.FC = () => {
     }
   };
 
+  // Context menu items for tabs
+  const getTabContextMenuItems = (tabId?: string) => [
+    TabContextMenuItems.newTab,
+    TabContextMenuItems.separator,
+    ...(tabId
+      ? [
+          { ...TabContextMenuItems.duplicateTab, data: { tabKey: tabId } },
+          TabContextMenuItems.separator,
+          { ...TabContextMenuItems.closeTab, data: { tabKey: tabId } },
+          TabContextMenuItems.closeOtherTabs,
+          TabContextMenuItems.closeTabsToRight,
+          TabContextMenuItems.separator,
+          TabContextMenuItems.reopenClosedTab,
+        ]
+      : []),
+  ];
+
   return (
     <div
       className={`custom-tab-bar-wrapper ${isMacos ? "macos-tabs-container-padded" : ""}`}
+      onContextMenu={handleContextMenu(getTabContextMenuItems())}
     >
       <Tabs
         darkMode={false}

@@ -470,19 +470,27 @@
   left: 0;
   width: 100%;
   max-width: 100%;
-  background-color: var(--input-background, #ffffff);
-  border: 1px solid var(--nav-border);
+  /* Match overlay transparent styling */
+  background: rgba(248, 249, 251, 0.85);
+  border: 1px solid rgba(209, 213, 219, 0.3);
   border-top: none;
   border-radius: 0 0 12px 12px;
+  /* Better corner smoothing */
+  -webkit-corner-smoothing: 100%;
+  -electron-corner-smoothing: 100%;
   box-shadow:
-    0 8px 24px rgba(0, 0, 0, 0.12),
-    0 0 0 1px rgba(0, 0, 0, 0.05);
+    0 8px 32px rgba(0, 0, 0, 0.08),
+    0 2px 8px rgba(0, 0, 0, 0.04),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.2);
   margin: 0;
   max-height: 400px;
   overflow-y: auto;
   z-index: 1000;
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  /* Optimized backdrop filter */
+  backdrop-filter: blur(12px) saturate(150%);
+  -webkit-backdrop-filter: blur(12px) saturate(150%);
+  /* Performance optimizations */
+  will-change: transform, opacity;
   transform: translateY(-2px);
   opacity: 0;
   animation: omniboxSuggestionsAppear 0.15s ease-out forwards;
@@ -493,12 +501,13 @@
 .suggestion-item-fallback {
   display: flex;
   align-items: center;
-  padding: 12px 16px;
+  padding: 10px 14px;
   cursor: pointer;
   transition: all 0.15s ease;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.03);
   -webkit-app-region: no-drag;
   background: transparent;
+  position: relative;
 }
 
 .suggestion-item-fallback:last-child {
@@ -506,34 +515,28 @@
 }
 
 .suggestion-item-fallback:hover {
-  background-color: rgba(0, 0, 0, 0.18);
-  backdrop-filter: blur(12px);
-  transform: translateX(4px);
-  box-shadow:
-    0 4px 12px rgba(0, 0, 0, 0.15),
-    inset 0 0 0 1px rgba(0, 0, 0, 0.1);
-  transition: all 0.15s ease-out;
-}
-
-.suggestion-item-fallback.selected {
-  background-color: rgba(59, 130, 246, 0.15);
-  box-shadow:
-    inset 0 0 0 1px rgba(59, 130, 246, 0.3),
-    0 2px 8px rgba(59, 130, 246, 0.1);
-  backdrop-filter: blur(12px);
+  background-color: rgba(59, 130, 246, 0.08);
   transform: translateX(2px);
 }
 
+.suggestion-item-fallback.selected {
+  background-color: rgba(59, 130, 246, 0.12);
+  box-shadow: inset 0 0 0 1.5px rgba(59, 130, 246, 0.25);
+}
+
 .suggestion-icon-fallback {
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
   margin-right: 12px;
-  color: var(--text-secondary);
   flex-shrink: 0;
-  font-size: 16px;
+  font-size: 18px;
+  /* Better icon container styling */
+  background: rgba(0, 0, 0, 0.02);
+  border-radius: 6px;
+  padding: 2px;
 }
 
 .suggestion-content-fallback {

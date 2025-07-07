@@ -2,6 +2,7 @@ import {
   ipcMain,
   clipboard,
   Menu,
+  BrowserWindow,
   type MenuItemConstructorOptions,
 } from "electron";
 import { showContextMenuWithFrameMain } from "../../browser/context-menu";
@@ -60,12 +61,26 @@ ipcMain.handle(
 
       // Use the new WebFrameMain API utility function for better cross-platform compatibility
       // This works across webcontent, nav, and chat areas
-      showContextMenuWithFrameMain(
-        event.sender,
-        menu,
-        cursorPosition.x || 0,
-        cursorPosition.y || 0,
-      );
+      const focusedFrame = event.sender.focusedFrame;
+      if (focusedFrame) {
+        showContextMenuWithFrameMain(
+          event.sender,
+          menu,
+          cursorPosition.x || 0,
+          cursorPosition.y || 0,
+          focusedFrame,
+        );
+      } else {
+        // Fallback to standard popup without frame for Writing Tools support
+        const currentWindow = BrowserWindow.fromWebContents(event.sender);
+        if (currentWindow) {
+          menu.popup({
+            window: currentWindow,
+            x: cursorPosition.x || 0,
+            y: cursorPosition.y || 0,
+          });
+        }
+      }
 
       return { success: true };
     } catch (error) {

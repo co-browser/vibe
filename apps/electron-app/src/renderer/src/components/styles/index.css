@@ -1,3 +1,8 @@
+/* Tailwind CSS base */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 /* Main application styles */
 @import url("./BrowserUI.css");
 @import url("./TabBar.css");
@@ -29,6 +34,28 @@ body {
 
 /* CSS Custom Properties - Clean bright theme (original working colors) */
 :root {
+  /* Tailwind Design System Variables */
+  --background: 0 0% 100%;
+  --foreground: 222.2 84% 4.9%;
+  --card: 0 0% 100%;
+  --card-foreground: 222.2 84% 4.9%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222.2 84% 4.9%;
+  --primary: 221.2 83.2% 53.3%;
+  --primary-foreground: 210 40% 98%;
+  --secondary: 210 40% 96%;
+  --secondary-foreground: 222.2 84% 4.9%;
+  --muted: 210 40% 96%;
+  --muted-foreground: 215.4 16.3% 46.9%;
+  --accent: 210 40% 96%;
+  --accent-foreground: 222.2 84% 4.9%;
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 210 40% 98%;
+  --border: 214.3 31.8% 91.4%;
+  --input: 214.3 31.8% 91.4%;
+  --ring: 221.2 83.2% 53.3%;
+  --radius: 0.5rem;
+
   /* Bright, clean light theme colors */
   --app-background: #f5f5f5;
   /* Light grey background */
@@ -116,6 +143,22 @@ html {
 ::selection {
   background-color: var(--focus-ring);
   color: white;
+}
+
+/* Dialog window styles */
+.dialog-window {
+  height: 100vh !important;
+  width: 100% !important;
+  overflow: hidden;
+}
+
+.dialog-window body {
+  overflow: hidden;
+}
+
+.dialog-window #root {
+  width: 100%;
+  height: 100%;
 }
 
 /* Debug styles (only in development) */
