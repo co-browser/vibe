@@ -12,6 +12,8 @@ export interface LayoutContextType {
   setChatPanelWidth: (width: number) => void;
   chatPanelKey: number;
   isRecovering: boolean;
+  isChatMinimizedFromResize: boolean; // New field to track if chat was closed due to resize
+  setIsChatMinimizedFromResize: (minimized: boolean) => void; // Setter for the minimized state
 }
 
 export interface ChatPanelState {

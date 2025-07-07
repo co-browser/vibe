@@ -1,5 +1,33 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 
+// Simple throttle function optimized for frequent events like mousemove
+function throttle<T extends (...args: any[]) => any>(
+  fn: T,
+  delay: number = 16, // 60fps by default
+): (...args: Parameters<T>) => void {
+  let lastCall = 0;
+  let timer: number | null = null;
+
+  return (...args: Parameters<T>) => {
+    const now = Date.now();
+
+    if (now - lastCall >= delay) {
+      lastCall = now;
+      fn(...args);
+    } else {
+      if (timer) {
+        cancelAnimationFrame(timer);
+      }
+
+      timer = requestAnimationFrame(() => {
+        lastCall = Date.now();
+        fn(...args);
+        timer = null;
+      });
+    }
+  };
+}
+
 interface DraggableDividerProps {
   onResize: (width: number) => void;
   minWidth: number;
@@ -19,6 +47,14 @@ export const DraggableDivider: React.FC<DraggableDividerProps> = ({
   const dividerRef = useRef<HTMLDivElement>(null);
   const startXRef = useRef(0);
   const startWidthRef = useRef(0);
+  
+  // Create throttled resize function to limit calls to 60fps
+  const throttledResize = useCallback(
+    throttle((width: number) => {
+      onResize(width);
+    }, 16), // 16ms = ~60fps
+    [onResize]
+  );
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
@@ -53,7 +89,7 @@ export const DraggableDivider: React.FC<DraggableDividerProps> = ({
         return;
       }
 
-      onResize(clampedWidth);
+      throttledResize(clampedWidth);
     };
 
     const handleMouseUp = () => {
@@ -65,7 +101,7 @@ export const DraggableDivider: React.FC<DraggableDividerProps> = ({
     };
 
     if (isDragging) {
-      document.addEventListener("mousemove", handleMouseMove);
+      document.addEventListener("mousemove", handleMouseMove, { passive: true });
       document.addEventListener("mouseup", handleMouseUp);
     }
 
@@ -73,7 +109,7 @@ export const DraggableDivider: React.FC<DraggableDividerProps> = ({
       document.removeEventListener("mousemove", handleMouseMove);
       document.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [isDragging, minWidth, maxWidth, onResize, onMinimize]);
+  }, [isDragging, minWidth, maxWidth, throttledResize, onMinimize]);
 
   return (
     <div

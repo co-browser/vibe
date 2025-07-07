@@ -54,7 +54,9 @@ export function ChatPage(): React.JSX.Element {
   useEffect(() => {
     const handleSetInput = (_event: any, text: string) => {
       if (typeof text === "string") {
-        handleInputValueChange(text);
+        handleInputChange({
+          target: { value: text },
+        } as React.ChangeEvent<HTMLTextAreaElement>);
       }
     };
 
@@ -65,7 +67,7 @@ export function ChatPage(): React.JSX.Element {
         handleSetInput,
       );
     };
-  }, [handleInputValueChange]);
+  }, [handleInputChange]);
 
   useEffect(() => {
     // Track message updates for state management

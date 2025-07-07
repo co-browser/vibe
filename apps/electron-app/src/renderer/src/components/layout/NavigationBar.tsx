@@ -29,6 +29,7 @@ import type { SuggestionMetadata } from "../../../../types/metadata";
 import { MetadataHelpers } from "../../../../types/metadata";
 import { createLogger } from "@vibe/shared-types";
 import { ChatMinimizedOrb } from "../ui/ChatMinimizedOrb";
+import { useLayout } from "../main/MainApp";
 import "../styles/NavigationBar.css";
 
 const logger = createLogger("NavigationBar");
@@ -85,8 +86,15 @@ const NavigationBar: React.FC = () => {
     title: "",
   });
   const [agentStatus, setAgentStatus] = useState(false);
-  const [chatPanelVisible, setChatPanelVisible] = useState(false);
   const [overlaySystemWorking, setOverlaySystemWorking] = useState(true);
+  
+  // Use layout context for chat panel state
+  const { 
+    isChatPanelVisible: chatPanelVisible, 
+    isChatMinimizedFromResize,
+    setChatPanelVisible,
+    setIsChatMinimizedFromResize
+  } = useLayout();
 
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -494,28 +502,8 @@ const NavigationBar: React.FC = () => {
     return cleanup;
   }, []);
 
-  // Monitor chat panel visibility
-  useEffect(() => {
-    const getChatPanelState = async () => {
-      try {
-        const state = await window.vibe.interface.getChatPanelState();
-        setChatPanelVisible(state.isVisible);
-      } catch (error) {
-        logger.error("Failed to get chat panel state:", error);
-      }
-    };
-
-    getChatPanelState();
-
-    // Listen for chat panel visibility changes
-    const cleanup = window.vibe.interface.onChatPanelVisibilityChanged(
-      isVisible => {
-        setChatPanelVisible(isVisible);
-      },
-    );
-
-    return cleanup;
-  }, []);
+  // Chat panel visibility is now managed by the layout context
+  // No need for local state management
 
   // This useEffect will be moved after handleSuggestionClick is defined
 
@@ -1029,12 +1017,18 @@ const NavigationBar: React.FC = () => {
   const handleToggleChat = useCallback(async () => {
     try {
       const newVisibility = !chatPanelVisible;
+      
+      // When manually toggling chat open, reset the enhanced mode state
+      if (newVisibility) {
+        setIsChatMinimizedFromResize(false);
+      }
+      
       window.vibe.interface.toggleChatPanel(newVisibility);
       setChatPanelVisible(newVisibility);
     } catch (error) {
       logger.error("Failed to toggle chat:", error);
     }
-  }, [chatPanelVisible]);
+  }, [chatPanelVisible, setChatPanelVisible, setIsChatMinimizedFromResize]);
 
   // Input handling with debouncing and race condition prevention
   const handleInputChange = useCallback(
@@ -1412,6 +1406,7 @@ const NavigationBar: React.FC = () => {
         <ChatMinimizedOrb
           onClick={handleToggleChat}
           hasUnreadMessages={false}
+          enhanced={isChatMinimizedFromResize}
         />
       )}
     </div>

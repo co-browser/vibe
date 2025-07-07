@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import NavigationBar from "../layout/NavigationBar";
 import ChromeTabBar from "../layout/TabBar";
 import { ChatPage } from "../../pages/chat/ChatPage";
@@ -16,6 +16,34 @@ import {
 } from "@vibe/shared-types";
 
 const logger = createLogger("MainApp");
+
+// Simple throttle function to limit IPC calls
+function throttle<T extends (...args: any[]) => any>(
+  fn: T,
+  delay: number = 100,
+): (...args: Parameters<T>) => void {
+  let lastCall = 0;
+  let timer: number | null = null;
+
+  return (...args: Parameters<T>) => {
+    const now = Date.now();
+
+    if (now - lastCall >= delay) {
+      lastCall = now;
+      fn(...args);
+    } else {
+      if (timer) {
+        clearTimeout(timer);
+      }
+
+      timer = window.setTimeout(() => {
+        lastCall = Date.now();
+        fn(...args);
+        timer = null;
+      }, delay);
+    }
+  };
+}
 
 // Window interface is defined in env.d.ts
 
@@ -97,7 +125,7 @@ function useChatPanelHealthCheck(
 
 const LayoutContext = React.createContext<LayoutContextType | null>(null);
 
-function useLayout(): LayoutContextType {
+export function useLayout(): LayoutContextType {
   const context = React.useContext(LayoutContext);
   if (!context) {
     throw new Error("useLayout must be used within a LayoutProvider");
@@ -116,6 +144,7 @@ function LayoutProvider({
   );
   const [chatPanelKey, setChatPanelKey] = useState(0);
   const [isRecovering, setIsRecovering] = useState(false);
+  const [isChatMinimizedFromResize, setIsChatMinimizedFromResize] = useState(false);
 
   const debounceTimeout = useRef<NodeJS.Timeout | null>(null);
   const pendingState = useRef<boolean | null>(null);
@@ -216,6 +245,8 @@ function LayoutProvider({
     setChatPanelWidth,
     chatPanelKey,
     isRecovering,
+    isChatMinimizedFromResize,
+    setIsChatMinimizedFromResize,
   };
 
   return (
@@ -242,19 +273,44 @@ function ChatPanelSidebar(): React.JSX.Element | null {
     isRecovering,
     setChatPanelWidth,
     setChatPanelVisible,
+    setIsChatMinimizedFromResize,
   } = useLayout();
 
   if (!isChatPanelVisible) {
     return null;
   }
 
-  const handleResize = (newWidth: number) => {
+  const handleResize = useCallback((newWidth: number) => {
     setChatPanelWidth(newWidth);
-    // Persist the width preference
-    window.vibe?.interface?.setChatPanelWidth?.(newWidth);
-  };
+    
+    // Check if the new width is too small (below minimum) and minimize with enhanced mode
+    if (newWidth < CHAT_PANEL.MIN_WIDTH) {
+      setIsChatMinimizedFromResize(true);
+      setChatPanelVisible(false);
+      window.vibe?.interface?.toggleChatPanel?.(false);
+    } else {
+      // Reset the minimized from resize state if width is sufficient
+      setIsChatMinimizedFromResize(false);
+    }
+  }, []);
+
+  // Throttled IPC call to avoid excessive logging
+  const throttledIPCWidth = useCallback(
+    throttle((width: number) => {
+      window.vibe?.interface?.setChatPanelWidth?.(width);
+    }, 100), // Only send IPC every 100ms
+    []
+  );
+
+  // Handle resize with throttled IPC
+  const handleResizeWithIPC = useCallback((newWidth: number) => {
+    handleResize(newWidth);
+    throttledIPCWidth(newWidth);
+  }, [handleResize, throttledIPCWidth]);
 
   const handleMinimize = () => {
+    // When manually minimized, don't set enhanced mode
+    setIsChatMinimizedFromResize(false);
     setChatPanelVisible(false);
     window.vibe?.interface?.toggleChatPanel?.(false);
   };
@@ -270,7 +326,7 @@ function ChatPanelSidebar(): React.JSX.Element | null {
       }}
     >
       <DraggableDivider
-        onResize={handleResize}
+        onResize={handleResizeWithIPC}
         minWidth={CHAT_PANEL.MIN_WIDTH}
         maxWidth={CHAT_PANEL.MAX_WIDTH}
         currentWidth={chatPanelWidth}

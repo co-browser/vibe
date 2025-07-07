@@ -7,6 +7,9 @@ import { contextBridge, ipcRenderer, IpcRendererEvent } from "electron";
 import { electronAPI } from "@electron-toolkit/preload";
 import "@sentry/electron/preload";
 
+// Increase max listeners to prevent memory leak warnings for chat input
+ipcRenderer.setMaxListeners(20);
+
 // Import shared vibe types
 import { TabState, createLogger } from "@vibe/shared-types";
 
