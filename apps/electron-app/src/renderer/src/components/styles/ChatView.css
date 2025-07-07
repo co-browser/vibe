@@ -396,6 +396,16 @@
   opacity: 0.6;
 }
 
+.assistant-message-copy-button.error {
+  color: var(--error-color);
+  border-color: var(--error-color);
+}
+
+.assistant-message-copy-button.error:hover {
+  background-color: rgba(239, 68, 68, 0.1);
+  color: var(--error-color);
+}
+
 /* Reset the parent container to normal only for thinking indicator */
 .assistant-message-content:has(.thinking-indicator) {
   background: none;

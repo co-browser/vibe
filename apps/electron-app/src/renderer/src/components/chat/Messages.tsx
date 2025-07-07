@@ -34,6 +34,10 @@ export const Messages: React.FC<MessagesProps> = ({
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState<string>("");
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const [copyErrorMessageId, setCopyErrorMessageId] = useState<string | null>(
+    null,
+  );
+  const copyTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
   const { getSuggestions, parsePrompt } = useTabAliases();
   const [tabs, setTabs] = useState<any[]>([]);
 
@@ -46,6 +50,15 @@ export const Messages: React.FC<MessagesProps> = ({
     groupedMessages,
     isAiGenerating,
   );
+
+  // Cleanup copy timeout on unmount
+  React.useEffect(() => {
+    return () => {
+      if (copyTimeoutRef.current) {
+        clearTimeout(copyTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Fetch tabs to check for current tab
   React.useEffect(() => {
@@ -240,12 +253,45 @@ export const Messages: React.FC<MessagesProps> = ({
       textContent = JSON.stringify(content);
     }
 
+    // Clear any existing timeout
+    if (copyTimeoutRef.current) {
+      clearTimeout(copyTimeoutRef.current);
+    }
+
     try {
-      await navigator.clipboard.writeText(textContent);
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(textContent);
+      } else {
+        // Fallback for browsers that don't support clipboard API
+        const textarea = document.createElement("textarea");
+        textarea.value = textContent;
+        textarea.style.position = "fixed";
+        textarea.style.left = "-999999px";
+        document.body.appendChild(textarea);
+        textarea.select();
+        const success = document.execCommand("copy");
+        document.body.removeChild(textarea);
+
+        if (!success) {
+          throw new Error("Copy command failed");
+        }
+      }
+
       setCopiedMessageId(messageId);
-      setTimeout(() => setCopiedMessageId(null), 2000);
+      setCopyErrorMessageId(null);
+
+      copyTimeoutRef.current = setTimeout(() => {
+        setCopiedMessageId(null);
+      }, 2000);
     } catch (err) {
       console.error("Failed to copy text:", err);
+      setCopyErrorMessageId(messageId);
+      setCopiedMessageId(null);
+
+      // Clear error after 2 seconds
+      copyTimeoutRef.current = setTimeout(() => {
+        setCopyErrorMessageId(null);
+      }, 2000);
     }
   };
 
@@ -358,23 +404,31 @@ export const Messages: React.FC<MessagesProps> = ({
                         {aiMsg.content &&
                           typeof aiMsg.content !== "undefined" && (
                             <button
-                              className="assistant-message-copy-button"
+                              className={`assistant-message-copy-button ${
+                                copyErrorMessageId === aiMsg.id ? "error" : ""
+                              }`}
                               onClick={() =>
                                 handleCopyMessage(aiMsg.id, aiMsg.content)
                               }
                               title={
-                                copiedMessageId === aiMsg.id
-                                  ? "Copied!"
-                                  : "Copy message"
+                                copyErrorMessageId === aiMsg.id
+                                  ? "Failed to copy"
+                                  : copiedMessageId === aiMsg.id
+                                    ? "Copied!"
+                                    : "Copy message"
                               }
                               aria-label={
-                                copiedMessageId === aiMsg.id
-                                  ? "Message copied"
-                                  : "Copy message to clipboard"
+                                copyErrorMessageId === aiMsg.id
+                                  ? "Failed to copy message"
+                                  : copiedMessageId === aiMsg.id
+                                    ? "Message copied"
+                                    : "Copy message to clipboard"
                               }
                               disabled={copiedMessageId === aiMsg.id}
                             >
-                              {copiedMessageId === aiMsg.id ? (
+                              {copyErrorMessageId === aiMsg.id ? (
+                                <X size={14} />
+                              ) : copiedMessageId === aiMsg.id ? (
                                 <Check size={14} />
                               ) : (
                                 <Copy size={14} />
