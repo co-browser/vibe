@@ -2,7 +2,7 @@ import React, { useState, useMemo } from "react";
 import type { Message as AiSDKMessage } from "@ai-sdk/react";
 import { useAutoScroll } from "../../hooks/useAutoScroll";
 import { createMessageContentRenderer } from "../../utils/messageContentRenderer";
-import { Edit3, Check, X } from "lucide-react";
+import { Edit3, Check, X, Copy } from "lucide-react";
 import { TabReferencePill } from "./TabReferencePill";
 import { useTabAliases } from "@/hooks/useTabAliases";
 import { TabContextBar } from "./TabContextBar";
@@ -33,6 +33,7 @@ export const Messages: React.FC<MessagesProps> = ({
     streamingContent || {};
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState<string>("");
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const { getSuggestions, parsePrompt } = useTabAliases();
   const [tabs, setTabs] = useState<any[]>([]);
 
@@ -218,9 +219,39 @@ export const Messages: React.FC<MessagesProps> = ({
     }
   };
 
+  const handleCopy = (e: React.ClipboardEvent) => {
+    const selection = window.getSelection()?.toString();
+    if (selection) {
+      e.preventDefault();
+      e.clipboardData.setData("text/plain", selection);
+    }
+  };
+
+  const handleCopyMessage = async (messageId: string, content: any) => {
+    let textContent = "";
+
+    if (typeof content === "string") {
+      textContent = content;
+    } else if (Array.isArray(content)) {
+      textContent = content
+        .map(part => (part.type === "text" ? part.text : ""))
+        .join("");
+    } else {
+      textContent = JSON.stringify(content);
+    }
+
+    try {
+      await navigator.clipboard.writeText(textContent);
+      setCopiedMessageId(messageId);
+      setTimeout(() => setCopiedMessageId(null), 2000);
+    } catch (err) {
+      console.error("Failed to copy text:", err);
+    }
+  };
+
   return (
     <>
-      <div className="space-y-6" ref={containerRef}>
+      <div className="space-y-6" ref={containerRef} onCopy={handleCopy}>
         {groupedMessages.map((group, index) => {
           const isLatestGroup = index === groupedMessages.length - 1;
           const isEditing = editingMessageId === group.userMessage.id;
@@ -324,6 +355,21 @@ export const Messages: React.FC<MessagesProps> = ({
                             group.assistantMessages,
                           )}
                         </div>
+                        {aiMsg.content && (
+                          <button
+                            className="assistant-message-copy-button"
+                            onClick={() =>
+                              handleCopyMessage(aiMsg.id, aiMsg.content)
+                            }
+                            title="Copy text"
+                          >
+                            {copiedMessageId === aiMsg.id ? (
+                              <Check size={14} />
+                            ) : (
+                              <Copy size={14} />
+                            )}
+                          </button>
+                        )}
                       </div>
                     );
                   })}
