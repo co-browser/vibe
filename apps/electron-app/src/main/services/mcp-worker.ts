@@ -8,9 +8,9 @@ import { utilityProcess, type UtilityProcess } from "electron";
 import { setupProcessStorageHandler } from "../ipc/user/settings/process-storage-handler";
 import path from "path";
 import fs from "fs";
-import { createLogger } from "@vibe/shared-types";
+import { createElectronLogger } from "../utils/electron-logger";
 
-const logger = createLogger("MCPWorker");
+const logger = createElectronLogger("MCPWorker");
 
 export class MCPWorker extends EventEmitter {
   private workerProcess: UtilityProcess | null = null;
@@ -119,9 +119,9 @@ export class MCPWorker extends EventEmitter {
       PATH: process.env.PATH, // Pass through PATH for finding executables
       GMAIL_CLIENT_ID: process.env.GMAIL_CLIENT_ID,
       GMAIL_CLIENT_SECRET: process.env.GMAIL_CLIENT_SECRET,
-      // RAG server environment variables
-      USE_LOCAL_RAG_SERVER: process.env.USE_LOCAL_RAG_SERVER,
-      RAG_SERVER_URL: process.env.RAG_SERVER_URL,
+      // RAG server environment variables (default to "false" if not set)
+      USE_LOCAL_RAG_SERVER: process.env.USE_LOCAL_RAG_SERVER || "false",
+      RAG_SERVER_URL: process.env.RAG_SERVER_URL || "https://rag.cobrowser.xyz",
       OPENAI_API_KEY: process.env.OPENAI_API_KEY,
       TURBOPUFFER_API_KEY: process.env.TURBOPUFFER_API_KEY,
       ENABLE_PPL_CHUNKING: process.env.ENABLE_PPL_CHUNKING,

@@ -36,6 +36,13 @@ import {
   childProcessIntegration,
 } from "@sentry/electron/main";
 import AppUpdater from "./services/update-service";
+import log from "electron-log";
+
+// Configure electron-log to write to file
+log.transports.file.level = "info";
+log.transports.file.fileName = "main.log";
+log.transports.console.level =
+  process.env.NODE_ENV === "development" ? "info" : "error";
 
 // Set consistent log level for all processes
 if (!process.env.LOG_LEVEL) {
@@ -65,13 +72,67 @@ init({
 
 // Simple logging only for now
 
-// Load environment variables
-const envPath = findFileUpwards(__dirname, ".env");
-if (envPath) {
-  config({ path: envPath });
+// Load environment variables only in development
+// In production, environment variables should be set via LSEnvironment or system
+let envPath: string | null = null;
+if (!app.isPackaged) {
+  envPath = findFileUpwards(__dirname, ".env");
+  if (envPath) {
+    config({ path: envPath });
+    logger.info(`Loaded environment variables from: ${envPath}`);
+  } else {
+    logger.warn(".env file not found in directory tree");
+  }
 } else {
-  logger.warn(".env file not found in directory tree");
+  logger.info("Running in packaged mode, skipping .env file loading");
 }
+
+// ---------------------------------------------------------------------------
+// 🛠  Local RAG server toggle
+// ---------------------------------------------------------------------------
+// 1. In packaged (production) builds we *never* want to start the local RAG
+//    server unless the user explicitly opts-in.  Finder launches inherit a
+//    sparse environment which can accidentally pick up a lingering
+//    USE_LOCAL_RAG_SERVER=TRUE from a previous shell or system-wide export.
+// 2. To avoid surprises we forcibly set the variable to "false" for packaged
+//    apps **unless** the user passes `--enable-local-rag` on the command line.
+
+const userEnabledLocalRag = process.argv.includes("--enable-local-rag");
+
+if (app.isPackaged) {
+  if (userEnabledLocalRag) {
+    process.env.USE_LOCAL_RAG_SERVER = "true";
+    logger.info("User flag detected – enabling local RAG server");
+  } else {
+    if (process.env.USE_LOCAL_RAG_SERVER !== "false") {
+      logger.info(
+        `Overriding USE_LOCAL_RAG_SERVER (${process.env.USE_LOCAL_RAG_SERVER}) → false for packaged build`,
+      );
+    }
+    process.env.USE_LOCAL_RAG_SERVER = "false";
+  }
+} else {
+  // Development: if not set, default to false to avoid unintended server spin-up
+  if (!process.env.USE_LOCAL_RAG_SERVER) {
+    process.env.USE_LOCAL_RAG_SERVER = "false";
+  }
+}
+// ---------------------------------------------------------------------------
+
+// Debug: Log environment state after loading
+logger.debug("Main Process Environment:", {
+  USE_LOCAL_RAG_SERVER: process.env.USE_LOCAL_RAG_SERVER || "undefined",
+  NODE_ENV: process.env.NODE_ENV || "undefined",
+  PATH: process.env.PATH
+    ? `${process.env.PATH.substring(0, 100)}...`
+    : "undefined",
+  OPENAI_API_KEY: process.env.OPENAI_API_KEY ? "present" : "not set",
+  envFileFound: !!envPath,
+  isPackaged: app.isPackaged,
+  LaunchMethod: process.env.PATH?.includes("/usr/local/bin")
+    ? "terminal"
+    : "finder/dock",
+});
 
 // Global browser instance
 export let browser: Browser | null = null;

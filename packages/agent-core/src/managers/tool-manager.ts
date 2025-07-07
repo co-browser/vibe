@@ -120,8 +120,9 @@ export class ToolManager implements IToolManager {
 
     try {
       const tools = await this.getTools();
-      if (!tools) {
-        return "No tools available";
+      if (!tools || Object.keys(tools).length === 0) {
+        logger.warn(`${LOG_PREFIX} No tools available for formatting`);
+        return "No tools are currently available. Please ensure MCP servers are properly configured and running.";
       }
 
       logger.debug(

@@ -56,6 +56,7 @@ jobs:
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
           NODE_ENV: production
           GH_TOKEN: ${{ secrets.RELEASE_PAT || secrets.GITHUB_TOKEN }}
+          PUBLISH_RELEASE: true
         run: pnpm --filter vibe build:mac
 
       - name: List artifacts

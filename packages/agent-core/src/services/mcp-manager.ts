@@ -394,6 +394,10 @@ export class MCPManager implements IMCPManager {
         FAST_MODE: process.env.FAST_MODE || "",
         VERBOSE_LOGS: process.env.VERBOSE_LOGS || "",
       };
+      logger.debug("RAG env vars for auth token update:", {
+        USE_LOCAL_RAG_SERVER: envVars.USE_LOCAL_RAG_SERVER || "empty",
+        RAG_SERVER_URL: envVars.RAG_SERVER_URL || "empty",
+      });
       const ragConfig = createMCPServerConfig("rag", envVars);
 
       if (ragConfig?.url) {

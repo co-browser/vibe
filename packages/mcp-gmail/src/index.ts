@@ -14,6 +14,15 @@ const log = {
   error: (msg: string, ...args: any[]) => console.error(`[ERROR] [mcp-gmail] ${msg}`, ...args),
 };
 
+// Log startup information
+log.info('Gmail MCP server starting...', {
+  NODE_VERSION: process.version,
+  CWD: process.cwd(),
+  PORT: process.env.PORT || 3001,
+  PATH: process.env.PATH,
+  HOME: process.env.HOME,
+});
+
 const server = new StreamableHTTPServer(
   new Server(
     {
@@ -130,4 +139,15 @@ async function gracefulShutdown(signal: string) {
 }
 
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
-process.on('SIGTERM', () => gracefulShutdown('SIGTERM')); 
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+
+// Handle uncaught errors
+process.on('uncaughtException', (error) => {
+  log.error('Uncaught exception:', error);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, _promise) => {
+  log.error('Unhandled promise rejection:', reason);
+  process.exit(1);
+}); 
