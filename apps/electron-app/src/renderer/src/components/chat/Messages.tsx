@@ -355,21 +355,32 @@ export const Messages: React.FC<MessagesProps> = ({
                             group.assistantMessages,
                           )}
                         </div>
-                        {aiMsg.content && (
-                          <button
-                            className="assistant-message-copy-button"
-                            onClick={() =>
-                              handleCopyMessage(aiMsg.id, aiMsg.content)
-                            }
-                            title="Copy text"
-                          >
-                            {copiedMessageId === aiMsg.id ? (
-                              <Check size={14} />
-                            ) : (
-                              <Copy size={14} />
-                            )}
-                          </button>
-                        )}
+                        {aiMsg.content &&
+                          typeof aiMsg.content !== "undefined" && (
+                            <button
+                              className="assistant-message-copy-button"
+                              onClick={() =>
+                                handleCopyMessage(aiMsg.id, aiMsg.content)
+                              }
+                              title={
+                                copiedMessageId === aiMsg.id
+                                  ? "Copied!"
+                                  : "Copy message"
+                              }
+                              aria-label={
+                                copiedMessageId === aiMsg.id
+                                  ? "Message copied"
+                                  : "Copy message to clipboard"
+                              }
+                              disabled={copiedMessageId === aiMsg.id}
+                            >
+                              {copiedMessageId === aiMsg.id ? (
+                                <Check size={14} />
+                              ) : (
+                                <Copy size={14} />
+                              )}
+                            </button>
+                          )}
                       </div>
                     );
                   })}
