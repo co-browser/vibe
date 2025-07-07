@@ -133,9 +133,7 @@
   position: relative;
   overflow: hidden;
 
-  /* Extend background to top edge to prevent gaps */
-  margin-top: -1px;
-  padding-top: 1px;
+  /* Remove gap prevention - proper margins handle this now */
 }
 
 .browser-view-content {

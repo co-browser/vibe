@@ -27,7 +27,11 @@ import {
 } from "../../hooks/useContextMenu";
 import type { SuggestionMetadata } from "../../../../types/metadata";
 import { MetadataHelpers } from "../../../../types/metadata";
+import { createLogger } from "@vibe/shared-types";
+import { ChatMinimizedOrb } from "../ui/ChatMinimizedOrb";
 import "../styles/NavigationBar.css";
+
+const logger = createLogger("NavigationBar");
 
 interface Suggestion {
   id: string;
@@ -125,7 +129,7 @@ const NavigationBar: React.FC = () => {
   const handleOverlaySuggestionClick = useCallback(
     (suggestion: any) => {
       try {
-        console.log("[NavigationBar] Overlay suggestion clicked:", suggestion);
+        logger.info("Overlay suggestion clicked:", suggestion);
 
         // Immediately hide suggestions and blur for instant UI response
         setShowSuggestions(false);
@@ -163,11 +167,11 @@ const NavigationBar: React.FC = () => {
               setInputValue(suggestion.text);
             }
           } catch (error) {
-            console.error("Failed to handle navigation:", error);
+            logger.error("Failed to handle navigation:", error);
           }
         }, 0);
       } catch (error) {
-        console.error("Failed to handle overlay suggestion click:", error);
+        logger.error("Failed to handle overlay suggestion click:", error);
         setShowSuggestions(false);
       }
     },
@@ -182,7 +186,7 @@ const NavigationBar: React.FC = () => {
   const handleDeleteHistory = useCallback(
     async (suggestionId: string) => {
       try {
-        console.log("[NavigationBar] Deleting history item:", suggestionId);
+        logger.info(" Deleting history item:", suggestionId);
         const suggestionToDelete = suggestions.find(s => s.id === suggestionId);
         setSuggestions(prev => prev.filter(s => s.id !== suggestionId));
         if (suggestionToDelete?.url) {
@@ -192,7 +196,7 @@ const NavigationBar: React.FC = () => {
           historyCache.current.clear();
         }
       } catch (error) {
-        console.error("Failed to delete history item:", error);
+        logger.error("Failed to delete history item:", error);
       }
     },
     [suggestions],
@@ -329,8 +333,8 @@ const NavigationBar: React.FC = () => {
         iconType: getIconType(s), // Add icon type for overlay to recreate
       }));
 
-      console.log(
-        "[NavigationBar] Showing suggestions to overlay:",
+      logger.info(
+        " Showing suggestions to overlay:",
         serializableSuggestions.length,
         "suggestions",
       );
@@ -339,15 +343,15 @@ const NavigationBar: React.FC = () => {
       const overlaySuccess = showOverlaySuggestions(serializableSuggestions);
 
       if (!overlaySuccess) {
-        console.warn(
-          "[NavigationBar] Overlay system failed, suggestions will show in fallback dropdown",
+        logger.warn(
+          " Overlay system failed, suggestions will show in fallback dropdown",
         );
         setOverlaySystemWorking(false);
       } else {
         setOverlaySystemWorking(true);
       }
     } else if (!showSuggestions) {
-      console.log("[NavigationBar] Hiding suggestions from overlay");
+      logger.info(" Hiding suggestions from overlay");
       hideOverlaySuggestions();
     }
   }, [
@@ -406,7 +410,7 @@ const NavigationBar: React.FC = () => {
           }
         }
       } catch (error) {
-        console.error("Failed to get active tab:", error);
+        logger.error("Failed to get active tab:", error);
       }
     };
 
@@ -461,7 +465,7 @@ const NavigationBar: React.FC = () => {
             }
           })
           .catch(error => {
-            console.error("Failed to get switched tab details:", error);
+            logger.error("Failed to get switched tab details:", error);
           });
       }
     });
@@ -476,7 +480,7 @@ const NavigationBar: React.FC = () => {
         const status = await window.vibe.chat.getAgentStatus();
         setAgentStatus(status);
       } catch (error) {
-        console.error("Failed to check agent status:", error);
+        logger.error("Failed to check agent status:", error);
       }
     };
 
@@ -497,7 +501,7 @@ const NavigationBar: React.FC = () => {
         const state = await window.vibe.interface.getChatPanelState();
         setChatPanelVisible(state.isVisible);
       } catch (error) {
-        console.error("Failed to get chat panel state:", error);
+        logger.error("Failed to get chat panel state:", error);
       }
     };
 
@@ -620,7 +624,7 @@ const NavigationBar: React.FC = () => {
         suggestions: suggestions.slice(0, 3), // Limit to 3 suggestions
       };
     } catch (error) {
-      console.error("Failed to fetch Perplexity suggestions:", error);
+      logger.error("Failed to fetch Perplexity suggestions:", error);
       // Fallback to basic suggestion
       return {
         query,
@@ -662,14 +666,10 @@ const NavigationBar: React.FC = () => {
       // Show most frequently visited sites for empty input
       if (!input.trim()) {
         try {
-          console.log("[NavigationBar] Getting top sites for empty input");
+          logger.debug("Getting top sites for empty input");
           const topSites =
             (await window.vibe.profile?.getNavigationHistory?.("", 10)) || [];
-          console.log(
-            "[NavigationBar] Top sites result:",
-            topSites.length,
-            "entries",
-          );
+          logger.debug("Top sites result:", topSites.length, "entries");
 
           // Sort by visit count and recency for better ranking
           const sortedSites = topSites.sort((a, b) => {
@@ -697,12 +697,12 @@ const NavigationBar: React.FC = () => {
             metadata: entry,
           }));
         } catch (error) {
-          console.error("Failed to get top sites:", error);
+          logger.error("Failed to get top sites:", error);
         }
         return [];
       }
 
-      console.log("[NavigationBar] Generating suggestions for:", input);
+      logger.debug("Generating suggestions for:", input);
 
       // Detect input type
       const detectInputType = (input: string): "url" | "search" => {
@@ -712,7 +712,7 @@ const NavigationBar: React.FC = () => {
 
       const inputType = detectInputType(input);
       const inputLower = input.toLowerCase();
-      console.log("[NavigationBar] Input type detected:", inputType);
+      logger.debug("Input type detected:", inputType);
 
       // --- Performance Improvement: Parallelize async data fetching ---
       // Start fetching non-dependent data sources concurrently.
@@ -738,9 +738,9 @@ const NavigationBar: React.FC = () => {
 
           if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
             profileHistory = cached.data;
-            console.log("[NavigationBar] Using cached history for:", input);
+            logger.debug("Using cached history for:", input);
           } else {
-            console.log("[NavigationBar] Fetching fresh history for:", input);
+            logger.debug("Fetching fresh history for:", input);
             // Get more history entries for better coverage
             profileHistory =
               (await window.vibe.profile?.getNavigationHistory?.(
@@ -748,8 +748,8 @@ const NavigationBar: React.FC = () => {
                 12, // Increased to 12 for better coverage
               )) || [];
 
-            console.log(
-              "[NavigationBar] Profile history result:",
+            logger.debug(
+              "Profile history result:",
               profileHistory.length,
               "entries",
             );
@@ -782,11 +782,7 @@ const NavigationBar: React.FC = () => {
                 metadata: entry,
               }));
 
-            console.log(
-              "[NavigationBar] History matches:",
-              historyMatches.length,
-              "items",
-            );
+            logger.debug("History matches:", historyMatches.length, "items");
 
             // Enhanced scoring: heavily weight visit count and recency
             historyMatches.sort((a, b) => {
@@ -813,10 +809,10 @@ const NavigationBar: React.FC = () => {
 
             historySuggestions = historyMatches;
           } else {
-            console.log("[NavigationBar] No history matches found for:", input);
+            logger.debug("No history matches found for:", input);
           }
         } catch (error) {
-          console.error("Failed to get profile history:", error);
+          logger.error("Failed to get profile history:", error);
         }
 
         // Add history suggestions FIRST (highest priority)
@@ -884,7 +880,7 @@ const NavigationBar: React.FC = () => {
 
             suggestions.push(...contextMatches);
           } catch (fallbackError) {
-            console.error("Fallback context retrieval failed:", fallbackError);
+            logger.error("Fallback context retrieval failed:", fallbackError);
           }
         }
 
@@ -933,12 +929,12 @@ const NavigationBar: React.FC = () => {
             );
             suggestions.push(...perplexitySuggestions);
           } catch (error) {
-            console.error("Failed to fetch Perplexity suggestions:", error);
+            logger.error("Failed to fetch Perplexity suggestions:", error);
           }
         }
         // ---------------------------------------------------------
       } catch (error) {
-        console.error("Failed to generate suggestions:", error);
+        logger.error("Failed to generate suggestions:", error);
 
         // Fallback to basic search suggestion using default search engine
         if (suggestions.length === 0) {
@@ -971,8 +967,8 @@ const NavigationBar: React.FC = () => {
         }
       }
 
-      console.log(
-        "[NavigationBar] Total suggestions generated:",
+      logger.debug(
+        "Total suggestions generated:",
         suggestions.length,
         suggestions,
       );
@@ -993,7 +989,7 @@ const NavigationBar: React.FC = () => {
           timestamp: Date.now(),
         });
       } catch (error) {
-        console.error("Failed to go back:", error);
+        logger.error("Failed to go back:", error);
       }
     }
   }, [currentTabKey, navigationState.canGoBack]);
@@ -1009,7 +1005,7 @@ const NavigationBar: React.FC = () => {
           timestamp: Date.now(),
         });
       } catch (error) {
-        console.error("Failed to go forward:", error);
+        logger.error("Failed to go forward:", error);
       }
     }
   }, [currentTabKey, navigationState.canGoForward]);
@@ -1025,7 +1021,7 @@ const NavigationBar: React.FC = () => {
           timestamp: Date.now(),
         });
       } catch (error) {
-        console.error("Failed to reload:", error);
+        logger.error("Failed to reload:", error);
       }
     }
   }, [currentTabKey]);
@@ -1036,7 +1032,7 @@ const NavigationBar: React.FC = () => {
       window.vibe.interface.toggleChatPanel(newVisibility);
       setChatPanelVisible(newVisibility);
     } catch (error) {
-      console.error("Failed to toggle chat:", error);
+      logger.error("Failed to toggle chat:", error);
     }
   }, [chatPanelVisible]);
 
@@ -1048,7 +1044,7 @@ const NavigationBar: React.FC = () => {
       lastOperationRef.current = operationId;
 
       setInputValue(value);
-      console.log("[NavigationBar] Input changed to:", value);
+      logger.debug("Input changed to:", value);
 
       // Clear existing timer and nullify ref
       if (debounceTimerRef.current) {
@@ -1067,23 +1063,18 @@ const NavigationBar: React.FC = () => {
           if (lastOperationRef.current !== operationId) return;
 
           try {
-            console.log(
-              "[NavigationBar] Debounce timer fired, generating suggestions...",
-            );
+            logger.debug("Debounce timer fired, generating suggestions...");
             const newSuggestions = await generateRealSuggestions(value);
 
             // Double-check operation is still current after async operation
             if (lastOperationRef.current === operationId) {
-              console.log(
-                "[NavigationBar] Setting suggestions:",
-                newSuggestions,
-              );
+              logger.debug("Setting suggestions:", newSuggestions);
               setSuggestions(newSuggestions);
               setShowSuggestions(newSuggestions.length > 0);
               setSelectedIndex(-1);
             }
           } catch (error) {
-            console.error("Failed to generate suggestions:", error);
+            logger.error("Failed to generate suggestions:", error);
             // Only update state if operation is still current
             if (lastOperationRef.current === operationId) {
               setSuggestions([]);
@@ -1134,7 +1125,7 @@ const NavigationBar: React.FC = () => {
 
     // Delay hiding suggestions to allow for clicks on suggestions
     blurTimeoutRef.current = setTimeout(() => {
-      console.log("[NavigationBar] Blur timeout fired, hiding suggestions");
+      logger.debug("Blur timeout fired, hiding suggestions");
       setShowSuggestions(false);
       setSelectedIndex(-1);
       blurTimeoutRef.current = null;
@@ -1145,7 +1136,7 @@ const NavigationBar: React.FC = () => {
     // Force clear stuck overlay with Ctrl+Shift+Escape
     if (e.ctrlKey && e.shiftKey && e.key === "Escape") {
       e.preventDefault();
-      console.log("[NavigationBar] Force clearing stuck overlay");
+      logger.info(" Force clearing stuck overlay");
       forceClearOverlay();
       setShowSuggestions(false);
       setSelectedIndex(-1);
@@ -1179,8 +1170,8 @@ const NavigationBar: React.FC = () => {
           } else {
             // It's not a valid URL - do nothing on Tab
             // User must press Enter to search
-            console.log(
-              "[NavigationBar] Tab pressed but input is not a valid URL, not navigating",
+            logger.debug(
+              "Tab pressed but input is not a valid URL, not navigating",
             );
           }
         }
@@ -1236,14 +1227,14 @@ const NavigationBar: React.FC = () => {
         timestamp: Date.now(),
       });
     } catch (error) {
-      console.error("Failed to navigate:", error);
+      logger.error("Failed to navigate:", error);
     }
   };
 
   const handleSuggestionClick = useCallback(
     async (suggestion: Suggestion) => {
       try {
-        console.log("[NavigationBar] Suggestion clicked:", suggestion);
+        logger.info(" Suggestion clicked:", suggestion);
 
         // Immediately hide suggestions to prevent stuck overlay
         setShowSuggestions(false);
@@ -1264,7 +1255,7 @@ const NavigationBar: React.FC = () => {
               // Open chat panel and send query
               await window.vibe.interface.toggleChatPanel(true);
               // In a real implementation, you would send the query to the agent
-              console.log("Asking agent:", suggestion.metadata.query);
+              logger.info("Asking agent:", suggestion.metadata.query);
             }
           }
         } else if (suggestion.url && currentTabKey) {
@@ -1282,7 +1273,7 @@ const NavigationBar: React.FC = () => {
 
         inputRef.current?.blur();
       } catch (error) {
-        console.error("Failed to handle suggestion click:", error);
+        logger.error("Failed to handle suggestion click:", error);
         // Ensure suggestions are hidden even on error
         setShowSuggestions(false);
       }
@@ -1370,7 +1361,7 @@ const NavigationBar: React.FC = () => {
               className="overlay-status-indicator"
               title="Overlay system disabled - Using fallback dropdown"
               onClick={() => {
-                console.log("[NavigationBar] Overlay system is disabled");
+                logger.warn("Overlay system is disabled");
               }}
             >
               <span style={{ fontSize: "10px", color: "#FF6B6B" }}>⚠</span>
@@ -1415,6 +1406,14 @@ const NavigationBar: React.FC = () => {
             )}
         </div>
       </div>
+
+      {/* Show minimized orb when chat panel is hidden */}
+      {!chatPanelVisible && agentStatus && (
+        <ChatMinimizedOrb
+          onClick={handleToggleChat}
+          hasUnreadMessages={false}
+        />
+      )}
     </div>
   );
 };

@@ -4,6 +4,9 @@
 
 import { ipcMain } from "electron";
 import type { MCPService } from "@/services/mcp-service";
+import { createLogger } from "@vibe/shared-types";
+
+const logger = createLogger("mcp-status");
 
 // Module-level reference to MCP service instance
 let mcpServiceInstance: MCPService | null = null;
@@ -29,7 +32,7 @@ ipcMain.handle("mcp:get-status", async () => {
   try {
     return mcpServiceInstance.getStatus();
   } catch (error) {
-    console.error("[IPC] Failed to get MCP status:", error);
+    logger.error("Failed to get MCP status:", error);
     return {
       initialized: false,
       serviceStatus: "error",

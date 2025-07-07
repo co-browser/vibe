@@ -5,13 +5,17 @@ import { ChatPage } from "../../pages/chat/ChatPage";
 import { ChatErrorBoundary } from "../ui/error-boundary";
 import { SettingsModal } from "../modals/SettingsModal";
 import { DownloadsModal } from "../modals/DownloadsModal";
+import { DraggableDivider } from "../ui/DraggableDivider";
 
 import {
   CHAT_PANEL,
   CHAT_PANEL_RECOVERY,
   IPC_EVENTS,
   type LayoutContextType,
+  createLogger,
 } from "@vibe/shared-types";
+
+const logger = createLogger("MainApp");
 
 // Window interface is defined in env.d.ts
 
@@ -231,12 +235,29 @@ function LayoutProvider({
 }
 
 function ChatPanelSidebar(): React.JSX.Element | null {
-  const { isChatPanelVisible, chatPanelWidth, chatPanelKey, isRecovering } =
-    useLayout();
+  const {
+    isChatPanelVisible,
+    chatPanelWidth,
+    chatPanelKey,
+    isRecovering,
+    setChatPanelWidth,
+    setChatPanelVisible,
+  } = useLayout();
 
   if (!isChatPanelVisible) {
     return null;
   }
+
+  const handleResize = (newWidth: number) => {
+    setChatPanelWidth(newWidth);
+    // Persist the width preference
+    window.vibe?.interface?.setChatPanelWidth?.(newWidth);
+  };
+
+  const handleMinimize = () => {
+    setChatPanelVisible(false);
+    window.vibe?.interface?.toggleChatPanel?.(false);
+  };
 
   return (
     <div
@@ -245,8 +266,16 @@ function ChatPanelSidebar(): React.JSX.Element | null {
         width: `${chatPanelWidth}px`,
         minWidth: `${CHAT_PANEL.MIN_WIDTH}px`,
         maxWidth: `${CHAT_PANEL.MAX_WIDTH}px`,
+        position: "relative",
       }}
     >
+      <DraggableDivider
+        onResize={handleResize}
+        minWidth={CHAT_PANEL.MIN_WIDTH}
+        maxWidth={CHAT_PANEL.MAX_WIDTH}
+        currentWidth={chatPanelWidth}
+        onMinimize={handleMinimize}
+      />
       <div className="chat-panel-content">
         {isRecovering && (
           <div
@@ -368,14 +397,11 @@ export function MainApp(): React.JSX.Element {
 
   // Debug logging for modal states
   useEffect(() => {
-    console.log("[MainApp] Settings modal state changed:", isSettingsModalOpen);
+    logger.debug("Settings modal state changed:", isSettingsModalOpen);
   }, [isSettingsModalOpen]);
 
   useEffect(() => {
-    console.log(
-      "[MainApp] Downloads modal state changed:",
-      isDownloadsModalOpen,
-    );
+    logger.debug("Downloads modal state changed:", isDownloadsModalOpen);
   }, [isDownloadsModalOpen]);
 
   useEffect(() => {
@@ -398,12 +424,12 @@ export function MainApp(): React.JSX.Element {
   // Handle modal IPC events
   useEffect(() => {
     const handleShowSettingsModal = () => {
-      console.log("[MainApp] Received app:show-settings-modal event");
+      logger.info("Received app:show-settings-modal event");
       setIsSettingsModalOpen(true);
     };
 
     const handleShowDownloadsModal = () => {
-      console.log("[MainApp] Received app:show-downloads-modal event");
+      logger.info("Received app:show-downloads-modal event");
       setIsDownloadsModalOpen(true);
     };
 
@@ -470,14 +496,14 @@ export function MainApp(): React.JSX.Element {
         <SettingsModal
           isOpen={isSettingsModalOpen}
           onClose={() => {
-            console.log("[MainApp] Closing settings modal");
+            logger.debug("Closing settings modal");
             setIsSettingsModalOpen(false);
           }}
         />
         <DownloadsModal
           isOpen={isDownloadsModalOpen}
           onClose={() => {
-            console.log("[MainApp] Closing downloads modal");
+            logger.debug("Closing downloads modal");
             setIsDownloadsModalOpen(false);
           }}
         />

@@ -20,21 +20,21 @@ const logger = createLogger("ApplicationMenu");
  * Shows the settings modal (placeholder implementation)
  */
 function showSettingsModal() {
-  console.log("[Menu] showSettingsModal called");
+  logger.debug("[Menu] showSettingsModal called");
   const focusedWindow = BrowserWindow.getFocusedWindow();
-  console.log(
+  logger.debug(
     "[Menu] Focused window:",
     focusedWindow ? `ID: ${focusedWindow.id}` : "none",
   );
   if (focusedWindow) {
-    console.log(
+    logger.debug(
       "[Menu] Sending app:show-settings-modal to window",
       focusedWindow.id,
     );
     focusedWindow.webContents.send("app:show-settings-modal");
-    console.log("[Menu] IPC event sent successfully");
+    logger.debug("[Menu] IPC event sent successfully");
   } else {
-    console.warn(
+    logger.warn(
       "[Menu] No focused window found, cannot send settings modal event",
     );
   }
@@ -44,22 +44,22 @@ function showSettingsModal() {
  * Shows the downloads modal
  */
 function showDownloadsModal() {
-  console.log("[Menu] showDownloadsModal called");
+  logger.debug("[Menu] showDownloadsModal called");
   const focusedWindow = BrowserWindow.getFocusedWindow();
-  console.log(
+  logger.debug(
     "[Menu] Focused window:",
     focusedWindow ? `ID: ${focusedWindow.id}` : "none",
   );
 
   if (focusedWindow) {
-    console.log(
+    logger.debug(
       "[Menu] Sending app:show-downloads-modal to window",
       focusedWindow.id,
     );
     focusedWindow.webContents.send("app:show-downloads-modal");
-    console.log("[Menu] IPC event sent successfully");
+    logger.debug("[Menu] IPC event sent successfully");
   } else {
-    console.warn(
+    logger.warn(
       "[Menu] No focused window found, cannot send downloads modal event",
     );
   }
@@ -172,6 +172,32 @@ function createApplicationMenu(browser: Browser): MenuItemConstructorOptions[] {
         label: "Send Tab to Agent Memory",
         accelerator: isMac ? "Option+Command+M" : "Control+Alt+M",
         click: async () => await sendTabToAgent(browser),
+      },
+      {
+        label: "Quick View",
+        accelerator: isMac ? "Command+Option+V" : "Control+Alt+V",
+        click: async () => {
+          const focusedWindow = BrowserWindow.getFocusedWindow();
+          if (focusedWindow) {
+            const appWindow = browser.getApplicationWindow(
+              focusedWindow.webContents.id,
+            );
+            if (appWindow) {
+              const activeTab = appWindow.tabManager.getActiveTab();
+              if (activeTab) {
+                // TODO: Implement Quick View functionality
+                dialog.showMessageBox(focusedWindow, {
+                  type: "info",
+                  title: "Quick View",
+                  message: "Quick View feature coming soon!",
+                  detail:
+                    "This will provide a quick overview of the current page content.",
+                  buttons: ["OK"],
+                });
+              }
+            }
+          }
+        },
       },
       { type: "separator" },
       ...(isMac

@@ -3,6 +3,10 @@
  * Tracks rendering performance and provides optimization insights
  */
 
+import { createLogger } from "@vibe/shared-types";
+
+const logger = createLogger("OverlayPerformance");
+
 export interface OverlayPerformanceMetrics {
   renderCount: number;
   averageRenderTime: number;
@@ -310,7 +314,7 @@ export function measurePerformance<T extends (...args: any[]) => any>(
     overlayPerformanceMonitor.recordRender(duration);
 
     if (duration > 16) {
-      console.warn(
+      logger.warn(
         `[Performance] Slow ${context} operation: ${duration.toFixed(2)}ms`,
       );
     }

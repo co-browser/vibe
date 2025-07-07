@@ -1,6 +1,9 @@
 import { promises as fs } from "fs";
 import { join } from "path";
 import { app } from "electron";
+import { createLogger } from "@vibe/shared-types";
+
+const logger = createLogger("update-rollback");
 
 export interface VersionInfo {
   version: string;
@@ -24,9 +27,9 @@ export class UpdateRollback {
     try {
       await this.loadVersionHistory();
       await this.addCurrentVersion();
-      console.log("Update rollback initialized");
+      logger.info("Update rollback initialized");
     } catch (error) {
-      console.error("Failed to initialize update rollback:", error);
+      logger.error("Failed to initialize update rollback", { error });
     }
   }
 
@@ -36,7 +39,7 @@ export class UpdateRollback {
       this.versions = JSON.parse(data);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
-        console.error("Failed to load version history:", error);
+        logger.error("Failed to load version history", { error });
       }
     }
   }
@@ -48,7 +51,7 @@ export class UpdateRollback {
         JSON.stringify(this.versions, null, 2),
       );
     } catch (error) {
-      console.error("Failed to save version history:", error);
+      logger.error("Failed to save version history", { error });
     }
   }
 
@@ -79,7 +82,9 @@ export class UpdateRollback {
       );
 
       await this.saveVersionHistory();
-      console.log(`Added current version to history: ${currentVersion}`);
+      logger.info("Added current version to history", {
+        version: currentVersion,
+      });
     } else {
       // Update existing version to be current
       this.versions.forEach(v => (v.isCurrent = false));
@@ -100,7 +105,7 @@ export class UpdateRollback {
 
   public async rollbackToVersion(version: string): Promise<boolean> {
     try {
-      console.log(`Attempting to rollback to version: ${version}`);
+      logger.info("Attempting to rollback to version", { version });
 
       // Validate version exists
       const targetVersion = this.versions.find(v => v.version === version);
@@ -119,13 +124,13 @@ export class UpdateRollback {
       if (success) {
         // Update version history
         await this.markVersionAsCurrent(version);
-        console.log(`Successfully rolled back to version: ${version}`);
+        logger.info("Successfully rolled back to version", { version });
         return true;
       } else {
         throw new Error("Rollback operation failed");
       }
     } catch (error) {
-      console.error("Rollback failed:", error);
+      logger.error("Rollback failed", { error });
       return false;
     }
   }
@@ -160,7 +165,7 @@ export class UpdateRollback {
           throw new Error(`Unsupported platform: ${process.platform}`);
       }
     } catch (error) {
-      console.error("Platform-specific rollback failed:", error);
+      logger.error("Platform-specific rollback failed", { error });
       return false;
     }
   }
@@ -172,7 +177,7 @@ export class UpdateRollback {
       // 2. Replace the app bundle with the backup
       // 3. Restart the app
 
-      console.log(`Rolling back on macOS to version: ${version}`);
+      logger.info("Rolling back on macOS to version", { version });
 
       // This is a simplified implementation
       // In a real app, you'd need to handle the actual file replacement
@@ -180,14 +185,14 @@ export class UpdateRollback {
 
       return true;
     } catch (error) {
-      console.error("macOS rollback failed:", error);
+      logger.error("macOS rollback failed", { error });
       return false;
     }
   }
 
   private async rollbackOnWindows(version: string): Promise<boolean> {
     try {
-      console.log(`Rolling back on Windows to version: ${version}`);
+      logger.info("Rolling back on Windows to version", { version });
 
       // For Windows, we would typically:
       // 1. Stop the current app
@@ -199,14 +204,14 @@ export class UpdateRollback {
 
       return true;
     } catch (error) {
-      console.error("Windows rollback failed:", error);
+      logger.error("Windows rollback failed", { error });
       return false;
     }
   }
 
   private async rollbackOnLinux(version: string): Promise<boolean> {
     try {
-      console.log(`Rolling back on Linux to version: ${version}`);
+      logger.info("Rolling back on Linux to version", { version });
 
       // For Linux, we would typically:
       // 1. Stop the current app
@@ -218,7 +223,7 @@ export class UpdateRollback {
 
       return true;
     } catch (error) {
-      console.error("Linux rollback failed:", error);
+      logger.error("Linux rollback failed", { error });
       return false;
     }
   }
@@ -251,11 +256,11 @@ export class UpdateRollback {
 
       // Copy current app files to backup
       // This is a simplified implementation
-      console.log(`Created backup for version: ${currentVersion}`);
+      logger.info("Created backup for version", { version: currentVersion });
 
       return true;
     } catch (error) {
-      console.error("Failed to create backup:", error);
+      logger.error("Failed to create backup", { error });
       return false;
     }
   }
@@ -268,9 +273,9 @@ export class UpdateRollback {
         await this.saveVersionHistory();
       }
 
-      console.log("Update rollback cleanup completed");
+      logger.info("Update rollback cleanup completed");
     } catch (error) {
-      console.error("Failed to cleanup update rollback:", error);
+      logger.error("Failed to cleanup update rollback", { error });
     }
   }
 }

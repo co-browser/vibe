@@ -30,10 +30,8 @@
   position: relative;
   overflow: hidden;
   color: var(--chat-text-primary);
-  border: 1px solid var(--chat-border-subtle);
-  border-radius: 8px;
-  margin-left: 10px;
-  margin-right: 10px;
+  border-left: 1px solid var(--chat-border-subtle);
+  /* Remove margins for seamless integration */
   /* Remove shadow for seamless edge-to-edge design */
 }
 
@@ -370,9 +368,17 @@
 /* Input section - the stamped design */
 .chat-input-section {
   background-color: var(--chat-background-primary);
-  padding: 16px 20px 20px 20px !important;
+  padding: 16px 20px 0 20px !important;
   position: relative;
   border-top: 1px solid var(--chat-border-subtle);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Online status strip at the bottom */
+.chat-input-section .online-status-strip {
+  margin-top: 16px;
+  flex-shrink: 0;
 }
 
 .chat-input-container {

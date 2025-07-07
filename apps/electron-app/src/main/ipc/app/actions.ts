@@ -6,6 +6,9 @@ import {
   type MenuItemConstructorOptions,
 } from "electron";
 import { showContextMenuWithFrameMain } from "../../browser/context-menu";
+import { createLogger } from "@vibe/shared-types";
+
+const logger = createLogger("actions");
 
 /**
  * User action handlers
@@ -84,7 +87,7 @@ ipcMain.handle(
 
       return { success: true };
     } catch (error) {
-      console.error("Failed to show context menu:", error);
+      logger.error("Failed to show context menu:", error);
       return {
         success: false,
         error: error instanceof Error ? error.message : String(error),

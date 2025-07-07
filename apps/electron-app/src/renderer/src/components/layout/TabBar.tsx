@@ -2,16 +2,18 @@
  * TabBar component - Uses @sinm/react-chrome-tabs library for proper Chrome styling
  */
 
-import React, { useMemo, useEffect } from "react";
+import React, { useMemo, useEffect, useCallback } from "react";
 import { Tabs } from "@sinm/react-chrome-tabs";
 import "@sinm/react-chrome-tabs/css/chrome-tabs.css";
 import type { TabState } from "@vibe/shared-types";
-import { GMAIL_CONFIG } from "@vibe/shared-types";
+import { GMAIL_CONFIG, createLogger } from "@vibe/shared-types";
 import {
   useContextMenu,
   TabContextMenuItems,
 } from "../../hooks/useContextMenu";
 import "../styles/TabBar.css";
+
+const logger = createLogger("TabBar");
 
 // Default favicon for tabs that don't have one
 const DEFAULT_FAVICON =
@@ -91,11 +93,46 @@ export const ChromeTabBar: React.FC = () => {
         const activeKey = await window.vibe.tabs.getActiveTabKey();
         setActiveTabKey(activeKey);
       } catch (error) {
-        console.error("Failed to load tabs:", error);
+        logger.error("Failed to load tabs:", error);
       }
     };
     loadTabs();
   }, []);
+
+  // Event handlers
+  const handleTabClose = useCallback(async (tabId: string): Promise<void> => {
+    // Prevent closing OAuth tabs - they close automatically
+    if (tabId === GMAIL_CONFIG.OAUTH_TAB_KEY) {
+      return;
+    }
+
+    try {
+      await window.vibe.tabs.closeTab(tabId);
+    } catch (error) {
+      logger.error("Failed to close tab:", error);
+    }
+  }, []);
+
+  // Handle Command+W shortcut from menu
+  useEffect(() => {
+    const handleCloseActiveTab = () => {
+      if (activeTabKey && activeTabKey !== GMAIL_CONFIG.OAUTH_TAB_KEY) {
+        handleTabClose(activeTabKey);
+      }
+    };
+
+    window.electron?.ipcRenderer?.on(
+      "window:close-active-tab",
+      handleCloseActiveTab,
+    );
+
+    return () => {
+      window.electron?.ipcRenderer?.removeListener(
+        "window:close-active-tab",
+        handleCloseActiveTab,
+      );
+    };
+  }, [activeTabKey, handleTabClose]);
 
   // Tab events
   useEffect(() => {
@@ -112,7 +149,9 @@ export const ChromeTabBar: React.FC = () => {
           );
           setTabs(sortedTabs);
         })
-        .catch(console.error);
+        .catch(error =>
+          logger.error("Failed to get tabs after creation:", error),
+        );
     });
 
     const cleanupUpdated = window.vibe.tabs.onTabStateUpdate(
@@ -162,7 +201,12 @@ export const ChromeTabBar: React.FC = () => {
             setActiveTabKey(firstRegularTab.key);
             window.vibe.tabs
               .switchToTab(firstRegularTab.key)
-              .catch(console.error);
+              .catch(error =>
+                logger.error(
+                  "Failed to switch to tab after OAuth completed:",
+                  error,
+                ),
+              );
           }
 
           return remainingTabs;
@@ -207,20 +251,7 @@ export const ChromeTabBar: React.FC = () => {
     try {
       await window.vibe.tabs.switchToTab(tabId);
     } catch (error) {
-      console.error("Failed to switch tab:", error);
-    }
-  };
-
-  const handleTabClose = async (tabId: string): Promise<void> => {
-    // Prevent closing OAuth tabs - they close automatically
-    if (tabId === GMAIL_CONFIG.OAUTH_TAB_KEY) {
-      return;
-    }
-
-    try {
-      await window.vibe.tabs.closeTab(tabId);
-    } catch (error) {
-      console.error("Failed to close tab:", error);
+      logger.error("Failed to switch tab:", error);
     }
   };
 
@@ -228,7 +259,7 @@ export const ChromeTabBar: React.FC = () => {
     try {
       await window.vibe.tabs.createTab();
     } catch (error) {
-      console.error("Failed to create tab:", error);
+      logger.error("Failed to create tab:", error);
     }
   };
 
@@ -250,7 +281,7 @@ export const ChromeTabBar: React.FC = () => {
       const orderedKeys = reorderedTabs.map(tab => tab.key);
       await window.vibe.tabs.reorderTabs(orderedKeys);
     } catch (error) {
-      console.error("Failed to reorder tabs:", error);
+      logger.error("Failed to reorder tabs:", error);
       // Revert on error
       const tabData = await window.vibe.tabs.getTabs();
       const sortedTabs = tabData.sort(
@@ -281,6 +312,8 @@ export const ChromeTabBar: React.FC = () => {
     <div
       className={`custom-tab-bar-wrapper ${isMacos ? "macos-tabs-container-padded" : ""}`}
       onContextMenu={handleContextMenu(getTabContextMenuItems())}
+      // Note: Individual tab context menus are not supported by the chrome-tabs library
+      // Context menu works on the tab bar area but not individual tabs
     >
       <Tabs
         darkMode={false}

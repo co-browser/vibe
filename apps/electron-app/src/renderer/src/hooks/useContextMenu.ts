@@ -5,6 +5,9 @@
 
 import { useContext, useCallback } from "react";
 import { ContextMenuContext } from "../contexts/ContextMenuContext";
+import { createLogger } from "@vibe/shared-types";
+
+const logger = createLogger("context-menu");
 
 export function useContextMenuActions() {
   const context = useContext(ContextMenuContext);
@@ -46,7 +49,7 @@ export function useContextMenu(): UseContextMenuReturn {
           await window.vibe.actions.showContextMenu(items);
         }
       } catch (error) {
-        console.error("Failed to show context menu:", error);
+        logger.error("Failed to show context menu:", error);
       }
     },
     [],

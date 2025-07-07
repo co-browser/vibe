@@ -2,6 +2,9 @@ import { protocol } from "electron";
 import { existsSync } from "fs";
 import { readFile } from "fs/promises";
 import { parse } from "path";
+import { createLogger } from "@vibe/shared-types";
+
+const logger = createLogger("protocol-handler");
 
 type BufferLoader = (
   filepath: string,
@@ -55,7 +58,7 @@ async function pdfToImage(
 
     return buffer;
   } catch (reason) {
-    console.log("PDF conversion failed:", reason);
+    logger.error("PDF conversion failed:", reason);
 
     // Return placeholder image as fallback
     const placeholderImage = Buffer.from(
@@ -120,5 +123,5 @@ export function registerImgProtocol(): void {
     return new Response(null, { status: 404 });
   });
 
-  console.log("✓ Registered img:// protocol handler globally");
+  logger.info("✓ Registered img:// protocol handler globally");
 }

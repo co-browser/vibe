@@ -5,7 +5,10 @@
 
 import { EventEmitter } from "events";
 import { MCPWorker } from "./mcp-worker";
+import { createLogger } from "@vibe/shared-types";
 import type { IMCPService, MCPServerStatus } from "@vibe/shared-types";
+
+const logger = createLogger("MCPService");
 
 export class MCPService extends EventEmitter implements IMCPService {
   private worker: MCPWorker | null = null;
@@ -22,13 +25,13 @@ export class MCPService extends EventEmitter implements IMCPService {
    */
   async initialize(): Promise<void> {
     if (this.initialized) {
-      console.log("[MCPService] Already initialized");
+      logger.info("Already initialized");
       return;
     }
 
     try {
       this.status = "initializing";
-      console.log("[MCPService] Initializing MCP service");
+      logger.info("Initializing MCP service");
 
       // Create and start MCPWorker instance
       this.worker = new MCPWorker();
@@ -42,7 +45,7 @@ export class MCPService extends EventEmitter implements IMCPService {
       this.initialized = true;
       this.status = "ready";
 
-      console.log("[MCPService] MCP service initialized successfully");
+      logger.info("MCP service initialized successfully");
 
       // Emit service ready event
       this.emit("ready", {
@@ -50,7 +53,7 @@ export class MCPService extends EventEmitter implements IMCPService {
       });
     } catch (error) {
       this.status = "error";
-      console.error("[MCPService] Initialization failed:", error);
+      logger.error("Initialization failed:", error);
 
       // Cleanup on failure
       if (this.worker) {
@@ -92,7 +95,7 @@ export class MCPService extends EventEmitter implements IMCPService {
           },
         };
       } catch (error) {
-        console.warn("[MCPService] Failed to get worker status:", error);
+        logger.warn("Failed to get worker status:", error);
       }
     }
 
@@ -107,7 +110,7 @@ export class MCPService extends EventEmitter implements IMCPService {
    */
   async terminate(): Promise<void> {
     try {
-      console.log("[MCPService] Terminating MCP service");
+      logger.info("Terminating MCP service");
 
       this.status = "disconnected";
       this.initialized = false;
@@ -128,17 +131,17 @@ export class MCPService extends EventEmitter implements IMCPService {
             ),
           ]);
 
-          console.log("[MCPService] Worker stopped successfully");
+          logger.info("Worker stopped successfully");
         } catch (workerError) {
-          console.warn("[MCPService] Worker shutdown error:", workerError);
+          logger.warn("Worker shutdown error:", workerError);
         } finally {
           this.worker = null;
         }
       }
 
-      console.log("[MCPService] MCP service terminated successfully");
+      logger.info("MCP service terminated successfully");
     } catch (error) {
-      console.error("[MCPService] Error during termination:", error);
+      logger.error("Error during termination:", error);
       this.status = "error";
       this.worker = null;
       throw error;
@@ -153,19 +156,19 @@ export class MCPService extends EventEmitter implements IMCPService {
 
     this.worker.on("connected", data => {
       if (process.env.LOG_LEVEL === "debug") {
-        console.log("[MCPService] Worker connected:", data);
+        logger.debug("Worker connected:", data);
       }
       this.emit("connected", data);
     });
 
     this.worker.on("disconnected", data => {
-      console.warn("[MCPService] Worker disconnected:", data);
+      logger.warn("Worker disconnected:", data);
       this.status = "error";
       this.emit("disconnected", data);
     });
 
     this.worker.on("error", error => {
-      console.error("[MCPService] Worker error:", error);
+      logger.error("Worker error:", error);
       this.status = "error";
       this.emit("error", error);
     });

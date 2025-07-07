@@ -1,6 +1,9 @@
 import { promises as fs } from "fs";
 import { join } from "path";
 import { app } from "electron";
+import { createLogger } from "@vibe/shared-types";
+
+const logger = createLogger("update-scheduler");
 
 export interface ScheduledUpdate {
   id: string;
@@ -20,9 +23,9 @@ export class UpdateScheduler {
   public async initialize(): Promise<void> {
     try {
       await this.loadScheduledUpdates();
-      console.log("Update scheduler initialized");
+      logger.info("Update scheduler initialized");
     } catch (error) {
-      console.error("Failed to initialize update scheduler:", error);
+      logger.error("Failed to initialize update scheduler:", error);
     }
   }
 
@@ -38,7 +41,7 @@ export class UpdateScheduler {
     this.scheduledUpdates.set(id, scheduledUpdate);
     await this.saveScheduledUpdates();
 
-    console.log(`Update scheduled for ${time} with ID: ${id}`);
+    logger.info(`Update scheduled for ${time} with ID: ${id}`);
     return id;
   }
 
@@ -60,7 +63,7 @@ export class UpdateScheduler {
 
     update.status = "cancelled";
     await this.saveScheduledUpdates();
-    console.log(`Scheduled update ${id} cancelled`);
+    logger.info(`Scheduled update ${id} cancelled`);
     return true;
   }
 
@@ -68,7 +71,7 @@ export class UpdateScheduler {
     const removed = this.scheduledUpdates.delete(id);
     if (removed) {
       await this.saveScheduledUpdates();
-      console.log(`Scheduled update ${id} removed`);
+      logger.info(`Scheduled update ${id} removed`);
     }
     return removed;
   }
@@ -82,7 +85,7 @@ export class UpdateScheduler {
     update.scheduledTime = newTime;
     update.status = "pending";
     await this.saveScheduledUpdates();
-    console.log(`Scheduled update ${id} rescheduled for ${newTime}`);
+    logger.info(`Scheduled update ${id} rescheduled for ${newTime}`);
     return true;
   }
 
@@ -94,7 +97,7 @@ export class UpdateScheduler {
 
     update.status = "completed";
     await this.saveScheduledUpdates();
-    console.log(`Scheduled update ${id} marked as completed`);
+    logger.info(`Scheduled update ${id} marked as completed`);
     return true;
   }
 
@@ -109,7 +112,7 @@ export class UpdateScheduler {
       }
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
-        console.error("Failed to load scheduled updates:", error);
+        logger.error("Failed to load scheduled updates:", error);
       }
     }
   }
@@ -119,7 +122,7 @@ export class UpdateScheduler {
       const updates = Array.from(this.scheduledUpdates.values());
       await fs.writeFile(this.storageFile, JSON.stringify(updates, null, 2));
     } catch (error) {
-      console.error("Failed to save scheduled updates:", error);
+      logger.error("Failed to save scheduled updates:", error);
     }
   }
 
@@ -141,6 +144,6 @@ export class UpdateScheduler {
     }
 
     await this.saveScheduledUpdates();
-    console.log("Update scheduler cleanup completed");
+    logger.info("Update scheduler cleanup completed");
   }
 }

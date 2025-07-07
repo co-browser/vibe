@@ -9,7 +9,10 @@ import { TabContextBar } from "./TabContextBar";
 import { useTabContext } from "@/hooks/useTabContextUtils";
 import { useTabAliases } from "@/hooks/useTabAliases";
 import { TabContextItem } from "@/types/tabContext";
+import { createLogger } from "@vibe/shared-types";
 import "@/components/styles/TabAliasSuggestions.css";
+
+const logger = createLogger("ChatInput");
 
 interface ChatInputProps {
   value: string;
@@ -61,7 +64,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
       // Check if we should show suggestions
       const lastAtIndex = newValue.lastIndexOf("@");
-      console.log("[ChatInput] Input changed:", {
+      logger.debug("Input changed:", {
         newValue,
         lastAtIndex,
         isAtEnd: lastAtIndex === newValue.length - 1,
@@ -70,7 +73,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       if (lastAtIndex !== -1 && lastAtIndex === newValue.length - 1) {
         // Just typed @, show all suggestions
         const suggestions = getSuggestions("");
-        console.log("[ChatInput] Just typed @, suggestions:", suggestions);
+        logger.debug("Just typed @, suggestions:", suggestions);
         setCurrentSuggestions(suggestions);
         setShowSuggestions(true);
       } else if (lastAtIndex !== -1) {
@@ -81,7 +84,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         if (spaceIndex === -1) {
           // Still typing the alias
           const suggestions = getSuggestions(textAfterAt);
-          console.log("[ChatInput] Typing after @:", {
+          logger.debug("Typing after @:", {
             textAfterAt,
             suggestions,
           });
@@ -97,7 +100,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       // Log using state setter pattern to avoid dependency
       setShowSuggestions(prevShow => {
         setCurrentSuggestions(prevSuggestions => {
-          console.log("[ChatInput] State after change:", {
+          logger.debug("State after change:", {
             showSuggestions: prevShow,
             suggestionsCount: prevSuggestions.length,
           });

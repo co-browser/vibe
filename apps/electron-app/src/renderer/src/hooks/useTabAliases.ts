@@ -1,6 +1,9 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import type { ParsedPrompt, TabState } from "@vibe/shared-types";
 import type { IpcRendererEvent } from "electron";
+import { createLogger } from "@vibe/shared-types";
+
+const logger = createLogger("tab-aliases");
 
 interface TabAliasSuggestion {
   alias: string;
@@ -151,7 +154,7 @@ export function useTabAliases(): UseTabAliasesReturn {
 
         return result?.success || false;
       } catch (error) {
-        console.error("Failed to set custom alias:", error);
+        logger.error("Failed to set custom alias:", error);
         return false;
       }
     },

@@ -28,7 +28,12 @@
       "Bash(rm:*)",
       "Bash(ls:*)",
       "Bash(sed:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(git add:*)",
+      "Bash(git fetch:*)",
+      "Bash(echo $VIBE_TEST_CHROME_PROFILE)",
+      "Bash(pnpm lint:*)",
+      "Bash(git commit:*)"
     ],
     "deny": []
   }

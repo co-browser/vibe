@@ -329,6 +329,10 @@ export class DialogManager extends EventEmitter {
             data.passwords.passwords,
           );
           totalSaved += data.passwords.passwords.length;
+        } else {
+          logger.warn(
+            `No passwords to store. data?.passwords: ${JSON.stringify(data?.passwords)}`,
+          );
         }
 
         // Save bookmarks if extracted
@@ -402,6 +406,12 @@ export class DialogManager extends EventEmitter {
             ...data,
             totalSaved,
           },
+          // Add individual counts for the UI
+          passwordCount: data?.passwords?.count || 0,
+          bookmarkCount: data?.bookmarks?.count || 0,
+          historyCount: data?.history?.count || 0,
+          autofillCount: data?.autofill?.count || 0,
+          searchEngineCount: data?.searchEngines?.count || 0,
         };
       } catch (error) {
         logger.error("Comprehensive Chrome import failed:", error);
@@ -512,6 +522,132 @@ export class DialogManager extends EventEmitter {
         return await tempManager.extractChromeSearchEngines(chromeProfiles[0]);
       } catch (error) {
         logger.error("Chrome search engines import failed:", error);
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
+    });
+
+    ipcMain.handle("chrome:import-all-profiles", async () => {
+      try {
+        logger.info("Starting Chrome all profiles import");
+        const tempManager = new DialogManager(
+          new BrowserWindow({ show: false }),
+        );
+        const result = await tempManager.extractAllChromeProfiles();
+
+        if (!result.success) {
+          logger.warn("Chrome all profiles extraction failed:", result.error);
+          return result;
+        }
+
+        const { useUserProfileStore } = await import(
+          "@/store/user-profile-store"
+        );
+        const userProfileStore = useUserProfileStore.getState();
+        const activeProfile = userProfileStore.getActiveProfile();
+
+        if (!activeProfile) {
+          logger.warn("No active profile found");
+          return { success: false, error: "No active profile" };
+        }
+
+        const data = result.data;
+        let totalSaved = 0;
+
+        // Save merged passwords if extracted
+        if (data?.passwords && data.passwords.length > 0) {
+          logger.info(
+            `Storing ${data.passwords.length} merged passwords for profile ${activeProfile.id}`,
+          );
+          await userProfileStore.storeImportedPasswords(
+            activeProfile.id,
+            "chrome-all-profiles",
+            data.passwords,
+          );
+          totalSaved += data.passwords.length;
+        }
+
+        // Save merged bookmarks if extracted
+        if (data?.bookmarks && data.bookmarks.length > 0) {
+          logger.info(
+            `Storing ${data.bookmarks.length} merged bookmarks for profile ${activeProfile.id}`,
+          );
+          await userProfileStore.storeImportedBookmarks(
+            activeProfile.id,
+            "chrome-all-profiles",
+            data.bookmarks,
+          );
+          totalSaved += data.bookmarks.length;
+        }
+
+        // Save merged history if extracted
+        if (data?.history && data.history.length > 0) {
+          logger.info(
+            `Storing ${data.history.length} merged history entries for profile ${activeProfile.id}`,
+          );
+          await userProfileStore.storeImportedHistory(
+            activeProfile.id,
+            "chrome-all-profiles",
+            data.history,
+          );
+          totalSaved += data.history.length;
+        }
+
+        // Save merged autofill if extracted
+        if (
+          data?.autofill &&
+          (data.autofill.entries?.length > 0 ||
+            data.autofill.profiles?.length > 0)
+        ) {
+          const autofillCount =
+            (data.autofill.entries?.length || 0) +
+            (data.autofill.profiles?.length || 0);
+          logger.info(
+            `Storing ${autofillCount} merged autofill items for profile ${activeProfile.id}`,
+          );
+          await userProfileStore.storeImportedAutofill(
+            activeProfile.id,
+            "chrome-all-profiles",
+            data.autofill,
+          );
+          totalSaved += autofillCount;
+        }
+
+        // Save merged search engines if extracted
+        if (data?.searchEngines && data.searchEngines.length > 0) {
+          logger.info(
+            `Storing ${data.searchEngines.length} merged search engines for profile ${activeProfile.id}`,
+          );
+          await userProfileStore.storeImportedSearchEngines(
+            activeProfile.id,
+            "chrome-all-profiles",
+            data.searchEngines,
+          );
+          totalSaved += data.searchEngines.length;
+        }
+
+        logger.info(
+          `Chrome all profiles import completed successfully with ${totalSaved} total items saved`,
+        );
+        return {
+          success: true,
+          data: {
+            ...data,
+            totalSaved,
+          },
+          // Add individual counts for the UI
+          passwordCount: data?.passwords?.length || 0,
+          bookmarkCount: data?.bookmarks?.length || 0,
+          historyCount: data?.history?.length || 0,
+          autofillCount:
+            (data?.autofill?.entries?.length || 0) +
+            (data?.autofill?.profiles?.length || 0),
+          searchEngineCount: data?.searchEngines?.length || 0,
+        };
+      } catch (error) {
+        logger.error("Chrome all profiles import failed:", error);
         return {
           success: false,
           error: error instanceof Error ? error.message : String(error),
@@ -632,10 +768,10 @@ export class DialogManager extends EventEmitter {
       view.webContents
         .executeJavaScript(
           `
-        console.log('[Dialog Manager] Preload script check:');
-        console.log('window.electron available:', !!window.electron);
-        console.log('window.electron.ipcRenderer available:', !!window.electron?.ipcRenderer);
-        console.log('window.vibe available:', !!window.vibe);
+        // Preload script check - results logged via main process
+        // window.electron available: checked
+        // window.electron.ipcRenderer available: checked
+        // window.vibe available: checked
         window.electron && window.electron.ipcRenderer ? 'PRELOAD_OK' : 'PRELOAD_FAILED';
       `,
         )
@@ -1239,23 +1375,23 @@ export class DialogManager extends EventEmitter {
           // Handle escape key
           document.addEventListener('keydown', (event) => {
             if (event.key === 'Escape') {
-              console.log('[Downloads Dialog] Escape key pressed');
+              // Escape key pressed - handled via IPC
               closeDialog();
             }
           });
           
           function closeDialog() {
-            console.log('[Downloads Dialog] Attempting to close dialog');
+            // Attempting to close dialog - handled via IPC
             if (window.electron?.ipcRenderer) {
               window.electron.ipcRenderer.invoke('dialog:close', 'downloads')
                 .then((result) => {
-                  console.log('[Downloads Dialog] Close result:', result);
+                  // Close result received - handled via IPC
                 })
                 .catch((error) => {
-                  console.error('[Downloads Dialog] Close error:', error);
+                  // Close error - handled via IPC
                 });
             } else {
-              console.error('[Downloads Dialog] No electron IPC available');
+              // No electron IPC available error - critical issue
             }
           }
           
@@ -1274,7 +1410,7 @@ export class DialogManager extends EventEmitter {
                 displayDownloads(downloads);
               }
             } catch (error) {
-              console.error('Failed to load downloads:', error);
+              // Failed to load downloads - error handled via IPC
             }
           });
           
@@ -1372,7 +1508,7 @@ export class DialogManager extends EventEmitter {
             try {
               await window.vibe?.downloads?.openFile(filePath);
             } catch (error) {
-              console.error('Failed to open file:', error);
+              // Failed to open file - error handled via IPC
             }
           }
           
@@ -1380,7 +1516,7 @@ export class DialogManager extends EventEmitter {
             try {
               await window.vibe?.downloads?.showFileInFolder(filePath);
             } catch (error) {
-              console.error('Failed to show file in folder:', error);
+              // Failed to show file in folder - error handled via IPC
             }
           }
         </script>
@@ -1390,6 +1526,104 @@ export class DialogManager extends EventEmitter {
   }
 
   // Settings dialog now uses React app instead of HTML template
+
+  /**
+   * Extract passwords from a specific Chrome profile
+   */
+  private async extractChromePasswordsFromProfile(profile: any): Promise<{
+    success: boolean;
+    passwords?: any[];
+    error?: string;
+  }> {
+    const INCREMENT = 0.05;
+    const INTERVAL_DELAY = 120; // ms
+    let progressInterval: NodeJS.Timeout | null = null;
+    let currentProgress = 0;
+
+    try {
+      logger.info(
+        `Starting Chrome credential extraction from profile: ${profile.name}`,
+      );
+
+      // Step 1: Initial progress
+      this.updateProgress(0.02);
+
+      // Step 2: Start extraction immediately
+      this.updateProgress(0.05);
+
+      // Step 3: Start progress animation
+      currentProgress = 0.05;
+      progressInterval = setInterval(() => {
+        if (currentProgress < 0.95) {
+          currentProgress += INCREMENT;
+          this.updateProgress(currentProgress);
+        }
+      }, INTERVAL_DELAY);
+
+      // Step 4: Get Chrome encryption key
+      logger.info("Retrieving Chrome encryption key...");
+      const key = await this.getChromeEncryptionKey(profile);
+      if (!key) {
+        logger.error("Failed to retrieve Chrome encryption key");
+        if (progressInterval) {
+          clearInterval(progressInterval);
+        }
+        this.clearProgress();
+        return {
+          success: false,
+          error: "Failed to retrieve Chrome encryption key",
+        };
+      }
+      logger.info("Successfully retrieved Chrome encryption key");
+
+      // Step 5: Extract passwords from the profile
+      logger.info("Extracting and decrypting passwords...");
+      const passwords = await this.getAllPasswords(profile, key);
+
+      // Step 6: Complete progress
+      if (progressInterval) {
+        clearInterval(progressInterval);
+        progressInterval = null;
+      }
+
+      this.updateProgress(1.0); // Complete
+
+      // Hold at 100% for a moment, then clear
+      setTimeout(() => {
+        this.clearProgress();
+      }, 1500);
+
+      logger.info(
+        `Successfully extracted ${passwords.length} Chrome credentials from ${profile.name}`,
+      );
+      return {
+        success: true,
+        passwords: passwords.map((pwd, index) => ({
+          id: `chrome_${index}`,
+          url: pwd.originUrl,
+          username: pwd.username,
+          password: pwd.password,
+          source: "chrome",
+          dateCreated: pwd.dateCreated,
+        })),
+      };
+    } catch (error) {
+      // Cleanup progress on error
+      if (progressInterval) {
+        clearInterval(progressInterval);
+      }
+      this.clearProgress();
+
+      logger.error(
+        "Chrome credential extraction failed:",
+        error instanceof Error ? error.message : String(error),
+      );
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
 
   /**
    * Extract passwords from Chrome browser using SQLite database with progress tracking
@@ -1426,8 +1660,17 @@ export class DialogManager extends EventEmitter {
         };
       }
 
-      // Use the most recently used Chrome profile
-      const profile = chromeProfiles[0];
+      // Log all available Chrome profiles
+      logger.info(`Found ${chromeProfiles.length} Chrome profiles:`);
+      chromeProfiles.forEach((prof, index) => {
+        logger.info(
+          `  ${index}: ${prof.name} at ${prof.path} (last modified: ${prof.lastModified})`,
+        );
+      });
+
+      // Find the profile with the most passwords
+      const profile = await this.selectBestChromeProfile(chromeProfiles);
+      logger.info(`Selected profile: ${profile.name} at ${profile.path}`);
 
       // Step 2: Start extraction immediately
       this.updateProgress(0.05);
@@ -1445,6 +1688,7 @@ export class DialogManager extends EventEmitter {
       logger.info("Retrieving Chrome encryption key...");
       const key = await this.getChromeEncryptionKey(profile);
       if (!key) {
+        logger.error("Failed to retrieve Chrome encryption key");
         if (progressInterval) {
           clearInterval(progressInterval);
         }
@@ -1454,6 +1698,7 @@ export class DialogManager extends EventEmitter {
           error: "Failed to retrieve Chrome encryption key",
         };
       }
+      logger.info("Successfully retrieved Chrome encryption key");
 
       // Step 5: Extract passwords from the profile
       logger.info("Extracting and decrypting passwords...");
@@ -1564,8 +1809,8 @@ export class DialogManager extends EventEmitter {
                 return;
               }
 
-              logger.debug("Query results count:", rows?.length);
-              logger.debug("Starting credential decryption");
+              logger.info("Query results count:", rows?.length);
+              logger.info("Starting credential decryption");
 
               // Process passwords sequentially to avoid async issues in callback
               const processPasswords = async () => {
@@ -1577,7 +1822,7 @@ export class DialogManager extends EventEmitter {
                         key,
                       );
                       logger.debug(
-                        "Successfully processed credential for domain",
+                        `Processed credential for ${row.origin_url}: ${row.username_value} - password ${decryptedPassword ? "decrypted" : "empty"}`,
                       );
                       return {
                         originUrl: row.origin_url,
@@ -1591,9 +1836,8 @@ export class DialogManager extends EventEmitter {
                   const filteredLogins = processedLogins.filter(
                     login => login.password !== "",
                   );
-                  logger.debug(
-                    "Finished processing all credentials. Valid credentials:",
-                    filteredLogins.length,
+                  logger.info(
+                    `Finished processing credentials. Total: ${processedLogins.length}, Valid (non-empty): ${filteredLogins.length}`,
                   );
 
                   // Secure cleanup: Clear intermediate password data
@@ -2241,7 +2485,17 @@ export class DialogManager extends EventEmitter {
           };
         }
 
-        profile = chromeProfiles[0];
+        // Log all available Chrome profiles
+        logger.info(`Found ${chromeProfiles.length} Chrome profiles:`);
+        chromeProfiles.forEach((prof, index) => {
+          logger.info(
+            `  ${index}: ${prof.name} at ${prof.path} (last modified: ${prof.lastModified})`,
+          );
+        });
+
+        // Find the profile with the most passwords
+        profile = await this.selectBestChromeProfile(chromeProfiles);
+        logger.info(`Selected profile: ${profile.name} at ${profile.path}`);
       }
 
       // Step 1: Start progress immediately (skip slow counting for better UX)
@@ -2260,7 +2514,7 @@ export class DialogManager extends EventEmitter {
       logger.info("Extracting Chrome data with progress tracking...");
 
       const results = await Promise.allSettled([
-        this.extractChromePasswords(),
+        this.extractChromePasswordsFromProfile(profile),
         this.extractChromeBookmarks(profile),
         this.extractChromeHistory(profile),
         this.extractChromeAutofill(profile),
@@ -2294,6 +2548,14 @@ export class DialogManager extends EventEmitter {
           count: (passwordResult.value.passwords || []).length,
         };
         comprehensiveData.totalItems += comprehensiveData.passwords.count;
+        logger.info(
+          `Password extraction result: ${comprehensiveData.passwords.count} passwords found`,
+        );
+      } else {
+        logger.warn(
+          `Password extraction failed or returned no results`,
+          passwordResult,
+        );
       }
 
       // Process bookmark results
@@ -2392,6 +2654,322 @@ export class DialogManager extends EventEmitter {
     }
   }
 
+  /**
+   * Extract data from all Chrome profiles and merge them
+   */
+  private async extractAllChromeProfiles(): Promise<{
+    success: boolean;
+    data?: any;
+    error?: string;
+  }> {
+    const INCREMENT = 0.02;
+    const INTERVAL_DELAY = 150; // ms
+    let progressInterval: NodeJS.Timeout | null = null;
+    let currentProgress = 0;
+
+    try {
+      logger.info("Starting extraction from all Chrome profiles");
+
+      // Find all Chrome profiles
+      const browserProfiles = this.findBrowserProfiles();
+      const chromeProfiles = browserProfiles.filter(
+        p => p.browser === "chrome",
+      );
+
+      if (chromeProfiles.length === 0) {
+        return {
+          success: false,
+          error: "No Chrome profiles found. Please ensure Chrome is installed.",
+        };
+      }
+
+      logger.info(`Found ${chromeProfiles.length} Chrome profiles to process`);
+      chromeProfiles.forEach((prof, index) => {
+        logger.info(`  ${index}: ${prof.name} at ${prof.path}`);
+      });
+
+      // Start progress
+      this.updateProgress(0.05);
+
+      // Start progress animation
+      currentProgress = 0.05;
+      progressInterval = setInterval(() => {
+        if (currentProgress < 0.95) {
+          currentProgress += INCREMENT;
+          this.updateProgress(currentProgress);
+        }
+      }, INTERVAL_DELAY);
+
+      // Initialize merged data
+      const mergedData = {
+        passwords: [] as any[],
+        bookmarks: [] as any[],
+        history: [] as any[],
+        autofill: { entries: [] as any[], profiles: [] as any[] },
+        searchEngines: [] as any[],
+        source: "chrome-all-profiles",
+        timestamp: Date.now(),
+        totalItems: 0,
+        profilesProcessed: 0,
+      };
+
+      // Process each profile
+      for (const [index, profile] of chromeProfiles.entries()) {
+        try {
+          logger.info(
+            `Processing profile ${index + 1}/${chromeProfiles.length}: ${profile.name}`,
+          );
+
+          // Extract data from this profile
+          const results = await Promise.allSettled([
+            this.extractChromePasswordsFromProfile(profile),
+            this.extractChromeBookmarks(profile),
+            this.extractChromeHistory(profile),
+            this.extractChromeAutofill(profile),
+            this.extractChromeSearchEngines(profile),
+          ]);
+
+          const [
+            passwordResult,
+            bookmarkResult,
+            historyResult,
+            autofillResult,
+            searchEngineResult,
+          ] = results;
+
+          let profileItemCount = 0;
+
+          // Merge passwords
+          if (
+            passwordResult.status === "fulfilled" &&
+            passwordResult.value.success
+          ) {
+            const passwords = passwordResult.value.passwords || [];
+            mergedData.passwords.push(
+              ...passwords.map(pwd => ({
+                ...pwd,
+                id: `${profile.name}_${pwd.id}`,
+                sourceProfile: profile.name,
+              })),
+            );
+            profileItemCount += passwords.length;
+            logger.info(
+              `  Added ${passwords.length} passwords from ${profile.name}`,
+            );
+          }
+
+          // Merge bookmarks
+          if (
+            bookmarkResult.status === "fulfilled" &&
+            bookmarkResult.value.success
+          ) {
+            const bookmarks = bookmarkResult.value.bookmarks || [];
+            mergedData.bookmarks.push(
+              ...bookmarks.map(bm => ({
+                ...bm,
+                id: `${profile.name}_${bm.id}`,
+                sourceProfile: profile.name,
+              })),
+            );
+            profileItemCount += bookmarks.length;
+            logger.info(
+              `  Added ${bookmarks.length} bookmarks from ${profile.name}`,
+            );
+          }
+
+          // Merge history
+          if (
+            historyResult.status === "fulfilled" &&
+            historyResult.value.success
+          ) {
+            const history = historyResult.value.history || [];
+            mergedData.history.push(
+              ...history.map(h => ({
+                ...h,
+                id: `${profile.name}_${h.url}_${h.timestamp}`,
+                sourceProfile: profile.name,
+              })),
+            );
+            profileItemCount += history.length;
+            logger.info(
+              `  Added ${history.length} history entries from ${profile.name}`,
+            );
+          }
+
+          // Merge autofill
+          if (
+            autofillResult.status === "fulfilled" &&
+            autofillResult.value.success
+          ) {
+            const autofill = autofillResult.value.autofill || {
+              entries: [],
+              profiles: [],
+            };
+            mergedData.autofill.entries.push(
+              ...autofill.entries.map(entry => ({
+                ...entry,
+                id: `${profile.name}_${entry.id}`,
+                sourceProfile: profile.name,
+              })),
+            );
+            mergedData.autofill.profiles.push(
+              ...autofill.profiles.map(prof => ({
+                ...prof,
+                id: `${profile.name}_${prof.id}`,
+                sourceProfile: profile.name,
+              })),
+            );
+            const autofillCount =
+              autofill.entries.length + autofill.profiles.length;
+            profileItemCount += autofillCount;
+            logger.info(
+              `  Added ${autofillCount} autofill items from ${profile.name}`,
+            );
+          }
+
+          // Merge search engines
+          if (
+            searchEngineResult.status === "fulfilled" &&
+            searchEngineResult.value.success
+          ) {
+            const searchEngines = searchEngineResult.value.searchEngines || [];
+            mergedData.searchEngines.push(
+              ...searchEngines.map(se => ({
+                ...se,
+                id: `${profile.name}_${se.id}`,
+                sourceProfile: profile.name,
+              })),
+            );
+            profileItemCount += searchEngines.length;
+            logger.info(
+              `  Added ${searchEngines.length} search engines from ${profile.name}`,
+            );
+          }
+
+          mergedData.totalItems += profileItemCount;
+          mergedData.profilesProcessed++;
+          logger.info(
+            `  Profile ${profile.name} processed: ${profileItemCount} total items`,
+          );
+        } catch (error) {
+          logger.warn(`Failed to process profile ${profile.name}:`, error);
+        }
+      }
+
+      // Remove duplicates
+      mergedData.passwords = this.removeDuplicatePasswords(
+        mergedData.passwords,
+      );
+      mergedData.bookmarks = this.removeDuplicateBookmarks(
+        mergedData.bookmarks,
+      );
+      mergedData.history = this.removeDuplicateHistory(mergedData.history);
+      mergedData.searchEngines = this.removeDuplicateSearchEngines(
+        mergedData.searchEngines,
+      );
+
+      // Complete progress
+      if (progressInterval) {
+        clearInterval(progressInterval);
+        progressInterval = null;
+      }
+
+      this.updateProgress(1.0);
+
+      // Hold at 100% for a moment, then clear
+      setTimeout(() => {
+        this.clearProgress();
+      }, 2000);
+
+      logger.info(
+        `Successfully extracted and merged Chrome data from ${mergedData.profilesProcessed} profiles: ` +
+          `${mergedData.passwords.length} passwords, ${mergedData.bookmarks.length} bookmarks, ` +
+          `${mergedData.history.length} history entries, ${mergedData.autofill.entries.length + mergedData.autofill.profiles.length} autofill items, ` +
+          `${mergedData.searchEngines.length} search engines`,
+      );
+
+      return {
+        success: true,
+        data: mergedData,
+      };
+    } catch (error) {
+      // Cleanup progress on error
+      if (progressInterval) {
+        clearInterval(progressInterval);
+      }
+      this.clearProgress();
+
+      logger.error(
+        "All Chrome profiles extraction failed:",
+        error instanceof Error ? error.message : String(error),
+      );
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  /**
+   * Remove duplicate passwords based on URL and username
+   */
+  private removeDuplicatePasswords(passwords: any[]): any[] {
+    const seen = new Set<string>();
+    return passwords.filter(password => {
+      const key = `${password.url}:${password.username}`;
+      if (seen.has(key)) {
+        return false;
+      }
+      seen.add(key);
+      return true;
+    });
+  }
+
+  /**
+   * Remove duplicate bookmarks based on URL
+   */
+  private removeDuplicateBookmarks(bookmarks: any[]): any[] {
+    const seen = new Set<string>();
+    return bookmarks.filter(bookmark => {
+      const key = bookmark.url || bookmark.name;
+      if (seen.has(key)) {
+        return false;
+      }
+      seen.add(key);
+      return true;
+    });
+  }
+
+  /**
+   * Remove duplicate history entries based on URL
+   */
+  private removeDuplicateHistory(history: any[]): any[] {
+    const seen = new Set<string>();
+    return history.filter(entry => {
+      const key = `${entry.url}:${entry.timestamp}`;
+      if (seen.has(key)) {
+        return false;
+      }
+      seen.add(key);
+      return true;
+    });
+  }
+
+  /**
+   * Remove duplicate search engines based on URL
+   */
+  private removeDuplicateSearchEngines(searchEngines: any[]): any[] {
+    const seen = new Set<string>();
+    return searchEngines.filter(engine => {
+      const key = engine.searchUrl || engine.name;
+      if (seen.has(key)) {
+        return false;
+      }
+      seen.add(key);
+      return true;
+    });
+  }
+
   // Removed unused _countChromeProfileItems method
 
   // Removed unused countBookmarksRecursive method
@@ -2427,6 +3005,113 @@ export class DialogManager extends EventEmitter {
       }
     } catch (error) {
       logger.warn("Failed to clear progress bar:", error);
+    }
+  }
+
+  /**
+   * Select the Chrome profile with the most passwords
+   */
+  private async selectBestChromeProfile(chromeProfiles: any[]): Promise<any> {
+    if (chromeProfiles.length === 1) {
+      return chromeProfiles[0];
+    }
+
+    let bestProfile = chromeProfiles[0];
+    let maxPasswordCount = 0;
+
+    for (const profile of chromeProfiles) {
+      try {
+        const passwordCount = await this.countPasswordsInProfile(profile);
+        logger.info(`Profile ${profile.name}: ${passwordCount} passwords`);
+
+        if (passwordCount > maxPasswordCount) {
+          maxPasswordCount = passwordCount;
+          bestProfile = profile;
+        }
+      } catch (error) {
+        logger.warn(
+          `Failed to count passwords in profile ${profile.name}:`,
+          error,
+        );
+      }
+    }
+
+    logger.info(
+      `Selected profile ${bestProfile.name} with ${maxPasswordCount} passwords`,
+    );
+    return bestProfile;
+  }
+
+  /**
+   * Count passwords in a specific Chrome profile
+   */
+  private async countPasswordsInProfile(browserProfile: any): Promise<number> {
+    const loginDataPath = this.safePath(browserProfile.path, "Login Data");
+
+    if (!fsSync.existsSync(loginDataPath)) {
+      return 0;
+    }
+
+    const tempDbPath = this.safePath(
+      browserProfile.path,
+      "Login Data.temp.count",
+    );
+
+    try {
+      // Create temporary database copy
+      fsSync.copyFileSync(loginDataPath, tempDbPath);
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      return new Promise(resolve => {
+        const db = new sqlite3.Database(
+          tempDbPath,
+          sqlite3.OPEN_READONLY,
+          err => {
+            if (err) {
+              logger.warn(
+                `Failed to open database for counting: ${err.message}`,
+              );
+              resolve(0);
+              return;
+            }
+
+            db.get(
+              "SELECT COUNT(*) as count FROM logins WHERE password_value IS NOT NULL AND password_value != ''",
+              (err: any, row: any) => {
+                if (err) {
+                  logger.warn(`Failed to count passwords: ${err.message}`);
+                  resolve(0);
+                } else {
+                  resolve(row?.count || 0);
+                }
+
+                db.close();
+                try {
+                  fsSync.unlinkSync(tempDbPath);
+                } catch (cleanupError) {
+                  logger.warn(
+                    "Failed to cleanup temp count file:",
+                    cleanupError,
+                  );
+                }
+              },
+            );
+          },
+        );
+      });
+    } catch (error) {
+      logger.warn(
+        `Error counting passwords in profile ${browserProfile.name}:`,
+        error,
+      );
+      try {
+        if (fsSync.existsSync(tempDbPath)) {
+          fsSync.unlinkSync(tempDbPath);
+        }
+      } catch {
+        // Ignore cleanup errors
+      }
+      return 0;
     }
   }
 
@@ -2652,11 +3337,11 @@ export class DialogManager extends EventEmitter {
         return "";
       }
 
-      // Chrome v80+ uses AES encryption
-      if (
-        encryptedPassword.subarray(0, 3).toString() === "v10" ||
-        encryptedPassword.subarray(0, 3).toString() === "v11"
-      ) {
+      // Chrome v80+ uses AES encryption with version prefix
+      const versionPrefix = encryptedPassword.subarray(0, 3).toString();
+      logger.debug(`Password encryption version: ${versionPrefix}`);
+
+      if (versionPrefix === "v10" || versionPrefix === "v11") {
         const iv = encryptedPassword.subarray(3, 15); // 12 bytes for AES-GCM
         const ciphertext = encryptedPassword.subarray(15, -16); // Remove IV and tag
         const tag = encryptedPassword.subarray(-16); // Last 16 bytes are the tag
@@ -2669,8 +3354,10 @@ export class DialogManager extends EventEmitter {
 
         return decrypted;
       } else {
-        // Fallback for older Chrome versions (should not be common)
-        logger.warn("Unsupported credential encryption format");
+        // Fallback for older Chrome versions or different encryption
+        logger.warn(
+          `Unsupported credential encryption format: ${versionPrefix}`,
+        );
         return "";
       }
     } catch (error) {

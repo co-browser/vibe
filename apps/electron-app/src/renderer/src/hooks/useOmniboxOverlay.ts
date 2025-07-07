@@ -5,6 +5,9 @@
 
 import { useCallback, useEffect, useRef, useMemo, useState } from "react";
 import type { SuggestionMetadata } from "../../../types/metadata";
+import { createLogger } from "@vibe/shared-types";
+
+const logger = createLogger("omnibox-overlay");
 
 interface OmniboxSuggestion {
   id: string;
@@ -200,7 +203,7 @@ export function useOmniboxOverlay(options: OmniboxOverlayOptions = {}) {
         onNavigateAndClose?.(url);
       },
       handleOverlayError: (_event: any, error: any) => {
-        console.error("Overlay error:", error);
+        logger.error("Overlay error:", error);
         setErrorCount(prev => prev + 1);
         if (errorCount >= 3) {
           setOverlayStatus("error");
@@ -304,7 +307,9 @@ export function useOmniboxOverlay(options: OmniboxOverlayOptions = {}) {
 
       window.electron.ipcRenderer
         .invoke("overlay:execute", updateScript)
-        .catch(console.error);
+        .catch(error =>
+          logger.error("Failed to execute overlay update script:", error),
+        );
     }
   }, [overlayStatus]);
 
@@ -528,7 +533,7 @@ export function useOmniboxOverlay(options: OmniboxOverlayOptions = {}) {
           } catch (error) {
             // Only handle error if operation is still current
             if (lastOperationRef.current === operationId) {
-              console.error("Failed to execute incremental update:", error);
+              logger.error("Failed to execute incremental update:", error);
               return await renderFullContent(suggestions);
             }
             return false;
@@ -540,7 +545,7 @@ export function useOmniboxOverlay(options: OmniboxOverlayOptions = {}) {
       } catch (error) {
         // Only handle error if operation is still current
         if (lastOperationRef.current === operationId) {
-          console.error("Failed to render overlay content:", error);
+          logger.error("Failed to render overlay content:", error);
           setOverlayStatus("error");
         }
         return false;
@@ -576,7 +581,7 @@ export function useOmniboxOverlay(options: OmniboxOverlayOptions = {}) {
       try {
         return await renderOverlayContent(suggestions);
       } catch (error) {
-        console.error("Failed to show suggestions:", error);
+        logger.error("Failed to show suggestions:", error);
         setOverlayStatus("error");
         return false;
       }
@@ -593,7 +598,7 @@ export function useOmniboxOverlay(options: OmniboxOverlayOptions = {}) {
       isShowingRef.current = false;
       lastSelectedIndexRef.current = -1;
     } catch (error) {
-      console.error("Failed to hide overlay:", error);
+      logger.error("Failed to hide overlay:", error);
       setOverlayStatus("error");
     }
   }, []);
@@ -608,7 +613,7 @@ export function useOmniboxOverlay(options: OmniboxOverlayOptions = {}) {
       lastSelectedIndexRef.current = -1;
       lastSuggestionsRef.current = [];
     } catch (error) {
-      console.error("Failed to clear overlay:", error);
+      logger.error("Failed to clear overlay:", error);
       setOverlayStatus("error");
     }
   }, []);

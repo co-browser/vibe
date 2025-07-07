@@ -14,6 +14,7 @@ import { autoSaveTabToMemory } from "@/utils/tab-agent";
 import { useUserProfileStore } from "@/store/user-profile-store";
 import { setupContextMenuHandlers } from "./context-menu";
 import { WindowBroadcast } from "@/utils/window-broadcast";
+import { NavigationErrorHandler } from "./navigation-error-handler";
 // File system imports removed - now handled in protocol-handler
 
 const logger = createLogger("TabManager");
@@ -188,7 +189,7 @@ export class TabManager extends EventEmitter {
    * Extracted from ViewManager for clean architecture
    */
   private setupNavigationHandlers(view: WebContentsView, tabKey: string): void {
-    console.log(
+    logger.debug(
       "[Download Debug] *** setupNavigationHandlers called for tab:",
       tabKey,
     );
@@ -225,13 +226,16 @@ export class TabManager extends EventEmitter {
       });
     });
 
+    // Setup navigation error handlers
+    NavigationErrorHandler.getInstance().setupErrorHandlers(view as any);
+
     // PDF detection for URLs that don't end in .pdf
     // Use will-download event to detect PDF downloads and convert them
-    console.log(
+    logger.debug(
       "[Download Debug] Setting up will-download listener for tab:",
       tabKey,
     );
-    console.log("[Download Debug] Session info:", {
+    logger.debug("[Download Debug] Session info:", {
       tabKey,
       isDefaultSession: webContents.session === session.defaultSession,
       sessionType: webContents.session.isPersistent()
@@ -243,8 +247,8 @@ export class TabManager extends EventEmitter {
       const mimeType = item.getMimeType();
       const fileName = item.getFilename();
 
-      console.log("[Download Debug] *** DOWNLOAD EVENT TRIGGERED ***");
-      console.log("[Download Debug] Tab manager will-download event:", {
+      logger.debug("[Download Debug] *** DOWNLOAD EVENT TRIGGERED ***");
+      logger.debug("[Download Debug] Tab manager will-download event:", {
         tabKey,
         url,
         mimeType,
@@ -261,7 +265,7 @@ export class TabManager extends EventEmitter {
         url.toLowerCase().endsWith(".pdf")
       ) {
         logger.debug(`PDF detected via download: ${url}`);
-        console.log("[Download Debug] PDF download intercepted and cancelled");
+        logger.debug("[Download Debug] PDF download intercepted and cancelled");
 
         // Cancel the download
         event.preventDefault();
@@ -276,13 +280,13 @@ export class TabManager extends EventEmitter {
           });
         }, 100);
       } else {
-        console.log("[Download Debug] Non-PDF download allowed to proceed");
+        logger.debug("[Download Debug] Non-PDF download allowed to proceed");
 
         // Track the download for non-PDF files
         const savePath = item.getSavePath();
         const downloadId = `download_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-        console.log("[Download Debug] Tracking download:", {
+        logger.debug("[Download Debug] Tracking download:", {
           downloadId,
           fileName,
           savePath,
@@ -294,7 +298,7 @@ export class TabManager extends EventEmitter {
         const activeProfile = userProfileStore.getActiveProfile();
 
         if (activeProfile) {
-          console.log("[Download Debug] Adding download to profile:", {
+          logger.debug("[Download Debug] Adding download to profile:", {
             profileId: activeProfile.id,
             fileName,
             savePath,
@@ -315,7 +319,7 @@ export class TabManager extends EventEmitter {
             },
           );
 
-          console.log("[Download Debug] Download entry created:", {
+          logger.debug("[Download Debug] Download entry created:", {
             downloadId: downloadEntry.id,
             fileName: downloadEntry.fileName,
             status: downloadEntry.status,
@@ -328,13 +332,13 @@ export class TabManager extends EventEmitter {
           const downloads = userProfileStore.getDownloadHistory(
             activeProfile.id,
           );
-          console.log("[Download Debug] Profile downloads after adding:", {
+          logger.debug("[Download Debug] Profile downloads after adding:", {
             profileId: activeProfile.id,
             downloadsCount: downloads.length,
             latestDownload: downloads[downloads.length - 1],
           });
         } else {
-          console.log(
+          logger.debug(
             "[Download Debug] No active profile for download tracking",
           );
         }
@@ -368,7 +372,7 @@ export class TabManager extends EventEmitter {
         // Track when download completes
         item.on("done", (_event, state) => {
           const actualDownloadId = this.downloadIdMap.get(item);
-          console.log("[Download Debug] Download done event (tab manager):", {
+          logger.debug("[Download Debug] Download done event (tab manager):", {
             downloadId: actualDownloadId,
             fileName,
             state,
@@ -386,7 +390,7 @@ export class TabManager extends EventEmitter {
 
             // Update file existence
             const exists = fs.existsSync(savePath);
-            console.log(
+            logger.debug(
               "[Download Debug] Download completed and updated in profile:",
               {
                 profileId: activeProfile.id,
@@ -467,7 +471,7 @@ export class TabManager extends EventEmitter {
     const targetUrl = url || "https://www.google.com";
     const newTabPosition = this.calculateNewTabPosition();
 
-    console.log("[Download Debug] *** createTab called:", {
+    logger.debug("[Download Debug] *** createTab called:", {
       key,
       targetUrl,
       newTabPosition,
@@ -1191,7 +1195,7 @@ export class TabManager extends EventEmitter {
   }
 
   private createBrowserView(tabKey: string, url: string): void {
-    console.log(
+    logger.debug(
       "[Download Debug] *** createBrowserView called for tab:",
       tabKey,
       "with URL:",
@@ -1201,7 +1205,7 @@ export class TabManager extends EventEmitter {
     const view = this.createWebContentsView(tabKey, url);
 
     // Set up navigation events here (moved from ViewManager)
-    console.log(
+    logger.debug(
       "[Download Debug] *** About to call setupNavigationHandlers for tab:",
       tabKey,
     );

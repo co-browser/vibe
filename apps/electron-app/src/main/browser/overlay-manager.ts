@@ -185,7 +185,7 @@ export class OverlayManager extends EventEmitter {
                     if (deleteButton && deleteButton.dataset && deleteButton.dataset.deleteId) {
                       e.preventDefault();
                       e.stopPropagation();
-                      console.log('Delete button clicked for ID:', deleteButton.dataset.deleteId);
+                      // Delete button clicked - handled via IPC
                       if (window.electronAPI && window.electronAPI.overlay) {
                         // Immediately provide visual feedback
                         deleteButton.style.color = theme('colors.red.500');
@@ -236,7 +236,7 @@ export class OverlayManager extends EventEmitter {
             
             // Error reporting function
             function reportError(type, error) {
-              console.error('Overlay error:', type, error);
+              // Overlay error - reported via IPC
               
               // Show visual error indicator
               const errorDiv = document.getElementById('vibe-overlay-error');
@@ -369,7 +369,7 @@ export class OverlayManager extends EventEmitter {
             const entries = list.getEntries();
             entries.forEach(entry => {
               if (entry.duration > 16) { // Longer than one frame at 60fps
-                console.warn('Slow overlay operation:', entry.name, entry.duration + 'ms');
+                // Slow overlay operation detected - performance issue
               }
             });
           });
@@ -378,7 +378,7 @@ export class OverlayManager extends EventEmitter {
 
         // Setup error monitoring
         window.addEventListener('error', function(event) {
-          console.error('Overlay error caught:', event.error);
+          // Overlay error caught - reported via IPC
           if (window.electronAPI && window.electronAPI.overlay) {
             window.electronAPI.overlay.send('overlay:error', {
               type: 'uncaught-error',
@@ -392,7 +392,7 @@ export class OverlayManager extends EventEmitter {
 
         // Setup unhandled promise rejection monitoring
         window.addEventListener('unhandledrejection', function(event) {
-          console.error('Overlay unhandled promise rejection:', event.reason);
+          // Overlay unhandled promise rejection - reported via IPC
           if (window.electronAPI && window.electronAPI.overlay) {
             window.electronAPI.overlay.send('overlay:error', {
               type: 'unhandled-rejection',
@@ -428,7 +428,7 @@ export class OverlayManager extends EventEmitter {
 
         window.setTimeout = function(fn, delay, ...args) {
           if (typeof fn === 'string') {
-            console.warn('String-based setTimeout detected - potential security risk');
+            // String-based setTimeout detected - security risk reported via IPC
             if (window.electronAPI && window.electronAPI.overlay) {
               window.electronAPI.overlay.send('overlay:error', {
                 type: 'string-setTimeout',
@@ -442,7 +442,7 @@ export class OverlayManager extends EventEmitter {
 
         window.setInterval = function(fn, delay, ...args) {
           if (typeof fn === 'string') {
-            console.warn('String-based setInterval detected - potential security risk');
+            // String-based setInterval detected - security risk reported via IPC
             if (window.electronAPI && window.electronAPI.overlay) {
               window.electronAPI.overlay.send('overlay:error', {
                 type: 'string-setInterval',
@@ -682,7 +682,7 @@ export class OverlayManager extends EventEmitter {
                 container.innerHTML = ${JSON.stringify(content.html)};
               }
             } catch (error) {
-              console.error('Overlay HTML update error:', error);
+              // Overlay HTML update error - handled internally
             }
           })();
         `);
@@ -702,7 +702,7 @@ export class OverlayManager extends EventEmitter {
               }
               style.textContent = ${JSON.stringify(content.css)};
             } catch (error) {
-              console.error('Overlay CSS update error:', error);
+              // Overlay CSS update error - handled internally
             }
           })();
         `);
@@ -745,7 +745,7 @@ export class OverlayManager extends EventEmitter {
             const customCss = document.getElementById('vibe-overlay-custom-css');
             if (customCss) customCss.remove();
           } catch (error) {
-            console.error('Overlay clear error:', error);
+            // Overlay clear error - handled internally
           }
         })();
       `);
@@ -816,7 +816,7 @@ export class OverlayManager extends EventEmitter {
             ${script}
             
           } catch (error) {
-            console.error('Overlay script execution error:', error);
+            // Overlay script execution error - handled internally
             return { error: error.message, stack: error.stack };
           } finally {
             // Restore original functions

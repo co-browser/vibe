@@ -1,14 +1,14 @@
-/* Tailwind CSS base */
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
 /* Main application styles */
 @import url("./BrowserUI.css");
 @import url("./TabBar.css");
 @import url("./NavigationBar.css");
 @import url("./ChatView.css");
 @import url("./App.css");
+
+/* Tailwind CSS base */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 /* Global reset and base styles */
 * {

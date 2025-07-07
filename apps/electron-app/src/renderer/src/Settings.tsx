@@ -9,7 +9,6 @@ import {
   Lock,
   ChevronLeft,
   ChevronRight,
-  ChevronRight as ChevronRightIcon,
   Download,
   Search,
   Eye,
@@ -18,11 +17,15 @@ import {
   FileDown,
   X,
   Loader2,
+  Wallet,
 } from "lucide-react";
 import { ProgressBar } from "./components/common/ProgressBar";
 import { usePasswords } from "./hooks/usePasswords";
-import { UserOutlined } from "@ant-design/icons";
-import { Avatar } from "antd";
+import { usePrivyAuth } from "./hooks/usePrivyAuth";
+import { UserPill } from "./components/ui/UserPill";
+import { createLogger } from "@vibe/shared-types";
+
+const logger = createLogger("settings");
 
 // Type declaration for webkit corner smoothing
 declare module "react" {
@@ -64,10 +67,10 @@ export default function Settings() {
     { id: "apple-accounts", label: "Accounts", icon: User },
     { id: "passwords", label: "Passwords", icon: Lock },
     { id: "intelligence", label: "Agents", icon: Sparkles },
-    { id: "behaviors", label: "Behaviors", icon: MousePointerClick },
+    { id: "behaviors", label: "API", icon: MousePointerClick },
     { id: "notifications", label: "Notifications", icon: Bell },
     { id: "shortcuts", label: "Shortcuts", icon: Command },
-    { id: "components", label: "Components", icon: Puzzle },
+    { id: "components", label: "Marketplace", icon: Puzzle },
   ];
 
   const activeLabel =
@@ -201,41 +204,81 @@ export default function Settings() {
 }
 
 // Settings Components
-const AppleAccountsSettingsComponent = () => (
-  <div className="space-y-4">
-    <div
-      className="bg-white border border-gray-200/80"
-      style={{ borderRadius: "8px", "-webkit-corner-smoothing": "subpixel" }}
-    >
-      <button
-        className="w-full flex items-center justify-between p-3 text-left hover:bg-gray-50 transition-colors"
-        style={{ borderRadius: "8px", "-webkit-corner-smoothing": "subpixel" }}
-      >
-        <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
-            <Avatar
-              style={{ backgroundColor: "#87d068" }}
-              icon={<UserOutlined />}
-            />
-          </div>
-          <div>
-            <p className="font-medium text-gray-800">John Doe</p>
-            <p className="text-sm text-gray-600">john.doe@example.com</p>
+const AppleAccountsSettingsComponent = () => {
+  const { isAuthenticated, user, login, isLoading } = usePrivyAuth();
+
+  const handleAddFunds = () => {
+    if (!isAuthenticated) {
+      login();
+    } else {
+      // Handle add funds action
+      logger.info("Add funds clicked");
+      // This would open a payment modal or redirect to payment page
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* User Account Section */}
+      {isAuthenticated && user && (
+        <div
+          className="bg-white border border-gray-200/80"
+          style={{
+            borderRadius: "8px",
+            "-webkit-corner-smoothing": "subpixel",
+          }}
+        >
+          <div className="p-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
+                  <Wallet className="h-5 w-5 text-gray-600" />
+                </div>
+                <div>
+                  <p className="font-medium text-gray-800">Wallet</p>
+                  <p className="text-sm text-gray-600">Connected via Privy</p>
+                </div>
+              </div>
+              <UserPill
+                user={user}
+                isAuthenticated={isAuthenticated}
+                size="sm"
+              />
+            </div>
           </div>
         </div>
-        <ChevronRightIcon className="h-5 w-5 text-gray-400" />
-      </button>
+      )}
+
+      {/* Add Funds Button */}
+      <div className="flex justify-end items-center gap-3">
+        {!isAuthenticated && !isLoading && (
+          <p className="text-sm text-gray-500">Login with Privy to add funds</p>
+        )}
+        <button
+          onClick={handleAddFunds}
+          disabled={isLoading}
+          className={`px-4 py-1.5 text-sm font-medium transition-colors border ${
+            isAuthenticated
+              ? "bg-blue-500 text-white hover:bg-blue-600 border-blue-500"
+              : "bg-gray-200/80 text-gray-800 hover:bg-gray-300/80 border-gray-300/80"
+          } disabled:opacity-50 disabled:cursor-not-allowed`}
+          style={{
+            borderRadius: "6px",
+            "-webkit-corner-smoothing": "subpixel",
+          }}
+        >
+          {isLoading ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : isAuthenticated ? (
+            "Add Funds"
+          ) : (
+            "Login to Add Funds"
+          )}
+        </button>
+      </div>
     </div>
-    <div className="flex justify-end">
-      <button
-        className="px-4 py-1.5 text-sm font-medium bg-gray-200/80 text-gray-800 hover:bg-gray-300/80 transition-colors border border-gray-300/80"
-        style={{ borderRadius: "6px", "-webkit-corner-smoothing": "subpixel" }}
-      >
-        Add Apple Account...
-      </button>
-    </div>
-  </div>
-);
+  );
+};
 
 const PasswordsSettingsComponent = () => {
   const {
@@ -612,7 +655,7 @@ const NotificationsSettingsComponent = () => {
           }
         }
       } catch (error) {
-        console.error("Failed to load notification settings:", error);
+        logger.error("Failed to load notification settings:", error);
       } finally {
         setLoading(false);
       }
@@ -832,7 +875,7 @@ const ComponentsSettingsComponent = () => {
           }
         }
       } catch (error) {
-        console.error("Failed to load component settings:", error);
+        logger.error("Failed to load component settings:", error);
       } finally {
         setLoading(false);
       }

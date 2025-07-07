@@ -4,6 +4,9 @@
  */
 
 import React, { useEffect, useCallback } from "react";
+import { createLogger } from "@vibe/shared-types";
+
+const logger = createLogger("context-menu-provider");
 import {
   ContextMenuContext,
   type ContextMenuContextValue,
@@ -16,7 +19,7 @@ interface ContextMenuProviderProps {
 export function ContextMenuProvider({ children }: ContextMenuProviderProps) {
   // Handle tab-related actions
   const handleTabAction = useCallback((actionId: string, data?: any) => {
-    console.log("Tab action:", actionId, data);
+    logger.debug("Tab action:", actionId, data);
 
     switch (actionId) {
       case "new-tab":
@@ -55,13 +58,13 @@ export function ContextMenuProvider({ children }: ContextMenuProviderProps) {
         // Implement unmute tab logic
         break;
       default:
-        console.warn("Unknown tab action:", actionId);
+        logger.warn("Unknown tab action:", actionId);
     }
   }, []);
 
   // Handle navigation-related actions
   const handleNavigationAction = useCallback((actionId: string, data?: any) => {
-    console.log("Navigation action:", actionId, data);
+    logger.debug("Navigation action:", actionId, data);
 
     switch (actionId) {
       case "nav-back":
@@ -79,13 +82,13 @@ export function ContextMenuProvider({ children }: ContextMenuProviderProps) {
         }
         break;
       default:
-        console.warn("Unknown navigation action:", actionId);
+        logger.warn("Unknown navigation action:", actionId);
     }
   }, []);
 
   // Handle chat-related actions
   const handleChatAction = useCallback((actionId: string, data?: any) => {
-    console.log("Chat action:", actionId, data);
+    logger.debug("Chat action:", actionId, data);
 
     switch (actionId) {
       case "clear-chat":
@@ -108,7 +111,7 @@ export function ContextMenuProvider({ children }: ContextMenuProviderProps) {
         // Implement regenerate response logic
         break;
       default:
-        console.warn("Unknown chat action:", actionId);
+        logger.warn("Unknown chat action:", actionId);
     }
   }, []);
 
@@ -117,7 +120,7 @@ export function ContextMenuProvider({ children }: ContextMenuProviderProps) {
     const handleContextMenuAction = (event: any) => {
       const { id, context, data } = event.detail || event;
 
-      console.log("Context menu action received:", { id, context, data });
+      logger.debug("Context menu action received:", { id, context, data });
 
       // Route to appropriate handler based on context
       switch (context) {
@@ -139,7 +142,7 @@ export function ContextMenuProvider({ children }: ContextMenuProviderProps) {
           } else if (id.includes("chat")) {
             handleChatAction(id, data);
           } else {
-            console.warn("Unknown context menu action:", { id, context, data });
+            logger.warn("Unknown context menu action:", { id, context, data });
           }
       }
     };

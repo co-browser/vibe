@@ -85,7 +85,7 @@ class Downloads {
   }
 
   addDownloadHistoryItem(downloadData: Omit<DownloadItem, "id">) {
-    console.log(
+    logger.debug(
       "[Download Debug] addDownloadHistoryItem called:",
       downloadData,
     );
@@ -93,7 +93,7 @@ class Downloads {
     const userProfileStore = useUserProfileStore.getState();
     const activeProfile = userProfileStore.getActiveProfile();
 
-    console.log("[Download Debug] Active profile check:", {
+    logger.debug("[Download Debug] Active profile check:", {
       hasActiveProfile: !!activeProfile,
       profileId: activeProfile?.id,
       profileName: activeProfile?.name,
@@ -101,7 +101,7 @@ class Downloads {
 
     if (!activeProfile) {
       logger.error("No active profile found for download history");
-      console.log("[Download Debug] No active profile - download not tracked");
+      logger.debug("[Download Debug] No active profile - download not tracked");
       return null;
     }
 
@@ -110,7 +110,7 @@ class Downloads {
       ...downloadData,
     };
 
-    console.log("[Download Debug] Adding download to profile:", {
+    logger.debug("[Download Debug] Adding download to profile:", {
       profileId: activeProfile.id,
       downloadId: item.id,
     });
@@ -118,19 +118,19 @@ class Downloads {
     // Add to user profile store
     userProfileStore.addDownloadEntry(activeProfile.id, downloadData);
 
-    console.log("[Download Debug] Download successfully added to profile");
+    logger.debug("[Download Debug] Download successfully added to profile");
     return item;
   }
 
   private setupGlobalDownloadTracking() {
-    console.log("[Download Debug] Setting up global download tracking");
+    logger.info("[Download Debug] Setting up global download tracking");
 
     // Define the download handler
     const downloadHandler = (_event: any, item: any, _webContents: any) => {
       const fileName = item.getFilename();
       const savePath = item.getSavePath();
 
-      console.log("[Download Debug] will-download event fired:", {
+      logger.debug("[Download Debug] will-download event fired:", {
         fileName,
         savePath,
         totalBytes: item.getTotalBytes(),
@@ -154,7 +154,7 @@ class Downloads {
 
       // Track when download completes
       item.on("done", (_event, state) => {
-        console.log("[Download Debug] Download done event:", {
+        logger.debug("[Download Debug] Download done event:", {
           fileName,
           state,
           savePath,
@@ -262,13 +262,13 @@ class Downloads {
       );
     });
 
-    console.log(
+    logger.info(
       "[Download Debug] Global download tracking setup complete via UserProfileStore",
     );
   }
 
   init() {
-    console.log("[Download Debug] Downloads service init() called");
+    logger.info("[Download Debug] Downloads service init() called");
 
     // Set up global download tracking
     this.setupGlobalDownloadTracking();
@@ -277,12 +277,12 @@ class Downloads {
 
     // Handle download history requests
     ipcMain.handle("downloads.getHistory", () => {
-      console.log("[Download Debug] downloads.getHistory IPC handler called");
+      logger.debug("[Download Debug] downloads.getHistory IPC handler called");
 
       const userProfileStore = useUserProfileStore.getState();
       const activeProfile = userProfileStore.getActiveProfile();
 
-      console.log("[Download Debug] IPC handler - Active profile check:", {
+      logger.debug("[Download Debug] IPC handler - Active profile check:", {
         hasActiveProfile: !!activeProfile,
         profileId: activeProfile?.id,
         profileName: activeProfile?.name,
@@ -291,14 +291,14 @@ class Downloads {
 
       if (!activeProfile) {
         logger.error("No active profile found for download history");
-        console.log(
+        logger.debug(
           "[Download Debug] IPC handler - No active profile, returning empty array",
         );
         return [];
       }
 
       const history = userProfileStore.getDownloadHistory(activeProfile.id);
-      console.log("[Download Debug] IPC handler - Returning history:", {
+      logger.debug("[Download Debug] IPC handler - Returning history:", {
         profileId: activeProfile.id,
         historyLength: history.length,
         historyItems: history.map(item => ({
@@ -370,7 +370,7 @@ class Downloads {
       return { success: true };
     });
 
-    console.log("[Download Debug] Downloads service init() completed");
+    logger.info("[Download Debug] Downloads service init() completed");
   }
 }
 

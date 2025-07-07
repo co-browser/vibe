@@ -4,6 +4,9 @@
  */
 
 import { useState, useEffect } from "react";
+import { createLogger } from "@vibe/shared-types";
+
+const logger = createLogger("user-profile-store");
 
 export interface DownloadHistoryItem {
   id: string;
@@ -36,7 +39,7 @@ export function useUserProfileStore() {
         const profile = await window.vibe?.profile?.getActiveProfile();
         setActiveProfile(profile);
       } catch (error) {
-        console.error("Failed to load user profile:", error);
+        logger.error("Failed to load user profile:", error);
       } finally {
         setLoading(false);
       }
@@ -52,7 +55,7 @@ export function useUserProfileStore() {
         const profile = await window.vibe?.profile?.getActiveProfile();
         setActiveProfile(profile);
       } catch (error) {
-        console.error("Failed to refresh user profile:", error);
+        logger.error("Failed to refresh user profile:", error);
       }
     }, 5000); // Refresh every 5 seconds
 

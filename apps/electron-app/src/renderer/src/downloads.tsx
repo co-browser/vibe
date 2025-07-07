@@ -13,6 +13,9 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { ProgressBar } from "./components/common/ProgressBar";
+import { createLogger } from "@vibe/shared-types";
+
+const logger = createLogger("downloads-ui");
 
 // Download history interface matching the backend
 interface DownloadHistoryItem {
@@ -316,7 +319,7 @@ export default function App() {
         setDownloads(uiItems);
       }
     } catch (err) {
-      console.error("Failed to load download history:", err);
+      logger.error("Failed to load download history:", err);
       setError("Failed to load download history");
     } finally {
       if (isInitialLoad) setLoading(false);
@@ -341,7 +344,7 @@ export default function App() {
         }
       }
     } catch (err) {
-      console.error("Failed to open file:", err);
+      logger.error("Failed to open file:", err);
       setError("Failed to open file");
     }
   };
@@ -358,7 +361,7 @@ export default function App() {
         }
       }
     } catch (err) {
-      console.error("Failed to show file in folder:", err);
+      logger.error("Failed to show file in folder:", err);
       setError("Failed to show file in folder");
     }
   };
@@ -378,7 +381,7 @@ export default function App() {
         }
       }
     } catch (err) {
-      console.error("Failed to remove from history:", err);
+      logger.error("Failed to remove from history:", err);
       setError("Failed to remove from history");
     }
   };
@@ -397,7 +400,7 @@ export default function App() {
         }
       }
     } catch (err) {
-      console.error("Failed to clear history:", err);
+      logger.error("Failed to clear history:", err);
       setError("Failed to clear history");
     }
   };

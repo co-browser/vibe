@@ -49,6 +49,9 @@ import { registerProfileHistoryHandlers } from "@/ipc/user/profile-history";
 // Settings APIs - Password handlers for settings dialog
 import { registerPasswordHandlers } from "@/ipc/settings/password-handlers";
 
+// Profile APIs
+import { registerTopSitesHandlers } from "@/ipc/profile/top-sites";
+
 /**
  * Registers all IPC handlers
  */
@@ -63,6 +66,9 @@ export function registerAllIpcHandlers(browser: Browser): () => void {
 
   // Register password handlers for settings dialog
   registerPasswordHandlers();
+
+  // Register top sites handlers
+  registerTopSitesHandlers();
 
   // Initialize downloads service
   downloads.init();

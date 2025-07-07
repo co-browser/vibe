@@ -22,9 +22,9 @@
 
   body {
     @apply bg-white text-gray-900;
-    /*TODO: change the below back from transparent for color */
-    background-color: transparent !important;
-    color: transparent !important;
+    /* Restored proper background color */
+    background-color: var(--app-background);
+    color: var(--text-primary);
   }
 }
 
@@ -32,8 +32,7 @@
   /* Browser Window Layout */
   .browser-window {
     @apply w-full h-screen overflow-hidden relative;
-    /*TODO to remove transparency, change below to: -    background-color: var(--app-background); */
-    background-color: transparent !important;
+    background-color: var(--app-background);
     font-family:
       -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", sans-serif;
   }

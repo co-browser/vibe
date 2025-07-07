@@ -1,5 +1,8 @@
 import { ipcMain, IpcMainInvokeEvent } from "electron";
 import { useUserProfileStore } from "@/store/user-profile-store";
+import { createLogger } from "@vibe/shared-types";
+
+const logger = createLogger("api-keys");
 
 /**
  * API key management handlers
@@ -41,9 +44,7 @@ ipcMain.handle(
       const plainTextValue = activeProfile.settings?.[profileKey];
       if (plainTextValue) {
         // Migrate to secure storage
-        console.log(
-          `[API Keys] Migrating ${keyName} API key to secure storage`,
-        );
+        logger.info(`Migrating ${keyName} API key to secure storage`);
         await userProfileStore.setSecureSetting(
           activeProfile.id,
           profileKey,
@@ -62,7 +63,7 @@ ipcMain.handle(
 
       return null;
     } catch (error) {
-      console.error("[API Keys] Failed to get API key:", error);
+      logger.error("Failed to get API key:", error);
       return null;
     }
   },
@@ -111,10 +112,10 @@ ipcMain.handle(
         process.env.OPENAI_API_KEY = value;
       }
 
-      console.log(`[API Keys] Saved ${keyName} API key to secure storage`);
+      logger.info(`Saved ${keyName} API key to secure storage`);
       return true;
     } catch (error) {
-      console.error("[API Keys] Failed to set API key:", error);
+      logger.error("Failed to set API key:", error);
       return false;
     }
   },

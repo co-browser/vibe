@@ -1,5 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import type { PasswordEntry } from "../types/passwords";
+import { createLogger } from "@vibe/shared-types";
+
+const logger = createLogger("passwords-hook");
 
 export function usePasswords() {
   const [passwords, setPasswords] = useState<PasswordEntry[]>([]);
@@ -63,7 +66,7 @@ export function usePasswords() {
         }
       }
     } catch {
-      console.error("Failed to load import sources");
+      logger.error("Failed to load import sources");
     }
   }, []);
 
@@ -146,7 +149,7 @@ export function usePasswords() {
   }, [handleImportFromChrome]);
 
   const handleComprehensiveImportFromChrome = useCallback(async () => {
-    if (importedSources.has("chrome-comprehensive")) {
+    if (importedSources.has("chrome-all-profiles")) {
       showMessage(
         'Chrome data already imported. Use "Clear All" to re-import.',
         "info",
@@ -157,10 +160,12 @@ export function usePasswords() {
     try {
       setIsImporting(true);
       setProgressValue(10);
-      setProgressText("Starting comprehensive Chrome import...");
+      setProgressText(
+        "Starting comprehensive Chrome import from all profiles...",
+      );
 
       const result = await window.electron.ipcRenderer.invoke(
-        "chrome:import-comprehensive",
+        "chrome:import-all-profiles",
       );
 
       setProgressValue(80);
@@ -170,9 +175,9 @@ export function usePasswords() {
         setProgressValue(100);
         setProgressText("Import complete!");
         showMessage(
-          `Successfully imported ${result.passwordCount || 0} passwords, ${result.bookmarkCount || 0} bookmarks, and other data from Chrome`,
+          `Successfully imported from all Chrome profiles: ${result.passwordCount || 0} passwords, ${result.bookmarkCount || 0} bookmarks, ${result.historyCount || 0} history entries`,
         );
-        setImportedSources(prev => new Set(prev).add("chrome-comprehensive"));
+        setImportedSources(prev => new Set(prev).add("chrome-all-profiles"));
         await loadPasswords();
         await loadImportSources();
       } else {
@@ -181,6 +186,54 @@ export function usePasswords() {
     } catch (error) {
       showMessage(
         `Failed to import from Chrome: ${error instanceof Error ? error.message : "Unknown error"}`,
+        "error",
+      );
+    } finally {
+      setIsImporting(false);
+      setProgressValue(0);
+      setProgressText("");
+    }
+  }, [importedSources, loadPasswords, loadImportSources, showMessage]);
+
+  const handleImportAllChromeProfiles = useCallback(async () => {
+    if (importedSources.has("chrome-all-profiles")) {
+      showMessage(
+        'All Chrome profiles already imported. Use "Clear All" to re-import.',
+        "info",
+      );
+      return;
+    }
+
+    try {
+      setIsImporting(true);
+      setProgressValue(10);
+      setProgressText("Starting import from all Chrome profiles...");
+
+      const result = await window.electron.ipcRenderer.invoke(
+        "chrome:import-all-profiles",
+      );
+
+      setProgressValue(80);
+      setProgressText("Finalizing import...");
+
+      if (result && result.success) {
+        setProgressValue(100);
+        setProgressText("Import complete!");
+        showMessage(
+          `Successfully imported from all Chrome profiles: ${result.passwordCount || 0} passwords, ${result.bookmarkCount || 0} bookmarks, ${result.historyCount || 0} history entries`,
+        );
+        setImportedSources(prev => new Set(prev).add("chrome-all-profiles"));
+        await loadPasswords();
+        await loadImportSources();
+      } else {
+        showMessage(
+          result?.error || "Failed to import from Chrome profiles",
+          "error",
+        );
+      }
+    } catch (error) {
+      showMessage(
+        `Failed to import from Chrome profiles: ${error instanceof Error ? error.message : "Unknown error"}`,
         "error",
       );
     } finally {
@@ -334,6 +387,7 @@ export function usePasswords() {
     progressText,
     handleImportFromChrome,
     handleComprehensiveImportFromChrome,
+    handleImportAllChromeProfiles,
     handleImportChromeBookmarks,
     handleImportChromeHistory,
     handleImportChromeAutofill,

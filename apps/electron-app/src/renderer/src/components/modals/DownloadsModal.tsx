@@ -1,4 +1,7 @@
 import React, { useEffect } from "react";
+import { createLogger } from "@vibe/shared-types";
+
+const logger = createLogger("DownloadsModal");
 
 interface DownloadsModalProps {
   isOpen: boolean;
@@ -15,7 +18,7 @@ export const DownloadsModal: React.FC<DownloadsModalProps> = ({
       window.electron?.ipcRenderer
         .invoke("dialog:show-downloads")
         .catch(error => {
-          console.error("Failed to show downloads dialog:", error);
+          logger.error("Failed to show downloads dialog:", error);
         });
     }
   }, [isOpen]);

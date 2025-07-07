@@ -436,12 +436,12 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
   sessionCreatedCallbacks: [],
 
   createProfile: (name: string) => {
-    console.log("[Profile Debug] createProfile called with name:", name);
+    logger.debug("[Profile Debug] createProfile called with name:", name);
 
     const id = generateProfileId();
     const now = Date.now();
 
-    console.log("[Profile Debug] Generated profile ID:", id);
+    logger.debug("[Profile Debug] Generated profile ID:", id);
 
     const newProfile: UserProfile = {
       id,
@@ -481,7 +481,7 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
       const newProfiles = new Map(state.profiles);
       newProfiles.set(id, newProfile);
 
-      console.log("[Profile Debug] Adding profile to store:", {
+      logger.debug("[Profile Debug] Adding profile to store:", {
         profileId: id,
         profileName: name,
         totalProfiles: newProfiles.size,
@@ -493,7 +493,7 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
       };
     });
 
-    console.log("[Profile Debug] Profile created and set as active:", {
+    logger.debug("[Profile Debug] Profile created and set as active:", {
       profileId: id,
       profileName: name,
     });
@@ -503,11 +503,11 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
       try {
         // Initialize encrypted storage for sensitive data
         await get().setSecureSetting(id, "_profile_initialized", "true");
-        console.info(
+        logger.info(
           `Profile ${id} (${name}) created successfully with all data structures initialized`,
         );
       } catch (error) {
-        console.error(
+        logger.error(
           `Failed to initialize secure storage for profile ${id}:`,
           error,
         );
@@ -532,7 +532,7 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
 
   getActiveProfile: () => {
     const { activeProfileId, profiles } = get();
-    console.log("[Profile Debug] getActiveProfile called:", {
+    logger.debug("[Profile Debug] getActiveProfile called:", {
       activeProfileId,
       profilesSize: profiles.size,
       profileIds: Array.from(profiles.keys()),
@@ -540,20 +540,20 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
     });
 
     if (!activeProfileId) {
-      console.log("[Profile Debug] No activeProfileId found");
+      logger.debug("[Profile Debug] No activeProfileId found");
       return undefined;
     }
 
     const profile = profiles.get(activeProfileId);
     if (!profile) {
-      console.log(
+      logger.debug(
         "[Profile Debug] Profile not found for activeProfileId:",
         activeProfileId,
       );
       return undefined;
     }
 
-    console.log("[Profile Debug] Returning active profile:", {
+    logger.debug("[Profile Debug] Returning active profile:", {
       id: profile.id,
       name: profile.name,
       downloadsCount: profile.downloads?.length || 0,
@@ -943,7 +943,7 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
 
       get().saveProfiles();
     } catch (error) {
-      console.error(`Failed to set secure setting ${key}:`, error);
+      logger.error(`Failed to set secure setting ${key}:`, error);
       throw error;
     }
   },
@@ -960,7 +960,7 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
       const encryptedValue = profile.secureSettings[key];
       return await encryptionService.decryptData(encryptedValue);
     } catch (error) {
-      console.error(`Failed to get secure setting ${key}:`, error);
+      logger.error(`Failed to get secure setting ${key}:`, error);
       return null;
     }
   },
@@ -1003,7 +1003,7 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
         decryptedSettings[key] =
           await encryptionService.decryptData(encryptedValue);
       } catch (error) {
-        console.error(`Failed to decrypt setting ${key}:`, error);
+        logger.error(`Failed to decrypt setting ${key}:`, error);
         // Skip failed decryptions
       }
     }
@@ -1033,14 +1033,11 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
         JSON.stringify(passwordData),
       );
 
-      console.info(
+      logger.info(
         `Stored ${passwords.length} passwords from ${source} securely for profile ${profileId}`,
       );
     } catch (error) {
-      console.error(
-        `Failed to store imported passwords from ${source}:`,
-        error,
-      );
+      logger.error(`Failed to store imported passwords from ${source}:`, error);
       throw error;
     }
   },
@@ -1072,7 +1069,7 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
               const passwordData: PasswordImportData = JSON.parse(value);
               allPasswords.push(...(passwordData.passwords || []));
             } catch (error) {
-              console.error(
+              logger.error(
                 `Failed to parse password data for key ${key}:`,
                 error,
               );
@@ -1083,7 +1080,7 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
         return allPasswords;
       }
     } catch (error) {
-      console.error(`Failed to get imported passwords:`, error);
+      logger.error(`Failed to get imported passwords:`, error);
       return [];
     }
   },
@@ -1095,11 +1092,11 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
     try {
       const key = `passwords.import.${source}`;
       await get().removeSecureSetting(profileId, key);
-      console.info(
+      logger.info(
         `Removed imported passwords from ${source} for profile ${profileId}`,
       );
     } catch (error) {
-      console.error(
+      logger.error(
         `Failed to remove imported passwords from ${source}:`,
         error,
       );
@@ -1119,9 +1116,9 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
         await get().removeImportedPasswords(profileId, source);
       }
 
-      console.info(`Cleared all imported passwords for profile ${profileId}`);
+      logger.info(`Cleared all imported passwords for profile ${profileId}`);
     } catch (error) {
-      console.error("Failed to clear all imported passwords:", error);
+      logger.error("Failed to clear all imported passwords:", error);
       throw error;
     }
   },
@@ -1135,7 +1132,7 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
 
       return sources;
     } catch (error) {
-      console.error("Failed to get password import sources:", error);
+      logger.error("Failed to get password import sources:", error);
       return [];
     }
   },
@@ -1161,14 +1158,11 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
         JSON.stringify(bookmarkData),
       );
 
-      console.info(
+      logger.info(
         `Stored ${bookmarks.length} bookmarks from ${source} securely for profile ${profileId}`,
       );
     } catch (error) {
-      console.error(
-        `Failed to store imported bookmarks from ${source}:`,
-        error,
-      );
+      logger.error(`Failed to store imported bookmarks from ${source}:`, error);
       throw error;
     }
   },
@@ -1195,7 +1189,7 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
               const bookmarkData: BookmarkImportData = JSON.parse(value);
               allBookmarks.push(...(bookmarkData.bookmarks || []));
             } catch (error) {
-              console.error(
+              logger.error(
                 `Failed to parse bookmark data for key ${key}:`,
                 error,
               );
@@ -1206,7 +1200,7 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
         return allBookmarks;
       }
     } catch (error) {
-      console.error(`Failed to get imported bookmarks:`, error);
+      logger.error(`Failed to get imported bookmarks:`, error);
       return [];
     }
   },
@@ -1215,11 +1209,11 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
     try {
       const key = `bookmarks.import.${source}`;
       await get().removeSecureSetting(profileId, key);
-      console.info(
+      logger.info(
         `Removed imported bookmarks from ${source} for profile ${profileId}`,
       );
     } catch (error) {
-      console.error(
+      logger.error(
         `Failed to remove imported bookmarks from ${source}:`,
         error,
       );
@@ -1239,9 +1233,9 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
         await get().removeImportedBookmarks(profileId, source);
       }
 
-      console.info(`Cleared all imported bookmarks for profile ${profileId}`);
+      logger.info(`Cleared all imported bookmarks for profile ${profileId}`);
     } catch (error) {
-      console.error("Failed to clear all imported bookmarks:", error);
+      logger.error("Failed to clear all imported bookmarks:", error);
       throw error;
     }
   },
@@ -1255,7 +1249,7 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
 
       return sources;
     } catch (error) {
-      console.error("Failed to get bookmark import sources:", error);
+      logger.error("Failed to get bookmark import sources:", error);
       return [];
     }
   },
@@ -1277,11 +1271,11 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
       const key = `history.import.${source}`;
       await get().setSecureSetting(profileId, key, JSON.stringify(historyData));
 
-      console.info(
+      logger.info(
         `Stored ${history.length} history entries from ${source} securely for profile ${profileId}`,
       );
     } catch (error) {
-      console.error(`Failed to store imported history from ${source}:`, error);
+      logger.error(`Failed to store imported history from ${source}:`, error);
       throw error;
     }
   },
@@ -1308,7 +1302,7 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
               const historyData = JSON.parse(value);
               allHistory.push(...(historyData.entries || []));
             } catch (error) {
-              console.error(
+              logger.error(
                 `Failed to parse history data for key ${key}:`,
                 error,
               );
@@ -1319,7 +1313,7 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
         return allHistory;
       }
     } catch (error) {
-      console.error(`Failed to get imported history:`, error);
+      logger.error(`Failed to get imported history:`, error);
       return [];
     }
   },
@@ -1328,11 +1322,11 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
     try {
       const key = `history.import.${source}`;
       await get().removeSecureSetting(profileId, key);
-      console.info(
+      logger.info(
         `Removed imported history from ${source} for profile ${profileId}`,
       );
     } catch (error) {
-      console.error(`Failed to remove imported history from ${source}:`, error);
+      logger.error(`Failed to remove imported history from ${source}:`, error);
       throw error;
     }
   },
@@ -1349,9 +1343,9 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
         await get().removeImportedHistory(profileId, source);
       }
 
-      console.info(`Cleared all imported history for profile ${profileId}`);
+      logger.info(`Cleared all imported history for profile ${profileId}`);
     } catch (error) {
-      console.error("Failed to clear all imported history:", error);
+      logger.error("Failed to clear all imported history:", error);
       throw error;
     }
   },
@@ -1365,7 +1359,7 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
 
       return sources;
     } catch (error) {
-      console.error("Failed to get history import sources:", error);
+      logger.error("Failed to get history import sources:", error);
       return [];
     }
   },
@@ -1384,11 +1378,11 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
         JSON.stringify(autofillData),
       );
 
-      console.info(
+      logger.info(
         `Stored ${autofillData.count} autofill items from ${source} securely for profile ${profileId}`,
       );
     } catch (error) {
-      console.error(`Failed to store imported autofill from ${source}:`, error);
+      logger.error(`Failed to store imported autofill from ${source}:`, error);
       throw error;
     }
   },
@@ -1423,7 +1417,7 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
               combinedData.entries.push(...(autofillData.entries || []));
               combinedData.profiles.push(...(autofillData.profiles || []));
             } catch (error) {
-              console.error(
+              logger.error(
                 `Failed to parse autofill data for key ${key}:`,
                 error,
               );
@@ -1436,7 +1430,7 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
         return combinedData;
       }
     } catch (error) {
-      console.error(`Failed to get imported autofill:`, error);
+      logger.error(`Failed to get imported autofill:`, error);
       return {
         entries: [],
         profiles: [],
@@ -1451,14 +1445,11 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
     try {
       const key = `autofill.import.${source}`;
       await get().removeSecureSetting(profileId, key);
-      console.info(
+      logger.info(
         `Removed imported autofill from ${source} for profile ${profileId}`,
       );
     } catch (error) {
-      console.error(
-        `Failed to remove imported autofill from ${source}:`,
-        error,
-      );
+      logger.error(`Failed to remove imported autofill from ${source}:`, error);
       throw error;
     }
   },
@@ -1475,9 +1466,9 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
         await get().removeImportedAutofill(profileId, source);
       }
 
-      console.info(`Cleared all imported autofill for profile ${profileId}`);
+      logger.info(`Cleared all imported autofill for profile ${profileId}`);
     } catch (error) {
-      console.error("Failed to clear all imported autofill:", error);
+      logger.error("Failed to clear all imported autofill:", error);
       throw error;
     }
   },
@@ -1491,7 +1482,7 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
 
       return sources;
     } catch (error) {
-      console.error("Failed to get autofill import sources:", error);
+      logger.error("Failed to get autofill import sources:", error);
       return [];
     }
   },
@@ -1517,11 +1508,11 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
         JSON.stringify(searchEngineData),
       );
 
-      console.info(
+      logger.info(
         `Stored ${engines.length} search engines from ${source} securely for profile ${profileId}`,
       );
     } catch (error) {
-      console.error(
+      logger.error(
         `Failed to store imported search engines from ${source}:`,
         error,
       );
@@ -1553,7 +1544,7 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
                 JSON.parse(value);
               allSearchEngines.push(...(searchEngineData.engines || []));
             } catch (error) {
-              console.error(
+              logger.error(
                 `Failed to parse search engine data for key ${key}:`,
                 error,
               );
@@ -1564,7 +1555,7 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
         return allSearchEngines;
       }
     } catch (error) {
-      console.error(`Failed to get imported search engines:`, error);
+      logger.error(`Failed to get imported search engines:`, error);
       return [];
     }
   },
@@ -1573,11 +1564,11 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
     try {
       const key = `searchEngines.import.${source}`;
       await get().removeSecureSetting(profileId, key);
-      console.info(
+      logger.info(
         `Removed imported search engines from ${source} for profile ${profileId}`,
       );
     } catch (error) {
-      console.error(
+      logger.error(
         `Failed to remove imported search engines from ${source}:`,
         error,
       );
@@ -1597,11 +1588,11 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
         await get().removeImportedSearchEngines(profileId, source);
       }
 
-      console.info(
+      logger.info(
         `Cleared all imported search engines for profile ${profileId}`,
       );
     } catch (error) {
-      console.error("Failed to clear all imported search engines:", error);
+      logger.error("Failed to clear all imported search engines:", error);
       throw error;
     }
   },
@@ -1617,7 +1608,7 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
 
       return sources;
     } catch (error) {
-      console.error("Failed to get search engine import sources:", error);
+      logger.error("Failed to get search engine import sources:", error);
       return [];
     }
   },
@@ -1631,11 +1622,11 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
       const key = `comprehensive.import.${importData.source}.${importData.timestamp}`;
       await get().setSecureSetting(profileId, key, JSON.stringify(importData));
 
-      console.info(
+      logger.info(
         `Stored comprehensive import from ${importData.source} with ${importData.totalItems} total items for profile ${profileId}`,
       );
     } catch (error) {
-      console.error(`Failed to store comprehensive import:`, error);
+      logger.error(`Failed to store comprehensive import:`, error);
       throw error;
     }
   },
@@ -1656,7 +1647,7 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
               importHistory.push(importData);
             }
           } catch (error) {
-            console.error(
+            logger.error(
               `Failed to parse comprehensive import data for key ${key}:`,
               error,
             );
@@ -1666,7 +1657,7 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
 
       return importHistory.sort((a, b) => b.timestamp - a.timestamp);
     } catch (error) {
-      console.error(`Failed to get comprehensive import history:`, error);
+      logger.error(`Failed to get comprehensive import history:`, error);
       return [];
     }
   },
@@ -1679,11 +1670,11 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
     try {
       const key = `comprehensive.import.${source}.${timestamp}`;
       await get().removeSecureSetting(profileId, key);
-      console.info(
+      logger.info(
         `Removed comprehensive import from ${source} at ${timestamp} for profile ${profileId}`,
       );
     } catch (error) {
-      console.error(`Failed to remove comprehensive import:`, error);
+      logger.error(`Failed to remove comprehensive import:`, error);
       throw error;
     }
   },
@@ -1707,9 +1698,9 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
         await get().removeSecureSetting(profileId, key);
       }
 
-      console.info(`Cleared all import data for profile ${profileId}`);
+      logger.info(`Cleared all import data for profile ${profileId}`);
     } catch (error) {
-      console.error("Failed to clear all import data:", error);
+      logger.error("Failed to clear all import data:", error);
       throw error;
     }
   },
@@ -1729,20 +1720,20 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
       await fs.ensureDir(path.dirname(profilesPath));
       await fs.writeJson(profilesPath, data, { spaces: 2 });
     } catch (error) {
-      console.error("Failed to save user profiles:", error);
+      logger.error("Failed to save user profiles:", error);
     }
   },
 
   loadProfiles: async () => {
-    console.log("[Profile Debug] loadProfiles called");
+    logger.debug("[Profile Debug] loadProfiles called");
     try {
       const profilesPath = getUserProfilesPath();
-      console.log("[Profile Debug] Profiles path:", profilesPath);
+      logger.debug("[Profile Debug] Profiles path:", profilesPath);
 
       if (await fs.pathExists(profilesPath)) {
-        console.log("[Profile Debug] Profiles file exists, loading...");
+        logger.debug("[Profile Debug] Profiles file exists, loading...");
         const data = await fs.readJson(profilesPath);
-        console.log("[Profile Debug] Loaded profiles data:", {
+        logger.debug("[Profile Debug] Loaded profiles data:", {
           hasProfiles: !!data.profiles,
           profilesCount: data.profiles?.length || 0,
           activeProfileId: data.activeProfileId,
@@ -1773,7 +1764,7 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
             if (!profile.secureSettings) profile.secureSettings = {};
 
             profiles.set(profile.id, profile);
-            console.log("[Profile Debug] Loaded profile:", {
+            logger.debug("[Profile Debug] Loaded profile:", {
               id: profile.id,
               name: profile.name,
               downloadsCount: profile.downloads?.length || 0,
@@ -1786,7 +1777,7 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
           activeProfileId: data.activeProfileId || null,
         });
 
-        console.log("[Profile Debug] Set profiles in store:", {
+        logger.debug("[Profile Debug] Set profiles in store:", {
           profilesSize: profiles.size,
           activeProfileId: data.activeProfileId || null,
         });
@@ -1799,21 +1790,21 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
 
         // Create default profile if none exist
         if (profiles.size === 0) {
-          console.log(
+          logger.debug(
             "[Profile Debug] No profiles found, creating default profile",
           );
           get().createProfile("Default");
         }
       } else {
-        console.log(
+        logger.debug(
           "[Profile Debug] Profiles file does not exist, creating default profile",
         );
         // Create default profile on first run
         get().createProfile("Default");
       }
     } catch (error) {
-      console.error("Failed to load user profiles:", error);
-      console.log(
+      logger.error("Failed to load user profiles:", error);
+      logger.debug(
         "[Profile Debug] Error loading profiles, creating default profile",
       );
       // Create default profile on error

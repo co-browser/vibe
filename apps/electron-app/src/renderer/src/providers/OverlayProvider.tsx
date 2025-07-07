@@ -313,7 +313,7 @@ export function OverlayProvider({ children }: { children: React.ReactNode }) {
           window.vibeOverlay.execute(`
             if (window.vibeOverlayCleanup && window.vibeOverlayCleanup['${id}']) {
               window.vibeOverlayCleanup['${id}'].forEach(cleanup => {
-                try { cleanup(); } catch (e) { console.warn('Cleanup error:', e); }
+                try { cleanup(); } catch (e) { /* Cleanup error handled silently */ }
               });
               delete window.vibeOverlayCleanup['${id}'];
             }
@@ -367,7 +367,7 @@ export function OverlayProvider({ children }: { children: React.ReactNode }) {
             if (window.vibeOverlayCleanup) {
               Object.keys(window.vibeOverlayCleanup).forEach(overlayId => {
                 window.vibeOverlayCleanup[overlayId].forEach(cleanup => {
-                  try { cleanup(); } catch (e) { console.warn('Cleanup error:', e); }
+                  try { cleanup(); } catch (e) { /* Cleanup error handled silently */ }
                 });
               });
               window.vibeOverlayCleanup = {};
@@ -458,7 +458,7 @@ export function OverlayProvider({ children }: { children: React.ReactNode }) {
         if (window.vibeOverlayCleanup) {
           Object.keys(window.vibeOverlayCleanup).forEach(overlayId => {
             window.vibeOverlayCleanup[overlayId].forEach(cleanup => {
-              try { cleanup(); } catch (e) { console.warn('Cleanup error:', e); }
+              try { cleanup(); } catch (e) { /* Cleanup error handled silently */ }
             });
           });
           window.vibeOverlayCleanup = {};

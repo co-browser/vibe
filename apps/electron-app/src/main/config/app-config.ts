@@ -1,5 +1,8 @@
 import { app } from "electron";
 import * as path from "path";
+import { createLogger } from "@vibe/shared-types";
+
+const logger = createLogger("app-config");
 
 /**
  * Centralized application configuration
@@ -394,7 +397,7 @@ export class ConfigManager {
         // Config file doesn't exist or is invalid, use defaults
       }
     } catch (error) {
-      console.warn("Failed to load user configuration:", error);
+      logger.warn("Failed to load user configuration", { error });
     }
   }
 
@@ -412,7 +415,7 @@ export class ConfigManager {
         "utf-8",
       );
     } catch (error) {
-      console.error("Failed to save user configuration:", error);
+      logger.error("Failed to save user configuration", { error });
     }
   }
 

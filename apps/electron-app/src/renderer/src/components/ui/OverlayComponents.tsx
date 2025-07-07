@@ -1,4 +1,7 @@
 import React from "react";
+import { createLogger } from "@vibe/shared-types";
+
+const logger = createLogger("OverlayComponents");
 
 export const OverlayComponents = {
   Toast: ({
@@ -11,7 +14,7 @@ export const OverlayComponents = {
     duration?: number;
   }) => {
     // Use duration for future animation/auto-hide functionality
-    console.debug("Toast display duration:", duration);
+    logger.debug("Toast display duration:", duration);
     const colors = {
       success: { bg: "#10b981", icon: "✓" },
       error: { bg: "#ef4444", icon: "✕" },

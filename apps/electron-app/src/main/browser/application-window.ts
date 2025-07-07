@@ -407,12 +407,12 @@ ipcMain.on("download-button", async (_event, { url }) => {
   const win = BrowserWindow.getFocusedWindow();
   if (win) {
     try {
-      console.log(await download(win, url));
+      logger.info("Download completed:", await download(win, url));
     } catch (error) {
       if (error instanceof CancelError) {
-        console.info("item.cancel() was called");
+        logger.info("item.cancel() was called");
       } else {
-        console.error(error);
+        logger.error("Download error:", error);
       }
     }
   }

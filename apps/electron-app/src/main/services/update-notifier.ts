@@ -1,14 +1,9 @@
-import {
-  Notification,
-  Tray,
-  Menu,
-  app,
-  BrowserWindow,
-  nativeImage,
-  shell,
-} from "electron";
+import { Notification, app, BrowserWindow, shell } from "electron";
 import { join } from "path";
 import { autoUpdater } from "electron-updater";
+import { createLogger } from "@vibe/shared-types";
+
+const logger = createLogger("update-notifier");
 
 export interface NotificationOptions {
   title: string;
@@ -23,7 +18,6 @@ export interface NotificationOptions {
 }
 
 export class UpdateNotifier {
-  private tray: Tray | null = null;
   private isInitialized = false;
   private notificationCallbacks: Map<string, () => void> = new Map();
 
@@ -33,61 +27,11 @@ export class UpdateNotifier {
 
   public async initialize(): Promise<void> {
     try {
-      this.setupTray();
+      // Removed tray setup - should use main app's tray instead
       this.isInitialized = true;
-      console.log("Update notifier initialized");
+      logger.info("Update notifier initialized");
     } catch (error) {
-      console.error("Failed to initialize update notifier:", error);
-    }
-  }
-
-  private setupTray(): void {
-    if (process.platform === "darwin" || process.platform === "win32") {
-      try {
-        // Create tray icon using the main app icon from resources
-        const iconPath = join(__dirname, "..", "..", "resources", "tray.png");
-
-        // Create a smaller version of the icon for the tray (16x16 or 22x22 for macOS)
-        const trayIcon = nativeImage.createFromPath(iconPath);
-        const resizedIcon = trayIcon.resize({ width: 16, height: 16 });
-
-        this.tray = new Tray(resizedIcon);
-
-        // Set tooltip
-        this.tray.setToolTip("Vibe - Update Available");
-
-        // Create context menu
-        const contextMenu = Menu.buildFromTemplate([
-          {
-            label: "Check for Updates",
-            click: () => {
-              this.checkForUpdates();
-            },
-          },
-          {
-            label: "Show Update History",
-            click: () => {
-              this.showUpdateHistory();
-            },
-          },
-          { type: "separator" },
-          {
-            label: "Quit",
-            click: () => {
-              app.quit();
-            },
-          },
-        ]);
-
-        this.tray.setContextMenu(contextMenu);
-
-        // Handle tray click
-        this.tray.on("click", () => {
-          this.showMainWindow();
-        });
-      } catch (error) {
-        console.error("Failed to setup tray:", error);
-      }
+      logger.error("Failed to initialize update notifier", { error });
     }
   }
 
@@ -98,7 +42,7 @@ export class UpdateNotifier {
     options: Partial<NotificationOptions> = {},
   ): void {
     if (!this.isInitialized) {
-      console.warn("Update notifier not initialized");
+      logger.warn("Update notifier not initialized");
       return;
     }
 
@@ -158,14 +102,11 @@ export class UpdateNotifier {
       // Show the notification
       notification.show();
 
-      // Update tray tooltip
-      if (this.tray) {
-        this.tray.setToolTip(`Vibe - ${title}`);
-      }
+      // Update notifications don't need tray interaction
 
-      console.log(`Update notification shown: ${title}`);
+      logger.info("Update notification shown", { title });
     } catch (error) {
-      console.error("Failed to show update notification:", error);
+      logger.error("Failed to show update notification", { error });
     }
   }
 
@@ -240,7 +181,7 @@ export class UpdateNotifier {
     });
   }
 
-  private async checkForUpdates(): Promise<void> {
+  private async _checkForUpdates(): Promise<void> {
     try {
       // Show a notification that we're checking for updates
       const checkingNotification = new Notification({
@@ -264,7 +205,7 @@ export class UpdateNotifier {
       }
       // If update is available, the update-service will handle showing the notification
     } catch (error) {
-      console.error("Failed to check for updates:", error);
+      logger.error("Failed to check for updates", { error });
       const errorNotification = new Notification({
         title: "Update Check Failed",
         body: "Unable to check for updates. Please try again later.",
@@ -274,7 +215,7 @@ export class UpdateNotifier {
     }
   }
 
-  private showUpdateHistory(): void {
+  private _showUpdateHistory(): void {
     // For now, show a notification with the current version
     // In a full implementation, this would open a dialog or window with update history
     const currentVersion = app.getVersion();
@@ -306,26 +247,9 @@ export class UpdateNotifier {
   }
 
   public updateTrayIcon(hasUpdate: boolean): void {
-    if (!this.tray) return;
-
-    try {
-      // Use the main app icon from resources
-      const iconPath = join(__dirname, "..", "..", "resources", "tray.png");
-      const trayIcon = nativeImage.createFromPath(iconPath);
-
-      // Create a smaller version for the tray
-      const resizedIcon = trayIcon.resize({ width: 16, height: 16 });
-
-      // If there's an update, we could tint the icon or add a badge
-      // For now, just use the same icon
-      this.tray.setImage(resizedIcon);
-
-      const tooltip = hasUpdate ? "Vibe - Update Available" : "Vibe";
-
-      this.tray.setToolTip(tooltip);
-    } catch (error) {
-      console.error("Failed to update tray icon:", error);
-    }
+    // Tray icon updates should be handled by the main app
+    // This method is kept for compatibility but does nothing
+    logger.info("Update tray icon request", { hasUpdate });
   }
 
   public async cleanup(): Promise<void> {
@@ -333,15 +257,9 @@ export class UpdateNotifier {
       // Clear all notification callbacks
       this.notificationCallbacks.clear();
 
-      // Destroy tray
-      if (this.tray) {
-        this.tray.destroy();
-        this.tray = null;
-      }
-
-      console.log("Update notifier cleanup completed");
+      logger.info("Update notifier cleanup completed");
     } catch (error) {
-      console.error("Failed to cleanup update notifier:", error);
+      logger.error("Failed to cleanup update notifier", { error });
     }
   }
 }

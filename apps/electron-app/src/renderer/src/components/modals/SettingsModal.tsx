@@ -1,4 +1,7 @@
 import React, { useEffect } from "react";
+import { createLogger } from "@vibe/shared-types";
+
+const logger = createLogger("SettingsModal");
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -15,7 +18,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       window.electron?.ipcRenderer
         .invoke("dialog:show-settings")
         .catch(error => {
-          console.error("Failed to show settings dialog:", error);
+          logger.error("Failed to show settings dialog:", error);
         });
     }
   }, [isOpen]);

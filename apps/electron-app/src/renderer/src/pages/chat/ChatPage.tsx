@@ -11,6 +11,7 @@ import { Messages } from "@/components/chat/Messages";
 import { ChatWelcome } from "@/components/chat/ChatWelcome";
 import { AgentStatusIndicator } from "@/components/chat/StatusIndicator";
 import { ChatInput } from "@/components/chat/ChatInput";
+import { OnlineStatusStrip } from "@/components/ui/OnlineStatusStrip";
 import { useContextMenu, ChatContextMenuItems } from "@/hooks/useContextMenu";
 
 import "@/components/styles/ChatView.css";
@@ -155,6 +156,7 @@ export function ChatPage(): React.JSX.Element {
           isSending={isSending}
           tabContext={tabContext}
         />
+        <OnlineStatusStrip />
       </div>
     </div>
   );

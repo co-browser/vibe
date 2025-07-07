@@ -11,6 +11,9 @@ import { Edit3, Check, X } from "lucide-react";
 import { TabReferencePill } from "./TabReferencePill";
 import { useTabAliases } from "@/hooks/useTabAliases";
 import { TabContextBar } from "./TabContextBar";
+import { createLogger } from "@vibe/shared-types";
+
+const logger = createLogger("Messages");
 
 export interface GroupedMessage {
   id: string;
@@ -67,7 +70,7 @@ export const Messages: React.FC<MessagesProps> = ({
           setTabs(allTabs);
         }
       } catch (error) {
-        console.error("Failed to fetch tabs:", error);
+        logger.error("Failed to fetch tabs:", error);
       }
     };
 

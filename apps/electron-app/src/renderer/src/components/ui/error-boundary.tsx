@@ -1,4 +1,7 @@
 import React, { Component, ErrorInfo, ReactNode } from "react";
+import { createLogger } from "@vibe/shared-types";
+
+const logger = createLogger("ErrorBoundary");
 
 interface Props {
   children: ReactNode;
@@ -22,8 +25,8 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
-    console.error("[ErrorBoundary] Error caught:", error.name, error.message);
-    console.error("[ErrorBoundary] Component stack:", errorInfo.componentStack);
+    logger.error("Error caught:", error.name, error.message);
+    logger.error("Component stack:", errorInfo.componentStack);
 
     this.props.onError?.(error, errorInfo);
   }
@@ -148,7 +151,7 @@ export const ChatErrorBoundary = ({
   ...props
 }: Props): React.ReactElement => {
   const handleError = (error: Error, errorInfo: ErrorInfo): void => {
-    console.error("[ChatErrorBoundary] Chat error:", error.name, error.message);
+    logger.error("Chat error:", error.name, error.message);
     props.onError?.(error, errorInfo);
   };
 

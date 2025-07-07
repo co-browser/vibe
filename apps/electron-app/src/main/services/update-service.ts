@@ -4,6 +4,9 @@ import { UpdateScheduler } from "./update-scheduler";
 import { ActivityDetector } from "./activity-detector";
 import { UpdateNotifier } from "./update-notifier";
 import { UpdateRollback } from "./update-rollback";
+import { createLogger } from "@vibe/shared-types";
+
+const logger = createLogger("UpdateService");
 
 export interface UpdateProgress {
   percent: number;
@@ -66,16 +69,16 @@ export class UpdateService {
     // Configure autoUpdater
     autoUpdater.autoDownload = false;
     autoUpdater.autoInstallOnAppQuit = true;
-    autoUpdater.logger = console;
+    autoUpdater.logger = logger;
 
     // Event handlers
     autoUpdater.on("checking-for-update", () => {
-      console.log("Checking for updates...");
+      logger.info("Checking for updates...");
       this.sendToRenderer("update-checking");
     });
 
     autoUpdater.on("update-available", (info: UpdateInfo) => {
-      console.log("Update available:", info.version);
+      logger.info("Update available:", info.version);
       this.isUpdateAvailable = true;
       this.updateInfo = info;
       this.sendToRenderer("update-available", info);
@@ -83,24 +86,24 @@ export class UpdateService {
     });
 
     autoUpdater.on("update-not-available", () => {
-      console.log("No updates available");
+      logger.info("No updates available");
       this.sendToRenderer("update-not-available");
     });
 
     autoUpdater.on("error", err => {
-      console.error("Update error:", err);
+      logger.error("Update error:", err);
       this.sendToRenderer("update-error", err.message);
       this.clearProgressBar();
     });
 
     autoUpdater.on("download-progress", (progress: ProgressInfo) => {
-      console.log("Download progress:", progress.percent);
+      logger.debug("Download progress:", progress.percent);
       this.updateProgressBar(progress.percent / 100);
       this.sendToRenderer("update-progress", progress);
     });
 
     autoUpdater.on("update-downloaded", () => {
-      console.log("Update downloaded");
+      logger.info("Update downloaded");
       this.isDownloading = false;
       this.clearProgressBar();
       this.sendToRenderer("update-downloaded");
@@ -114,7 +117,7 @@ export class UpdateService {
         await autoUpdater.checkForUpdates();
         return { success: true };
       } catch (error) {
-        console.error("Failed to check for updates:", error);
+        logger.error("Failed to check for updates:", error);
         return {
           success: false,
           error: error instanceof Error ? error.message : String(error),
@@ -133,7 +136,7 @@ export class UpdateService {
         return { success: true };
       } catch (error) {
         this.isDownloading = false;
-        console.error("Failed to download update:", error);
+        logger.error("Failed to download update:", error);
         return {
           success: false,
           error: error instanceof Error ? error.message : String(error),
@@ -150,7 +153,7 @@ export class UpdateService {
         await this.scheduler.scheduleUpdate(time);
         return { success: true };
       } catch (error) {
-        console.error("Failed to schedule update:", error);
+        logger.error("Failed to schedule update:", error);
         return {
           success: false,
           error: error instanceof Error ? error.message : String(error),
@@ -162,7 +165,7 @@ export class UpdateService {
       try {
         return await this.scheduler.getScheduledUpdates();
       } catch (error) {
-        console.error("Failed to get scheduled updates:", error);
+        logger.error("Failed to get scheduled updates:", error);
         return [];
       }
     });
@@ -172,7 +175,7 @@ export class UpdateService {
         await this.scheduler.cancelUpdate(id);
         return { success: true };
       } catch (error) {
-        console.error("Failed to cancel scheduled update:", error);
+        logger.error("Failed to cancel scheduled update:", error);
         return {
           success: false,
           error: error instanceof Error ? error.message : String(error),
@@ -185,7 +188,7 @@ export class UpdateService {
         const activity = await this.activityDetector.getActivityPattern();
         return this.activityDetector.getSuggestedUpdateTimes(activity);
       } catch (error) {
-        console.error("Failed to get suggested update times:", error);
+        logger.error("Failed to get suggested update times:", error);
         return [];
       }
     });
@@ -194,7 +197,7 @@ export class UpdateService {
       try {
         return await this.rollback.getAvailableVersions();
       } catch (error) {
-        console.error("Failed to get rollback versions:", error);
+        logger.error("Failed to get rollback versions:", error);
         return [];
       }
     });
@@ -204,7 +207,7 @@ export class UpdateService {
         await this.rollback.rollbackToVersion(version);
         return { success: true };
       } catch (error) {
-        console.error("Failed to rollback:", error);
+        logger.error("Failed to rollback:", error);
         return {
           success: false,
           error: error instanceof Error ? error.message : String(error),
@@ -235,7 +238,7 @@ export class UpdateService {
         };
       }
     } catch (error) {
-      console.error("Failed to fetch release notes from GitHub:", error);
+      logger.error("Failed to fetch release notes from GitHub:", error);
 
       // Fallback to electron-updater release notes
       if (this.updateInfo?.releaseNotes) {
@@ -303,7 +306,7 @@ export class UpdateService {
         }
       }
     } catch (error) {
-      console.error("Failed to schedule update:", error);
+      logger.error("Failed to schedule update:", error);
     }
   }
 
@@ -335,7 +338,7 @@ export class UpdateService {
         try {
           await autoUpdater.checkForUpdates();
         } catch (error) {
-          console.error("Periodic update check failed:", error);
+          logger.error("Periodic update check failed:", error);
         }
       },
       4 * 60 * 60 * 1000,
@@ -354,7 +357,7 @@ export class UpdateService {
           }
         }
       } catch (error) {
-        console.error("Scheduled update check failed:", error);
+        logger.error("Scheduled update check failed:", error);
       }
     }, 60 * 1000);
   }
@@ -378,7 +381,7 @@ export class UpdateService {
       // Remove the original scheduled update
       await this.scheduler.cancelUpdate(scheduledUpdate.id);
     } catch (error) {
-      console.error("Failed to handle scheduled update:", error);
+      logger.error("Failed to handle scheduled update:", error);
     }
   }
 
@@ -389,9 +392,9 @@ export class UpdateService {
       await this.notifier.initialize();
       await this.rollback.initialize();
 
-      console.log("UpdateService initialized successfully");
+      logger.info("UpdateService initialized successfully");
     } catch (error) {
-      console.error("Failed to initialize UpdateService:", error);
+      logger.error("Failed to initialize UpdateService:", error);
       throw error;
     }
   }
@@ -403,9 +406,9 @@ export class UpdateService {
       await this.notifier.cleanup();
       await this.rollback.cleanup();
 
-      console.log("UpdateService cleaned up successfully");
+      logger.info("UpdateService cleaned up successfully");
     } catch (error) {
-      console.error("Failed to cleanup UpdateService:", error);
+      logger.error("Failed to cleanup UpdateService:", error);
     }
   }
 }

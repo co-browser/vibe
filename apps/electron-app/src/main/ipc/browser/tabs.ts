@@ -72,7 +72,16 @@ ipcMain.handle("tabs:update", async (event, tabKey: string, _updates: any) => {
 
 ipcMain.handle("remove-tab", async (event, tabKey: string) => {
   const appWindow = browser?.getApplicationWindow(event.sender.id);
-  appWindow?.tabManager.closeTab(tabKey);
+  if (!appWindow) return;
+
+  // Check if this is the last tab
+  const tabCount = appWindow.tabManager.getTabCount();
+  if (tabCount === 1) {
+    // Close the window instead of removing the last tab
+    appWindow.window.close();
+  } else {
+    appWindow?.tabManager.closeTab(tabKey);
+  }
 });
 
 ipcMain.handle("switch-tab", async (event, tabKey: string) => {

@@ -1,6 +1,9 @@
 import { ipcMain, IpcMainInvokeEvent } from "electron";
 import { useUserProfileStore } from "@/store/user-profile-store";
 import { WindowBroadcast } from "@/utils/window-broadcast";
+import { createLogger } from "@vibe/shared-types";
+
+const logger = createLogger("settings-management");
 
 /**
  * Settings CRUD handlers
@@ -27,7 +30,7 @@ ipcMain.handle(
 
       return activeProfile.settings?.[key] || null;
     } catch (error) {
-      console.error("[Settings] Failed to get setting:", error);
+      logger.error("Failed to get setting", { error });
       return null;
     }
   },
@@ -62,10 +65,10 @@ ipcMain.handle(
       // Notify all windows about the change
       notifySettingsChange(key, value);
 
-      console.log(`[Settings] Saved setting ${key} to profile`);
+      logger.info("Saved setting to profile", { key });
       return true;
     } catch (error) {
-      console.error("[Settings] Failed to set setting:", error);
+      logger.error("Failed to set setting", { error });
       return false;
     }
   },
@@ -93,10 +96,10 @@ ipcMain.handle(
       // Notify all windows about the removal
       notifySettingsChange(key, null);
 
-      console.log(`[Settings] Removed setting ${key} from profile`);
+      logger.info("Removed setting from profile", { key });
       return true;
     } catch (error) {
-      console.error("[Settings] Failed to remove setting:", error);
+      logger.error("Failed to remove setting", { error });
       return false;
     }
   },
@@ -113,7 +116,7 @@ ipcMain.handle("settings:get-all", async (_event: IpcMainInvokeEvent) => {
 
     return activeProfile.settings || {};
   } catch (error) {
-    console.error("[Settings] Failed to get all settings:", error);
+    logger.error("Failed to get all settings", { error });
     return {};
   }
 });
@@ -142,10 +145,10 @@ ipcMain.handle("settings:reset", async (_event: IpcMainInvokeEvent) => {
       notifySettingsChange(key, defaultSettings[key]);
     });
 
-    console.log("[Settings] Reset all settings to defaults");
+    logger.info("Reset all settings to defaults");
     return true;
   } catch (error) {
-    console.error("[Settings] Failed to reset settings:", error);
+    logger.error("Failed to reset settings", { error });
     return false;
   }
 });
@@ -165,10 +168,10 @@ ipcMain.handle("settings:export", async (_event: IpcMainInvokeEvent) => {
       exportedAt: new Date().toISOString(),
     };
 
-    console.log("[Settings] Exported settings");
+    logger.info("Exported settings");
     return JSON.stringify(exportData, null, 2);
   } catch (error) {
-    console.error("[Settings] Failed to export settings:", error);
+    logger.error("Failed to export settings", { error });
     return JSON.stringify({});
   }
 });
@@ -206,10 +209,10 @@ ipcMain.handle(
         notifySettingsChange(key, value);
       });
 
-      console.log("[Settings] Imported settings successfully");
+      logger.info("Imported settings successfully");
       return true;
     } catch (error) {
-      console.error("[Settings] Failed to import settings:", error);
+      logger.error("Failed to import settings", { error });
       return false;
     }
   },

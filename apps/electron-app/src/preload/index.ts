@@ -757,19 +757,19 @@ const downloadsAPI = {
 
 const dialogAPI = {
   close: async (dialogType: string) => {
-    console.log(`[DialogAPI] Closing dialog: ${dialogType}`);
+    logger.debug(`[DialogAPI] Closing dialog: ${dialogType}`);
     return ipcRenderer.invoke("dialog:close", dialogType);
   },
   forceClose: async (dialogType: string) => {
-    console.log(`[DialogAPI] Force closing dialog: ${dialogType}`);
+    logger.debug(`[DialogAPI] Force closing dialog: ${dialogType}`);
     return ipcRenderer.invoke("dialog:force-close", dialogType);
   },
   showDownloads: async () => {
-    console.log(`[DialogAPI] Showing downloads dialog`);
+    logger.debug(`[DialogAPI] Showing downloads dialog`);
     return ipcRenderer.invoke("dialog:show-downloads");
   },
   showSettings: async () => {
-    console.log(`[DialogAPI] Showing settings dialog`);
+    logger.debug(`[DialogAPI] Showing settings dialog`);
     return ipcRenderer.invoke("dialog:show-settings");
   },
 };
