@@ -344,6 +344,7 @@
 }
 
 .assistant-message-content {
+  position: relative;
   background: none;
   border: none;
   border-radius: 0;
@@ -359,6 +360,50 @@
 .assistant-message-content:hover {
   box-shadow: none;
   border-color: transparent;
+}
+
+/* Copy button for assistant messages */
+.assistant-message-copy-button {
+  margin-top: 8px;
+  margin-left: 0;
+  padding: 4px 8px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--chat-text-tertiary);
+  opacity: 0.6;
+  transition: all 0.2s ease;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.assistant-message-copy-button:hover {
+  opacity: 1;
+  background-color: var(--chat-background-secondary);
+  color: var(--chat-text-secondary);
+}
+
+.assistant-message-copy-button:active {
+  transform: scale(0.95);
+}
+
+.assistant-message-copy-button:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.assistant-message-copy-button.error {
+  color: var(--error-color);
+  border-color: var(--error-color);
+}
+
+.assistant-message-copy-button.error:hover {
+  background-color: rgba(239, 68, 68, 0.1);
+  color: var(--error-color);
 }
 
 /* Reset the parent container to normal only for thinking indicator */
