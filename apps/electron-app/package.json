@@ -1,6 +1,6 @@
 {
   "name": "vibe",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "vibe - AI-powered browser automation and management tool",
   "main": "./out/main/index.js",
   "author": "CoBrowser Team",

@@ -1,10 +1,31 @@
 
-<a name="v0.1.4"></a>
-## [v0.1.4] - 2025-07-05
+<a name="v0.1.5"></a>
+## [v0.1.5] - 2025-07-07
 ### Fix
-- agent loading spinner shows correct status
+- enable remote RAG server connection and update build assets
 
 ### Pull Requests
+- Merge pull request [#62](https://github.com/co-browser/vibe/issues/62) from co-browser/fix/remote-rag-connection
+
+
+<a name="v0.1.4"></a>
+## [v0.1.4] - 2025-07-05
+### Chore
+- **release:** v0.1.4
+
+### Feat
+- add workflow_dispatch support to release workflow
+- **api-profile-storage:** dynamic agent restart on API key changes
+
+### Fix
+- format code to pass CI checks
+- agent loading spinner shows correct status
+
+### Refactor
+- improve event listener management in AgentService and enhance signal handling in dev.js
+
+### Pull Requests
+- Merge pull request [#50](https://github.com/co-browser/vibe/issues/50) from co-browser/feat/api-profile-storage
 - Merge pull request [#53](https://github.com/co-browser/vibe/issues/53) from co-browser/maceip-patch-1
 - Merge pull request [#52](https://github.com/co-browser/vibe/issues/52) from co-browser/fix/agent-loading-spinner
 
@@ -218,6 +239,7 @@
 <a name="v0.0.0"></a>
 ## v0.0.0 - 2025-06-13
 
+[v0.1.5]: https://github.com/co-browser/vibe/compare/v0.1.4...v0.1.5
 [v0.1.4]: https://github.com/co-browser/vibe/compare/v0.1.3...v0.1.4
 [v0.1.3]: https://github.com/co-browser/vibe/compare/v0.1.2...v0.1.3
 [v0.1.2]: https://github.com/co-browser/vibe/compare/v0.1.1...v0.1.2
