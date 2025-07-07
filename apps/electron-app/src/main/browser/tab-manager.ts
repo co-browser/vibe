@@ -181,34 +181,44 @@ export class TabManager extends EventEmitter {
     this.emit("tab-created", key);
 
     // Track tab creation - only in main window (renderer)
-    const mainWindows = this._browser
-      .getAllWindows()
-      .filter(
-        (w: any) =>
-          w &&
-          w.webContents &&
-          !w.webContents.isDestroyed() &&
-          (w.webContents.getURL().includes("localhost:5173") ||
-            w.webContents.getURL().startsWith("file://")),
-      );
+    try {
+      const mainWindows = this._browser
+        .getAllWindows()
+        .filter(
+          (w: any) =>
+            w &&
+            w.webContents &&
+            !w.webContents.isDestroyed() &&
+            (w.webContents.getURL().includes("localhost:5173") ||
+              w.webContents.getURL().startsWith("file://")),
+        );
 
-    mainWindows.forEach((window: any) => {
-      window.webContents
-        .executeJavaScript(
-          `
-        if (window.umami && typeof window.umami.track === 'function') {
-          window.umami.track('tab-created', {
-            url: '${targetUrl}',
-            timestamp: ${Date.now()},
-            totalTabs: ${this.tabs.size}
+      mainWindows.forEach((window: any) => {
+        window.webContents
+          .executeJavaScript(
+            `
+          if (window.umami && typeof window.umami.track === 'function') {
+            window.umami.track('tab-created', {
+              url: '${targetUrl}',
+              timestamp: ${Date.now()},
+              totalTabs: ${this.tabs.size}
+            });
+          }
+        `,
+          )
+          .catch(err => {
+            logger.error("Failed to track tab creation", {
+              error: err.message,
+            });
           });
-        }
-      `,
-        )
-        .catch(err => {
-          logger.error("Failed to track tab creation", { error: err.message });
-        });
-    });
+      });
+    } catch (error) {
+      // Analytics tracking failed - don't break tab creation
+      logger.debug(
+        "Tab creation analytics skipped due to window state:",
+        error,
+      );
+    }
 
     return key;
   }
@@ -247,33 +257,38 @@ export class TabManager extends EventEmitter {
     this.emit("tab-closed", tabKey);
 
     // Track tab closure - only in main window (renderer)
-    const mainWindows = this._browser
-      .getAllWindows()
-      .filter(
-        (w: any) =>
-          w &&
-          w.webContents &&
-          !w.webContents.isDestroyed() &&
-          (w.webContents.getURL().includes("localhost:5173") ||
-            w.webContents.getURL().startsWith("file://")),
-      );
+    try {
+      const mainWindows = this._browser
+        .getAllWindows()
+        .filter(
+          (w: any) =>
+            w &&
+            w.webContents &&
+            !w.webContents.isDestroyed() &&
+            (w.webContents.getURL().includes("localhost:5173") ||
+              w.webContents.getURL().startsWith("file://")),
+        );
 
-    mainWindows.forEach((window: any) => {
-      window.webContents
-        .executeJavaScript(
-          `
-        if (window.umami && typeof window.umami.track === 'function') {
-          window.umami.track('tab-closed', {
-            timestamp: ${Date.now()},
-            remainingTabs: ${this.tabs.size}
+      mainWindows.forEach((window: any) => {
+        window.webContents
+          .executeJavaScript(
+            `
+          if (window.umami && typeof window.umami.track === 'function') {
+            window.umami.track('tab-closed', {
+              timestamp: ${Date.now()},
+              remainingTabs: ${this.tabs.size}
+            });
+          }
+        `,
+          )
+          .catch(err => {
+            logger.error("Failed to track tab closure", { error: err.message });
           });
-        }
-      `,
-        )
-        .catch(err => {
-          logger.error("Failed to track tab closure", { error: err.message });
-        });
-    });
+      });
+    } catch (error) {
+      // Analytics tracking failed - don't break tab closure
+      logger.debug("Tab closure analytics skipped due to window state:", error);
+    }
 
     return true;
   }
