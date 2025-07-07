@@ -37,7 +37,7 @@ export class ViewManager {
   private window: BrowserWindow;
   private browserViews: Map<string, WebContentsView> = new Map();
   private activeViewKey: string | null = null;
-  private isChatAreaVisible: boolean = false;
+  private isChatAreaVisible: boolean = true;
 
   // Track which views are currently visible
   private visibleViews: Set<string> = new Set();

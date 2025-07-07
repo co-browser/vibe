@@ -120,7 +120,7 @@ function LayoutProvider({
 }: {
   children: React.ReactNode;
 }): React.JSX.Element {
-  const [isChatPanelVisible, setChatPanelVisible] = useState(false);
+  const [isChatPanelVisible, setChatPanelVisible] = useState(true);
   const [chatPanelWidth, setChatPanelWidth] = useState<number>(
     CHAT_PANEL.DEFAULT_WIDTH,
   );
