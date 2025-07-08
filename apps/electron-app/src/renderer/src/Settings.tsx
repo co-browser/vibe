@@ -4,7 +4,6 @@ import { usePasswords } from "./hooks/usePasswords";
 import {
   User,
   Sparkles,
-  MousePointerClick,
   Bell,
   Command,
   Puzzle,
@@ -23,6 +22,7 @@ import {
   CheckCircle,
   AlertCircle,
   Info,
+  Key,
 } from "lucide-react";
 import { ProgressBar } from "./components/common/ProgressBar";
 import { usePrivyAuth } from "./hooks/usePrivyAuth";
@@ -129,6 +129,9 @@ const ShortcutsSettings = lazy(() =>
 const ComponentsSettings = lazy(() =>
   Promise.resolve({ default: ComponentsSettingsComponent }),
 );
+const APIKeysSettings = lazy(() =>
+  Promise.resolve({ default: APIKeysSettingsComponent }),
+);
 
 // Main App Component
 export default function Settings() {
@@ -161,7 +164,7 @@ export default function Settings() {
         passwordsData.loading && passwordsData.filteredPasswords.length === 0,
     },
     { id: "intelligence", label: "Agents", icon: Sparkles },
-    { id: "behaviors", label: "API", icon: MousePointerClick },
+    { id: "behaviors", label: "API Keys", icon: Key },
     { id: "notifications", label: "Notifications", icon: Bell },
     { id: "shortcuts", label: "Shortcuts", icon: Command },
     { id: "components", label: "Marketplace", icon: Puzzle },
@@ -190,6 +193,8 @@ export default function Settings() {
           return <ShortcutsSettings />;
         case "components":
           return <ComponentsSettings />;
+        case "behaviors":
+          return <APIKeysSettings />;
         default:
           return <PlaceholderContent title={activeLabel} />;
       }
@@ -1176,5 +1181,151 @@ const ComponentsSettingsComponent = () => {
         </div>
       </div>
     </div>
+  );
+};
+
+// API Keys Settings Component
+const APIKeysSettingsComponent = () => {
+  const [apiKeys, setApiKeys] = useState({ openai: "", turbopuffer: "" });
+  const [passwordVisible, setPasswordVisible] = useState({ openai: false, turbopuffer: false });
+  const [loading, setLoading] = useState(true);
+  const [toastMessage, setToastMessage] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
+
+  // Load API keys from profile on mount
+  useEffect(() => {
+    loadApiKeys();
+  }, []);
+
+  const loadApiKeys = async () => {
+    try {
+      setLoading(true);
+      const [openaiKey, turbopufferKey] = await Promise.all([
+        window.apiKeys?.get("openai"),
+        window.apiKeys?.get("turbopuffer"),
+      ]);
+      setApiKeys({
+        openai: openaiKey || "",
+        turbopuffer: turbopufferKey || "",
+      });
+    } catch (error) {
+      logger.error("Failed to load API keys:", error);
+      setToastMessage({ message: "Failed to load API keys", type: "error" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleApiKeyChange = (key: 'openai' | 'turbopuffer', value: string) => {
+    setApiKeys({ ...apiKeys, [key]: value });
+  };
+
+  const saveApiKeys = async () => {
+    try {
+      const results = await Promise.all([
+        apiKeys.openai ? window.apiKeys?.set("openai", apiKeys.openai) : Promise.resolve(true),
+        apiKeys.turbopuffer ? window.apiKeys?.set("turbopuffer", apiKeys.turbopuffer) : Promise.resolve(true),
+      ]);
+
+      if (results.every(result => result)) {
+        setToastMessage({ message: "API keys saved successfully", type: "success" });
+      } else {
+        setToastMessage({ message: "Failed to save some API keys", type: "error" });
+      }
+    } catch (error) {
+      logger.error("Failed to save API keys:", error);
+      setToastMessage({ message: "Failed to save API keys", type: "error" });
+    }
+  };
+
+  if (loading) {
+    return <LoadingSpinner />;
+  }
+
+  return (
+    <>
+      {/* Floating Toast - positioned absolutely outside main content */}
+      {toastMessage && (
+        <FloatingToast
+          message={toastMessage.message}
+          type={toastMessage.type}
+          onClose={() => setToastMessage(null)}
+        />
+      )}
+
+      <div className="space-y-6">
+        <div
+          className="bg-white border border-gray-200 p-6"
+          style={{ borderRadius: "8px", "-webkit-corner-smoothing": "subpixel" }}
+        >
+          <h3 className="text-lg font-semibold text-gray-800 mb-6">
+            API Keys Management
+          </h3>
+
+          <div className="space-y-6">
+            {/* OpenAI API Key */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                OpenAI API Key
+              </label>
+              <p className="text-xs text-gray-500 mb-3">
+                Used for AI-powered features and intelligent assistance
+              </p>
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <input
+                    type={passwordVisible.openai ? "text" : "password"}
+                    placeholder="sk-..."
+                    value={apiKeys.openai}
+                    onChange={(e) => handleApiKeyChange('openai', e.target.value)}
+                    onBlur={saveApiKeys}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-10"
+                  />
+                  <button
+                    onClick={() => setPasswordVisible({ ...passwordVisible, openai: !passwordVisible.openai })}
+                    className="absolute right-2 top-1/2 transform -translate-y-1/2 p-1 text-gray-500 hover:text-gray-700"
+                  >
+                    {passwordVisible.openai ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* TurboPuffer API Key */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                TurboPuffer API Key
+              </label>
+              <p className="text-xs text-gray-500 mb-3">
+                Used for vector search and embeddings storage
+              </p>
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <input
+                    type={passwordVisible.turbopuffer ? "text" : "password"}
+                    placeholder="Enter API key"
+                    value={apiKeys.turbopuffer}
+                    onChange={(e) => handleApiKeyChange('turbopuffer', e.target.value)}
+                    onBlur={saveApiKeys}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-10"
+                  />
+                  <button
+                    onClick={() => setPasswordVisible({ ...passwordVisible, turbopuffer: !passwordVisible.turbopuffer })}
+                    className="absolute right-2 top-1/2 transform -translate-y-1/2 p-1 text-gray-500 hover:text-gray-700"
+                  >
+                    {passwordVisible.turbopuffer ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-6 p-4 bg-gray-50 rounded-md">
+            <p className="text-sm text-gray-600">
+              <strong>Note:</strong> API keys are encrypted and stored securely in your profile. They are never transmitted to our servers.
+            </p>
+          </div>
+        </div>
+      </div>
+    </>
   );
 };
