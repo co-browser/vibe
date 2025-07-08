@@ -41,12 +41,30 @@ export interface UseContextMenuReturn {
 export function useContextMenu(): UseContextMenuReturn {
   const showContextMenu = useCallback(
     async (items: ContextMenuItem[], event: React.MouseEvent) => {
+      // Check if the target is an editable element
+      const target = event.target as HTMLElement;
+      const isEditable =
+        target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.contentEditable === "true" ||
+        target.closest('input, textarea, [contenteditable="true"]');
+
+      // For editable elements, don't prevent default to allow native context menu
+      if (isEditable) {
+        return;
+      }
+
       event.preventDefault();
       event.stopPropagation();
 
       try {
         if (window.vibe?.actions?.showContextMenu) {
-          await window.vibe.actions.showContextMenu(items);
+          // Pass the click coordinates to the main process
+          const coordinates = {
+            x: event.clientX,
+            y: event.clientY,
+          };
+          await window.vibe.actions.showContextMenu(items, coordinates);
         }
       } catch (error) {
         logger.error("Failed to show context menu:", error);

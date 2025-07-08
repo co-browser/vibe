@@ -39,6 +39,7 @@ import "@/ipc/browser/windows";
 import "@/ipc/browser/navigation";
 import "@/ipc/browser/content";
 import { downloads } from "@/ipc/browser/download";
+import { registerPasswordAutofillHandlers } from "@/ipc/browser/password-autofill";
 
 // MCP APIs - direct imports (register themselves)
 import "@/ipc/mcp/mcp-status";
@@ -66,6 +67,9 @@ export function registerAllIpcHandlers(browser: Browser): () => void {
 
   // Register password handlers for settings dialog
   registerPasswordHandlers();
+
+  // Register password autofill handlers for browser content
+  registerPasswordAutofillHandlers();
 
   // Register top sites handlers
   registerTopSitesHandlers();

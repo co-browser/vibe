@@ -87,11 +87,11 @@ export async function sendTabToAgent(browser: Browser): Promise<void> {
   logger.info(`Processing tab: ${tabTitle}`);
 
   // Track analyze active tab usage
-  userAnalytics.trackNavigation('analyze-active-tab', {
+  userAnalytics.trackNavigation("analyze-active-tab", {
     tabKey: checkKey,
     tabUrl: tabUrl,
     tabTitle: tabTitle,
-    chatWasHidden: !browserViewManager.getChatPanelState().isVisible
+    chatWasHidden: !browserViewManager.getChatPanelState().isVisible,
   });
 
   // Extract content FIRST while tab still exists
@@ -258,7 +258,7 @@ export async function sendTabToAgent(browser: Browser): Promise<void> {
   if (!chatPanelState.isVisible) {
     logger.info(`Making chat panel visible for tab analysis`);
     browserViewManager.toggleChatPanel(true);
-    
+
     // Notify the renderer about chat panel state change
     const focusedWindow = BrowserWindow.getFocusedWindow();
     if (focusedWindow && !focusedWindow.isDestroyed()) {

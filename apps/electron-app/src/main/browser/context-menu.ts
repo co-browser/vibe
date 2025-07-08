@@ -365,12 +365,17 @@ export function showContextMenu(
     const template = createContextMenuTemplate(view, params);
     const menu = Menu.buildFromTemplate(template);
 
+    // Get the view's bounds to convert renderer coordinates to window coordinates
+    const viewBounds = view.getBounds();
+    const adjustedX = params.x + viewBounds.x;
+    const adjustedY = params.y + viewBounds.y;
+
     // Use the new utility function that supports WebFrameMain API
     showContextMenuWithFrameMain(
       view.webContents,
       menu,
-      params.x,
-      params.y,
+      adjustedX,
+      adjustedY,
       frame,
     );
 
@@ -380,6 +385,9 @@ export function showContextMenu(
       hasImage: params.hasImageContents,
       hasSelection: !!params.selectionText,
       isEditable: params.isEditable,
+      originalCoords: { x: params.x, y: params.y },
+      adjustedCoords: { x: adjustedX, y: adjustedY },
+      viewBounds,
     });
   } catch (error) {
     logger.error("Failed to show context menu", { error });
@@ -394,12 +402,21 @@ export function setupContextMenuHandlers(view: WebContentsView): void {
 
   // Handle context menu events
   webContents.on("context-menu", (event, params) => {
+    // Always prevent default to show our custom menu
     event.preventDefault();
+
+    // Get the focused frame for Writing Tools support
     const focusedFrame = webContents.focusedFrame;
     if (focusedFrame) {
+      // Show our custom context menu with frame parameter for Writing Tools
       showContextMenu(view, params, focusedFrame);
     } else {
       logger.warn("No focused frame available for context menu");
+      // Try to show menu anyway with webContents' focused frame as fallback
+      const fallbackFrame = webContents.focusedFrame;
+      if (fallbackFrame) {
+        showContextMenu(view, params, fallbackFrame);
+      }
     }
   });
 

@@ -3,6 +3,7 @@ import fs from "node:fs";
 import { shell, ipcMain, BrowserWindow } from "electron";
 import { createLogger } from "@vibe/shared-types";
 import { useUserProfileStore } from "../../store/user-profile-store";
+import { WindowBroadcast } from "../../utils/window-broadcast";
 
 const logger = createLogger("downloads");
 
@@ -47,6 +48,36 @@ class Downloads {
       }
     } catch (error) {
       logger.warn("Failed to clear download progress bar:", error);
+    }
+  }
+
+  private cleanupStaleDownloads(): void {
+    try {
+      const userProfileStore = useUserProfileStore.getState();
+      const activeProfile = userProfileStore.getActiveProfile();
+
+      if (!activeProfile) return;
+
+      const downloads = userProfileStore.getDownloadHistory(activeProfile.id);
+      const staleDownloads = downloads.filter(d => d.status === "downloading");
+
+      if (staleDownloads.length > 0) {
+        logger.info(
+          `[Download Debug] Cleaning up ${staleDownloads.length} stale downloads from previous session`,
+        );
+
+        staleDownloads.forEach(download => {
+          // Mark stale downloads as cancelled
+          userProfileStore.updateDownloadStatus(
+            activeProfile.id,
+            download.id,
+            "cancelled",
+            false,
+          );
+        });
+      }
+    } catch (error) {
+      logger.warn("Failed to cleanup stale downloads:", error);
     }
   }
 
@@ -105,20 +136,53 @@ class Downloads {
       return null;
     }
 
+    // Check for existing download with the same file path that's still downloading
+    const existingDownloads = userProfileStore.getDownloadHistory(
+      activeProfile.id,
+    );
+    const existingDownload = existingDownloads.find(
+      d => d.filePath === downloadData.filePath && d.status === "downloading",
+    );
+
+    if (existingDownload) {
+      logger.debug(
+        "[Download Debug] Found existing download for same file, updating instead of creating new:",
+        {
+          existingId: existingDownload.id,
+          filePath: downloadData.filePath,
+        },
+      );
+
+      // Update the existing download entry
+      userProfileStore.updateDownloadProgress(
+        activeProfile.id,
+        existingDownload.id,
+        0,
+        0,
+        downloadData.totalBytes || 0,
+      );
+
+      return existingDownload;
+    }
+
     const item = {
       id: randomUUID(),
       ...downloadData,
     };
 
-    logger.debug("[Download Debug] Adding download to profile:", {
+    logger.debug("[Download Debug] Adding new download to profile:", {
       profileId: activeProfile.id,
       downloadId: item.id,
     });
 
-    // Add to user profile store
-    userProfileStore.addDownloadEntry(activeProfile.id, downloadData);
+    // Add to user profile store - pass the item with ID, not downloadData
+    userProfileStore.addDownloadEntry(activeProfile.id, item);
 
     logger.debug("[Download Debug] Download successfully added to profile");
+
+    // Notify all windows about the download update
+    WindowBroadcast.debouncedBroadcast("downloads:history-updated", null, 250);
+
     return item;
   }
 
@@ -152,6 +216,16 @@ class Downloads {
         startTime: Date.now(),
       });
 
+      if (!downloadEntry) {
+        logger.error("[Download Debug] Failed to create download entry");
+        return;
+      }
+
+      logger.debug(
+        "[Download Debug] Download entry created with ID:",
+        downloadEntry.id,
+      );
+
       // Track when download completes
       item.on("done", (_event, state) => {
         logger.debug("[Download Debug] Download done event:", {
@@ -180,6 +254,13 @@ class Downloads {
 
           // Update taskbar progress (will clear if no more downloads)
           this.updateTaskbarProgressFromOldestDownload();
+
+          // Notify windows about download completion
+          WindowBroadcast.debouncedBroadcast(
+            "downloads:history-updated",
+            null,
+            250,
+          );
         } else {
           logger.warn(`Download ${state}: ${fileName}`);
 
@@ -201,6 +282,13 @@ class Downloads {
 
           // Update taskbar progress even for failed/cancelled downloads
           this.updateTaskbarProgressFromOldestDownload();
+
+          // Notify windows about download status change
+          WindowBroadcast.debouncedBroadcast(
+            "downloads:history-updated",
+            null,
+            250,
+          );
         }
       });
 
@@ -232,6 +320,13 @@ class Downloads {
 
                 // Update taskbar progress based on oldest downloading item
                 this.updateTaskbarProgressFromOldestDownload();
+
+                // Notify windows about download progress update
+                WindowBroadcast.debouncedBroadcast(
+                  "downloads:history-updated",
+                  null,
+                  250,
+                );
               }
             }
           }
@@ -269,6 +364,9 @@ class Downloads {
 
   init() {
     logger.info("[Download Debug] Downloads service init() called");
+
+    // Clean up any stale downloads from previous sessions
+    this.cleanupStaleDownloads();
 
     // Set up global download tracking
     this.setupGlobalDownloadTracking();
@@ -354,6 +452,14 @@ class Downloads {
       }
 
       userProfileStore.removeDownloadEntry(activeProfile.id, itemId);
+
+      // Notify windows about download removal
+      WindowBroadcast.debouncedBroadcast(
+        "downloads:history-updated",
+        null,
+        250,
+      );
+
       return { success: true };
     });
 
@@ -367,6 +473,14 @@ class Downloads {
       }
 
       userProfileStore.clearDownloadHistory(activeProfile.id);
+
+      // Notify windows about download history clear
+      WindowBroadcast.debouncedBroadcast(
+        "downloads:history-updated",
+        null,
+        250,
+      );
+
       return { success: true };
     });
 

@@ -172,6 +172,9 @@ export class ApplicationWindow extends EventEmitter {
       this.viewManager.updateBounds();
     });
 
+    // Set up context menu handler for the main window
+    this.setupMainWindowContextMenu();
+
     this.window.webContents.setWindowOpenHandler(details => {
       // This handler is redundant since we already handle it in main/index.ts
       // But we'll keep it for consistency with the same OAuth logic
@@ -308,6 +311,23 @@ export class ApplicationWindow extends EventEmitter {
         this.window.webContents.send("dialog-closed", dialogType);
       }
     });
+  }
+
+  private setupMainWindowContextMenu(): void {
+    // Set up context menu handler for the main window's renderer process
+    this.window.webContents.on("context-menu", (_event, params) => {
+      // For editable content (text inputs, textareas), let the system handle it
+      // This allows the native context menu with cut/copy/paste/etc. to appear
+      if (params.isEditable) {
+        // Don't prevent default - allow system context menu
+        return;
+      }
+
+      // For non-editable content, we'll let the renderer handle it with custom menus
+      // The renderer will use the useContextMenu hook to show custom menus
+    });
+
+    logger.debug("Context menu handler set up for main window");
   }
 
   private async loadRenderer(): Promise<void> {

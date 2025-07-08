@@ -4,7 +4,7 @@ import { createLogger } from "@vibe/shared-types";
 
 const logger = createLogger("passwords-hook");
 
-export function usePasswords() {
+export function usePasswords(loadOnMount: boolean = true) {
   const [passwords, setPasswords] = useState<PasswordEntry[]>([]);
   const [filteredPasswords, setFilteredPasswords] = useState<PasswordEntry[]>(
     [],
@@ -36,6 +36,10 @@ export function usePasswords() {
     [],
   );
 
+  const clearMessage = useCallback(() => {
+    setStatusMessage("");
+  }, []);
+
   const loadPasswords = useCallback(async () => {
     try {
       setLoading(true);
@@ -43,8 +47,13 @@ export function usePasswords() {
         const result =
           await window.electron.ipcRenderer.invoke("passwords:get-all");
         if (result.success) {
+          console.log(
+            "[usePasswords] Loaded passwords:",
+            result.passwords?.length || 0,
+          );
           setPasswords(result.passwords || []);
         } else {
+          console.error("[usePasswords] Failed to load passwords:", result);
           showMessage("Failed to load passwords", "error");
         }
       }
@@ -84,32 +93,60 @@ export function usePasswords() {
       setProgressValue(20);
       setProgressText("Connecting to Chrome database...");
 
+      // Get window ID for progress bar
+      const windowId = await window.electron.ipcRenderer.invoke(
+        "interface:get-window-id",
+      );
+
+      // Listen for progress updates
+      const progressHandler = (
+        _event: any,
+        data: { progress: number; message: string },
+      ) => {
+        setProgressValue(Math.min(data.progress, 94));
+        setProgressText(data.message);
+      };
+
+      window.electron.ipcRenderer.on("chrome-import-progress", progressHandler);
+
       const result = await window.electron.ipcRenderer.invoke(
         "passwords:import-chrome",
+        windowId,
+      );
+
+      // Remove listener
+      window.electron.ipcRenderer.removeListener(
+        "chrome-import-progress",
+        progressHandler,
       );
 
       if (result && result.success) {
-        const totalPasswords = result.count || 0;
-        const progressPerPassword = Math.min(0.54, (74 / Math.max(totalPasswords, 1)));
-        let currentProgress = 20;
-        
-        for (let i = 0; i < totalPasswords; i++) {
-          if (currentProgress < 94) {
-            currentProgress += progressPerPassword;
-          } else {
-            const remaining = 94 - currentProgress;
-            const quadraticSlowdown = remaining * Math.pow((totalPasswords - i) / totalPasswords, 2);
-            currentProgress += quadraticSlowdown;
-          }
-          
-          setProgressValue(Math.min(currentProgress, 94));
-          setProgressText(`Processing password ${i + 1} of ${totalPasswords}...`);
-          
-          await new Promise(resolve => setTimeout(resolve, 20));
-        }
-        
-        setProgressValue(100);
-        setProgressText("Import complete!");
+        // Animate to 100% completion
+        await new Promise<void>(resolve => {
+          const animateToComplete = () => {
+            setProgressValue(prev => {
+              if (prev >= 100) {
+                setProgressText("Import complete!");
+                resolve();
+                return 100;
+              }
+              return Math.min(prev + 5, 100);
+            });
+          };
+
+          const interval = setInterval(() => {
+            animateToComplete();
+          }, 20);
+
+          // Safety timeout
+          setTimeout(() => {
+            clearInterval(interval);
+            setProgressValue(100);
+            setProgressText("Import complete!");
+            resolve();
+          }, 1000);
+        });
+
         showMessage(
           `Successfully imported ${result.count || 0} passwords from Chrome`,
         );
@@ -132,19 +169,31 @@ export function usePasswords() {
   }, [importedSources, loadPasswords, loadImportSources, showMessage]);
 
   useEffect(() => {
-    loadPasswords();
-    loadImportSources();
-  }, [loadPasswords, loadImportSources]);
+    if (loadOnMount) {
+      loadPasswords();
+      loadImportSources();
+    }
+  }, [loadPasswords, loadImportSources, loadOnMount]);
 
   useEffect(() => {
     if (!searchQuery) {
       setFilteredPasswords(passwords);
     } else {
       const lowercasedQuery = searchQuery.toLowerCase();
-      const filtered = passwords.filter(
-        p =>
-          p.url.toLowerCase().includes(lowercasedQuery) ||
-          p.username.toLowerCase().includes(lowercasedQuery),
+      const filtered = passwords.filter(p => {
+        try {
+          const urlMatch =
+            p.url && p.url.toLowerCase().includes(lowercasedQuery);
+          const usernameMatch =
+            p.username && p.username.toLowerCase().includes(lowercasedQuery);
+          return urlMatch || usernameMatch;
+        } catch (error) {
+          console.error("[usePasswords] Error filtering password:", error, p);
+          return false;
+        }
+      });
+      console.log(
+        `[usePasswords] Filtered ${filtered.length} passwords from ${passwords.length} total`,
       );
       setFilteredPasswords(filtered);
     }
@@ -164,69 +213,6 @@ export function usePasswords() {
     };
   }, [handleImportFromChrome]);
 
-  const handleComprehensiveImportFromChrome = useCallback(async () => {
-    if (importedSources.has("chrome-all-profiles")) {
-      showMessage(
-        'Chrome data already imported. Use "Clear All" to re-import.',
-        "info",
-      );
-      return;
-    }
-
-    try {
-      setIsImporting(true);
-      setProgressValue(10);
-      setProgressText(
-        "Starting comprehensive Chrome import from all profiles...",
-      );
-
-      const result = await window.electron.ipcRenderer.invoke(
-        "chrome:import-all-profiles",
-      );
-
-      if (result && result.success) {
-        const totalPasswords = result.passwordCount || 0;
-        const progressPerPassword = Math.min(0.54, (84 / Math.max(totalPasswords, 1)));
-        let currentProgress = 10;
-        
-        for (let i = 0; i < totalPasswords; i++) {
-          if (currentProgress < 94) {
-            currentProgress += progressPerPassword;
-          } else {
-            const remaining = 94 - currentProgress;
-            const quadraticSlowdown = remaining * Math.pow((totalPasswords - i) / totalPasswords, 2);
-            currentProgress += quadraticSlowdown;
-          }
-          
-          setProgressValue(Math.min(currentProgress, 94));
-          setProgressText(`Processing password ${i + 1} of ${totalPasswords}...`);
-          
-          await new Promise(resolve => setTimeout(resolve, 20));
-        }
-        
-        setProgressValue(100);
-        setProgressText("Import complete!");
-        showMessage(
-          `Successfully imported from all Chrome profiles: ${result.passwordCount || 0} passwords, ${result.bookmarkCount || 0} bookmarks, ${result.historyCount || 0} history entries`,
-        );
-        setImportedSources(prev => new Set(prev).add("chrome-all-profiles"));
-        await loadPasswords();
-        await loadImportSources();
-      } else {
-        showMessage(result?.error || "Failed to import from Chrome", "error");
-      }
-    } catch (error) {
-      showMessage(
-        `Failed to import from Chrome: ${error instanceof Error ? error.message : "Unknown error"}`,
-        "error",
-      );
-    } finally {
-      setIsImporting(false);
-      setProgressValue(0);
-      setProgressText("");
-    }
-  }, [importedSources, loadPasswords, loadImportSources, showMessage]);
-
   const handleImportAllChromeProfiles = useCallback(async () => {
     if (importedSources.has("chrome-all-profiles")) {
       showMessage(
@@ -241,32 +227,62 @@ export function usePasswords() {
       setProgressValue(10);
       setProgressText("Starting import from all Chrome profiles...");
 
+      // Get the current window ID to enable progress bar
+      const windowId = await window.electron.ipcRenderer.invoke(
+        "interface:get-window-id",
+      );
+      console.log("[usePasswords] Window ID for progress:", windowId);
+
+      // Listen for progress updates
+      const progressHandler = (
+        _event: any,
+        data: { progress: number; message: string },
+      ) => {
+        console.log("[usePasswords] Progress update:", data);
+        setProgressValue(Math.min(data.progress, 94));
+        setProgressText(data.message);
+      };
+
+      window.electron.ipcRenderer.on("chrome-import-progress", progressHandler);
+
       const result = await window.electron.ipcRenderer.invoke(
         "chrome:import-all-profiles",
+        windowId,
+      );
+
+      // Remove listener
+      window.electron.ipcRenderer.removeListener(
+        "chrome-import-progress",
+        progressHandler,
       );
 
       if (result && result.success) {
-        const totalPasswords = result.passwordCount || 0;
-        const progressPerPassword = Math.min(0.54, (84 / Math.max(totalPasswords, 1)));
-        let currentProgress = 10;
-        
-        for (let i = 0; i < totalPasswords; i++) {
-          if (currentProgress < 94) {
-            currentProgress += progressPerPassword;
-          } else {
-            const remaining = 94 - currentProgress;
-            const quadraticSlowdown = remaining * Math.pow((totalPasswords - i) / totalPasswords, 2);
-            currentProgress += quadraticSlowdown;
-          }
-          
-          setProgressValue(Math.min(currentProgress, 94));
-          setProgressText(`Processing password ${i + 1} of ${totalPasswords}...`);
-          
-          await new Promise(resolve => setTimeout(resolve, 20));
-        }
-        
-        setProgressValue(100);
-        setProgressText("Import complete!");
+        // Animate to 100% completion
+        await new Promise<void>(resolve => {
+          const animateToComplete = () => {
+            setProgressValue(prev => {
+              if (prev >= 100) {
+                setProgressText("Import complete!");
+                resolve();
+                return 100;
+              }
+              return Math.min(prev + 5, 100);
+            });
+          };
+
+          const interval = setInterval(() => {
+            animateToComplete();
+          }, 20);
+
+          // Safety timeout
+          setTimeout(() => {
+            clearInterval(interval);
+            setProgressValue(100);
+            setProgressText("Import complete!");
+            resolve();
+          }, 1000);
+        });
+
         showMessage(
           `Successfully imported from all Chrome profiles: ${result.passwordCount || 0} passwords, ${result.bookmarkCount || 0} bookmarks, ${result.historyCount || 0} history entries`,
         );
@@ -290,6 +306,12 @@ export function usePasswords() {
       setProgressText("");
     }
   }, [importedSources, loadPasswords, loadImportSources, showMessage]);
+
+  // This function is not being used - handleImportAllChromeProfiles is used instead
+  const handleComprehensiveImportFromChrome = useCallback(async () => {
+    // Redirect to the correct handler
+    return handleImportAllChromeProfiles();
+  }, [handleImportAllChromeProfiles]);
 
   const handleImportChromeBookmarks = useCallback(async () => {
     // Implementation can be moved here...
@@ -445,5 +467,8 @@ export function usePasswords() {
     handleRemoveSource,
     handleViewPassword,
     copyToClipboard,
+    loadPasswords,
+    loadImportSources,
+    clearMessage,
   };
 }

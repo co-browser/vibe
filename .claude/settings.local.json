@@ -35,7 +35,17 @@
       "Bash(pnpm lint:*)",
       "Bash(git commit:*)",
       "Bash(pnpm build:*)",
-      "Bash(pnpm build:*)"
+      "Bash(pnpm build:*)",
+      "Bash(git commit:*)",
+      "Bash(pnpm build:*)",
+      "Bash(mv:*)",
+      "Bash(git checkout:*)",
+      "Bash(pnpm:*)",
+      "Bash(npx prettier:*)",
+      "Bash(git reset:*)",
+      "Bash(pnpm:*)",
+      "Bash(timeout 10 npm run dev:*)",
+      "Bash(git ls-tree:*)"
     ],
     "deny": []
   }

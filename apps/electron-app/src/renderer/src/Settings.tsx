@@ -1,4 +1,6 @@
-import { useState, useEffect, lazy, Suspense } from "react";
+import { useState, useEffect, lazy, Suspense, useCallback } from "react";
+import React from "react";
+import { usePasswords } from "./hooks/usePasswords";
 import {
   User,
   Sparkles,
@@ -18,9 +20,11 @@ import {
   X,
   Loader2,
   Wallet,
+  CheckCircle,
+  AlertCircle,
+  Info,
 } from "lucide-react";
 import { ProgressBar } from "./components/common/ProgressBar";
-import { usePasswords } from "./hooks/usePasswords";
 import { usePrivyAuth } from "./hooks/usePrivyAuth";
 import { UserPill } from "./components/ui/UserPill";
 import { createLogger } from "@vibe/shared-types";
@@ -42,12 +46,79 @@ const LoadingSpinner = () => (
   </div>
 );
 
+// Floating Toast component using Lucide icons
+const FloatingToast = ({
+  message,
+  type,
+  onClose,
+}: {
+  message: string;
+  type: "success" | "error" | "info";
+  onClose: () => void;
+}) => {
+  const getIcon = () => {
+    switch (type) {
+      case "success":
+        return <CheckCircle className="h-5 w-5 text-green-600" />;
+      case "error":
+        return <AlertCircle className="h-5 w-5 text-red-600" />;
+      case "info":
+        return <Info className="h-5 w-5 text-blue-600" />;
+      default:
+        return <Info className="h-5 w-5 text-blue-600" />;
+    }
+  };
+
+  const getColors = () => {
+    switch (type) {
+      case "success":
+        return "bg-green-50 border-green-200 text-green-800";
+      case "error":
+        return "bg-red-50 border-red-200 text-red-800";
+      case "info":
+        return "bg-blue-50 border-blue-200 text-blue-800";
+      default:
+        return "bg-blue-50 border-blue-200 text-blue-800";
+    }
+  };
+
+  useEffect(() => {
+    const timer = setTimeout(onClose, 5000);
+    return () => clearTimeout(timer);
+  }, [onClose]);
+
+  return (
+    <div className="fixed top-4 right-4 z-50 animate-in slide-in-from-top-2 duration-300">
+      <div
+        className={`
+        flex items-center gap-3 px-4 py-3 rounded-lg border shadow-lg backdrop-blur-sm
+        ${getColors()}
+        max-w-sm min-w-[300px]
+      `}
+      >
+        {getIcon()}
+        <span className="flex-1 text-sm font-medium">{message}</span>
+        <button
+          onClick={onClose}
+          className="p-1 hover:bg-black/5 rounded transition-colors"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+    </div>
+  );
+};
+
 // Lazy load all settings components
 const AppleAccountsSettings = lazy(() =>
   Promise.resolve({ default: AppleAccountsSettingsComponent }),
 );
 const PasswordsSettings = lazy(() =>
-  Promise.resolve({ default: PasswordsSettingsComponent }),
+  Promise.resolve({
+    default: (props: { preloadedData?: any }) => (
+      <PasswordsSettingsComponent {...props} />
+    ),
+  }),
 );
 const NotificationsSettings = lazy(() =>
   Promise.resolve({ default: NotificationsSettingsComponent }),
@@ -61,11 +132,34 @@ const ComponentsSettings = lazy(() =>
 
 // Main App Component
 export default function Settings() {
-  const [activeTab, setActiveTab] = useState("passwords");
+  const [activeTab, setActiveTab] = useState("apple-accounts");
+
+  // Preload password data in background regardless of active tab
+  // This ensures instant switching to passwords tab
+  const passwordsData = usePasswords(true);
+
+  const handleTabChange = useCallback(
+    (newTab: string) => {
+      if (newTab === activeTab) return;
+
+      // Use startTransition for non-urgent updates
+      React.startTransition(() => {
+        setActiveTab(newTab);
+      });
+    },
+    [activeTab],
+  );
 
   const toolbarButtons = [
     { id: "apple-accounts", label: "Accounts", icon: User },
-    { id: "passwords", label: "Passwords", icon: Lock },
+    {
+      id: "passwords",
+      label: "Passwords",
+      icon: Lock,
+      // Show loading indicator if passwords are still loading
+      loading:
+        passwordsData.loading && passwordsData.filteredPasswords.length === 0,
+    },
     { id: "intelligence", label: "Agents", icon: Sparkles },
     { id: "behaviors", label: "API", icon: MousePointerClick },
     { id: "notifications", label: "Notifications", icon: Bell },
@@ -89,7 +183,7 @@ export default function Settings() {
         case "apple-accounts":
           return <AppleAccountsSettings />;
         case "passwords":
-          return <PasswordsSettings />;
+          return <PasswordsSettings preloadedData={passwordsData} />;
         case "notifications":
           return <NotificationsSettings />;
         case "shortcuts":
@@ -121,21 +215,17 @@ export default function Settings() {
 
         {/* Sidebar Column */}
         <div className="w-56 bg-[#F6F6F6] flex flex-col flex-shrink-0 border-r border-gray-300">
-          {/* Sidebar's top bar section with traffic lights */}
-          <div className="h-[52px] flex-shrink-0 flex items-center pl-4">
-            <div className="flex space-x-2">
-              <div className="w-3 h-3 rounded-full bg-[#FF5F57]"></div>
-              <div className="w-3 h-3 rounded-full bg-[#FEBC2E]"></div>
-              <div className="w-3 h-3 rounded-full bg-[#28C840]"></div>
-            </div>
+          {/* Sidebar's top bar section */}
+          <div className="h-[52px] flex-shrink-0 flex items-center">
+            {/* Empty space for native traffic lights */}
           </div>
           {/* The actual list of tabs */}
           <div className="px-4 flex flex-col space-y-1">
-            {toolbarButtons.map(({ id, label, icon: Icon }) => (
+            {toolbarButtons.map(({ id, label, icon: Icon, loading }) => (
               <button
                 key={id}
-                onClick={() => setActiveTab(id)}
-                className={`flex items-center space-x-2.5 px-2.5 py-1.5 text-sm font-medium transition-colors duration-150 w-full text-left
+                onClick={() => handleTabChange(id)}
+                className={`flex items-center space-x-2.5 px-2.5 py-1.5 text-sm font-medium transition-colors duration-75 w-full text-left
                                     ${
                                       activeTab === id
                                         ? "bg-gray-500 text-white"
@@ -148,10 +238,21 @@ export default function Settings() {
                   "-webkit-corner-smoothing": "subpixel",
                 }}
               >
-                <Icon
-                  className={`w-4 h-4 ${activeTab === id ? "text-white" : "text-gray-600"}`}
-                />
+                {loading ? (
+                  <Loader2
+                    className={`w-4 h-4 animate-spin ${activeTab === id ? "text-white" : "text-gray-600"}`}
+                  />
+                ) : (
+                  <Icon
+                    className={`w-4 h-4 ${activeTab === id ? "text-white" : "text-gray-600"}`}
+                  />
+                )}
                 <span>{label}</span>
+                {loading && activeTab !== id && (
+                  <div className="ml-auto">
+                    <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
+                  </div>
+                )}
               </button>
             ))}
           </div>
@@ -196,7 +297,7 @@ export default function Settings() {
             </h1>
           </div>
           {/* The actual content panel */}
-          <div className="flex-1 p-8 overflow-hidden">{renderContent()}</div>
+          <div className="flex-1 p-8 overflow-y-auto">{renderContent()}</div>
         </div>
       </div>
     </div>
@@ -206,6 +307,11 @@ export default function Settings() {
 // Settings Components
 const AppleAccountsSettingsComponent = () => {
   const { isAuthenticated, user, login, isLoading } = usePrivyAuth();
+  const [components, setComponents] = useState({
+    adBlocker: true,
+    bluetooth: false,
+  });
+  const [componentsLoading, setComponentsLoading] = useState(true);
 
   const handleAddFunds = () => {
     if (!isAuthenticated) {
@@ -217,8 +323,45 @@ const AppleAccountsSettingsComponent = () => {
     }
   };
 
+  const handleToggle = async (component: keyof typeof components) => {
+    const newValue = !components[component];
+    setComponents(prev => ({ ...prev, [component]: newValue }));
+
+    // Save to backend
+    if (window.electron?.ipcRenderer) {
+      await window.electron.ipcRenderer.invoke("settings:update-components", {
+        [component]: newValue,
+      });
+    }
+  };
+
+  useEffect(() => {
+    // Load saved settings
+    const loadSettings = async () => {
+      setComponentsLoading(true);
+      try {
+        if (window.electron?.ipcRenderer) {
+          const result = await window.electron.ipcRenderer.invoke(
+            "settings:get-components",
+          );
+          if (result?.success) {
+            setComponents(result.settings);
+          }
+        }
+      } catch (error) {
+        logger.error("Failed to load component settings:", error);
+      } finally {
+        setComponentsLoading(false);
+      }
+    };
+
+    // Delay load to improve perceived performance
+    const timer = setTimeout(loadSettings, 100);
+    return () => clearTimeout(timer);
+  }, []);
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {/* User Account Section */}
       {isAuthenticated && user && (
         <div
@@ -276,12 +419,102 @@ const AppleAccountsSettingsComponent = () => {
           )}
         </button>
       </div>
+
+      {/* Browser Components Section */}
+      <div
+        className="bg-white border border-gray-200 p-6"
+        style={{ borderRadius: "8px", "-webkit-corner-smoothing": "subpixel" }}
+      >
+        <h3 className="text-lg font-semibold text-gray-800 mb-6">
+          Browser Components
+        </h3>
+
+        {componentsLoading ? (
+          <LoadingSpinner />
+        ) : (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="font-medium text-gray-800">Ad Blocker</h4>
+                <p className="text-sm text-gray-600">
+                  Block ads and trackers for faster, cleaner browsing
+                </p>
+              </div>
+              <button
+                onClick={() => handleToggle("adBlocker")}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full ${
+                  components.adBlocker ? "bg-blue-600" : "bg-gray-200"
+                } transition-colors`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
+                    components.adBlocker ? "translate-x-6" : "translate-x-1"
+                  }`}
+                />
+              </button>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="font-medium text-gray-800">Bluetooth Support</h4>
+                <p className="text-sm text-gray-600">
+                  Enable web pages to connect to Bluetooth devices
+                </p>
+              </div>
+              <button
+                onClick={() => handleToggle("bluetooth")}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full ${
+                  components.bluetooth ? "bg-blue-600" : "bg-gray-200"
+                } transition-colors`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
+                    components.bluetooth ? "translate-x-6" : "translate-x-1"
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
 
-const PasswordsSettingsComponent = () => {
+// URL display logic
+const getDisplayUrl = (url: string): string => {
+  // Check if URL has a TLD pattern
+  const tldPattern = /\.[a-zA-Z]{2,}(?:\.[a-zA-Z]{2,})?(?:\/|$)/;
+  const hasTLD = tldPattern.test(url);
+
+  if (!hasTLD && url.length > 25) {
+    // Truncate non-TLD URLs at 25 characters
+    return url.substring(0, 25) + "...";
+  }
+
+  if (hasTLD) {
+    // For URLs with TLD, truncate at the domain level
+    const match = url.match(/^(https?:\/\/)?([^/]+)/);
+    if (match) {
+      const domain = match[2];
+      return (match[1] || "") + domain;
+    }
+  }
+
+  return url;
+};
+
+const PasswordsSettingsComponent = ({
+  preloadedData,
+}: {
+  preloadedData?: any;
+}) => {
+  // Always call the hook, but conditionally load data
+  const hookData = usePasswords(!preloadedData);
+
+  // Use preloaded data if available, otherwise use hook data
   const {
+    passwords,
     filteredPasswords,
     searchQuery,
     setSearchQuery,
@@ -301,7 +534,8 @@ const PasswordsSettingsComponent = () => {
     handleExportPasswords,
     handleViewPassword,
     copyToClipboard,
-  } = usePasswords();
+    clearMessage,
+  } = preloadedData || hookData;
 
   // Show loading state for initial load
   if (loading && filteredPasswords.length === 0) {
@@ -309,298 +543,303 @@ const PasswordsSettingsComponent = () => {
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8">
-      {/* Status Message */}
+    <>
+      {/* Floating Toast - positioned absolutely outside main content */}
       {statusMessage && (
-        <div
-          className={`px-4 py-3 rounded-xl border-l-4 ${
-            statusType === "success"
-              ? "bg-green-50 border-green-400 text-green-700"
-              : statusType === "error"
-                ? "bg-red-50 border-red-400 text-red-700"
-                : "bg-blue-50 border-blue-400 text-blue-700"
-          }`}
-        >
-          {statusMessage}
-        </div>
+        <FloatingToast
+          message={statusMessage}
+          type={statusType}
+          onClose={clearMessage}
+        />
       )}
 
-      {/* Progress Bar */}
-      {isImporting && (
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-          <ProgressBar
-            value={progressValue}
-            title="Importing from Chrome"
-            label={progressText}
-            className=""
-          />
-        </div>
-      )}
-
-      {/* Import Section */}
-      <div className="text-center py-3">
-        <div className="w-10 h-10 mx-auto mb-3 bg-blue-100 rounded-full flex items-center justify-center">
-          <Lock className="h-5 w-5 text-blue-600" />
-        </div>
-        <h2 className="text-lg font-semibold text-gray-800 mb-2">
-          Password Manager
-        </h2>
-        <p className="text-sm text-gray-600 mb-4 max-w-md mx-auto">
-          {filteredPasswords.length === 0
-            ? "Import your passwords from Chrome to get started. All data is encrypted and stored securely."
-            : "Search and manage your imported passwords. Quick copy username and password with one click."}
-        </p>
-        {filteredPasswords.length === 0 && (
-          <button
-            onClick={handleComprehensiveImportFromChrome}
-            disabled={
-              isImporting || importedSources.has("chrome-comprehensive")
-            }
-            className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
-            style={{
-              borderRadius: "6px",
-              "-webkit-corner-smoothing": "subpixel",
-            }}
-          >
-            <Download className="h-4 w-4" />
-            {importedSources.has("chrome-comprehensive")
-              ? "Already Imported"
-              : "Import from Chrome"}
-          </button>
-        )}
-      </div>
-
-      {/* Quick Search & Copy Area */}
-      {filteredPasswords.length > 0 && (
-        <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-card-foreground">
-              Local Storage
-            </h3>
-            <div className="flex gap-2">
-              <button
-                onClick={handleComprehensiveImportFromChrome}
-                disabled={
-                  isImporting || importedSources.has("chrome-comprehensive")
-                }
-                className="inline-flex items-center gap-2 px-3 py-1.5 bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
-                style={{
-                  borderRadius: "6px",
-                  "-webkit-corner-smoothing": "subpixel",
-                }}
-              >
-                <Download className="h-4 w-4" />
-                {importedSources.has("chrome-comprehensive")
-                  ? "Imported"
-                  : "Import"}
-              </button>
-              <button
-                onClick={handleExportPasswords}
-                className="inline-flex items-center gap-2 px-3 py-1.5 bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors text-sm"
-                style={{
-                  borderRadius: "6px",
-                  "-webkit-corner-smoothing": "subpixel",
-                }}
-              >
-                <FileDown className="h-4 w-4" />
-                Export
-              </button>
-            </div>
+      <div className="max-w-4xl mx-auto space-y-8">
+        {/* Progress Bar */}
+        {isImporting && (
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+            <ProgressBar
+              value={progressValue}
+              title="Importing from Chrome"
+              label={progressText}
+              className=""
+            />
           </div>
+        )}
 
-          {/* Search */}
-          <div className="relative mb-4">
-            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search by website or username..."
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              className="w-full pl-12 pr-4 py-3 bg-input border border-border focus:ring-2 focus:ring-ring focus:border-transparent focus:bg-background outline-none transition-all"
+        {/* Import Section */}
+        <div className="text-center py-3">
+          <div className="w-10 h-10 mx-auto mb-3 bg-blue-100 rounded-full flex items-center justify-center">
+            <Lock className="h-5 w-5 text-blue-600" />
+          </div>
+          <h2 className="text-lg font-semibold text-gray-800 mb-2">
+            Password Manager
+          </h2>
+          <p className="text-sm text-gray-600 mb-4 max-w-md mx-auto">
+            {passwords.length === 0
+              ? "Import your passwords from Chrome to get started. All data is encrypted and stored securely."
+              : "Search and manage your imported passwords. Quick copy username and password with one click."}
+          </p>
+          {passwords.length === 0 && (
+            <button
+              onClick={handleComprehensiveImportFromChrome}
+              disabled={
+                isImporting || importedSources.has("chrome-all-profiles")
+              }
+              className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
               style={{
                 borderRadius: "6px",
                 "-webkit-corner-smoothing": "subpixel",
               }}
-            />
-          </div>
-
-          {/* Quick Copy Cards */}
-          <div className="space-y-2 max-h-96 overflow-y-auto">
-            {filteredPasswords.map((password: any) => (
-              <div
-                key={password.id}
-                className="group flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-all"
-              >
-                <div className="flex items-center gap-3 flex-1 min-w-0">
-                  <div className="w-8 h-8 bg-white rounded-md flex items-center justify-center flex-shrink-0 border">
-                    <Lock className="h-4 w-4 text-gray-500" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium text-gray-900 truncate text-sm">
-                      {password.url}
-                    </p>
-                    <p className="text-xs text-gray-500 truncate">
-                      {password.username}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => copyToClipboard(password.username)}
-                    className="px-2 py-1 text-xs text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
-                    style={{
-                      borderRadius: "4px",
-                      "-webkit-corner-smoothing": "subpixel",
-                    }}
-                    title="Copy username"
-                  >
-                    Copy User
-                  </button>
-                  <button
-                    onClick={() => copyToClipboard(password.password)}
-                    className="px-2 py-1 text-xs text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
-                    style={{
-                      borderRadius: "4px",
-                      "-webkit-corner-smoothing": "subpixel",
-                    }}
-                    title="Copy password"
-                  >
-                    Copy Pass
-                  </button>
-                  <button
-                    onClick={() => handleViewPassword(password)}
-                    className="p-1 text-muted-foreground hover:text-foreground hover:bg-background transition-colors"
-                    style={{
-                      borderRadius: "4px",
-                      "-webkit-corner-smoothing": "subpixel",
-                    }}
-                    title="View details"
-                  >
-                    <Eye className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {filteredPasswords.length === 0 && searchQuery && (
-            <div className="text-center py-8 text-gray-500">
-              <p>No passwords found matching "{searchQuery}"</p>
-            </div>
+            >
+              <Download className="h-4 w-4" />
+              {importedSources.has("chrome-all-profiles")
+                ? "Already Imported"
+                : "Import from Chrome"}
+            </button>
           )}
         </div>
-      )}
 
-      {/* Password Detail Modal */}
-      {isPasswordModalVisible && selectedPassword && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-lg font-semibold text-gray-800">
-                Password Details
+        {/* Quick Search & Copy Area */}
+        {passwords.length > 0 && (
+          <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-card-foreground">
+                Local Storage
               </h3>
-              <button
-                onClick={() => setIsPasswordModalVisible(false)}
-                className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                style={{
-                  borderRadius: "6px",
-                  "-webkit-corner-smoothing": "subpixel",
-                }}
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Website
-                </label>
-                <div
-                  className="px-3 py-2 bg-gray-50 text-gray-900"
+              <div className="flex gap-2">
+                <button
+                  onClick={handleComprehensiveImportFromChrome}
+                  disabled={
+                    isImporting || importedSources.has("chrome-comprehensive")
+                  }
+                  className="inline-flex items-center gap-2 px-3 py-1.5 bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
                   style={{
                     borderRadius: "6px",
                     "-webkit-corner-smoothing": "subpixel",
                   }}
                 >
-                  {selectedPassword.url}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Username
-                </label>
-                <div
-                  className="px-3 py-2 bg-gray-50 text-gray-900"
+                  <Download className="h-4 w-4" />
+                  {importedSources.has("chrome-comprehensive")
+                    ? "Imported"
+                    : "Import"}
+                </button>
+                <button
+                  onClick={handleExportPasswords}
+                  className="inline-flex items-center gap-2 px-3 py-1.5 bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors text-sm"
                   style={{
                     borderRadius: "6px",
                     "-webkit-corner-smoothing": "subpixel",
                   }}
                 >
-                  {selectedPassword.username}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Password
-                </label>
-                <div className="flex gap-2">
-                  <div
-                    className="flex-1 px-3 py-2 bg-gray-50 text-gray-900 font-mono"
-                    style={{
-                      borderRadius: "6px",
-                      "-webkit-corner-smoothing": "subpixel",
-                    }}
-                  >
-                    {showPassword ? selectedPassword.password : "••••••••••••"}
-                  </div>
-                  <button
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="px-3 py-2 bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors"
-                    style={{
-                      borderRadius: "6px",
-                      "-webkit-corner-smoothing": "subpixel",
-                    }}
-                  >
-                    {showPassword ? (
-                      <EyeOff className="h-4 w-4" />
-                    ) : (
-                      <Eye className="h-4 w-4" />
-                    )}
-                  </button>
-                </div>
+                  <FileDown className="h-4 w-4" />
+                  Export
+                </button>
               </div>
             </div>
 
-            <div className="flex gap-3 mt-6">
-              <button
-                onClick={() => copyToClipboard(selectedPassword.password)}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+            {/* Search */}
+            <div className="relative mb-4">
+              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search by website or username..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="w-full pl-12 pr-4 py-3 bg-input border border-border focus:ring-2 focus:ring-ring focus:border-transparent focus:bg-background outline-none transition-all"
                 style={{
                   borderRadius: "6px",
                   "-webkit-corner-smoothing": "subpixel",
                 }}
-              >
-                <Copy className="h-4 w-4" />
-                Copy Password
-              </button>
-              <button
-                onClick={() => setIsPasswordModalVisible(false)}
-                className="px-4 py-2 bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors"
-                style={{
-                  borderRadius: "6px",
-                  "-webkit-corner-smoothing": "subpixel",
-                }}
-              >
-                Close
-              </button>
+              />
+            </div>
+
+            {/* Quick Copy Cards */}
+            <div className="space-y-2 max-h-96 overflow-y-auto">
+              {filteredPasswords.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <p className="text-sm">
+                    No passwords found matching "{searchQuery}"
+                  </p>
+                  <p className="text-xs mt-2">Try a different search term</p>
+                </div>
+              ) : (
+                filteredPasswords.map((password: any) => {
+                  const displayUrl = getDisplayUrl(password.url);
+
+                  return (
+                    <div
+                      key={password.id}
+                      className="group flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-all"
+                    >
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <div className="w-8 h-8 bg-white rounded-md flex items-center justify-center flex-shrink-0 border">
+                          <Lock className="h-4 w-4 text-gray-500" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium text-gray-900 text-sm break-all overflow-hidden">
+                            {displayUrl}
+                          </p>
+                          <p className="text-xs text-gray-500 break-all overflow-hidden">
+                            {password.username}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => copyToClipboard(password.username)}
+                          className="px-2 py-1 text-xs text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                          style={{
+                            borderRadius: "4px",
+                            "-webkit-corner-smoothing": "subpixel",
+                          }}
+                          title="Copy username"
+                        >
+                          Copy User
+                        </button>
+                        <button
+                          onClick={() => copyToClipboard(password.password)}
+                          className="px-2 py-1 text-xs text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                          style={{
+                            borderRadius: "4px",
+                            "-webkit-corner-smoothing": "subpixel",
+                          }}
+                          title="Copy password"
+                        >
+                          Copy Pass
+                        </button>
+                        <button
+                          onClick={() => handleViewPassword(password)}
+                          className="p-1 text-muted-foreground hover:text-foreground hover:bg-background transition-colors"
+                          style={{
+                            borderRadius: "4px",
+                            "-webkit-corner-smoothing": "subpixel",
+                          }}
+                          title="View details"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
-        </div>
-      )}
-    </div>
+        )}
+
+        {/* Password Detail Modal */}
+        {isPasswordModalVisible && selectedPassword && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl p-6 max-w-md w-full">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-lg font-semibold text-gray-800">
+                  Password Details
+                </h3>
+                <button
+                  onClick={() => setIsPasswordModalVisible(false)}
+                  className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                  style={{
+                    borderRadius: "6px",
+                    "-webkit-corner-smoothing": "subpixel",
+                  }}
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Website
+                  </label>
+                  <div
+                    className="px-3 py-2 bg-gray-50 text-gray-900 break-all"
+                    style={{
+                      borderRadius: "6px",
+                      "-webkit-corner-smoothing": "subpixel",
+                    }}
+                  >
+                    {selectedPassword.url}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Username
+                  </label>
+                  <div
+                    className="px-3 py-2 bg-gray-50 text-gray-900"
+                    style={{
+                      borderRadius: "6px",
+                      "-webkit-corner-smoothing": "subpixel",
+                    }}
+                  >
+                    {selectedPassword.username}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Password
+                  </label>
+                  <div className="flex gap-2">
+                    <div
+                      className="flex-1 px-3 py-2 bg-gray-50 text-gray-900 font-mono"
+                      style={{
+                        borderRadius: "6px",
+                        "-webkit-corner-smoothing": "subpixel",
+                      }}
+                    >
+                      {showPassword
+                        ? selectedPassword.password
+                        : "••••••••••••"}
+                    </div>
+                    <button
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="px-3 py-2 bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors"
+                      style={{
+                        borderRadius: "6px",
+                        "-webkit-corner-smoothing": "subpixel",
+                      }}
+                    >
+                      {showPassword ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={() => copyToClipboard(selectedPassword.password)}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+                  style={{
+                    borderRadius: "6px",
+                    "-webkit-corner-smoothing": "subpixel",
+                  }}
+                >
+                  <Copy className="h-4 w-4" />
+                  Copy Password
+                </button>
+                <button
+                  onClick={() => setIsPasswordModalVisible(false)}
+                  className="px-4 py-2 bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors"
+                  style={{
+                    borderRadius: "6px",
+                    "-webkit-corner-smoothing": "subpixel",
+                  }}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </>
   );
 };
 
@@ -783,6 +1022,53 @@ const NotificationsSettingsComponent = () => {
           </div>
         </div>
       </div>
+
+      {/* Notification History Console */}
+      <div
+        className="bg-gray-50 border border-gray-200 p-4"
+        style={{ borderRadius: "8px", "-webkit-corner-smoothing": "subpixel" }}
+      >
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-semibold text-gray-700">
+            Notification History
+          </h3>
+          <button
+            className="px-3 py-1 text-xs font-medium text-gray-400 bg-gray-200 rounded cursor-not-allowed"
+            disabled
+          >
+            Tune
+          </button>
+        </div>
+
+        <div
+          className="bg-white border border-gray-200 rounded p-3 h-32 overflow-y-auto font-mono text-xs"
+          style={{
+            backgroundColor: "#fafafa",
+            fontFamily: "SF Mono, Monaco, Consolas, monospace",
+          }}
+        >
+          <div className="text-gray-500">
+            <div>
+              [2024-01-08 10:23:45] System notification sent: "Download
+              completed"
+            </div>
+            <div>
+              [2024-01-08 10:22:12] Agent notification: "Analysis complete for
+              current tab"
+            </div>
+            <div>
+              [2024-01-08 10:20:03] Update notification: "New version available"
+            </div>
+            <div>
+              [2024-01-08 10:15:30] System notification sent: "Password import
+              successful"
+            </div>
+            <div className="text-gray-400 mt-2">
+              — End of notification history —
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
@@ -841,55 +1127,8 @@ const ShortcutsSettingsComponent = () => {
   );
 };
 
-// Components Settings Component
+// Components Settings Component - Now just a placeholder for marketplace
 const ComponentsSettingsComponent = () => {
-  const [components, setComponents] = useState({
-    adBlocker: true,
-    bluetooth: false,
-  });
-  const [loading, setLoading] = useState(true);
-
-  const handleToggle = async (component: keyof typeof components) => {
-    const newValue = !components[component];
-    setComponents(prev => ({ ...prev, [component]: newValue }));
-
-    // Save to backend
-    if (window.electron?.ipcRenderer) {
-      await window.electron.ipcRenderer.invoke("settings:update-components", {
-        [component]: newValue,
-      });
-    }
-  };
-
-  useEffect(() => {
-    // Load saved settings
-    const loadSettings = async () => {
-      setLoading(true);
-      try {
-        if (window.electron?.ipcRenderer) {
-          const result = await window.electron.ipcRenderer.invoke(
-            "settings:get-components",
-          );
-          if (result?.success) {
-            setComponents(result.settings);
-          }
-        }
-      } catch (error) {
-        logger.error("Failed to load component settings:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    // Delay load to improve perceived performance
-    const timer = setTimeout(loadSettings, 100);
-    return () => clearTimeout(timer);
-  }, []);
-
-  if (loading) {
-    return <LoadingSpinner />;
-  }
-
   return (
     <div className="space-y-6">
       <div
@@ -897,50 +1136,42 @@ const ComponentsSettingsComponent = () => {
         style={{ borderRadius: "8px", "-webkit-corner-smoothing": "subpixel" }}
       >
         <h3 className="text-lg font-semibold text-gray-800 mb-6">
-          Browser Components
+          Marketplace
         </h3>
 
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h4 className="font-medium text-gray-800">Ad Blocker</h4>
-              <p className="text-sm text-gray-600">
-                Block ads and trackers for faster, cleaner browsing
-              </p>
-            </div>
-            <button
-              onClick={() => handleToggle("adBlocker")}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full ${
-                components.adBlocker ? "bg-blue-600" : "bg-gray-200"
-              } transition-colors`}
+        <div className="flex items-center justify-center">
+          <div className="text-center">
+            <div
+              className="w-96 h-64 bg-gray-300 rounded-lg mb-4 flex items-center justify-center"
+              style={{
+                filter: "blur(2px)",
+                background:
+                  "linear-gradient(135deg, #e5e7eb 0%, #d1d5db 50%, #9ca3af 100%)",
+                position: "relative",
+                overflow: "hidden",
+              }}
             >
-              <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
-                  components.adBlocker ? "translate-x-6" : "translate-x-1"
-                }`}
-              />
-            </button>
-          </div>
-
-          <div className="flex items-center justify-between">
-            <div>
-              <h4 className="font-medium text-gray-800">Bluetooth Support</h4>
-              <p className="text-sm text-gray-600">
-                Enable web pages to connect to Bluetooth devices
-              </p>
+              {/* Simulated blurry eBay-style interface */}
+              <div className="absolute inset-0 p-4">
+                <div className="h-6 bg-gray-400 rounded mb-3 opacity-60"></div>
+                <div className="grid grid-cols-3 gap-3 h-full">
+                  <div className="bg-gray-400 rounded opacity-50"></div>
+                  <div className="bg-gray-400 rounded opacity-50"></div>
+                  <div className="bg-gray-400 rounded opacity-50"></div>
+                  <div className="bg-gray-400 rounded opacity-50"></div>
+                  <div className="bg-gray-400 rounded opacity-50"></div>
+                  <div className="bg-gray-400 rounded opacity-50"></div>
+                </div>
+              </div>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="text-gray-600 font-medium text-lg opacity-70">
+                  Early Preview
+                </div>
+              </div>
             </div>
-            <button
-              onClick={() => handleToggle("bluetooth")}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full ${
-                components.bluetooth ? "bg-blue-600" : "bg-gray-200"
-              } transition-colors`}
-            >
-              <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
-                  components.bluetooth ? "translate-x-6" : "translate-x-1"
-                }`}
-              />
-            </button>
+            <p className="text-gray-600 text-sm">
+              Browser extension marketplace coming soon
+            </p>
           </div>
         </div>
       </div>

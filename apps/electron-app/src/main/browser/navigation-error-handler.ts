@@ -12,6 +12,7 @@ interface NavigationError {
 
 export class NavigationErrorHandler {
   private static instance: NavigationErrorHandler;
+  private navigationTimeouts: Map<string, NodeJS.Timeout> = new Map();
 
   private constructor() {}
 
@@ -28,11 +29,69 @@ export class NavigationErrorHandler {
   public setupErrorHandlers(view: BrowserView): void {
     const { webContents } = view;
 
+    // Clear timeouts on successful navigation
+    webContents.on("did-navigate", () => {
+      this.clearAllTimeouts();
+    });
+
+    webContents.on("did-navigate-in-page", () => {
+      this.clearAllTimeouts();
+    });
+
+    // Clean up on destroy
+    webContents.on("destroyed", () => {
+      this.clearAllTimeouts();
+    });
+
     // Handle navigation errors
     webContents.on(
       "did-fail-load",
       (_, errorCode, errorDescription, validatedURL, isMainFrame) => {
         if (!isMainFrame) return; // Only handle main frame errors
+
+        // Skip common abort errors that happen during normal navigation
+        if (errorCode === -3) {
+          // ERR_ABORTED - happens during redirects
+          logger.debug("Navigation aborted (likely redirect):", validatedURL);
+          return;
+        }
+
+        // Skip if the URL is a data URL (avoid infinite loops)
+        if (validatedURL.startsWith("data:")) {
+          return;
+        }
+
+        // Skip common errors that occur during form submissions and login flows
+        const skipErrorCodes = [
+          -3, // ERR_ABORTED - common during redirects
+          -1, // ERR_IO_PENDING - operation in progress
+          -2, // ERR_FAILED - generic failure, often temporary
+          -27, // ERR_BLOCKED_BY_RESPONSE - CORS/CSP during login
+          -20, // ERR_BLOCKED_BY_CLIENT - client-side blocking
+          -301, // ERR_HTTPS_REDIRECT - HTTPS redirect
+          -302, // ERR_HTTP_RESPONSE_CODE_FAILURE - redirect response codes
+        ];
+
+        if (skipErrorCodes.includes(errorCode)) {
+          logger.debug(`Skipping error ${errorCode} for URL: ${validatedURL}`);
+          return;
+        }
+
+        // Check if this is during a form submission or login flow
+        const isLoginRelated =
+          validatedURL.includes("/login") ||
+          validatedURL.includes("/signin") ||
+          validatedURL.includes("/auth") ||
+          validatedURL.includes("/oauth") ||
+          validatedURL.includes("/saml") ||
+          validatedURL.includes("/sso");
+
+        if (isLoginRelated) {
+          logger.info(
+            `Skipping error handling for login-related URL: ${validatedURL}`,
+          );
+          return;
+        }
 
         logger.warn("Navigation failed:", {
           errorCode,
@@ -54,6 +113,40 @@ export class NavigationErrorHandler {
       "did-fail-provisional-load",
       (_, errorCode, errorDescription, validatedURL, isMainFrame) => {
         if (!isMainFrame) return; // Only handle main frame errors
+
+        // Skip common errors that occur during form submissions and login flows
+        const skipErrorCodes = [
+          -3, // ERR_ABORTED - common during redirects
+          -1, // ERR_IO_PENDING - operation in progress
+          -2, // ERR_FAILED - generic failure, often temporary
+          -27, // ERR_BLOCKED_BY_RESPONSE - CORS/CSP during login
+          -20, // ERR_BLOCKED_BY_CLIENT - client-side blocking
+          -301, // ERR_HTTPS_REDIRECT - HTTPS redirect
+          -302, // ERR_HTTP_RESPONSE_CODE_FAILURE - redirect response codes
+        ];
+
+        if (skipErrorCodes.includes(errorCode)) {
+          logger.debug(
+            `Skipping provisional error ${errorCode} for URL: ${validatedURL}`,
+          );
+          return;
+        }
+
+        // Check if this is during a form submission or login flow
+        const isLoginRelated =
+          validatedURL.includes("/login") ||
+          validatedURL.includes("/signin") ||
+          validatedURL.includes("/auth") ||
+          validatedURL.includes("/oauth") ||
+          validatedURL.includes("/saml") ||
+          validatedURL.includes("/sso");
+
+        if (isLoginRelated) {
+          logger.info(
+            `Skipping provisional error handling for login-related URL: ${validatedURL}`,
+          );
+          return;
+        }
 
         logger.warn("Provisional load failed:", {
           errorCode,
@@ -80,13 +173,35 @@ export class NavigationErrorHandler {
   ): void {
     const errorType = this.getErrorType(error.errorCode);
 
-    // Build error page URL with parameters
-    const errorPageUrl = this.buildErrorPageUrl(errorType, error.validatedURL);
+    // Create a unique key for this navigation error
+    const errorKey = `${error.validatedURL}_${error.errorCode}`;
 
-    // Load the error page
-    view.webContents.loadURL(errorPageUrl).catch(err => {
-      logger.error("Failed to load error page:", err);
-    });
+    // Clear any existing timeout for this error
+    if (this.navigationTimeouts.has(errorKey)) {
+      clearTimeout(this.navigationTimeouts.get(errorKey)!);
+    }
+
+    // Add a delay before showing error page to allow redirects to complete
+    const timeout = setTimeout(() => {
+      // Check if the webContents still exists and is not destroyed
+      if (!view.webContents.isDestroyed()) {
+        // Build error page URL with parameters
+        const errorPageUrl = this.buildErrorPageUrl(
+          errorType,
+          error.validatedURL,
+        );
+
+        // Load the error page
+        view.webContents.loadURL(errorPageUrl).catch(err => {
+          logger.error("Failed to load error page:", err);
+        });
+      }
+
+      // Clean up the timeout reference
+      this.navigationTimeouts.delete(errorKey);
+    }, 500); // 500ms delay to allow for redirects
+
+    this.navigationTimeouts.set(errorKey, timeout);
   }
 
   /**
@@ -232,5 +347,15 @@ export class NavigationErrorHandler {
 </html>`;
 
     return `data:text/html;charset=utf-8,${encodeURIComponent(errorHtml)}`;
+  }
+
+  /**
+   * Clear all pending error page timeouts
+   */
+  private clearAllTimeouts(): void {
+    for (const timeout of this.navigationTimeouts.values()) {
+      clearTimeout(timeout);
+    }
+    this.navigationTimeouts.clear();
   }
 }

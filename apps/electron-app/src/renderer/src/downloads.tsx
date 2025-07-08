@@ -410,10 +410,8 @@ export default function App() {
       <div className="w-full h-full flex flex-col overflow-hidden bg-white">
         {/* Title Bar */}
         <div className="h-[52px] border-b border-gray-200 flex-shrink-0 flex items-center justify-between px-4">
-          <div className="flex items-center space-x-2">
-            <div className="w-3 h-3 rounded-full bg-[#FF5F57]"></div>
-            <div className="w-3 h-3 rounded-full bg-[#FEBC2E]"></div>
-            <div className="w-3 h-3 rounded-full bg-[#28C840]"></div>
+          <div className="w-20">
+            {/* Empty space for native traffic lights */}
           </div>
           <h1 className="font-semibold text-base text-gray-800">Downloads</h1>
           <div className="flex items-center gap-2">

@@ -12,7 +12,6 @@ import {
   Tray,
   nativeImage,
   Menu,
-  clipboard,
   ipcMain,
   globalShortcut,
 } from "electron";
@@ -20,7 +19,7 @@ import { optimizer } from "@electron-toolkit/utils";
 import { config } from "dotenv";
 import * as path from "path";
 import * as fs from "fs";
-import { autoUpdater } from "electron-updater";
+// import { autoUpdater } from "electron-updater";
 import ElectronGoogleOAuth2 from "@getstation/electron-google-oauth2";
 
 import { Browser } from "@/browser/browser";
@@ -33,7 +32,7 @@ import { MCPService } from "@/services/mcp-service";
 import { NotificationService } from "@/services/notification-service";
 import { setMCPServiceInstance } from "@/ipc/mcp/mcp-status";
 import { setAgentServiceInstance as setAgentStatusInstance } from "@/ipc/chat/agent-status";
-import { sendTabToAgent } from "@/utils/tab-agent";
+// import { sendTabToAgent } from "@/utils/tab-agent";
 import { setAgentServiceInstance as setChatMessagingInstance } from "@/ipc/chat/chat-messaging";
 import { setAgentServiceInstance as setTabAgentInstance } from "@/utils/tab-agent";
 import { useUserProfileStore } from "@/store/user-profile-store";
@@ -571,18 +570,43 @@ function initializeApp(): boolean {
 }
 
 /**
- * Initializes application services, including analytics and the AgentService if an OpenAI API key is present.
- *
- * If the `OPENAI_API_KEY` environment variable is set, this function creates and configures the AgentService, sets up event listeners, and injects the service into relevant IPC handlers. If the key is missing, service initialization is skipped and a warning is logged.
- *
- * @throws If service initialization fails unexpectedly.
+ * Initializes essential services required for the window to function.
+ * These services must be ready before the window can be created.
  */
-async function initializeServices(): Promise<void> {
+async function initializeEssentialServices(): Promise<void> {
   try {
     // Initialize session manager first
     logger.info("Initializing session manager");
     initializeSessionManager();
     logger.info("Session manager initialized");
+
+    // Initialize file drop service (needed for window drop handling)
+    try {
+      logger.info("Initializing file drop service");
+      fileDropService = FileDropService.getInstance();
+      logger.info("File drop service initialized successfully");
+    } catch (error) {
+      logger.error("File drop service initialization failed:", error);
+      logger.warn("Application will continue without file drop functionality");
+    }
+
+    logger.info("Essential services initialized successfully");
+  } catch (error) {
+    logger.error(
+      "Essential service initialization failed:",
+      error instanceof Error ? error.message : String(error),
+    );
+    throw error;
+  }
+}
+
+/**
+ * Initializes background services that don't block window creation.
+ * These services run asynchronously and broadcast their status when ready.
+ */
+async function initializeBackgroundServices(): Promise<void> {
+  try {
+    logger.info("Starting background service initialization");
 
     // Initialize user profile store
     logger.info("Initializing user profile store");
@@ -600,27 +624,39 @@ async function initializeServices(): Promise<void> {
       profilesCount: userProfileStore.profiles.size,
     });
 
+    // Broadcast user profile ready status
+    const allWindows = BrowserWindow.getAllWindows();
+    allWindows.forEach(window => {
+      if (!window.isDestroyed()) {
+        window.webContents.send("service-status", {
+          service: "user-profile",
+          status: "ready",
+          data: { hasActiveProfile: !!testProfile },
+        });
+      }
+    });
+
     // Initialize notification service
     try {
       logger.info("Initializing notification service");
       notificationService = NotificationService.getInstance();
       await notificationService.initialize();
       logger.info("Notification service initialized successfully");
+
+      // Broadcast notification service ready status
+      allWindows.forEach(window => {
+        if (!window.isDestroyed()) {
+          window.webContents.send("service-status", {
+            service: "notifications",
+            status: "ready",
+          });
+        }
+      });
     } catch (error) {
       logger.error("Notification service initialization failed:", error);
       logger.warn(
         "Application will continue without enhanced notification features",
       );
-    }
-
-    // Initialize file drop service
-    try {
-      logger.info("Initializing file drop service");
-      fileDropService = FileDropService.getInstance();
-      logger.info("File drop service initialized successfully");
-    } catch (error) {
-      logger.error("File drop service initialization failed:", error);
-      logger.warn("Application will continue without file drop functionality");
     }
 
     // Initialize simple analytics instead of complex telemetry system
@@ -640,6 +676,16 @@ async function initializeServices(): Promise<void> {
       const updateService = new UpdateService();
       await updateService.initialize();
       logger.info("Update service initialized successfully");
+
+      // Broadcast update service ready status
+      allWindows.forEach(window => {
+        if (!window.isDestroyed()) {
+          window.webContents.send("service-status", {
+            service: "updates",
+            status: "ready",
+          });
+        }
+      });
     } catch (error) {
       logger.error("Update service initialization failed:", error);
       logger.warn("Application will continue without update service");
@@ -658,6 +704,17 @@ async function initializeServices(): Promise<void> {
 
       mcpService.on("ready", () => {
         logger.info("MCPService ready");
+
+        // Broadcast MCP service ready status
+        const allWindows = BrowserWindow.getAllWindows();
+        allWindows.forEach(window => {
+          if (!window.isDestroyed()) {
+            window.webContents.send("service-status", {
+              service: "mcp",
+              status: "ready",
+            });
+          }
+        });
       });
 
       // Initialize MCP service
@@ -696,6 +753,18 @@ async function initializeServices(): Promise<void> {
 
             agentService.on("ready", data => {
               logger.info("AgentService ready:", data);
+
+              // Broadcast agent service ready status
+              const allWindows = BrowserWindow.getAllWindows();
+              allWindows.forEach(window => {
+                if (!window.isDestroyed()) {
+                  window.webContents.send("service-status", {
+                    service: "agent",
+                    status: "ready",
+                    data: data,
+                  });
+                }
+              });
             });
 
             // Initialize with configuration
@@ -730,16 +799,19 @@ async function initializeServices(): Promise<void> {
     } else {
       logger.warn("OPENAI_API_KEY not found, skipping service initialization");
     }
+
+    logger.info("Background services initialization completed");
   } catch (error) {
     logger.error(
-      "Service initialization failed:",
+      "Background service initialization failed:",
       error instanceof Error ? error.message : String(error),
     );
 
     // Log service initialization failure
-    logger.error("Service initialization failed:", error);
+    logger.error("Background service initialization failed:", error);
 
-    throw error;
+    // Don't throw error - background services shouldn't crash the app
+    logger.warn("Application will continue with reduced functionality");
   }
 }
 
@@ -826,73 +898,75 @@ app.whenReady().then(() => {
   // --- Differentiated Tray Menu ---
   // Provides quick access to Vibe's core AI features without needing to open the main window.
 
-  const handleSendClipboardToAgent = async () => {
-    const text = clipboard.readText();
-    if (text.trim() && agentService) {
-      logger.info(`Sending clipboard to agent: "${text.substring(0, 50)}..."`);
-      // This action will open the chat panel and pre-fill the input with clipboard content.
-      const mainWindow = browser?.getMainWindow();
-      if (mainWindow) {
-        const appWindow = browser?.getApplicationWindow(
-          mainWindow.webContents.id,
-        );
-        appWindow?.viewManager.toggleChatPanel(true);
-        // The renderer should listen for this event to update its state.
-        mainWindow.webContents.send("chat:set-input", text);
-        mainWindow.focus();
-      }
-    } else if (!agentService) {
-      logger.warn("Agent service not available to process clipboard content.");
-    } else {
-      logger.info("Clipboard is empty, nothing to send to agent.");
+  // Update tray icon color based on persona
+  const updateTrayIconForPersona = (persona: "work" | "pure" | "sexy") => {
+    if (!tray || process.platform !== "darwin") return; // Only works on macOS with template images
+
+    try {
+      // Create a new image with persona color tint
+      // Note: For macOS template images, we can't directly change color
+      // But we can update the tooltip to indicate persona
+      const personaColors = {
+        work: "Work Mode (Blue)",
+        pure: "Pure Mode (Yellow)",
+        sexy: "Sexy Mode (Red)",
+      };
+
+      tray.setToolTip(`Vibing - ${personaColors[persona]}`);
+    } catch (error) {
+      logger.error("Failed to update tray icon for persona:", error);
     }
+  };
+
+  // Broadcast persona change to all windows
+  const broadcastPersonaChange = (persona: "work" | "pure" | "sexy") => {
+    const allWindows = BrowserWindow.getAllWindows();
+    allWindows.forEach(window => {
+      if (!window.isDestroyed()) {
+        window.webContents.send("persona:change", persona);
+      }
+    });
+
+    // Update tray icon
+    updateTrayIconForPersona(persona);
   };
 
   const contextMenu = Menu.buildFromTemplate([
     {
-      label: "Open New Window",
-      click: () => browser?.createWindow(),
-    },
-    { type: "separator" },
-    {
-      label: "Agent Actions",
-      submenu: [
-        {
-          label: "Quick Action...",
-          // TODO: Implement a dedicated input window for quick agent commands.
-          enabled: false,
-          click: () => logger.info("Quick Action clicked (not implemented)"),
-        },
-        {
-          label: "Send Clipboard to Agent",
-          click: handleSendClipboardToAgent,
-        },
-        {
-          label: "Analyze Active Tab",
-          click: async () => browser && (await sendTabToAgent(browser)),
-        },
-      ],
-    },
-    {
-      label: "Agent Status: Idle", // TODO: Make this label dynamic based on agentService state.
+      label: "Writing Style",
       enabled: false,
     },
     { type: "separator" },
     {
-      label: "Settings...",
-      click: () => browser?.getDialogManager()?.showSettingsDialog(),
+      label: "Executive",
+      enabled: false,
+      type: "radio",
+      checked: true,
+      click: () => {
+        logger.info("Switched to Work persona");
+        broadcastPersonaChange("work");
+      },
     },
     {
-      label: "Downloads...",
-      click: () => browser?.getDialogManager()?.showDownloadsDialog(),
+      label: "Balanced",
+      enabled: false,
+      type: "radio",
+      click: () => {
+        logger.info("Switched to Pure persona");
+        broadcastPersonaChange("pure");
+      },
     },
-    { type: "separator" },
     {
-      label: "Check for Updates...",
-      click: () => autoUpdater.checkForUpdates(),
+      label: "Twitter",
+      enabled: false,
+      type: "radio",
+      click: () => {
+        logger.info("Switched to Sexy persona");
+        broadcastPersonaChange("sexy");
+      },
     },
     { type: "separator" },
-    { label: "Quit Vibe", role: "quit" },
+    { label: "Feature Request", role: "help" },
   ]);
 
   tray.setToolTip("Vibing");
@@ -902,37 +976,34 @@ app.whenReady().then(() => {
   if (process.platform === "darwin") {
     const dockMenu = Menu.buildFromTemplate([
       {
-        label: "New Window",
-        click: () => browser?.createWindow(),
+        label: "Persona",
+        enabled: false,
       },
+      { type: "separator" },
       {
-        label: "Quick View",
-        click: async () => {
-          const focusedWindow = BrowserWindow.getFocusedWindow();
-          if (focusedWindow && browser) {
-            const appWindow = browser.getApplicationWindow(
-              focusedWindow.webContents.id,
-            );
-            if (appWindow) {
-              const activeTab = appWindow.tabManager.getActiveTab();
-              if (activeTab) {
-                // TODO: Implement Quick View functionality
-                dialog.showMessageBox(focusedWindow, {
-                  type: "info",
-                  title: "Quick View",
-                  message: "Quick View feature coming soon!",
-                  detail:
-                    "This will provide a quick overview of the current page content.",
-                  buttons: ["OK"],
-                });
-              }
-            }
-          }
+        label: "Work",
+        type: "radio",
+        checked: true,
+        click: () => {
+          logger.info("Switched to Work persona");
+          broadcastPersonaChange("work");
         },
       },
       {
-        label: "Analyze Active Tab",
-        click: async () => browser && (await sendTabToAgent(browser)),
+        label: "Pure",
+        type: "radio",
+        click: () => {
+          logger.info("Switched to Pure persona");
+          broadcastPersonaChange("pure");
+        },
+      },
+      {
+        label: "Sexy",
+        type: "radio",
+        click: () => {
+          logger.info("Switched to Sexy persona");
+          broadcastPersonaChange("sexy");
+        },
       },
     ]);
     app.dock?.setMenu(dockMenu);
@@ -984,17 +1055,21 @@ app.whenReady().then(() => {
     logger.error("Failed to register CC double-press shortcut (CC)");
   }
 
-  // Initialize services and create initial window with performance monitoring
+  // Initialize essential services and create window immediately, then background services
   userAnalytics
     .monitorPerformance("app-initialization", async () => {
-      await initializeServices();
+      // Phase 1: Essential services + window creation (fast)
+      await initializeEssentialServices();
       await createInitialWindow();
 
       // Initialize user analytics
       await userAnalytics.initialize();
 
-      // Track memory usage after initialization
-      userAnalytics.trackMemoryUsage("post-initialization");
+      // Track memory usage after window creation
+      userAnalytics.trackMemoryUsage("post-window-creation");
+
+      // Phase 2: Background services (non-blocking)
+      initializeBackgroundServices(); // Don't await - runs in background
 
       // Track app startup after window is ready
       setTimeout(() => {

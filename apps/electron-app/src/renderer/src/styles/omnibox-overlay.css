@@ -7,7 +7,18 @@
 }
 
 .suggestions-container {
-  @apply bg-white/65 border border-white/30 rounded-xl shadow-xl backdrop-blur-md overflow-hidden;
+  /* Light blue smoked glass effect - mostly transparent */
+  background: rgba(173, 216, 255, 0.15);
+  border: 1px solid rgba(173, 216, 255, 0.25);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.08),
+    0 2px 8px rgba(0, 0, 0, 0.04),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.3);
+  /* Enhanced backdrop filter for smoked glass effect */
+  backdrop-filter: blur(16px) saturate(140%) brightness(1.08);
+  -webkit-backdrop-filter: blur(16px) saturate(140%) brightness(1.08);
   animation: fadeIn 0.15s ease-out;
 }
 
@@ -54,17 +65,23 @@
 }
 
 .suggestion-item:hover {
-  @apply bg-black/[0.18] backdrop-blur-md translate-x-1 shadow-lg;
+  background: rgba(173, 216, 255, 0.25);
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  transform: translateX(4px);
   box-shadow:
-    0 4px 12px rgba(0, 0, 0, 0.15),
-    inset 0 0 0 1px rgba(0, 0, 0, 0.1);
+    0 4px 16px rgba(173, 216, 255, 0.2),
+    inset 0 0 0 1px rgba(173, 216, 255, 0.3);
 }
 
 .suggestion-item.selected {
-  @apply bg-blue-500/15 backdrop-blur-md translate-x-0.5;
+  background: rgba(173, 216, 255, 0.35);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  transform: translateX(2px);
   box-shadow:
-    inset 0 0 0 1px rgba(59, 130, 246, 0.3),
-    0 2px 8px rgba(59, 130, 246, 0.1);
+    inset 0 0 0 1px rgba(173, 216, 255, 0.5),
+    0 2px 12px rgba(173, 216, 255, 0.25);
 }
 
 .suggestion-icon {
@@ -119,33 +136,38 @@
   color: #ec4899;
 }
 
-/* Dark mode support */
+/* Dark mode support - adapted for light blue smoked glass */
 @media (prefers-color-scheme: dark) {
   .suggestions-container {
-    background-color: rgba(31, 41, 55, 0.65);
-    border-color: rgba(255, 255, 255, 0.2);
+    /* Darker light blue smoked glass for dark mode */
+    background: rgba(135, 185, 255, 0.12);
+    border: 1px solid rgba(135, 185, 255, 0.2);
+    backdrop-filter: blur(18px) saturate(130%) brightness(0.95);
+    -webkit-backdrop-filter: blur(18px) saturate(130%) brightness(0.95);
   }
 
   .suggestion-item {
-    border-bottom-color: rgba(255, 255, 255, 0.05);
+    border-bottom-color: rgba(135, 185, 255, 0.08);
   }
 
   .suggestion-item:hover {
-    background-color: rgba(255, 255, 255, 0.18);
-    backdrop-filter: blur(12px);
+    background: rgba(135, 185, 255, 0.22);
+    backdrop-filter: blur(22px) saturate(140%);
+    -webkit-backdrop-filter: blur(22px) saturate(140%);
     transform: translateX(4px);
     box-shadow:
-      0 4px 12px rgba(255, 255, 255, 0.1),
-      inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+      0 4px 16px rgba(135, 185, 255, 0.15),
+      inset 0 0 0 1px rgba(135, 185, 255, 0.25);
   }
 
   .suggestion-item.selected {
-    background-color: rgba(59, 130, 246, 0.25);
-    box-shadow:
-      inset 0 0 0 1px rgba(59, 130, 246, 0.4),
-      0 2px 8px rgba(59, 130, 246, 0.2);
-    backdrop-filter: blur(12px);
+    background: rgba(135, 185, 255, 0.32);
+    backdrop-filter: blur(22px) saturate(150%);
+    -webkit-backdrop-filter: blur(22px) saturate(150%);
     transform: translateX(2px);
+    box-shadow:
+      inset 0 0 0 1px rgba(135, 185, 255, 0.4),
+      0 2px 12px rgba(135, 185, 255, 0.2);
   }
 
   .suggestion-text {
@@ -158,14 +180,16 @@
 
   .suggestion-type {
     color: #6b7280;
-    background-color: #374151;
+    background-color: rgba(55, 65, 81, 0.6);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
   }
 
   .suggestions-scroll::-webkit-scrollbar-thumb {
-    background-color: rgba(255, 255, 255, 0.2);
+    background-color: rgba(135, 185, 255, 0.25);
   }
 
   .suggestions-scroll::-webkit-scrollbar-thumb:hover {
-    background-color: rgba(255, 255, 255, 0.3);
+    background-color: rgba(135, 185, 255, 0.35);
   }
 }

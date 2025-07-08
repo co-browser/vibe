@@ -737,12 +737,14 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
 
   addDownloadEntry: (
     profileId: string,
-    entry: Omit<DownloadHistoryItem, "id">,
+    entry: Omit<DownloadHistoryItem, "id"> | DownloadHistoryItem,
   ): DownloadHistoryItem => {
+    // If entry already has an ID, use it; otherwise generate one
     const newEntry: DownloadHistoryItem = {
       ...entry,
-      id: `download_${randomUUID()}`,
-      createdAt: Date.now(),
+      id: "id" in entry && entry.id ? entry.id : `download_${randomUUID()}`,
+      createdAt:
+        "createdAt" in entry && entry.createdAt ? entry.createdAt : Date.now(),
     };
 
     set(state => {

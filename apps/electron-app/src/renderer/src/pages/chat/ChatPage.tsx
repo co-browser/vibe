@@ -157,7 +157,21 @@ export function ChatPage(): React.JSX.Element {
     <div
       className="chat-container"
       style={{ height: "100%", display: "flex", flexDirection: "column" }}
-      onContextMenu={handleContextMenu(getChatContextMenuItems())}
+      onContextMenu={e => {
+        // Check if the context menu is on an editable element
+        const target = e.target as HTMLElement;
+        const isEditable =
+          target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.contentEditable === "true" ||
+          target.closest('input, textarea, [contenteditable="true"]');
+
+        // Only show custom context menu for non-editable areas
+        if (!isEditable) {
+          handleContextMenu(getChatContextMenuItems())(e);
+        }
+        // For editable areas, let the system show native context menu with Writing Tools
+      }}
     >
       <AgentStatusIndicator isInitializing={isAgentInitializing} />
 

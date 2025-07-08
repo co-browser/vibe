@@ -121,8 +121,13 @@ const actionsAPI: VibeActionsAPI = {
   copyLink: async (url: string) => {
     ipcRenderer.send("actions:copy-link", url);
   },
-  showContextMenu: async items => {
-    return ipcRenderer.invoke("actions:show-context-menu", items);
+  showContextMenu: async (items, coordinates?) => {
+    return ipcRenderer.invoke(
+      "actions:show-context-menu",
+      items,
+      "default",
+      coordinates,
+    );
   },
   executeAction: async (actionId: string, ...args: any[]) => {
     return ipcRenderer.invoke("actions:execute", actionId, ...args);

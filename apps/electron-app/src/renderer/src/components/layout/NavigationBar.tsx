@@ -19,7 +19,7 @@ import {
   ClockCircleOutlined,
   GlobalOutlined,
   LinkOutlined,
-  ThunderboltOutlined,
+  // ThunderboltOutlined,
 } from "@ant-design/icons";
 import { useOmniboxOverlay } from "../../hooks/useOmniboxOverlay";
 import {
@@ -87,7 +87,7 @@ const NavigationBar: React.FC = () => {
   });
   const [agentStatus, setAgentStatus] = useState(false);
   const [overlaySystemWorking, setOverlaySystemWorking] = useState(true);
-  const [isSpeedlaneEnabled, setIsSpeedlaneEnabled] = useState(false);
+  // const [isSpeedlaneEnabled, setIsSpeedlaneEnabled] = useState(false);
 
   // Use layout context for chat panel state
   const {
@@ -1031,20 +1031,6 @@ const NavigationBar: React.FC = () => {
     }
   }, [chatPanelVisible, setChatPanelVisible, setIsChatMinimizedFromResize]);
 
-  const handleToggleSpeedlane = useCallback(() => {
-    const newState = !isSpeedlaneEnabled;
-    setIsSpeedlaneEnabled(newState);
-
-    // Notify the main process about Speedlane mode change
-    window.vibe?.interface?.setSpeedlaneMode?.(newState);
-
-    // If enabling Speedlane and chat is closed, open it
-    if (newState && !chatPanelVisible && agentStatus) {
-      setChatPanelVisible(true);
-      window.vibe?.interface?.toggleChatPanel?.(true);
-    }
-  }, [isSpeedlaneEnabled, chatPanelVisible, agentStatus, setChatPanelVisible]);
-
   // Input handling with debouncing and race condition prevention
   const handleInputChange = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1354,13 +1340,13 @@ const NavigationBar: React.FC = () => {
             </>
           )}
         </button>
-        <button
+        {/* <button
           className={`nav-button ${isSpeedlaneEnabled ? "active speedlane-active" : ""}`}
           onClick={handleToggleSpeedlane}
           title="Toggle Speedlane mode (dual webview)"
         >
           <ThunderboltOutlined />
-        </button>
+        </button> */}
       </div>
 
       <div className="omnibar-container">
@@ -1401,6 +1387,10 @@ const NavigationBar: React.FC = () => {
                   <div
                     key={suggestion.id}
                     className={`suggestion-item-fallback ${index === selectedIndex ? "selected" : ""}`}
+                    onMouseDown={e => {
+                      // Prevent blur when clicking on suggestion
+                      e.preventDefault();
+                    }}
                     onClick={() => handleSuggestionClick(suggestion)}
                   >
                     <div className="suggestion-icon-fallback">

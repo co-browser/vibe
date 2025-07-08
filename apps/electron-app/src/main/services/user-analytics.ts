@@ -1,4 +1,4 @@
-import { app } from "electron";
+import { app, BrowserWindow } from "electron";
 import * as Sentry from "@sentry/electron/main";
 import { createLogger } from "@vibe/shared-types";
 import fs from "fs-extra";
@@ -137,7 +137,7 @@ export class UserAnalyticsService {
       });
 
       return true;
-    } catch (error) {
+    } catch {
       return false;
     }
   }
@@ -279,7 +279,7 @@ export class UserAnalyticsService {
     const currentStats = await this.getUserUsageStats();
 
     try {
-      let updatedStats = { ...currentStats };
+      const updatedStats = { ...currentStats };
 
       if (updates.sessionStarted) {
         updatedStats.totalSessions += 1;
@@ -451,9 +451,9 @@ export class UserAnalyticsService {
    */
   private trackUmamiEvent(event: string, data: any): void {
     // Send to all renderer windows for Umami tracking
-    const windows = require("electron").BrowserWindow.getAllWindows();
+    const windows = BrowserWindow.getAllWindows();
     windows.forEach(window => {
-      if (!window.isDestroyed()) {
+      if (!window.isDestroyed() && !window.webContents.isDestroyed()) {
         window.webContents
           .executeJavaScript(
             `

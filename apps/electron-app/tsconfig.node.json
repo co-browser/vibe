@@ -4,7 +4,6 @@
     "electron.vite.config.*",
     "src/main/**/*",
     "src/preload/**/*",
-    "scripts/artifact-build-completed.ts"
   ],
   "exclude": [
     "src/main/**/__tests__/**/*",

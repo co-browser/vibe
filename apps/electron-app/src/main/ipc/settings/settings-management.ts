@@ -223,3 +223,125 @@ ipcMain.on("settings-modal:close", event => {
   // Forward the close event to the renderer process
   event.sender.send("settings-modal:close");
 });
+
+// Component visibility settings
+ipcMain.handle(
+  "settings:get-components",
+  async (_event: IpcMainInvokeEvent) => {
+    try {
+      const userProfileStore = useUserProfileStore.getState();
+      const activeProfile = userProfileStore.getActiveProfile();
+
+      if (!activeProfile) {
+        return { success: true, settings: {} };
+      }
+
+      // Get component settings from profile
+      const componentSettings = activeProfile.settings?.components || {};
+
+      return {
+        success: true,
+        settings: componentSettings,
+      };
+    } catch (error) {
+      logger.error("Failed to get component settings", { error });
+      return { success: false, settings: {} };
+    }
+  },
+);
+
+ipcMain.handle(
+  "settings:update-components",
+  async (_event: IpcMainInvokeEvent, updates: Record<string, boolean>) => {
+    try {
+      const userProfileStore = useUserProfileStore.getState();
+      const activeProfile = userProfileStore.getActiveProfile();
+
+      if (!activeProfile) {
+        return { success: false };
+      }
+
+      // Update component settings
+      const updatedSettings = {
+        ...activeProfile.settings,
+        components: {
+          ...(activeProfile.settings?.components || {}),
+          ...updates,
+        },
+      };
+
+      userProfileStore.updateProfile(activeProfile.id, {
+        settings: updatedSettings,
+      });
+
+      // Notify windows about component changes
+      notifySettingsChange("components", updatedSettings.components);
+
+      return { success: true };
+    } catch (error) {
+      logger.error("Failed to update component settings", { error });
+      return { success: false };
+    }
+  },
+);
+
+// Notifications settings
+ipcMain.handle(
+  "settings:get-notifications",
+  async (_event: IpcMainInvokeEvent) => {
+    try {
+      const userProfileStore = useUserProfileStore.getState();
+      const activeProfile = userProfileStore.getActiveProfile();
+
+      if (!activeProfile) {
+        return { success: true, settings: {} };
+      }
+
+      // Get notification settings from profile
+      const notificationSettings = activeProfile.settings?.notifications || {};
+
+      return {
+        success: true,
+        settings: notificationSettings,
+      };
+    } catch (error) {
+      logger.error("Failed to get notification settings", { error });
+      return { success: false, settings: {} };
+    }
+  },
+);
+
+ipcMain.handle(
+  "settings:update-notifications",
+  async (_event: IpcMainInvokeEvent, updates: Record<string, boolean>) => {
+    try {
+      const userProfileStore = useUserProfileStore.getState();
+      const activeProfile = userProfileStore.getActiveProfile();
+
+      if (!activeProfile) {
+        return { success: false };
+      }
+
+      // Update notification settings
+      const updatedSettings = {
+        ...activeProfile.settings,
+        notifications: {
+          ...(activeProfile.settings?.notifications || {}),
+          ...updates,
+        },
+      };
+
+      userProfileStore.updateProfile(activeProfile.id, {
+        settings: updatedSettings,
+      });
+
+      // Notify windows about notification changes
+      notifySettingsChange("notifications", updatedSettings.notifications);
+
+      return { success: true };
+    } catch (error) {
+      logger.error("Failed to update notification settings", { error });
+      return { success: false };
+    }
+  },
+);
