@@ -924,8 +924,8 @@ if (process.contextIsolated) {
       overlay: {
         send: (channel: string, ...args: any[]) => {
           ipcRenderer.send(channel, ...args);
-        }
-      }
+        },
+      },
     });
     contextBridge.exposeInMainWorld("electron", {
       ...electronAPI,

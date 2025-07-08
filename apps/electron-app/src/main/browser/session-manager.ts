@@ -155,33 +155,46 @@ export class SessionManager extends EventEmitter {
   ): void {
     try {
       // Set permission request handler for WebAuthn
-      targetSession.setPermissionRequestHandler((_webContents, permission, callback, details) => {
-        logger.info(`Permission request for ${identifier}: ${permission}`, details);
-        
-        // Allow WebAuthn/FIDO2 permissions
-        if ((permission as any) === 'usb' || (permission as any) === 'hid') {
-          logger.info(`Granting ${permission} permission for WebAuthn/FIDO2`);
+      targetSession.setPermissionRequestHandler(
+        (_webContents, permission, callback, details) => {
+          logger.info(
+            `Permission request for ${identifier}: ${permission}`,
+            details,
+          );
+
+          // Allow WebAuthn/FIDO2 permissions
+          if ((permission as any) === "usb" || (permission as any) === "hid") {
+            logger.info(`Granting ${permission} permission for WebAuthn/FIDO2`);
+            callback(true);
+            return;
+          }
+
+          // Allow other permissions that might be needed
+          if (
+            permission === "notifications" ||
+            permission === "media" ||
+            (permission as any) === "camera" ||
+            (permission as any) === "microphone"
+          ) {
+            callback(true);
+            return;
+          }
+
+          // Default to granting permission for unhandled cases
+          logger.warn(`Unhandled permission request: ${permission}`);
           callback(true);
-          return;
-        }
-        
-        // Allow other permissions that might be needed
-        if (permission === 'notifications' || permission === 'media' || (permission as any) === 'camera' || (permission as any) === 'microphone') {
-          callback(true);
-          return;
-        }
-        
-        // Default to granting permission for unhandled cases
-        logger.warn(`Unhandled permission request: ${permission}`);
-        callback(true);
-      });
+        },
+      );
 
       // Enable WebAuthn for local files by setting up a privileged scheme
       // Note: This is a workaround for Electron's WebAuthn limitations with local files
-      targetSession.webRequest.onBeforeRequest({ urls: ['file://*/*'] }, (_details, callback) => {
-        // Allow file:// URLs to use WebAuthn by not blocking them
-        callback({ cancel: false });
-      });
+      targetSession.webRequest.onBeforeRequest(
+        { urls: ["file://*/*"] },
+        (_details, callback) => {
+          // Allow file:// URLs to use WebAuthn by not blocking them
+          callback({ cancel: false });
+        },
+      );
 
       // Set a user agent that properly identifies as Chrome to ensure WebAuthn compatibility
       const currentUserAgent = targetSession.getUserAgent();
@@ -194,7 +207,10 @@ export class SessionManager extends EventEmitter {
 
       logger.info(`WebAuthn support applied to session: ${identifier}`);
     } catch (error) {
-      logger.error(`Failed to apply WebAuthn support to session ${identifier}:`, error);
+      logger.error(
+        `Failed to apply WebAuthn support to session ${identifier}:`,
+        error,
+      );
     }
   }
 

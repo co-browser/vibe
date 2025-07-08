@@ -83,9 +83,9 @@ if (!gotTheLock) {
   app.quit();
 } else {
   // Handle when someone tries to run a second instance
-  app.on('second-instance', (_event, _commandLine, _workingDirectory) => {
+  app.on("second-instance", (_event, _commandLine, _workingDirectory) => {
     logger.info("Second instance detected, focusing existing window");
-    
+
     // Focus existing window if it exists
     const windows = BrowserWindow.getAllWindows();
     if (windows.length > 0) {
@@ -145,7 +145,7 @@ if (app.isDefaultProtocolClient("vibe")) {
 
 // Load environment variables
 const envPath = findFileUpwards(__dirname, ".env");
-process.env.GOOGLE_API_KEY = 'AIzaSyAo6-3Yo9qYGtxlzFzcDgnIHoBGHiGZUTM'
+process.env.GOOGLE_API_KEY = "AIzaSyAo6-3Yo9qYGtxlzFzcDgnIHoBGHiGZUTM";
 
 if (envPath) {
   config({ path: envPath });
@@ -846,25 +846,25 @@ async function initializeBackgroundServices(): Promise<void> {
 // This must be done before app.whenReady()
 protocol.registerSchemesAsPrivileged([
   {
-    scheme: 'https',
+    scheme: "https",
     privileges: {
       standard: true,
       secure: true,
       allowServiceWorkers: true,
       supportFetchAPI: true,
-      corsEnabled: true
-    }
+      corsEnabled: true,
+    },
   },
   {
-    scheme: 'http',
+    scheme: "http",
     privileges: {
       standard: true,
       secure: false,
       allowServiceWorkers: false,
       supportFetchAPI: true,
-      corsEnabled: true
-    }
-  }
+      corsEnabled: true,
+    },
+  },
 ]);
 
 // Main application initialization
@@ -1265,9 +1265,9 @@ app.on("before-quit", async () => {
 app.on("web-contents-created", (_event, contents) => {
   // Set up context menu for any new web contents if they're in a BrowserWindow
   const window = BrowserWindow.fromWebContents(contents);
-  if (window && contents.getType() === 'window') {
+  if (window && contents.getType() === "window") {
     // Set up context menu handler for OAuth popup windows
-    contents.on('context-menu', (_event, params) => {
+    contents.on("context-menu", (_event, params) => {
       // For editable content, let the system handle it
       if (params.isEditable) {
         return;
@@ -1365,11 +1365,15 @@ app.on("web-contents-created", (_event, contents) => {
       // Allow OAuth callbacks or OAuth provider domains to open in the app
       if (isOAuthCallback || isFromOAuthProvider) {
         logger.info(`Allowing OAuth-related URL to open in app: ${url}`);
-        
+
         // If it's trying to open in a new window (popup), configure it properly
-        if (disposition === 'new-window' || disposition === 'foreground-tab' || disposition === 'background-tab') {
+        if (
+          disposition === "new-window" ||
+          disposition === "foreground-tab" ||
+          disposition === "background-tab"
+        ) {
           return {
-            action: 'allow',
+            action: "allow",
             overrideBrowserWindowOptions: {
               webPreferences: {
                 // Share the same session as the parent window to maintain user auth
@@ -1387,10 +1391,10 @@ app.on("web-contents-created", (_event, contents) => {
               minimizable: true,
               maximizable: true,
               autoHideMenuBar: true,
-            }
+            },
           };
         }
-        
+
         return { action: "allow" };
       }
 

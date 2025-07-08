@@ -9,7 +9,12 @@
  * - Memory-conscious resource management
  */
 
-import { WebContentsView, BrowserWindow, ipcMain, MessageChannelMain } from "electron";
+import {
+  WebContentsView,
+  BrowserWindow,
+  ipcMain,
+  MessageChannelMain,
+} from "electron";
 import * as path from "path";
 import { createLogger } from "@vibe/shared-types";
 import { EventEmitter } from "events";
@@ -374,9 +379,9 @@ export class OverlayManager extends EventEmitter {
     // Set initial bounds to cover entire window but positioned off-screen initially
     const { width, height } = this.window.getContentBounds();
     this.overlayView.setBounds({ x: 0, y: 0, width, height });
-    
+
     // Set transparent background and proper pointer events
-    this.overlayView.setBackgroundColor('#00000000'); // Fully transparent
+    this.overlayView.setBackgroundColor("#00000000"); // Fully transparent
 
     // Add to window
     this.window.contentView.addChildView(this.overlayView);
@@ -384,7 +389,7 @@ export class OverlayManager extends EventEmitter {
     // Initially hide overlay completely
     this.overlayView.setVisible(false);
     this.isVisible = false;
-    
+
     // Ensure overlay starts with proper pointer events disabled
     await this.overlayView.webContents.executeJavaScript(`
       document.documentElement.style.pointerEvents = 'none';
@@ -422,15 +427,23 @@ export class OverlayManager extends EventEmitter {
     try {
       // Create a MessageChannel for direct communication
       const { port1, port2 } = new MessageChannelMain();
-      
+
       // Send port1 to the main window
-      this.window.webContents.postMessage('overlay-port', { type: 'main' }, [port1]);
-      
+      this.window.webContents.postMessage("overlay-port", { type: "main" }, [
+        port1,
+      ]);
+
       // Send port2 to the overlay
-      this.overlayView.webContents.postMessage('overlay-port', { type: 'overlay' }, [port2]);
-      
+      this.overlayView.webContents.postMessage(
+        "overlay-port",
+        { type: "overlay" },
+        [port2],
+      );
+
       this.isMessagePortSetup = true;
-      logger.info("MessagePort setup complete for direct overlay communication");
+      logger.info(
+        "MessagePort setup complete for direct overlay communication",
+      );
     } catch (error) {
       logger.error("Failed to setup MessagePort:", error);
       // Fallback to IPC if MessagePort fails
@@ -450,7 +463,10 @@ export class OverlayManager extends EventEmitter {
     this.overlayView.webContents.ipc.on(
       "omnibox:suggestion-clicked",
       (_event, suggestion) => {
-        logger.info("🔥 MAIN: Forwarding suggestion click from overlay:", suggestion);
+        logger.info(
+          "🔥 MAIN: Forwarding suggestion click from overlay:",
+          suggestion,
+        );
         this.window.webContents.send("omnibox:suggestion-clicked", suggestion);
       },
     );
@@ -463,7 +479,10 @@ export class OverlayManager extends EventEmitter {
     this.overlayView.webContents.ipc.on(
       "omnibox:delete-history",
       (_event, suggestionId) => {
-        logger.info("🔥 MAIN: Forwarding delete history from overlay:", suggestionId);
+        logger.info(
+          "🔥 MAIN: Forwarding delete history from overlay:",
+          suggestionId,
+        );
         this.window.webContents.send("omnibox:delete-history", suggestionId);
       },
     );
@@ -759,8 +778,10 @@ export class OverlayManager extends EventEmitter {
         `);
       } else {
         // Hide overlay completely
-        logger.debug(`Hiding overlay - was visible: ${this.isVisible}, priority was: ${this.currentPriority}`);
-        
+        logger.debug(
+          `Hiding overlay - was visible: ${this.isVisible}, priority was: ${this.currentPriority}`,
+        );
+
         // First disable pointer events via JavaScript
         await this.overlayView.webContents.executeJavaScript(`
           (function() {
@@ -780,11 +801,11 @@ export class OverlayManager extends EventEmitter {
             }
           })();
         `);
-        
+
         // Then hide the WebContentsView
         this.overlayView.setVisible(false);
         this.isVisible = false;
-        
+
         // Reset priority when hiding so the same content can be shown again
         this.currentPriority = "normal";
       }
@@ -807,7 +828,10 @@ export class OverlayManager extends EventEmitter {
 
     // Check if this content should override current content
     // Always allow rendering if overlay is not visible (to fix re-showing issue)
-    if (this.isVisible && priorityOrder[contentPriority] < priorityOrder[this.currentPriority]) {
+    if (
+      this.isVisible &&
+      priorityOrder[contentPriority] < priorityOrder[this.currentPriority]
+    ) {
       logger.debug(
         `Ignoring overlay content with lower priority: ${contentPriority} < ${this.currentPriority} (type: ${contentType})`,
       );
@@ -877,7 +901,7 @@ export class OverlayManager extends EventEmitter {
             }
           })();
         `);
-        
+
         // Setup MessagePort for this content if not already setup
         if (!this.isMessagePortSetup) {
           this.setupMessagePort();
@@ -1228,13 +1252,13 @@ export class OverlayManager extends EventEmitter {
     // Don't automatically set visible here - let the visibility command handle it
     logger.debug("Overlay brought to front");
   }
-  
+
   /**
    * Completely hide overlay and disable all pointer events
    */
   public async hideCompletely(): Promise<void> {
     if (!this.overlayView) return;
-    
+
     // First disable all pointer events
     try {
       await this.overlayView.webContents.executeJavaScript(`
@@ -1257,14 +1281,14 @@ export class OverlayManager extends EventEmitter {
         })();
       `);
     } catch (error) {
-      logger.error('Failed to disable overlay pointer events:', error);
+      logger.error("Failed to disable overlay pointer events:", error);
     }
-    
+
     // Then hide the WebContentsView
     this.overlayView.setVisible(false);
     this.isVisible = false;
     this.currentPriority = "normal";
-    
+
     logger.debug("Overlay completely hidden and deactivated");
   }
 

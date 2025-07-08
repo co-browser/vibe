@@ -499,7 +499,10 @@ export class ChromeDataExtractionService {
           const localStateContent = fsSync.readFileSync(localStatePath, "utf8");
           localState = JSON.parse(localStateContent);
         } catch (parseError) {
-          logger.error("Failed to parse Chrome Local State file for encryption key", parseError);
+          logger.error(
+            "Failed to parse Chrome Local State file for encryption key",
+            parseError,
+          );
           return null;
         }
         const encryptedKey = localState.os_crypt?.encrypted_key;

@@ -35,16 +35,20 @@ class PerformanceMonitor {
       const duration = performance.now() - this.resizeStartTime;
       this.metrics.resizeCount++;
       this.metrics.lastResizeTime = duration;
-      this.metrics.maxResizeTime = Math.max(this.metrics.maxResizeTime, duration);
-      
+      this.metrics.maxResizeTime = Math.max(
+        this.metrics.maxResizeTime,
+        duration,
+      );
+
       // Calculate running average
-      this.metrics.averageResizeTime = 
-        (this.metrics.averageResizeTime * (this.metrics.resizeCount - 1) + duration) / 
+      this.metrics.averageResizeTime =
+        (this.metrics.averageResizeTime * (this.metrics.resizeCount - 1) +
+          duration) /
         this.metrics.resizeCount;
-      
+
       this.resizeStartTime = null;
       this.stopFrameMonitoring();
-      
+
       // Log performance if it's poor
       if (duration > 100) {
         console.warn(`[Perf] Slow resize detected: ${duration.toFixed(2)}ms`);
@@ -58,24 +62,24 @@ class PerformanceMonitor {
 
   private startFrameMonitoring(): void {
     let lastFrameTime = performance.now();
-    
+
     const measureFrame = () => {
       const now = performance.now();
       const frameDuration = now - lastFrameTime;
-      
+
       // Track dropped frames (> 16.67ms for 60fps)
       if (frameDuration > 16.67) {
         this.metrics.droppedFrames++;
       }
-      
+
       this.frameTimes.push(frameDuration);
       lastFrameTime = now;
-      
+
       if (this.resizeStartTime) {
         this.rafId = requestAnimationFrame(measureFrame);
       }
     };
-    
+
     this.rafId = requestAnimationFrame(measureFrame);
   }
 
@@ -105,13 +109,17 @@ class PerformanceMonitor {
 
   logSummary(): void {
     const metrics = this.getMetrics();
-    console.log('[Perf] Chat Panel Resize Performance Summary:');
+    console.log("[Perf] Chat Panel Resize Performance Summary:");
     console.log(`  - Total resizes: ${metrics.resizeCount}`);
     console.log(`  - IPC calls: ${metrics.ipcCallCount}`);
-    console.log(`  - Average resize time: ${metrics.averageResizeTime.toFixed(2)}ms`);
+    console.log(
+      `  - Average resize time: ${metrics.averageResizeTime.toFixed(2)}ms`,
+    );
     console.log(`  - Max resize time: ${metrics.maxResizeTime.toFixed(2)}ms`);
     console.log(`  - Dropped frames: ${metrics.droppedFrames}`);
-    console.log(`  - IPC efficiency: ${(metrics.ipcCallCount / Math.max(1, metrics.resizeCount)).toFixed(2)} calls per resize`);
+    console.log(
+      `  - IPC efficiency: ${(metrics.ipcCallCount / Math.max(1, metrics.resizeCount)).toFixed(2)} calls per resize`,
+    );
   }
 }
 
@@ -119,8 +127,8 @@ class PerformanceMonitor {
 export const performanceMonitor = new PerformanceMonitor();
 
 // Add performance logging on page unload
-if (typeof window !== 'undefined') {
-  window.addEventListener('beforeunload', () => {
+if (typeof window !== "undefined") {
+  window.addEventListener("beforeunload", () => {
     performanceMonitor.logSummary();
   });
 }

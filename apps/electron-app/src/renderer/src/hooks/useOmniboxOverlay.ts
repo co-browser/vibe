@@ -203,7 +203,7 @@ export function useOmniboxOverlay(options: OmniboxOverlayOptions = {}) {
     "enabled" | "disabled" | "error"
   >("enabled");
   const [errorCount, setErrorCount] = useState(0);
-  
+
   // MessagePort for direct overlay communication
   const messagePortRef = useRef<MessagePort | null>(null);
 
@@ -214,7 +214,7 @@ export function useOmniboxOverlay(options: OmniboxOverlayOptions = {}) {
     onDeleteHistory,
     onNavigateAndClose,
   });
-  
+
   // Update refs when callbacks change
   useEffect(() => {
     callbacksRef.current = {
@@ -263,43 +263,43 @@ export function useOmniboxOverlay(options: OmniboxOverlayOptions = {}) {
   // Setup MessagePort listener for ultra-low latency communication
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
-      if (event.data === 'overlay-port' && event.ports && event.ports[0]) {
+      if (event.data === "overlay-port" && event.ports && event.ports[0]) {
         messagePortRef.current = event.ports[0];
         messagePortRef.current.start();
-        
+
         // Setup MessagePort message handler
-        messagePortRef.current.onmessage = (msgEvent) => {
+        messagePortRef.current.onmessage = msgEvent => {
           const { type, data } = msgEvent.data;
           switch (type) {
-            case 'omnibox:suggestion-clicked':
+            case "omnibox:suggestion-clicked":
               eventHandlers.handleSuggestionClicked(null, data);
               break;
-            case 'omnibox:escape-dropdown':
+            case "omnibox:escape-dropdown":
               eventHandlers.handleEscapeDropdown();
               break;
-            case 'omnibox:delete-history':
+            case "omnibox:delete-history":
               eventHandlers.handleDeleteHistory(null, data);
               break;
-            case 'omnibox:navigate-and-close':
+            case "omnibox:navigate-and-close":
               eventHandlers.handleNavigateAndClose(null, data);
               break;
-            case 'overlay:error':
+            case "overlay:error":
               eventHandlers.handleOverlayError(null, data);
               break;
-            case 'overlay:health-check':
+            case "overlay:health-check":
               eventHandlers.handleOverlayHealth(null, data);
               break;
           }
         };
-        
-        logger.info('MessagePort established for direct overlay communication');
+
+        logger.info("MessagePort established for direct overlay communication");
       }
     };
-    
-    window.addEventListener('message', handleMessage);
-    
+
+    window.addEventListener("message", handleMessage);
+
     return () => {
-      window.removeEventListener('message', handleMessage);
+      window.removeEventListener("message", handleMessage);
       if (messagePortRef.current) {
         messagePortRef.current.close();
       }
@@ -310,13 +310,17 @@ export function useOmniboxOverlay(options: OmniboxOverlayOptions = {}) {
   useEffect(() => {
     if (window.electron?.ipcRenderer) {
       const ipcRenderer = window.electron.ipcRenderer;
-      
+
       // Add event listeners with debugging
       const debugHandleSuggestionClicked = (event: any, suggestion: any) => {
-        console.log('🔥 IPC: Received suggestion click event:', event, suggestion);
+        console.log(
+          "🔥 IPC: Received suggestion click event:",
+          event,
+          suggestion,
+        );
         eventHandlers.handleSuggestionClicked(event, suggestion);
       };
-      
+
       ipcRenderer.on(
         "omnibox:suggestion-clicked",
         debugHandleSuggestionClicked,
@@ -333,14 +337,8 @@ export function useOmniboxOverlay(options: OmniboxOverlayOptions = {}) {
         "omnibox:navigate-and-close",
         eventHandlers.handleNavigateAndClose,
       );
-      ipcRenderer.on(
-        "overlay:error",
-        eventHandlers.handleOverlayError,
-      );
-      ipcRenderer.on(
-        "overlay:health-check",
-        eventHandlers.handleOverlayHealth,
-      );
+      ipcRenderer.on("overlay:error", eventHandlers.handleOverlayError);
+      ipcRenderer.on("overlay:health-check", eventHandlers.handleOverlayHealth);
 
       return () => {
         ipcRenderer.removeListener(
@@ -378,38 +376,40 @@ export function useOmniboxOverlay(options: OmniboxOverlayOptions = {}) {
 
     const omnibarContainer = document.querySelector(".omnibar-container");
     if (!omnibarContainer) {
-      logger.debug('Omnibar container not found, using fallback positioning');
+      logger.debug("Omnibar container not found, using fallback positioning");
       applyFallbackPositioning();
       return;
     }
-    
+
     // Check if container is visible
     const containerRect = omnibarContainer.getBoundingClientRect();
     if (containerRect.width === 0 || containerRect.height === 0) {
-      logger.debug('Omnibar container has zero dimensions, using fallback positioning');
+      logger.debug(
+        "Omnibar container has zero dimensions, using fallback positioning",
+      );
       applyFallbackPositioning();
       return;
     }
-    
+
     try {
       const rect = omnibarContainer.getBoundingClientRect();
       const windowWidth = window.innerWidth;
       const windowHeight = window.innerHeight;
-      
+
       // Calculate position with improved bounds checking
       const navbarWidth = rect.width;
       const navbarLeft = rect.left;
       const navbarBottom = rect.bottom;
-      
+
       // Set overlay width to match navbar width
       let overlayWidth = navbarWidth;
       let leftPosition = navbarLeft;
-      
+
       // Ensure overlay doesn't exceed viewport bounds
       const minMargin = 12; // Match navbar margin
       const maxRight = windowWidth - minMargin;
       const maxLeft = maxRight - overlayWidth;
-      
+
       // Adjust if overlay would go off the right edge
       if (leftPosition + overlayWidth > maxRight) {
         leftPosition = Math.max(minMargin, maxLeft);
@@ -418,7 +418,7 @@ export function useOmniboxOverlay(options: OmniboxOverlayOptions = {}) {
           overlayWidth = maxRight - leftPosition;
         }
       }
-      
+
       // Ensure minimum left margin
       if (leftPosition < minMargin) {
         leftPosition = minMargin;
@@ -426,24 +426,24 @@ export function useOmniboxOverlay(options: OmniboxOverlayOptions = {}) {
         const availableWidth = maxRight - leftPosition;
         overlayWidth = Math.min(overlayWidth, availableWidth);
       }
-      
+
       // Ensure minimum width
       const minWidth = 300;
       if (overlayWidth < minWidth) {
-        overlayWidth = Math.min(minWidth, windowWidth - (minMargin * 2));
+        overlayWidth = Math.min(minWidth, windowWidth - minMargin * 2);
         leftPosition = Math.max(minMargin, (windowWidth - overlayWidth) / 2);
       }
-      
+
       // Vertical positioning with bounds checking
       let topPosition = navbarBottom;
       const maxHeight = 300; // Max dropdown height
-      
+
       // Check if dropdown would go off bottom of screen
       if (topPosition + maxHeight > windowHeight - 20) {
         // Position above navbar if there's more space
         const spaceAbove = rect.top - 20;
         const spaceBelow = windowHeight - navbarBottom - 20;
-        
+
         if (spaceAbove > spaceBelow && spaceAbove > 150) {
           topPosition = rect.top - maxHeight;
         }
@@ -472,24 +472,27 @@ export function useOmniboxOverlay(options: OmniboxOverlayOptions = {}) {
       window.electron.ipcRenderer
         .invoke("overlay:execute", updateScript)
         .catch(error => {
-          logger.debug("Overlay positioning script failed, using fallback:", error.message);
+          logger.debug(
+            "Overlay positioning script failed, using fallback:",
+            error.message,
+          );
           // Try fallback positioning if main positioning fails
           applyFallbackPositioning();
         });
     } catch (error) {
-      logger.error('Error in overlay positioning calculation:', error);
+      logger.error("Error in overlay positioning calculation:", error);
       applyFallbackPositioning();
     }
-    
+
     // Fallback positioning function
     function applyFallbackPositioning() {
       const windowWidth = window.innerWidth;
-      
+
       // Use safe fallback values
       const fallbackWidth = Math.min(500, windowWidth - 40);
       const fallbackLeft = Math.max(20, (windowWidth - fallbackWidth) / 2);
       const fallbackTop = 80; // Below typical navbar height
-      
+
       const fallbackScript = `
         (function() {
           try {
@@ -508,11 +511,14 @@ export function useOmniboxOverlay(options: OmniboxOverlayOptions = {}) {
           }
         })();
       `;
-      
+
       window.electron.ipcRenderer
         .invoke("overlay:execute", fallbackScript)
         .catch(error =>
-          logger.debug("Fallback overlay positioning also failed:", error.message),
+          logger.debug(
+            "Fallback overlay positioning also failed:",
+            error.message,
+          ),
         );
     }
   }, [overlayStatus]);
@@ -532,7 +538,7 @@ export function useOmniboxOverlay(options: OmniboxOverlayOptions = {}) {
     };
 
     window.addEventListener("resize", handleResize);
-    
+
     // Also listen for scroll events that might affect positioning
     window.addEventListener("scroll", handleResize);
 
@@ -634,29 +640,38 @@ export function useOmniboxOverlay(options: OmniboxOverlayOptions = {}) {
     `;
 
       // Debug: Log the generated HTML
-      console.log('🔥 Generated HTML for overlay:', safeHtml.substring(0, 200) + '...');
-      console.log('🔥 Number of suggestions:', suggestions.length);
-      
+      console.log(
+        "🔥 Generated HTML for overlay:",
+        safeHtml.substring(0, 200) + "...",
+      );
+      console.log("🔥 Number of suggestions:", suggestions.length);
+
       // Update overlay content safely
-      const renderResult = await window.electron.ipcRenderer.invoke("overlay:render", {
-        html: safeHtml,
-        css: STATIC_CSS,
-        visible: true,
-        priority: "critical",
-        type: "omnibox-suggestions",
-      });
-      
-      console.log('🔥 Overlay render result:', renderResult);
+      const renderResult = await window.electron.ipcRenderer.invoke(
+        "overlay:render",
+        {
+          html: safeHtml,
+          css: STATIC_CSS,
+          visible: true,
+          priority: "critical",
+          type: "omnibox-suggestions",
+        },
+      );
+
+      console.log("🔥 Overlay render result:", renderResult);
 
       // Update position after rendering to ensure proper alignment
       // Use multiple timeouts to handle different rendering phases
       setTimeout(() => updateOverlayPosition(), 0);
       setTimeout(() => updateOverlayPosition(), 10);
       setTimeout(() => updateOverlayPosition(), 50);
-      
+
       // Test if overlay is clickable and create debug function
       setTimeout(() => {
-        window.electron.ipcRenderer.invoke("overlay:execute", `
+        window.electron.ipcRenderer
+          .invoke(
+            "overlay:execute",
+            `
           (function() {
             try {
               const results = {
@@ -740,23 +755,30 @@ export function useOmniboxOverlay(options: OmniboxOverlayOptions = {}) {
               };
             }
           })();
-        `).then(result => {
-          console.log('🔥 Overlay test result:', result);
-          if (result.firstItemData) {
-            console.log('🔥 First item data details:', result.firstItemData);
-          }
-        }).catch(error => {
-          console.log('🔥 Overlay test failed:', error);
-        });
+        `,
+          )
+          .then(result => {
+            console.log("🔥 Overlay test result:", result);
+            if (result.firstItemData) {
+              console.log("🔥 First item data details:", result.firstItemData);
+            }
+          })
+          .catch(error => {
+            console.log("🔥 Overlay test failed:", error);
+          });
       }, 100);
-      
+
       // Also update position when DOM is fully ready
-      if (document.readyState === 'complete') {
+      if (document.readyState === "complete") {
         setTimeout(() => updateOverlayPosition(), 100);
       } else {
-        window.addEventListener('load', () => {
-          setTimeout(() => updateOverlayPosition(), 100);
-        }, { once: true });
+        window.addEventListener(
+          "load",
+          () => {
+            setTimeout(() => updateOverlayPosition(), 100);
+          },
+          { once: true },
+        );
       }
 
       return true;
@@ -891,10 +913,11 @@ export function useOmniboxOverlay(options: OmniboxOverlayOptions = {}) {
 
       // Check for changes to avoid unnecessary updates (fast hash comparison)
       const currentHash = fastHash(suggestions);
-      
+
       // Get current overlay state to check if it's actually visible
-      const overlayState = await window.electron.ipcRenderer.invoke("overlay:getState");
-      
+      const overlayState =
+        await window.electron.ipcRenderer.invoke("overlay:getState");
+
       // Only skip if we have the same content AND overlay is actually visible
       // Always render if hash is empty (cleared by hideOverlay) or overlay is not visible
       if (
@@ -932,9 +955,11 @@ export function useOmniboxOverlay(options: OmniboxOverlayOptions = {}) {
     try {
       // Hide the overlay completely
       window.electron.ipcRenderer.invoke("overlay:hide");
-      
+
       // Also execute script to ensure complete hiding
-      window.electron.ipcRenderer.invoke("overlay:execute", `
+      window.electron.ipcRenderer.invoke(
+        "overlay:execute",
+        `
         (function() {
           // Disable all pointer events immediately
           document.documentElement.style.pointerEvents = 'none';
@@ -951,8 +976,9 @@ export function useOmniboxOverlay(options: OmniboxOverlayOptions = {}) {
           
           console.log('🔥 Overlay hidden via hideOverlay');
         })();
-      `);
-      
+      `,
+      );
+
       isShowingRef.current = false;
       lastSelectedIndexRef.current = -1;
       // Clear the hash so overlay can show again with same suggestions
@@ -972,10 +998,10 @@ export function useOmniboxOverlay(options: OmniboxOverlayOptions = {}) {
     try {
       // First hide completely
       hideOverlay();
-      
+
       // Then clear content
       window.electron.ipcRenderer.invoke("overlay:clear");
-      
+
       isShowingRef.current = false;
       lastSelectedIndexRef.current = -1;
       lastSuggestionsRef.current = [];

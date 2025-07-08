@@ -45,7 +45,7 @@ function efficientDebounce<T extends (...args: any[]) => any>(
   delay: number = 100,
 ): (...args: Parameters<T>) => void {
   let timeoutId: NodeJS.Timeout | null = null;
-  
+
   return (...args: Parameters<T>) => {
     if (timeoutId) {
       clearTimeout(timeoutId);
@@ -62,13 +62,9 @@ interface OptimizedDraggableDividerProps {
   onMinimize?: () => void;
 }
 
-export const OptimizedDraggableDivider: React.FC<OptimizedDraggableDividerProps> = ({
-  onResize,
-  minWidth,
-  maxWidth,
-  currentWidth,
-  onMinimize,
-}) => {
+export const OptimizedDraggableDivider: React.FC<
+  OptimizedDraggableDividerProps
+> = ({ onResize, minWidth, maxWidth, currentWidth, onMinimize }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [visualWidth, setVisualWidth] = useState(currentWidth);
   const dividerRef = useRef<HTMLDivElement>(null);
@@ -109,7 +105,7 @@ export const OptimizedDraggableDivider: React.FC<OptimizedDraggableDividerProps>
     (e: React.MouseEvent) => {
       e.preventDefault();
       e.stopPropagation();
-      
+
       setIsDragging(true);
       startXRef.current = e.clientX;
       startWidthRef.current = currentWidth;
@@ -144,7 +140,7 @@ export const OptimizedDraggableDivider: React.FC<OptimizedDraggableDividerProps>
 
       // Update visual feedback immediately for ultra-smooth dragging
       smoothVisualResize(clampedWidth);
-      
+
       // Efficient final resize with debouncing
       efficientFinalResize(clampedWidth);
     };
@@ -155,7 +151,7 @@ export const OptimizedDraggableDivider: React.FC<OptimizedDraggableDividerProps>
         document.body.style.cursor = "";
         document.body.style.userSelect = "";
         document.body.style.webkitUserSelect = "";
-        
+
         // Ensure final width is set
         const finalWidth = visualWidth;
         if (Math.abs(finalWidth - lastWidthRef.current) > 1) {
@@ -179,7 +175,16 @@ export const OptimizedDraggableDivider: React.FC<OptimizedDraggableDividerProps>
       document.removeEventListener("mousemove", handleMouseMove);
       document.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [isDragging, minWidth, maxWidth, smoothVisualResize, efficientFinalResize, onMinimize, visualWidth, onResize]);
+  }, [
+    isDragging,
+    minWidth,
+    maxWidth,
+    smoothVisualResize,
+    efficientFinalResize,
+    onMinimize,
+    visualWidth,
+    onResize,
+  ]);
 
   return (
     <div
@@ -231,4 +236,4 @@ export const OptimizedDraggableDivider: React.FC<OptimizedDraggableDividerProps>
       />
     </div>
   );
-}; 
+};

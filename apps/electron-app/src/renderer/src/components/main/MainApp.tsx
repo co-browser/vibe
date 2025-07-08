@@ -1,9 +1,4 @@
-import React, {
-  useState,
-  useEffect,
-  useRef,
-  useCallback,
-} from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import NavigationBar from "../layout/NavigationBar";
 import ChromeTabBar from "../layout/TabBar";
 import { ChatPage } from "../../pages/chat/ChatPage";
@@ -285,20 +280,22 @@ function ChatPanelSidebar(): React.JSX.Element | null {
     (newWidth: number) => {
       // Start performance tracking
       performanceMonitor.startResize();
-      
+
       // Update local state immediately for responsive UI
       handleResize(newWidth);
-      
+
       // Batch IPC calls using RAF
       const batcher = ipcBatcherRef.current;
       batcher.pendingWidth = newWidth;
-      
+
       // Only send IPC if width changed significantly
       if (Math.abs(newWidth - batcher.lastSentWidth) > 5) {
         if (!batcher.rafId) {
           batcher.rafId = requestAnimationFrame(() => {
-            if (batcher.pendingWidth !== null && 
-                Math.abs(batcher.pendingWidth - batcher.lastSentWidth) > 5) {
+            if (
+              batcher.pendingWidth !== null &&
+              Math.abs(batcher.pendingWidth - batcher.lastSentWidth) > 5
+            ) {
               // Track IPC call
               performanceMonitor.trackIPCCall();
               window.vibe?.interface?.setChatPanelWidth?.(batcher.pendingWidth);
@@ -530,32 +527,34 @@ export function MainApp(): React.JSX.Element {
       }, 100);
     }
   }, [vibeAPIReady]);
-  
+
   // Add performance monitoring keyboard shortcut
   useEffect(() => {
     const handleKeyPress = async (e: KeyboardEvent) => {
       // Ctrl/Cmd + Shift + P to show performance metrics
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'P') {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "P") {
         e.preventDefault();
-        
+
         // Log renderer metrics
-        console.log('\n=== RENDERER PROCESS METRICS ===');
+        console.log("\n=== RENDERER PROCESS METRICS ===");
         performanceMonitor.logSummary();
-        
+
         // Log main process metrics
         if (window.electron?.ipcRenderer) {
           try {
-            console.log('\n=== MAIN PROCESS METRICS ===');
-            await window.electron.ipcRenderer.invoke('performance:log-main-process-summary');
+            console.log("\n=== MAIN PROCESS METRICS ===");
+            await window.electron.ipcRenderer.invoke(
+              "performance:log-main-process-summary",
+            );
           } catch (error) {
-            console.error('Failed to get main process metrics:', error);
+            console.error("Failed to get main process metrics:", error);
           }
         }
       }
     };
-    
-    window.addEventListener('keydown', handleKeyPress);
-    return () => window.removeEventListener('keydown', handleKeyPress);
+
+    window.addEventListener("keydown", handleKeyPress);
+    return () => window.removeEventListener("keydown", handleKeyPress);
   }, []);
 
   return (

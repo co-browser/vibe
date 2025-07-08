@@ -3,13 +3,13 @@
 .chat-panel-sidebar {
   /* Layout containment for better performance */
   contain: layout style size;
-  
+
   /* Prevent layout thrashing */
   will-change: width;
-  
+
   /* Force GPU acceleration */
   transform: translateZ(0);
-  
+
   /* Optimize repaints */
   isolation: isolate;
 }
@@ -17,10 +17,10 @@
 .chat-panel-content {
   /* Contain paint and layout */
   contain: strict;
-  
+
   /* Prevent content from affecting parent layout */
   overflow: hidden;
-  
+
   /* Optimize scrolling performance */
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
@@ -29,13 +29,13 @@
 .chat-panel-body {
   /* Optimize for scrolling performance */
   will-change: scroll-position;
-  
+
   /* Contain layout */
   contain: layout style;
-  
+
   /* Force layer creation */
   transform: translateZ(0);
-  
+
   /* Optimize reflows */
   position: relative;
   overflow-y: auto;
@@ -46,10 +46,10 @@
 .chat-messages-container {
   /* Prevent reflows from affecting parent */
   contain: layout style paint;
-  
+
   /* Optimize scrolling */
   will-change: contents;
-  
+
   /* Force GPU layer */
   transform: translateZ(0);
 }
@@ -58,7 +58,7 @@
 .ultra-draggable-divider {
   /* Prevent divider from triggering parent reflows */
   contain: strict;
-  
+
   /* Optimize cursor changes */
   will-change: cursor;
 }
@@ -73,13 +73,13 @@
 .browser-view-content {
   /* Contain layout during resize */
   contain: layout style;
-  
+
   /* Prevent content shifts */
   overflow: hidden;
-  
+
   /* Optimize resize performance */
   will-change: width;
-  
+
   /* Force GPU acceleration */
   transform: translateZ(0);
 }
@@ -88,10 +88,10 @@
 .main-content-wrapper {
   /* Prevent children from affecting layout */
   contain: layout;
-  
+
   /* Optimize flex layout changes */
   will-change: contents;
-  
+
   /* Force layer creation */
   transform: translateZ(0);
 }
@@ -102,7 +102,7 @@
     /* Disable transitions during active resize */
     transition: none;
   }
-  
+
   .browser-view-content {
     /* Smooth transition after resize ends */
     transition: width 0.1s ease-out;
@@ -111,7 +111,7 @@
 
 /* High-performance shadow for divider */
 .ultra-draggable-divider::before {
-  content: '';
+  content: "";
   position: absolute;
   left: -10px;
   right: -10px;
@@ -141,7 +141,7 @@
 .browser-layout-root {
   /* Use CSS custom properties for dynamic values */
   --chat-panel-width-optimized: var(--chat-panel-width, 300px);
-  
+
   /* Prevent layout recalculation */
   contain: layout;
 }
@@ -155,11 +155,11 @@
     /* Optimize grid layout updates */
     will-change: grid-template-columns;
   }
-  
+
   .browser-view-content {
     grid-column: 1;
   }
-  
+
   .chat-panel-sidebar {
     grid-column: 2;
     /* Override width since grid handles it */

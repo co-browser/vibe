@@ -82,9 +82,7 @@ const items: MenuItem[] = [
     key: "api",
     icon: <KeyOutlined />,
     label: "API Keys",
-    children: [
-      { key: "api-keys", label: "Manage API Keys" },
-    ],
+    children: [{ key: "api-keys", label: "Manage API Keys" }],
   },
   {
     key: "performance",
@@ -174,7 +172,14 @@ const items: MenuItem[] = [
 
 const levelKeys = getLevelKeys(items as LevelKeysProps[]);
 
-const renderContent = (selectedKey: string, apiKeys?: any, passwordVisible?: any, handleApiKeyChange?: any, saveApiKeys?: any, setPasswordVisible?: any) => {
+const renderContent = (
+  selectedKey: string,
+  apiKeys?: any,
+  passwordVisible?: any,
+  handleApiKeyChange?: any,
+  saveApiKeys?: any,
+  setPasswordVisible?: any,
+) => {
   switch (selectedKey) {
     case "startup":
       return (
@@ -788,21 +793,22 @@ const renderContent = (selectedKey: string, apiKeys?: any, passwordVisible?: any
                 <div style={{ textAlign: "left" }}>
                   <Text strong>OpenAI API Key</Text>
                   <br />
-                  <Text type="secondary">
-                    Used for AI-powered features
-                  </Text>
+                  <Text type="secondary">Used for AI-powered features</Text>
                 </div>
                 <Input.Password
                   placeholder="sk-..."
                   style={{ width: 300 }}
                   size="small"
                   value={apiKeys?.openai || ""}
-                  onChange={(e) => handleApiKeyChange?.('openai', e.target.value)}
+                  onChange={e => handleApiKeyChange?.("openai", e.target.value)}
                   onBlur={() => saveApiKeys?.()}
                   visibilityToggle={{
                     visible: passwordVisible?.openai || false,
-                    onVisibleChange: (visible) =>
-                      setPasswordVisible?.({ ...passwordVisible, openai: visible }),
+                    onVisibleChange: visible =>
+                      setPasswordVisible?.({
+                        ...passwordVisible,
+                        openai: visible,
+                      }),
                   }}
                 />
               </div>
@@ -826,12 +832,17 @@ const renderContent = (selectedKey: string, apiKeys?: any, passwordVisible?: any
                   style={{ width: 300 }}
                   size="small"
                   value={apiKeys?.turbopuffer || ""}
-                  onChange={(e) => handleApiKeyChange?.('turbopuffer', e.target.value)}
+                  onChange={e =>
+                    handleApiKeyChange?.("turbopuffer", e.target.value)
+                  }
                   onBlur={() => saveApiKeys?.()}
                   visibilityToggle={{
                     visible: passwordVisible?.turbopuffer || false,
-                    onVisibleChange: (visible) =>
-                      setPasswordVisible?.({ ...passwordVisible, turbopuffer: visible }),
+                    onVisibleChange: visible =>
+                      setPasswordVisible?.({
+                        ...passwordVisible,
+                        turbopuffer: visible,
+                      }),
                   }}
                 />
               </div>
@@ -870,7 +881,10 @@ export function SettingsPane() {
   const [stateOpenKeys, setStateOpenKeys] = useState(["general"]);
   const [selectedKey, setSelectedKey] = useState("adblocking");
   const [apiKeys, setApiKeys] = useState({ openai: "", turbopuffer: "" });
-  const [passwordVisible, setPasswordVisible] = useState({ openai: false, turbopuffer: false });
+  const [passwordVisible, setPasswordVisible] = useState({
+    openai: false,
+    turbopuffer: false,
+  });
 
   // Load API keys from profile on mount
   useEffect(() => {
@@ -893,15 +907,19 @@ export function SettingsPane() {
     }
   };
 
-  const handleApiKeyChange = (key: 'openai' | 'turbopuffer', value: string) => {
+  const handleApiKeyChange = (key: "openai" | "turbopuffer", value: string) => {
     setApiKeys({ ...apiKeys, [key]: value });
   };
 
   const saveApiKeys = async () => {
     try {
       const results = await Promise.all([
-        apiKeys.openai ? window.apiKeys.set("openai", apiKeys.openai) : Promise.resolve(true),
-        apiKeys.turbopuffer ? window.apiKeys.set("turbopuffer", apiKeys.turbopuffer) : Promise.resolve(true),
+        apiKeys.openai
+          ? window.apiKeys.set("openai", apiKeys.openai)
+          : Promise.resolve(true),
+        apiKeys.turbopuffer
+          ? window.apiKeys.set("turbopuffer", apiKeys.turbopuffer)
+          : Promise.resolve(true),
       ]);
 
       if (results.every(result => result)) {
@@ -1104,7 +1122,14 @@ export function SettingsPane() {
           }}
         >
           <div style={{ maxWidth: 800, margin: "0 auto" }}>
-            {renderContent(selectedKey, apiKeys, passwordVisible, handleApiKeyChange, saveApiKeys, setPasswordVisible)}
+            {renderContent(
+              selectedKey,
+              apiKeys,
+              passwordVisible,
+              handleApiKeyChange,
+              saveApiKeys,
+              setPasswordVisible,
+            )}
           </div>
         </Content>
       </Layout>

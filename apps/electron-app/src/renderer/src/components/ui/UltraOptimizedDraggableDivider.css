@@ -6,10 +6,10 @@
   -moz-user-select: none;
   -ms-user-select: none;
   user-select: none;
-  
+
   /* Optimize touch interactions */
   touch-action: pan-y;
-  
+
   /* Ensure smooth cursor transitions */
   cursor: col-resize;
 }

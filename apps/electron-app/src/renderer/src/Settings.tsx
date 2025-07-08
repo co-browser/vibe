@@ -215,7 +215,7 @@ export default function Settings() {
           className="absolute top-0 left-0 right-0 h-12 cursor-move"
           style={{ "-webkit-app-region": "drag" }}
         />
-        
+
         {/* Close button */}
         <button
           onClick={handleCloseDialog}
@@ -229,7 +229,10 @@ export default function Settings() {
         {/* Sidebar Column */}
         <div className="w-56 bg-[#F6F6F6] flex flex-col flex-shrink-0 border-r border-gray-300">
           {/* Sidebar's top bar section */}
-          <div className="h-[52px] flex-shrink-0 flex items-center" style={{ "-webkit-app-region": "drag" }}>
+          <div
+            className="h-[52px] flex-shrink-0 flex items-center"
+            style={{ "-webkit-app-region": "drag" }}
+          >
             {/* Empty space for native traffic lights */}
           </div>
           {/* The actual list of tabs */}
@@ -275,7 +278,10 @@ export default function Settings() {
         {/* Content Column */}
         <div className="flex-1 flex flex-col bg-white">
           {/* Content's Title Bar */}
-          <div className="h-[52px] border-b border-gray-200 flex-shrink-0 flex items-center px-4 space-x-4" style={{ "-webkit-app-region": "drag" }}>
+          <div
+            className="h-[52px] border-b border-gray-200 flex-shrink-0 flex items-center px-4 space-x-4"
+            style={{ "-webkit-app-region": "drag" }}
+          >
             {/* Forward/backward buttons */}
             <div className="flex items-center">
               <div
@@ -308,7 +314,10 @@ export default function Settings() {
                 </button>
               </div>
             </div>
-            <h1 className="font-semibold text-base text-gray-800 flex-1" style={{ "-webkit-user-select": "none" }}>
+            <h1
+              className="font-semibold text-base text-gray-800 flex-1"
+              style={{ "-webkit-user-select": "none" }}
+            >
               {activeLabel}
             </h1>
           </div>
@@ -1198,9 +1207,15 @@ const ComponentsSettingsComponent = () => {
 // API Keys Settings Component
 const APIKeysSettingsComponent = () => {
   const [apiKeys, setApiKeys] = useState({ openai: "", turbopuffer: "" });
-  const [savedKeys, setSavedKeys] = useState({ openai: false, turbopuffer: false });
+  const [savedKeys, setSavedKeys] = useState({
+    openai: false,
+    turbopuffer: false,
+  });
   const [loading, setLoading] = useState(true);
-  const [toastMessage, setToastMessage] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
+  const [toastMessage, setToastMessage] = useState<{
+    message: string;
+    type: "success" | "error" | "info";
+  } | null>(null);
 
   // Load API keys from profile on mount
   useEffect(() => {
@@ -1231,21 +1246,27 @@ const APIKeysSettingsComponent = () => {
     }
   };
 
-  const handleApiKeyChange = (key: 'openai' | 'turbopuffer', value: string) => {
+  const handleApiKeyChange = (key: "openai" | "turbopuffer", value: string) => {
     setApiKeys({ ...apiKeys, [key]: value });
   };
 
-  const saveApiKey = async (key: 'openai' | 'turbopuffer') => {
+  const saveApiKey = async (key: "openai" | "turbopuffer") => {
     try {
       const value = apiKeys[key];
       if (value) {
         const result = await window.apiKeys?.set(key, value);
         if (result) {
           setSavedKeys(prev => ({ ...prev, [key]: true }));
-          setToastMessage({ message: `${key === 'openai' ? 'OpenAI' : 'TurboPuffer'} API key saved successfully`, type: "success" });
+          setToastMessage({
+            message: `${key === "openai" ? "OpenAI" : "TurboPuffer"} API key saved successfully`,
+            type: "success",
+          });
         } else {
           setSavedKeys(prev => ({ ...prev, [key]: false }));
-          setToastMessage({ message: `Failed to save ${key === 'openai' ? 'OpenAI' : 'TurboPuffer'} API key`, type: "error" });
+          setToastMessage({
+            message: `Failed to save ${key === "openai" ? "OpenAI" : "TurboPuffer"} API key`,
+            type: "error",
+          });
         }
       } else {
         // Clear the key if empty
@@ -1255,7 +1276,10 @@ const APIKeysSettingsComponent = () => {
     } catch (error) {
       logger.error(`Failed to save ${key} API key:`, error);
       setSavedKeys(prev => ({ ...prev, [key]: false }));
-      setToastMessage({ message: `Failed to save ${key === 'openai' ? 'OpenAI' : 'TurboPuffer'} API key`, type: "error" });
+      setToastMessage({
+        message: `Failed to save ${key === "openai" ? "OpenAI" : "TurboPuffer"} API key`,
+        type: "error",
+      });
     }
   };
 
@@ -1277,7 +1301,10 @@ const APIKeysSettingsComponent = () => {
       <div className="space-y-6">
         <div
           className="bg-white border border-gray-200 p-6"
-          style={{ borderRadius: "8px", "-webkit-corner-smoothing": "subpixel" }}
+          style={{
+            borderRadius: "8px",
+            "-webkit-corner-smoothing": "subpixel",
+          }}
         >
           <h3 className="text-lg font-semibold text-gray-800 mb-6">
             API Keys Management
@@ -1290,7 +1317,14 @@ const APIKeysSettingsComponent = () => {
                 <label className="text-sm font-medium text-gray-700">
                   OpenAI API Key
                 </label>
-                <div className={`w-2 h-2 rounded-full ${savedKeys.openai ? 'bg-green-500' : 'bg-gray-300'} transition-colors duration-300`} title={savedKeys.openai ? 'Key saved in secure storage' : 'Key not saved'} />
+                <div
+                  className={`w-2 h-2 rounded-full ${savedKeys.openai ? "bg-green-500" : "bg-gray-300"} transition-colors duration-300`}
+                  title={
+                    savedKeys.openai
+                      ? "Key saved in secure storage"
+                      : "Key not saved"
+                  }
+                />
               </div>
               <p className="text-xs text-gray-500 mb-3">
                 Used for AI-powered features and intelligent assistance
@@ -1300,8 +1334,8 @@ const APIKeysSettingsComponent = () => {
                   type="text"
                   placeholder="sk-..."
                   value={apiKeys.openai}
-                  onChange={(e) => handleApiKeyChange('openai', e.target.value)}
-                  onBlur={() => saveApiKey('openai')}
+                  onChange={e => handleApiKeyChange("openai", e.target.value)}
+                  onBlur={() => saveApiKey("openai")}
                   className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
                 />
               </div>
@@ -1313,7 +1347,14 @@ const APIKeysSettingsComponent = () => {
                 <label className="text-sm font-medium text-gray-700">
                   TurboPuffer API Key
                 </label>
-                <div className={`w-2 h-2 rounded-full ${savedKeys.turbopuffer ? 'bg-green-500' : 'bg-gray-300'} transition-colors duration-300`} title={savedKeys.turbopuffer ? 'Key saved in secure storage' : 'Key not saved'} />
+                <div
+                  className={`w-2 h-2 rounded-full ${savedKeys.turbopuffer ? "bg-green-500" : "bg-gray-300"} transition-colors duration-300`}
+                  title={
+                    savedKeys.turbopuffer
+                      ? "Key saved in secure storage"
+                      : "Key not saved"
+                  }
+                />
               </div>
               <p className="text-xs text-gray-500 mb-3">
                 Used for vector search and embeddings storage
@@ -1323,8 +1364,10 @@ const APIKeysSettingsComponent = () => {
                   type="text"
                   placeholder="Enter API key"
                   value={apiKeys.turbopuffer}
-                  onChange={(e) => handleApiKeyChange('turbopuffer', e.target.value)}
-                  onBlur={() => saveApiKey('turbopuffer')}
+                  onChange={e =>
+                    handleApiKeyChange("turbopuffer", e.target.value)
+                  }
+                  onBlur={() => saveApiKey("turbopuffer")}
                   className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
                 />
               </div>
@@ -1333,7 +1376,8 @@ const APIKeysSettingsComponent = () => {
 
           <div className="mt-6 p-4 bg-gray-50 rounded-md">
             <p className="text-sm text-gray-600">
-              <strong>Note:</strong> API keys are encrypted and stored securely in your profile. They are never transmitted to our servers.
+              <strong>Note:</strong> API keys are encrypted and stored securely
+              in your profile. They are never transmitted to our servers.
             </p>
           </div>
         </div>

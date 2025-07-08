@@ -45,7 +45,7 @@ function debounce<T extends (...args: any[]) => any>(
   delay: number = 100,
 ): (...args: Parameters<T>) => void {
   let timeoutId: NodeJS.Timeout | null = null;
-  
+
   return (...args: Parameters<T>) => {
     if (timeoutId) {
       clearTimeout(timeoutId);
@@ -134,7 +134,7 @@ export const DraggableDivider: React.FC<DraggableDividerProps> = ({
 
       // Update visual feedback immediately for smooth dragging
       throttledVisualResize(clampedWidth);
-      
+
       // Debounce the actual resize callback to reduce IPC calls
       debouncedFinalResize(clampedWidth);
     };
@@ -144,7 +144,7 @@ export const DraggableDivider: React.FC<DraggableDividerProps> = ({
         setIsDragging(false);
         document.body.style.cursor = "";
         document.body.style.userSelect = "";
-        
+
         // Ensure final width is set
         const finalWidth = visualWidth;
         onResize(finalWidth);
@@ -162,7 +162,16 @@ export const DraggableDivider: React.FC<DraggableDividerProps> = ({
       document.removeEventListener("mousemove", handleMouseMove);
       document.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [isDragging, minWidth, maxWidth, throttledVisualResize, debouncedFinalResize, onMinimize, visualWidth]);
+  }, [
+    isDragging,
+    minWidth,
+    maxWidth,
+    throttledVisualResize,
+    debouncedFinalResize,
+    onMinimize,
+    visualWidth,
+    onResize,
+  ]);
 
   return (
     <div

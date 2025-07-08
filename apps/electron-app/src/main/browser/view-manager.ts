@@ -51,7 +51,7 @@ export class ViewManager {
 
   // Track which views are currently visible
   private visibleViews: Set<string> = new Set();
-  
+
   // Cache for bounds calculations to avoid redundant updates
   private lastBoundsCache: {
     windowWidth: number;
@@ -430,33 +430,37 @@ export class ViewManager {
     if (Math.abs(this.currentChatPanelWidth - width) > 1) {
       const oldWidth = this.currentChatPanelWidth;
       this.currentChatPanelWidth = width;
-      
+
       // Optimize: Only update bounds for visible views when chat width changes
       if (this.isChatAreaVisible) {
         this.updateBoundsForChatResize(oldWidth, width);
       }
     }
   }
-  
+
   /**
    * Optimized bounds update specifically for chat panel resize
    * Avoids full bounds recalculation when only chat width changes
    */
-  private updateBoundsForChatResize(_oldChatWidth: number, newChatWidth: number): void {
+  private updateBoundsForChatResize(
+    _oldChatWidth: number,
+    newChatWidth: number,
+  ): void {
     if (!this.window || this.window.isDestroyed()) return;
-    
+
     // Start performance tracking
     mainProcessPerformanceMonitor.startBoundsUpdate();
-    
+
     // Use cached window dimensions if available
-    const windowWidth = this.lastBoundsCache?.windowWidth || this.window.getContentSize()[0];
-    
+    const windowWidth =
+      this.lastBoundsCache?.windowWidth || this.window.getContentSize()[0];
+
     // Calculate new available width for webviews
     const newAvailableWidth = Math.max(
       1,
-      windowWidth - newChatWidth - GLASSMORPHISM_CONFIG.PADDING * 2
+      windowWidth - newChatWidth - GLASSMORPHISM_CONFIG.PADDING * 2,
     );
-    
+
     // Only update width for visible views (no need to recalculate everything)
     for (const tabKey of this.visibleViews) {
       const view = this.browserViews.get(tabKey);
@@ -467,7 +471,7 @@ export class ViewManager {
           if (currentBounds.width !== newAvailableWidth) {
             view.setBounds({
               ...currentBounds,
-              width: newAvailableWidth
+              width: newAvailableWidth,
             });
           }
         } catch {
@@ -479,12 +483,12 @@ export class ViewManager {
         }
       }
     }
-    
+
     // Update cache with new chat width
     if (this.lastBoundsCache) {
       this.lastBoundsCache.chatPanelWidth = newChatWidth;
     }
-    
+
     // End performance tracking
     mainProcessPerformanceMonitor.endBoundsUpdate(true);
   }
@@ -555,28 +559,32 @@ export class ViewManager {
       logger.debug("🔧 updateBounds: No window available");
       return;
     }
-    
+
     // Start performance tracking
     mainProcessPerformanceMonitor.startBoundsUpdate();
 
     const [windowWidth, windowHeight] = this.window.getContentSize();
-    
+
     // Check if bounds actually changed significantly
-    if (this.lastBoundsCache &&
-        Math.abs(this.lastBoundsCache.windowWidth - windowWidth) < 2 &&
-        Math.abs(this.lastBoundsCache.windowHeight - windowHeight) < 2 &&
-        Math.abs(this.lastBoundsCache.chatPanelWidth - this.currentChatPanelWidth) < 2 &&
-        this.lastBoundsCache.isChatVisible === this.isChatAreaVisible) {
+    if (
+      this.lastBoundsCache &&
+      Math.abs(this.lastBoundsCache.windowWidth - windowWidth) < 2 &&
+      Math.abs(this.lastBoundsCache.windowHeight - windowHeight) < 2 &&
+      Math.abs(
+        this.lastBoundsCache.chatPanelWidth - this.currentChatPanelWidth,
+      ) < 2 &&
+      this.lastBoundsCache.isChatVisible === this.isChatAreaVisible
+    ) {
       // Nothing changed significantly, skip update
       return;
     }
-    
+
     // Update cache
     this.lastBoundsCache = {
       windowWidth,
       windowHeight,
       chatPanelWidth: this.currentChatPanelWidth,
-      isChatVisible: this.isChatAreaVisible
+      isChatVisible: this.isChatAreaVisible,
     };
     const chromeHeight = BROWSER_CHROME.TOTAL_CHROME_HEIGHT;
     const viewHeight = Math.max(
@@ -714,7 +722,7 @@ export class ViewManager {
     }
 
     // No z-index management needed - using visibility control
-    
+
     // End performance tracking
     mainProcessPerformanceMonitor.endBoundsUpdate(false);
   }

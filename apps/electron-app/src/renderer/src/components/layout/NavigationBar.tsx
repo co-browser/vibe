@@ -157,7 +157,7 @@ const NavigationBar: React.FC = () => {
         setTimeout(async () => {
           try {
             logger.info("🚀 Starting navigation for suggestion:", suggestion);
-            
+
             if (suggestion.type === "context" && suggestion.url) {
               logger.info("🔗 Navigating to context:", suggestion.url);
               await window.vibe.tabs.switchToTab(suggestion.url);
@@ -166,19 +166,35 @@ const NavigationBar: React.FC = () => {
               if (suggestion.metadata.action === "ask-agent") {
                 await window.vibe.interface.toggleChatPanel(true);
               }
-            } else if (suggestion.type === "navigation" && suggestion.url && currentTabKey) {
+            } else if (
+              suggestion.type === "navigation" &&
+              suggestion.url &&
+              currentTabKey
+            ) {
               logger.info("🧭 Navigating to URL:", suggestion.url);
               await window.vibe.page.navigate(currentTabKey, suggestion.url);
               setInputValue(suggestion.url);
-            } else if (suggestion.type === "history" && suggestion.url && currentTabKey) {
+            } else if (
+              suggestion.type === "history" &&
+              suggestion.url &&
+              currentTabKey
+            ) {
               logger.info("📚 Navigating to history item:", suggestion.url);
               await window.vibe.page.navigate(currentTabKey, suggestion.url);
               setInputValue(suggestion.url);
-            } else if (suggestion.type === "perplexity" && suggestion.url && currentTabKey) {
+            } else if (
+              suggestion.type === "perplexity" &&
+              suggestion.url &&
+              currentTabKey
+            ) {
               logger.info("🔍 Navigating to Perplexity:", suggestion.url);
               await window.vibe.page.navigate(currentTabKey, suggestion.url);
               setInputValue(suggestion.text);
-            } else if (suggestion.type === "url" && suggestion.url && currentTabKey) {
+            } else if (
+              suggestion.type === "url" &&
+              suggestion.url &&
+              currentTabKey
+            ) {
               logger.info("🌐 Navigating to URL suggestion:", suggestion.url);
               await window.vibe.page.navigate(currentTabKey, suggestion.url);
               setInputValue(suggestion.url);
@@ -1315,7 +1331,10 @@ const NavigationBar: React.FC = () => {
   // Context menu items for navigation
   const getNavigationContextMenuItems = () => {
     const items = [
-      { ...NavigationContextMenuItems.back, enabled: navigationState.canGoBack },
+      {
+        ...NavigationContextMenuItems.back,
+        enabled: navigationState.canGoBack,
+      },
       {
         ...NavigationContextMenuItems.forward,
         enabled: navigationState.canGoForward,

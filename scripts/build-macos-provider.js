@@ -47,7 +47,7 @@ async function buildMacOs() {
     } else if (configurationArgument == "mac") {
       configuration = "Debug";
       codeSignIdentity = "Developer ID Application";
-      provisioningProfileSpecifier = "  ;
+      provisioningProfileSpecifier = "";
       buildDirectory = paths.extensionBuildReleaseDeveloper;
     } else {
       console.log("### Unable to determine configuration, skipping Autofill Extension build");

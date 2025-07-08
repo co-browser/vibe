@@ -63,9 +63,9 @@ export function useContextMenu(): UseContextMenuReturn {
           hasActions: !!window.vibe?.actions,
           hasShowContextMenu: !!window.vibe?.actions?.showContextMenu,
           items,
-          coordinates: { x: event.clientX, y: event.clientY }
+          coordinates: { x: event.clientX, y: event.clientY },
         });
-        
+
         if (window.vibe?.actions?.showContextMenu) {
           // Pass the click coordinates to the main process
           const coordinates = {
@@ -76,7 +76,7 @@ export function useContextMenu(): UseContextMenuReturn {
         } else {
           logger.error("showContextMenu not available", {
             vibe: window.vibe,
-            actions: window.vibe?.actions
+            actions: window.vibe?.actions,
           });
         }
       } catch (error) {
