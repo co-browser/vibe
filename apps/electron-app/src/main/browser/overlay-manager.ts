@@ -572,12 +572,13 @@ export class OverlayManager extends EventEmitter {
    * Merge multiple content commands into one
    */
   private mergeContentCommands(commands: OverlayCommand[]): OverlayContent {
-    return commands.reduce((merged, cmd) => {
+    const merged: Partial<OverlayContent> = {};
+    for (const cmd of commands) {
       if (cmd.data) {
-        return { ...merged, ...cmd.data };
+        Object.assign(merged, cmd.data);
       }
-      return merged;
-    }, {} as OverlayContent);
+    }
+    return merged as OverlayContent;
   }
 
   /**
