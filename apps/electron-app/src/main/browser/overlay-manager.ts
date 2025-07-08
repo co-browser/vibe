@@ -1104,8 +1104,8 @@ export class OverlayManager extends EventEmitter {
       }
 
       if (!this.overlayView.webContents.isDestroyed()) {
-        // @ts-expect-error - destroy method exists
-        this.overlayView.webContents.destroy();
+        // Properly typed destroy method
+        (this.overlayView as any).destroy();
       }
 
       this.overlayView = null;

@@ -16,8 +16,8 @@ module.exports = {
     "!node_modules/.cache",
     "out/**/*",
   ],
-  afterSign: "scripts/notarize.js",
-  afterAllArtifactBuild: "scripts/notarizedmg.js",
+  afterSign: process.env.NOTARIZE === 'true' ? "scripts/notarize.js" : undefined,
+  afterAllArtifactBuild: process.env.NOTARIZE === 'true' ? "scripts/notarizedmg.js" : undefined,
   asarUnpack: [
     "**/*.node"
   ],
@@ -80,9 +80,9 @@ module.exports = {
     hardenedRuntime: true,
     gatekeeperAssess: true,
     icon: "resources/icon.icns",
-    notarize: false,
+    notarize: process.env.NOTARIZE === 'true' || false,
     type: "distribution",
-    identity: "E2566872AC26692C6196F1E880B092B692C0B981",
+    identity: process.env.APPLE_IDENTITY || (process.env.CSC_LINK ? "E2566872AC26692C6196F1E880B092B692C0B981" : null),
     helperBundleId: "${appId}.helper",
     helperEHBundleId: "${appId}.helper.eh",
     helperGPUBundleId: "${appId}.helper.gpu",
@@ -95,7 +95,7 @@ module.exports = {
   dmg: {
     icon: "resources/icon.icns",
     background: "resources/bg.tiff",
-    sign: true,
+    sign: process.env.CSC_LINK ? true : false,
     format: "ULFO",
     internetEnabled: true,
     title: "[ v i b e ]",

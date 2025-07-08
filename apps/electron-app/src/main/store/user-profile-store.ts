@@ -421,9 +421,11 @@ const getUserProfilesPath = () => {
   return path.join(userDataPath, "profiles.json");
 };
 
-// Generate a unique profile ID using crypto.randomUUID
+// Generate a unique profile ID using crypto.randomUUID with timestamp prefix for better uniqueness
 const generateProfileId = () => {
-  return `profile_${randomUUID()}`;
+  const timestamp = Date.now().toString(36); // Convert timestamp to base36 for shorter string
+  const uuid = randomUUID();
+  return `profile_${timestamp}_${uuid}`;
 };
 
 export const useUserProfileStore = create<UserProfileState>((set, get) => ({

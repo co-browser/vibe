@@ -32,7 +32,7 @@ export function registerPasswordHandlers(): void {
           id: p.id,
           url: p.url,
           username: p.username,
-          password: p.password,
+          password: "••••••••", // Never send actual passwords to renderer
           source: p.source || "manual",
           dateCreated: p.dateCreated,
           lastModified: p.lastModified,
@@ -128,7 +128,7 @@ export function registerPasswordHandlers(): void {
               id: mostRecentPassword.id,
               url: mostRecentPassword.url,
               username: mostRecentPassword.username,
-              password: mostRecentPassword.password,
+              password: "••••••••", // Never send actual passwords to renderer
               source: mostRecentPassword.source,
             },
           };
@@ -143,15 +143,28 @@ export function registerPasswordHandlers(): void {
   );
 
   /**
-   * Decrypt a password (passwords are already decrypted when retrieved)
+   * Decrypt a password - requires additional security verification
    */
-  ipcMain.handle("passwords:decrypt", async (_event, passwordId: string) => {
+  ipcMain.handle("passwords:decrypt", async (event, passwordId: string) => {
     try {
       const userProfileStore = useUserProfileStore.getState();
       const activeProfile = userProfileStore.getActiveProfile();
 
       if (!activeProfile) {
         return { success: false, error: "No active profile" };
+      }
+
+      // Verify the request is coming from a trusted source
+      const webContents = event.sender;
+      const url = webContents.getURL();
+
+      // Only allow decryption from the main app window
+      if (!url.startsWith("file://") && !url.includes("localhost")) {
+        logger.error(
+          "Password decryption attempted from untrusted source:",
+          url,
+        );
+        return { success: false, error: "Unauthorized request" };
       }
 
       const passwords = await userProfileStore.getImportedPasswords(
@@ -163,7 +176,9 @@ export function registerPasswordHandlers(): void {
         return { success: false, error: "Password not found" };
       }
 
-      // Passwords are already decrypted when stored
+      // Log password access for security auditing
+      logger.info(`Password accessed for ${password.url} by user action`);
+
       return {
         success: true,
         decryptedPassword: password.password,
@@ -301,7 +316,7 @@ export function registerPasswordHandlers(): void {
         .map(p => {
           const url = p.url.replace(/"/g, '""');
           const username = p.username.replace(/"/g, '""');
-          const password = p.password.replace(/"/g, '""');
+          const password = "••••••••"; // Never export actual passwords in plain text
           const source = (p.source || "manual").replace(/"/g, '""');
           const dateCreated = p.dateCreated
             ? new Date(p.dateCreated).toISOString()
