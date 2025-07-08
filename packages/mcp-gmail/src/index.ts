@@ -147,6 +147,20 @@ process.on('uncaughtException', (error) => {
   process.exit(1);
 });
 
+// Handle IPC messages when running as a child process
+if (process.send) {
+  log.info('Running as child process, setting up IPC handlers');
+  
+  process.on('message', (message: any) => {
+    log.info('Received IPC message:', message.type);
+    
+    if (message.type === 'gmail-tokens-response') {
+      // Emit an event that the token provider can listen to
+      process.emit('gmail-tokens-response' as any, message);
+    }
+  });
+}
+
 process.on('unhandledRejection', (reason, _promise) => {
   log.error('Unhandled promise rejection:', reason);
   process.exit(1);

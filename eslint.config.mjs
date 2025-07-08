@@ -21,6 +21,7 @@ export default tseslint.config(
       "**/tmp/**",
       "**/temp/**",
       "**/electron-builder.js",
+      "**/infrastructure/**",
     ],
   },
   js.configs.recommended,

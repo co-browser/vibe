@@ -46,12 +46,20 @@ Vibe Browser includes intelligent AI-powered features:
 <details>
 <summary><strong>Gmail Setup</strong></summary>
 
-
 #### Gmail Setup
 
-To enable Gmail integration, configure your Google Cloud credentials by following either the Console or gcloud path below.
+Vibe now supports two methods for Gmail authentication:
 
-| Option 1: Console (Web) Setup | Option 2: gcloud (CLI) Setup |
+**Option 1: Cloud OAuth (Recommended)**
+- No Google Cloud setup required
+- Just sign in with your Gmail account
+- Works out of the box
+
+**Option 2: Self-hosted OAuth (Advanced)**
+
+For users who prefer to use their own Google Cloud credentials:
+
+| Console (Web) Setup | gcloud (CLI) Setup |
 |:------------------------------:|:-----------------------------:|
 | <span style="color: green;">Use the Google Cloud Console for a guided, web-based setup.</span> | <span style="color: blue;">Use the gcloud command-line tool for a faster, scriptable setup.</span> |
 | | |
@@ -64,7 +72,7 @@ To enable Gmail integration, configure your Google Cloud credentials by followin
 | **3. Create OAuth Credentials** | **3. Create OAuth Credentials** |
 | • Go to the [Credentials page](https://console.cloud.google.com/apis/credentials)• Click + CREATE CREDENTIALS > OAuth client ID• Set Application type to Desktop app• Click Create, then DOWNLOAD JSON | Creating OAuth credentials for a Desktop App is best done through the web console. Please follow Step 3 from the Console (Web) Setup above to download the JSON key file. |
 
-## Final Step (for both paths)
+## Final Step (for self-hosted OAuth only)
 
 After downloading the credentials file:
 
@@ -73,7 +81,9 @@ After downloading the credentials file:
    ```bash
    mkdir -p ~/.gmail-mcp
    mv gcp-oauth.keys.json ~/.gmail-mcp/
-   ``` 
+   ```
+
+Note: The presence of this file automatically enables self-hosted OAuth mode.
 </details>
 
 ## Demo

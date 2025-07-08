@@ -12,6 +12,7 @@ import path from 'path';
 import os from 'os';
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
+import { TokenProvider } from './token-provider.js';
 
 // Tool type definition
 interface GmailTool {
@@ -50,52 +51,86 @@ const OAUTH_REDIRECT_URI =
 
 // Initialize Gmail API
 let gmailClient: gmail_v1.Gmail | null = null;
+let tokenProvider: TokenProvider | null = null;
 
 async function getGmailClient() {
   if (gmailClient) return gmailClient;
 
-  // Load OAuth keys
-  const keysContent = JSON.parse(await fs.promises.readFile(OAUTH_PATH, 'utf8'));
-  const keys = keysContent.installed || keysContent.web;
-
-  const oauth2Client = new OAuth2Client(
-    keys.client_id,
-    keys.client_secret,
-    OAUTH_REDIRECT_URI
-  );
-
-  // Set up automatic token refresh
-  oauth2Client.on('tokens', (tokens) => {
-    if (tokens.access_token) {
-      try {
-        // Update stored credentials with new tokens
-        const credentials = JSON.parse(fs.readFileSync(CREDENTIALS_PATH, 'utf8'));
-        credentials.access_token = tokens.access_token;
-        if (tokens.refresh_token) {
-          credentials.refresh_token = tokens.refresh_token;
-        }
-        if (tokens.expiry_date) {
-          credentials.expiry_date = tokens.expiry_date;
-        }
-        fs.writeFileSync(CREDENTIALS_PATH, JSON.stringify(credentials, null, 2));
-        console.log('OAuth tokens refreshed and saved');
-      } catch (error) {
-        console.error('Failed to save refreshed tokens:', error);
-      }
-    }
-  });
-
-  // Load existing credentials - these should already exist from your Electron app
-  try {
-    await fs.promises.access(CREDENTIALS_PATH);
-    const credentials = JSON.parse(await fs.promises.readFile(CREDENTIALS_PATH, 'utf8'));
-    oauth2Client.setCredentials(credentials);
-  } catch {
-    throw new Error('No credentials found. Please authenticate through the Electron app first.');
+  // Initialize token provider if not already done
+  if (!tokenProvider) {
+    tokenProvider = new TokenProvider();
   }
 
-  gmailClient = google.gmail({ version: 'v1', auth: oauth2Client });
-  return gmailClient;
+  try {
+    // Get tokens from TokenProvider (cloud or local)
+    const tokens = await tokenProvider.getTokens();
+    
+    // Create OAuth2Client with tokens
+    const oauth2Client = new OAuth2Client();
+    oauth2Client.setCredentials(tokens);
+    
+    // Set up automatic token refresh
+    oauth2Client.on('tokens', async (newTokens) => {
+      if (newTokens.access_token) {
+        try {
+          // Update tokens via TokenProvider
+          await tokenProvider!.updateTokens(newTokens);
+          console.log('OAuth tokens refreshed and saved');
+        } catch (error) {
+          console.error('Failed to save refreshed tokens:', error);
+        }
+      }
+    });
+    
+    gmailClient = google.gmail({ version: 'v1', auth: oauth2Client });
+    return gmailClient;
+  } catch (error) {
+    // Fallback to original file-based approach if TokenProvider fails
+    console.log('TokenProvider failed, trying file-based approach:', error.message);
+    
+    try {
+      // Load OAuth keys
+      const keysContent = JSON.parse(await fs.promises.readFile(OAUTH_PATH, 'utf8'));
+      const keys = keysContent.installed || keysContent.web;
+
+      const oauth2Client = new OAuth2Client(
+        keys.client_id,
+        keys.client_secret,
+        OAUTH_REDIRECT_URI
+      );
+
+      // Set up automatic token refresh for file-based approach
+      oauth2Client.on('tokens', (tokens) => {
+        if (tokens.access_token) {
+          try {
+            // Update stored credentials with new tokens
+            const credentials = JSON.parse(fs.readFileSync(CREDENTIALS_PATH, 'utf8'));
+            credentials.access_token = tokens.access_token;
+            if (tokens.refresh_token) {
+              credentials.refresh_token = tokens.refresh_token;
+            }
+            if (tokens.expiry_date) {
+              credentials.expiry_date = tokens.expiry_date;
+            }
+            fs.writeFileSync(CREDENTIALS_PATH, JSON.stringify(credentials, null, 2));
+            console.log('OAuth tokens refreshed and saved (file-based)');
+          } catch (error) {
+            console.error('Failed to save refreshed tokens (file-based):', error);
+          }
+        }
+      });
+
+      // Load existing credentials
+      await fs.promises.access(CREDENTIALS_PATH);
+      const credentials = JSON.parse(await fs.promises.readFile(CREDENTIALS_PATH, 'utf8'));
+      oauth2Client.setCredentials(credentials);
+      
+      gmailClient = google.gmail({ version: 'v1', auth: oauth2Client });
+      return gmailClient;
+    } catch {
+      throw new Error('No credentials found. Please authenticate through the Electron app first.');
+    }
+  }
 }
 
 // Email helpers

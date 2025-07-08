@@ -352,7 +352,7 @@ class MCPManager {
     logger.debug(`Working directory: ${path.dirname(mcpPath)}`);
 
     const serverProcess = spawn(command, args, {
-      stdio: ["pipe", "pipe", "pipe"],
+      stdio: ["pipe", "pipe", "pipe", "ipc"],
       env: {
         ...process.env,
         PORT: config.port.toString(),
@@ -415,6 +415,30 @@ class MCPManager {
       }
     });
 
+    // Handle Gmail token requests from child process
+    if (config.name === "gmail") {
+      serverProcess.on("message", async (message: any) => {
+        logger.debug(
+          `[Gmail] Received message from Gmail server:`,
+          message.type,
+        );
+        if (message.type === "gmail-tokens-request") {
+          logger.info("[Gmail] Forwarding token request to parent process");
+          // Forward request to parent process
+          if (process.parentPort) {
+            process.parentPort.postMessage({
+              type: "gmail-tokens-request",
+              serverName: config.name,
+            });
+          } else {
+            logger.error(
+              "[Gmail] No parent port available to forward token request",
+            );
+          }
+        }
+      });
+    }
+
     serverProcess.stderr?.on("data", data => {
       const error = data.toString().trim();
       logger.error(`[MCP-${config.name} stderr]:`, error);
@@ -422,7 +446,7 @@ class MCPManager {
       // Check for specific Gmail OAuth errors
       if (config.name === "gmail" && error.includes("No credentials found")) {
         logger.error(
-          `Gmail OAuth credentials missing. Expected at: ~/.gmail-mcp/gcp-oauth.keys.json and ~/.gmail-mcp/credentials.json`,
+          `Gmail OAuth credentials missing. Please authenticate through the Electron app first.`,
         );
       }
     });
@@ -584,20 +608,63 @@ class MCPManager {
     await Promise.all(stopPromises);
     logger.info("All MCP servers stopped");
   }
+
+  getServer(name: string): MCPServer | undefined {
+    return this.servers.get(name);
+  }
 }
 
 // Bootstrap the MCP manager
 const manager = new MCPManager();
 
 // Handle IPC messages from parent
-process.parentPort?.on("message", async (message: any) => {
-  logger.debug("Received message:", message.type);
+process.parentPort?.on("message", async (event: any) => {
+  logger.debug("Received message event:", JSON.stringify(event));
+
+  // Extract the actual message from the event data
+  const message = event?.data || event;
+
+  // Ensure message has type property
+  if (!message || typeof message !== "object") {
+    logger.error("Invalid message received:", message);
+    return;
+  }
+
+  logger.debug("Extracted message:", {
+    type: message.type,
+    hasTokens: !!message.tokens,
+  });
 
   switch (message.type) {
-    case "stop":
+    case "stop": {
       await manager.stopAllServers();
-      process.exit(0);
+      process.exit(0); // No break needed, process exits
+    }
     // eslint-disable-next-line no-fallthrough
+    case "gmail-tokens-response": {
+      logger.info(
+        "[Gmail] Received tokens response from parent, forwarding to Gmail server",
+      );
+      logger.debug("[Gmail] Tokens response details:", {
+        hasTokens: !!message.tokens,
+        hasError: !!message.error,
+      });
+
+      // Forward tokens to Gmail server
+      const gmailServer = manager.getServer("gmail");
+      if (gmailServer && gmailServer.process.send) {
+        logger.debug("[Gmail] Sending tokens response to Gmail server process");
+        gmailServer.process.send({
+          type: "gmail-tokens-response",
+          tokens: message.tokens,
+          error: message.error,
+        });
+        logger.debug("[Gmail] Tokens response sent to Gmail server");
+      } else {
+        logger.error("[Gmail] Gmail server not found or cannot send messages");
+      }
+      break;
+    }
     default:
       logger.warn("Unknown message type:", message.type);
   }

@@ -166,3 +166,7 @@ scripts/start-vibe.sh
 CLAUDE.md
 
 .claude/settings.local.json
+
+# Infrastructure services
+infrastructure/services/*/node_modules
+infrastructure/services/*/.env

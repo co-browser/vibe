@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc",
-    "bundle": "esbuild src/index.ts --bundle --platform=node --target=node18 --format=cjs --outfile=dist/bundle.js --external:electron --external:@vibe/shared-types --external:@vibe/tab-extraction-core && echo 'import { createRequire } from \"module\"; const require = createRequire(import.meta.url); require(\"./bundle.js\");' > dist/bundle-wrapper.mjs",
+    "bundle": "esbuild src/index.ts --bundle --platform=node --target=node18 --format=cjs --outfile=dist/bundle.js --external:electron --external:@vibe/shared-types --external:@vibe/tab-extraction-core --external:./xhr-sync-worker.js && echo 'import { createRequire } from \"module\"; const require = createRequire(import.meta.url); require(\"./bundle.js\");' > dist/bundle-wrapper.mjs",
     "postbuild": "npm run bundle",
     "start": "node dist/index.js",
     "dev:standalone": "tsx watch src/index.ts",

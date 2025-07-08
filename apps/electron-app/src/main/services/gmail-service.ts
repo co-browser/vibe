@@ -18,6 +18,7 @@ import {
   type GmailTokens,
 } from "@vibe/shared-types";
 import type { ViewManagerState } from "../browser/view-manager";
+import { getStorageService } from "../store/storage-service";
 
 const logger = createLogger("GmailService");
 
@@ -67,6 +68,28 @@ export class GmailOAuthService {
   /** Check current authentication status */
   async checkAuth(): Promise<GmailAuthStatus> {
     try {
+      // First, check if we have cloud OAuth tokens
+      const cloudTokens = await this.getCloudTokens();
+      if (cloudTokens) {
+        // Initialize OAuth client with cloud tokens
+        await this.initializeOAuthClientWithTokens(cloudTokens);
+
+        // Test if credentials are valid
+        if (!this.oauth2Client) {
+          throw new Error("OAuth client not available");
+        }
+        const gmail = google.gmail({ version: "v1", auth: this.oauth2Client });
+        await gmail.users.getProfile({ userId: "me" });
+
+        return {
+          authenticated: true,
+          hasOAuthKeys: true,
+          hasCredentials: true,
+          isCloudAuth: true,
+        };
+      }
+
+      // Fallback to local auth check
       const hasOAuthKeys = fs.existsSync(OAUTH_PATH);
       const hasCredentials = fs.existsSync(CREDENTIALS_PATH);
 
@@ -75,8 +98,7 @@ export class GmailOAuthService {
           authenticated: false,
           hasOAuthKeys: false,
           hasCredentials: false,
-          error:
-            "OAuth keys not found. Please place gcp-oauth.keys.json in config directory.",
+          error: "Not authenticated. Please sign in with Gmail.",
         };
       }
 
@@ -103,13 +125,16 @@ export class GmailOAuthService {
         authenticated: true,
         hasOAuthKeys: true,
         hasCredentials: true,
+        isCloudAuth: false,
       };
     } catch (error) {
       logger.error("[GmailAuth] Auth check failed:", error);
       return {
         authenticated: false,
         hasOAuthKeys: fs.existsSync(OAUTH_PATH),
-        hasCredentials: fs.existsSync(CREDENTIALS_PATH),
+        hasCredentials:
+          fs.existsSync(CREDENTIALS_PATH) ||
+          (await this.getCloudTokens()) !== null,
         error: error instanceof Error ? error.message : "Unknown error",
       };
     }
@@ -146,6 +171,59 @@ export class GmailOAuthService {
     }
   }
 
+  /** Initialize OAuth2 client with tokens (for cloud OAuth) */
+  private async initializeOAuthClientWithTokens(
+    tokens: GmailTokens,
+  ): Promise<void> {
+    // For cloud OAuth, we don't have client_id/secret locally
+    // Create a minimal OAuth2Client that can work with tokens
+    this.oauth2Client = new OAuth2Client();
+    this.oauth2Client.setCredentials(tokens);
+  }
+
+  /** Get cloud OAuth tokens from storage */
+  private async getCloudTokens(): Promise<GmailTokens | null> {
+    try {
+      const storageService = getStorageService();
+      const tokens = await storageService.get("secure.oauth.gmail.tokens");
+      if (tokens && this.isValidTokenData(tokens)) {
+        return tokens as GmailTokens;
+      }
+      return null;
+    } catch (error) {
+      logger.error("[GmailAuth] Error getting cloud tokens:", error);
+      return null;
+    }
+  }
+
+  /** Validate token data structure */
+  private isValidTokenData(data: any): boolean {
+    return (
+      data &&
+      typeof data.access_token === "string" &&
+      typeof data.refresh_token === "string" &&
+      typeof data.expiry_date === "number" &&
+      typeof data.token_type === "string"
+    );
+  }
+
+  /** Generate PKCE parameters - Currently unused as cloud OAuth handles this server-side */
+  // private generatePKCE(): { verifier: string; challenge: string } {
+  //   const verifier = crypto.randomBytes(64).toString('base64url');
+  //   const challenge = crypto
+  //     .createHash('sha256')
+  //     .update(verifier)
+  //     .digest('base64url');
+  //
+  //   return { verifier, challenge };
+  // }
+
+  /** Determine auth method based on local OAuth keys presence */
+  private shouldUseCloudOAuth(): boolean {
+    // Use cloud OAuth if no local OAuth keys are present
+    return !fs.existsSync(OAUTH_PATH);
+  }
+
   /** Start OAuth authentication flow */
   async startAuth(
     viewManager: ViewManagerState,
@@ -175,37 +253,14 @@ export class GmailOAuthService {
 
       this.isOAuthInProgress = true;
 
-      await this.initializeOAuthClient();
-
-      if (!this.oauth2Client) {
-        throw new Error("OAuth client not initialized");
+      // Determine auth method
+      if (this.shouldUseCloudOAuth()) {
+        // Use cloud OAuth flow
+        return await this.startCloudOAuthFlow(viewManager, currentWindow);
+      } else {
+        // Use local OAuth flow (existing implementation)
+        return await this.startLocalOAuthFlow(viewManager, currentWindow);
       }
-
-      // Generate auth URL with security best practices
-      const authUrl = this.oauth2Client.generateAuthUrl({
-        access_type: "offline",
-        scope: [GMAIL_CONFIG.SCOPES.MODIFY],
-        include_granted_scopes: true,
-        prompt: "consent", // Force consent to get refresh token
-      });
-
-      // Start secure callback server
-      await this.startSecureCallbackServer(viewManager, currentWindow);
-
-      // Create secure OAuth browser view
-      this.createOAuthView(authUrl, viewManager);
-
-      // Set OAuth timeout
-      this.oauthTimeout = setTimeout(() => {
-        logger.warn("[GmailAuth] OAuth flow timed out");
-        this.cleanupOAuthFlow(viewManager);
-      }, GMAIL_CONFIG.AUTH_TIMEOUT_MS);
-
-      logger.info("[GmailAuth] OAuth flow initiated successfully");
-      return {
-        success: true,
-        authUrl,
-      };
     } catch (error) {
       logger.error("[GmailAuth] Auth start failed:", error);
       this.cleanupOAuthFlow(viewManager);
@@ -214,6 +269,157 @@ export class GmailOAuthService {
         error: error instanceof Error ? error.message : "Unknown error",
       };
     }
+  }
+
+  /** Start cloud OAuth flow */
+  private async startCloudOAuthFlow(
+    viewManager: ViewManagerState,
+    currentWindow?: BrowserWindow,
+  ): Promise<GmailAuthResult> {
+    try {
+      const oauthServerUrl =
+        process.env.OAUTH_SERVER_URL || "https://oauth.cobrowser.xyz";
+
+      // Simple approach: Open OAuth start URL directly in the browser view
+      // The browser view will handle all cookies and session management
+      const authUrl = `${oauthServerUrl}/auth/gmail/authorize`;
+
+      logger.info(
+        "[GmailAuth] Starting cloud OAuth flow with direct browser navigation",
+      );
+
+      // Create OAuth browser view that will handle the entire flow
+      this.createOAuthView(authUrl, viewManager);
+
+      // Set OAuth timeout
+      this.oauthTimeout = setTimeout(() => {
+        logger.warn("[GmailAuth] Cloud OAuth flow timed out");
+        this.cleanupOAuthFlow(viewManager);
+      }, GMAIL_CONFIG.AUTH_TIMEOUT_MS);
+
+      // Monitor the OAuth view for success/failure
+      this.monitorCloudOAuthFlow(viewManager, currentWindow);
+
+      logger.info("[GmailAuth] Cloud OAuth flow initiated successfully");
+      return {
+        success: true,
+        authUrl,
+        isCloudAuth: true,
+      };
+    } catch (error) {
+      logger.error("[GmailAuth] Cloud OAuth start failed:", error);
+      throw error;
+    }
+  }
+
+  /** Start local OAuth flow (existing implementation) */
+  private async startLocalOAuthFlow(
+    viewManager: ViewManagerState,
+    currentWindow?: BrowserWindow,
+  ): Promise<GmailAuthResult> {
+    await this.initializeOAuthClient();
+
+    if (!this.oauth2Client) {
+      throw new Error("OAuth client not initialized");
+    }
+
+    // Generate auth URL with security best practices
+    const authUrl = this.oauth2Client.generateAuthUrl({
+      access_type: "offline",
+      scope: [GMAIL_CONFIG.SCOPES.MODIFY],
+      include_granted_scopes: true,
+      prompt: "consent", // Force consent to get refresh token
+    });
+
+    // Start secure callback server
+    await this.startSecureCallbackServer(viewManager, currentWindow);
+
+    // Create secure OAuth browser view
+    this.createOAuthView(authUrl, viewManager);
+
+    // Set OAuth timeout
+    this.oauthTimeout = setTimeout(() => {
+      logger.warn("[GmailAuth] OAuth flow timed out");
+      this.cleanupOAuthFlow(viewManager);
+    }, GMAIL_CONFIG.AUTH_TIMEOUT_MS);
+
+    logger.info("[GmailAuth] Local OAuth flow initiated successfully");
+    return {
+      success: true,
+      authUrl,
+      isCloudAuth: false,
+    };
+  }
+
+  /** Monitor OAuth flow completion */
+  private async monitorCloudOAuthFlow(
+    viewManager: ViewManagerState,
+    currentWindow?: BrowserWindow,
+  ): Promise<void> {
+    if (!this.authView) return;
+
+    // Listen for navigation to success/error pages and extract tokenId
+    this.authView.webContents.on("did-navigate", async (_event, url) => {
+      logger.info("[GmailAuth] OAuth navigation:", url);
+
+      // Check if we reached the success page
+      if (url.includes("/auth/gmail/success")) {
+        try {
+          // Extract tokenId from URL
+          const urlObj = new URL(url);
+          const tokenId = urlObj.searchParams.get("tokenId");
+
+          if (tokenId) {
+            const oauthServerUrl =
+              process.env.OAUTH_SERVER_URL || "https://oauth.cobrowser.xyz";
+
+            // Fetch tokens from server using tokenId
+            const response = await fetch(
+              `${oauthServerUrl}/auth/gmail/tokens`,
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ tokenId }),
+              },
+            );
+
+            if (!response.ok) {
+              throw new Error(`Failed to fetch tokens: ${response.statusText}`);
+            }
+
+            const { tokens } = await response.json();
+
+            // Save tokens to secure storage
+            const storageService = getStorageService();
+            await storageService.set("secure.oauth.gmail.tokens", tokens);
+
+            // Initialize OAuth client with tokens
+            await this.initializeOAuthClientWithTokens(tokens);
+
+            // Notify renderer and cleanup
+            if (currentWindow && !currentWindow.isDestroyed()) {
+              currentWindow.webContents.send(
+                "oauth-tab-completed",
+                GMAIL_CONFIG.OAUTH_TAB_KEY,
+              );
+            }
+
+            this.cleanupOAuthFlow(viewManager);
+            logger.info(
+              "[GmailAuth] Cloud authentication completed successfully",
+            );
+          }
+        } catch (error) {
+          logger.error("[GmailAuth] Failed to process OAuth success:", error);
+          this.cleanupOAuthFlow(viewManager);
+        }
+      } else if (url.includes("/auth/gmail/error")) {
+        logger.error("[GmailAuth] OAuth flow failed");
+        this.cleanupOAuthFlow(viewManager);
+      }
+    });
   }
 
   /** Create secure OAuth browser view with Google-compatible settings */
@@ -674,7 +880,40 @@ export class GmailOAuthService {
       // Clean up any ongoing OAuth flow
       this.cleanupOAuthFlow();
 
-      // Revoke tokens with Google before local cleanup
+      // Check for cloud tokens first
+      const cloudTokens = await this.getCloudTokens();
+      if (cloudTokens) {
+        try {
+          // Revoke cloud tokens with Google
+          const tokenToRevoke =
+            cloudTokens.refresh_token || cloudTokens.access_token;
+          const revokeUrl = `https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(tokenToRevoke)}`;
+          const response = await fetch(revokeUrl, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/x-www-form-urlencoded",
+            },
+          });
+
+          if (response.ok) {
+            logger.info(
+              "[GmailAuth] Successfully revoked cloud Gmail OAuth token",
+            );
+          } else {
+            logger.warn(
+              `[GmailAuth] Cloud token revocation returned status ${response.status}`,
+            );
+          }
+        } catch (revokeError) {
+          logger.error("[GmailAuth] Error revoking cloud token:", revokeError);
+        }
+
+        // Clear cloud tokens from storage
+        const storageService = getStorageService();
+        await storageService.delete("secure.oauth.gmail.tokens");
+      }
+
+      // Check for local tokens
       if (fs.existsSync(CREDENTIALS_PATH)) {
         try {
           const credentialsContent = fs.readFileSync(CREDENTIALS_PATH, "utf8");
@@ -694,15 +933,17 @@ export class GmailOAuthService {
             });
 
             if (response.ok) {
-              logger.info("[GmailAuth] Successfully revoked Gmail OAuth token");
+              logger.info(
+                "[GmailAuth] Successfully revoked local Gmail OAuth token",
+              );
             } else {
               logger.warn(
-                `[GmailAuth] Token revocation returned status ${response.status}`,
+                `[GmailAuth] Local token revocation returned status ${response.status}`,
               );
             }
           }
         } catch (revokeError) {
-          logger.error("[GmailAuth] Error revoking token:", revokeError);
+          logger.error("[GmailAuth] Error revoking local token:", revokeError);
           // Continue with local cleanup even if revocation fails
         }
 
@@ -737,7 +978,14 @@ export class GmailOAuthService {
   /** Get authenticated Gmail API client */
   async getGmailClient(): Promise<any> {
     if (!this.oauth2Client) {
-      await this.initializeOAuthClient();
+      // Try cloud tokens first
+      const cloudTokens = await this.getCloudTokens();
+      if (cloudTokens) {
+        await this.initializeOAuthClientWithTokens(cloudTokens);
+      } else {
+        // Fallback to local OAuth
+        await this.initializeOAuthClient();
+      }
     }
 
     if (!this.oauth2Client) {
