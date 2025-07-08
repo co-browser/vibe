@@ -1187,7 +1187,7 @@ const ComponentsSettingsComponent = () => {
 // API Keys Settings Component
 const APIKeysSettingsComponent = () => {
   const [apiKeys, setApiKeys] = useState({ openai: "", turbopuffer: "" });
-  const [passwordVisible, setPasswordVisible] = useState({ openai: false, turbopuffer: false });
+  const [savedKeys, setSavedKeys] = useState({ openai: false, turbopuffer: false });
   const [loading, setLoading] = useState(true);
   const [toastMessage, setToastMessage] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
 
@@ -1207,6 +1207,11 @@ const APIKeysSettingsComponent = () => {
         openai: openaiKey || "",
         turbopuffer: turbopufferKey || "",
       });
+      // Mark as saved if keys exist
+      setSavedKeys({
+        openai: !!openaiKey,
+        turbopuffer: !!turbopufferKey,
+      });
     } catch (error) {
       logger.error("Failed to load API keys:", error);
       setToastMessage({ message: "Failed to load API keys", type: "error" });
@@ -1219,21 +1224,27 @@ const APIKeysSettingsComponent = () => {
     setApiKeys({ ...apiKeys, [key]: value });
   };
 
-  const saveApiKeys = async () => {
+  const saveApiKey = async (key: 'openai' | 'turbopuffer') => {
     try {
-      const results = await Promise.all([
-        apiKeys.openai ? window.apiKeys?.set("openai", apiKeys.openai) : Promise.resolve(true),
-        apiKeys.turbopuffer ? window.apiKeys?.set("turbopuffer", apiKeys.turbopuffer) : Promise.resolve(true),
-      ]);
-
-      if (results.every(result => result)) {
-        setToastMessage({ message: "API keys saved successfully", type: "success" });
+      const value = apiKeys[key];
+      if (value) {
+        const result = await window.apiKeys?.set(key, value);
+        if (result) {
+          setSavedKeys(prev => ({ ...prev, [key]: true }));
+          setToastMessage({ message: `${key === 'openai' ? 'OpenAI' : 'TurboPuffer'} API key saved successfully`, type: "success" });
+        } else {
+          setSavedKeys(prev => ({ ...prev, [key]: false }));
+          setToastMessage({ message: `Failed to save ${key === 'openai' ? 'OpenAI' : 'TurboPuffer'} API key`, type: "error" });
+        }
       } else {
-        setToastMessage({ message: "Failed to save some API keys", type: "error" });
+        // Clear the key if empty
+        await window.apiKeys?.set(key, "");
+        setSavedKeys(prev => ({ ...prev, [key]: false }));
       }
     } catch (error) {
-      logger.error("Failed to save API keys:", error);
-      setToastMessage({ message: "Failed to save API keys", type: "error" });
+      logger.error(`Failed to save ${key} API key:`, error);
+      setSavedKeys(prev => ({ ...prev, [key]: false }));
+      setToastMessage({ message: `Failed to save ${key === 'openai' ? 'OpenAI' : 'TurboPuffer'} API key`, type: "error" });
     }
   };
 
@@ -1264,57 +1275,47 @@ const APIKeysSettingsComponent = () => {
           <div className="space-y-6">
             {/* OpenAI API Key */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                OpenAI API Key
-              </label>
+              <div className="flex items-center gap-2 mb-2">
+                <label className="text-sm font-medium text-gray-700">
+                  OpenAI API Key
+                </label>
+                <div className={`w-2 h-2 rounded-full ${savedKeys.openai ? 'bg-green-500' : 'bg-gray-300'} transition-colors duration-300`} title={savedKeys.openai ? 'Key saved in secure storage' : 'Key not saved'} />
+              </div>
               <p className="text-xs text-gray-500 mb-3">
                 Used for AI-powered features and intelligent assistance
               </p>
               <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <input
-                    type={passwordVisible.openai ? "text" : "password"}
-                    placeholder="sk-..."
-                    value={apiKeys.openai}
-                    onChange={(e) => handleApiKeyChange('openai', e.target.value)}
-                    onBlur={saveApiKeys}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-10"
-                  />
-                  <button
-                    onClick={() => setPasswordVisible({ ...passwordVisible, openai: !passwordVisible.openai })}
-                    className="absolute right-2 top-1/2 transform -translate-y-1/2 p-1 text-gray-500 hover:text-gray-700"
-                  >
-                    {passwordVisible.openai ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                </div>
+                <input
+                  type="text"
+                  placeholder="sk-..."
+                  value={apiKeys.openai}
+                  onChange={(e) => handleApiKeyChange('openai', e.target.value)}
+                  onBlur={() => saveApiKey('openai')}
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
+                />
               </div>
             </div>
 
             {/* TurboPuffer API Key */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                TurboPuffer API Key
-              </label>
+              <div className="flex items-center gap-2 mb-2">
+                <label className="text-sm font-medium text-gray-700">
+                  TurboPuffer API Key
+                </label>
+                <div className={`w-2 h-2 rounded-full ${savedKeys.turbopuffer ? 'bg-green-500' : 'bg-gray-300'} transition-colors duration-300`} title={savedKeys.turbopuffer ? 'Key saved in secure storage' : 'Key not saved'} />
+              </div>
               <p className="text-xs text-gray-500 mb-3">
                 Used for vector search and embeddings storage
               </p>
               <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <input
-                    type={passwordVisible.turbopuffer ? "text" : "password"}
-                    placeholder="Enter API key"
-                    value={apiKeys.turbopuffer}
-                    onChange={(e) => handleApiKeyChange('turbopuffer', e.target.value)}
-                    onBlur={saveApiKeys}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-10"
-                  />
-                  <button
-                    onClick={() => setPasswordVisible({ ...passwordVisible, turbopuffer: !passwordVisible.turbopuffer })}
-                    className="absolute right-2 top-1/2 transform -translate-y-1/2 p-1 text-gray-500 hover:text-gray-700"
-                  >
-                    {passwordVisible.turbopuffer ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                </div>
+                <input
+                  type="text"
+                  placeholder="Enter API key"
+                  value={apiKeys.turbopuffer}
+                  onChange={(e) => handleApiKeyChange('turbopuffer', e.target.value)}
+                  onBlur={() => saveApiKey('turbopuffer')}
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
+                />
               </div>
             </div>
           </div>
