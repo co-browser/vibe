@@ -1,5 +1,5 @@
 // SettingsPane.tsx
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   AppstoreOutlined,
   SettingOutlined,
@@ -26,6 +26,7 @@ import {
   Button,
   Typography,
   Space,
+  message,
 } from "antd";
 
 const { Sider, Content } = Layout;
@@ -75,6 +76,14 @@ const items: MenuItem[] = [
       { key: "apple", label: "Apple Account" },
       { key: "google", label: "Google Account" },
       { key: "sync", label: "Sync Settings" },
+    ],
+  },
+  {
+    key: "api",
+    icon: <KeyOutlined />,
+    label: "API Keys",
+    children: [
+      { key: "api-keys", label: "Manage API Keys" },
     ],
   },
   {
@@ -165,7 +174,7 @@ const items: MenuItem[] = [
 
 const levelKeys = getLevelKeys(items as LevelKeysProps[]);
 
-const renderContent = (selectedKey: string) => {
+const renderContent = (selectedKey: string, apiKeys?: any, passwordVisible?: any, handleApiKeyChange?: any, saveApiKeys?: any, setPasswordVisible?: any) => {
   switch (selectedKey) {
     case "startup":
       return (
@@ -753,6 +762,84 @@ const renderContent = (selectedKey: string) => {
         </div>
       );
 
+    case "api-keys":
+      return (
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            padding: "40px 0",
+          }}
+        >
+          <Card
+            title="API Keys"
+            style={{ width: "100%", maxWidth: 600, textAlign: "center" }}
+          >
+            <Space direction="vertical" style={{ width: "100%" }}>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  padding: "16px 0",
+                }}
+              >
+                <div style={{ textAlign: "left" }}>
+                  <Text strong>OpenAI API Key</Text>
+                  <br />
+                  <Text type="secondary">
+                    Used for AI-powered features
+                  </Text>
+                </div>
+                <Input.Password
+                  placeholder="sk-..."
+                  style={{ width: 300 }}
+                  size="small"
+                  value={apiKeys?.openai || ""}
+                  onChange={(e) => handleApiKeyChange?.('openai', e.target.value)}
+                  onBlur={() => saveApiKeys?.()}
+                  visibilityToggle={{
+                    visible: passwordVisible?.openai || false,
+                    onVisibleChange: (visible) =>
+                      setPasswordVisible?.({ ...passwordVisible, openai: visible }),
+                  }}
+                />
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  padding: "16px 0",
+                }}
+              >
+                <div style={{ textAlign: "left" }}>
+                  <Text strong>TurboPuffer API Key</Text>
+                  <br />
+                  <Text type="secondary">
+                    Used for vector search and embeddings
+                  </Text>
+                </div>
+                <Input.Password
+                  placeholder="Enter API key"
+                  style={{ width: 300 }}
+                  size="small"
+                  value={apiKeys?.turbopuffer || ""}
+                  onChange={(e) => handleApiKeyChange?.('turbopuffer', e.target.value)}
+                  onBlur={() => saveApiKeys?.()}
+                  visibilityToggle={{
+                    visible: passwordVisible?.turbopuffer || false,
+                    onVisibleChange: (visible) =>
+                      setPasswordVisible?.({ ...passwordVisible, turbopuffer: visible }),
+                  }}
+                />
+              </div>
+            </Space>
+          </Card>
+        </div>
+      );
+
     default:
       return (
         <div
@@ -782,6 +869,51 @@ const renderContent = (selectedKey: string) => {
 export function SettingsPane() {
   const [stateOpenKeys, setStateOpenKeys] = useState(["general"]);
   const [selectedKey, setSelectedKey] = useState("adblocking");
+  const [apiKeys, setApiKeys] = useState({ openai: "", turbopuffer: "" });
+  const [passwordVisible, setPasswordVisible] = useState({ openai: false, turbopuffer: false });
+
+  // Load API keys from profile on mount
+  useEffect(() => {
+    loadApiKeys();
+  }, []);
+
+  const loadApiKeys = async () => {
+    try {
+      const [openaiKey, turbopufferKey] = await Promise.all([
+        window.apiKeys.get("openai"),
+        window.apiKeys.get("turbopuffer"),
+      ]);
+      setApiKeys({
+        openai: openaiKey || "",
+        turbopuffer: turbopufferKey || "",
+      });
+    } catch (error) {
+      console.error("Failed to load API keys:", error);
+      message.error("Failed to load API keys");
+    }
+  };
+
+  const handleApiKeyChange = (key: 'openai' | 'turbopuffer', value: string) => {
+    setApiKeys({ ...apiKeys, [key]: value });
+  };
+
+  const saveApiKeys = async () => {
+    try {
+      const results = await Promise.all([
+        apiKeys.openai ? window.apiKeys.set("openai", apiKeys.openai) : Promise.resolve(true),
+        apiKeys.turbopuffer ? window.apiKeys.set("turbopuffer", apiKeys.turbopuffer) : Promise.resolve(true),
+      ]);
+
+      if (results.every(result => result)) {
+        message.success("API keys saved successfully");
+      } else {
+        message.error("Failed to save some API keys");
+      }
+    } catch (error) {
+      console.error("Failed to save API keys:", error);
+      message.error("Failed to save API keys");
+    }
+  };
 
   const onOpenChange: MenuProps["onOpenChange"] = openKeys => {
     const currentOpenKey = openKeys.find(
@@ -972,7 +1104,7 @@ export function SettingsPane() {
           }}
         >
           <div style={{ maxWidth: 800, margin: "0 auto" }}>
-            {renderContent(selectedKey)}
+            {renderContent(selectedKey, apiKeys, passwordVisible, handleApiKeyChange, saveApiKeys, setPasswordVisible)}
           </div>
         </Content>
       </Layout>
