@@ -31,11 +31,12 @@ import { createLogger } from "@vibe/shared-types";
 
 const logger = createLogger("settings");
 
-// Type declaration for webkit corner smoothing
+// Type declaration for webkit properties
 declare module "react" {
   interface CSSProperties {
     "-webkit-corner-smoothing"?: string;
     "-webkit-app-region"?: string;
+    "-webkit-user-select"?: string;
   }
 }
 
@@ -209,10 +210,17 @@ export default function Settings() {
         className="w-full h-full flex bg-white relative"
         style={{ "-webkit-corner-smoothing": "subpixel" }}
       >
+        {/* Draggable title bar */}
+        <div
+          className="absolute top-0 left-0 right-0 h-12 cursor-move"
+          style={{ "-webkit-app-region": "drag" }}
+        />
+        
         {/* Close button */}
         <button
           onClick={handleCloseDialog}
           className="absolute top-4 right-4 z-50 p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+          style={{ "-webkit-app-region": "no-drag" }}
           title="Close Settings"
         >
           <X className="h-5 w-5" />
@@ -221,7 +229,7 @@ export default function Settings() {
         {/* Sidebar Column */}
         <div className="w-56 bg-[#F6F6F6] flex flex-col flex-shrink-0 border-r border-gray-300">
           {/* Sidebar's top bar section */}
-          <div className="h-[52px] flex-shrink-0 flex items-center">
+          <div className="h-[52px] flex-shrink-0 flex items-center" style={{ "-webkit-app-region": "drag" }}>
             {/* Empty space for native traffic lights */}
           </div>
           {/* The actual list of tabs */}
@@ -241,6 +249,7 @@ export default function Settings() {
                 style={{
                   borderRadius: "6px",
                   "-webkit-corner-smoothing": "subpixel",
+                  "-webkit-app-region": "no-drag",
                 }}
               >
                 {loading ? (
@@ -266,7 +275,7 @@ export default function Settings() {
         {/* Content Column */}
         <div className="flex-1 flex flex-col bg-white">
           {/* Content's Title Bar */}
-          <div className="h-[52px] border-b border-gray-200 flex-shrink-0 flex items-center px-4 space-x-4">
+          <div className="h-[52px] border-b border-gray-200 flex-shrink-0 flex items-center px-4 space-x-4" style={{ "-webkit-app-region": "drag" }}>
             {/* Forward/backward buttons */}
             <div className="flex items-center">
               <div
@@ -281,6 +290,7 @@ export default function Settings() {
                   style={{
                     borderRadius: "4px",
                     "-webkit-corner-smoothing": "subpixel",
+                    "-webkit-app-region": "no-drag",
                   }}
                 >
                   <ChevronLeft className="h-4 w-4" />
@@ -291,13 +301,14 @@ export default function Settings() {
                   style={{
                     borderRadius: "4px",
                     "-webkit-corner-smoothing": "subpixel",
+                    "-webkit-app-region": "no-drag",
                   }}
                 >
                   <ChevronRight className="h-4 w-4" />
                 </button>
               </div>
             </div>
-            <h1 className="font-semibold text-base text-gray-800 flex-1">
+            <h1 className="font-semibold text-base text-gray-800 flex-1" style={{ "-webkit-user-select": "none" }}>
               {activeLabel}
             </h1>
           </div>
