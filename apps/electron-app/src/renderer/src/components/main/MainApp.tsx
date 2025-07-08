@@ -3,7 +3,6 @@ import React, {
   useEffect,
   useRef,
   useCallback,
-  useMemo,
 } from "react";
 import NavigationBar from "../layout/NavigationBar";
 import ChromeTabBar from "../layout/TabBar";
@@ -11,7 +10,8 @@ import { ChatPage } from "../../pages/chat/ChatPage";
 import { ChatErrorBoundary } from "../ui/error-boundary";
 import { SettingsModal } from "../modals/SettingsModal";
 import { DownloadsModal } from "../modals/DownloadsModal";
-import { DraggableDivider } from "../ui/DraggableDivider";
+import { UltraOptimizedDraggableDivider } from "../ui/UltraOptimizedDraggableDivider";
+import { performanceMonitor } from "../../utils/performanceMonitor";
 
 import {
   CHAT_PANEL,
@@ -21,36 +21,9 @@ import {
   createLogger,
 } from "@vibe/shared-types";
 import { useLayout, LayoutContext } from "@/hooks/useLayout";
+import "../styles/ChatPanelOptimizations.css";
 
 const logger = createLogger("MainApp");
-
-// Simple throttle function to limit IPC calls
-function throttle<T extends (...args: any[]) => any>(
-  fn: T,
-  delay: number = 100,
-): (...args: Parameters<T>) => void {
-  let lastCall = 0;
-  let timer: number | null = null;
-
-  return (...args: Parameters<T>) => {
-    const now = Date.now();
-
-    if (now - lastCall >= delay) {
-      lastCall = now;
-      fn(...args);
-    } else {
-      if (timer) {
-        clearTimeout(timer);
-      }
-
-      timer = window.setTimeout(() => {
-        lastCall = Date.now();
-        fn(...args);
-        timer = null;
-      }, delay);
-    }
-  };
-}
 
 // Window interface is defined in env.d.ts
 
@@ -274,6 +247,7 @@ function ChatPanelSidebar(): React.JSX.Element | null {
     setIsChatMinimizedFromResize,
   } = useLayout();
 
+  // Optimized resize handling with reduced IPC calls
   const handleResize = useCallback(
     (newWidth: number) => {
       setChatPanelWidth(newWidth);
@@ -285,22 +259,62 @@ function ChatPanelSidebar(): React.JSX.Element | null {
     [setChatPanelWidth, setIsChatMinimizedFromResize],
   );
 
-  // Create a stable throttled IPC function
-  const throttledIPCWidth = useMemo(
-    () =>
-      throttle((width: number) => {
-        window.vibe?.interface?.setChatPanelWidth?.(width);
-      }, 100),
-    [],
-  );
+  // Create RAF-based IPC batching for ultra-smooth performance
+  const ipcBatcherRef = useRef<{
+    rafId: number | null;
+    pendingWidth: number | null;
+    lastSentWidth: number;
+  }>({
+    rafId: null,
+    pendingWidth: null,
+    lastSentWidth: chatPanelWidth,
+  });
 
-  // Handle resize with throttled IPC
+  // Cleanup RAF on unmount
+  useEffect(() => {
+    const batcher = ipcBatcherRef.current;
+    return () => {
+      if (batcher.rafId) {
+        cancelAnimationFrame(batcher.rafId);
+      }
+    };
+  }, []);
+
+  // Ultra-optimized resize handler with performance monitoring
   const handleResizeWithIPC = useCallback(
     (newWidth: number) => {
+      // Start performance tracking
+      performanceMonitor.startResize();
+      
+      // Update local state immediately for responsive UI
       handleResize(newWidth);
-      throttledIPCWidth(newWidth);
+      
+      // Batch IPC calls using RAF
+      const batcher = ipcBatcherRef.current;
+      batcher.pendingWidth = newWidth;
+      
+      // Only send IPC if width changed significantly
+      if (Math.abs(newWidth - batcher.lastSentWidth) > 5) {
+        if (!batcher.rafId) {
+          batcher.rafId = requestAnimationFrame(() => {
+            if (batcher.pendingWidth !== null && 
+                Math.abs(batcher.pendingWidth - batcher.lastSentWidth) > 5) {
+              // Track IPC call
+              performanceMonitor.trackIPCCall();
+              window.vibe?.interface?.setChatPanelWidth?.(batcher.pendingWidth);
+              batcher.lastSentWidth = batcher.pendingWidth;
+            }
+            batcher.rafId = null;
+            // End performance tracking after IPC completes
+            performanceMonitor.endResize();
+          });
+        }
+      } else {
+        // End immediately if no IPC needed
+        performanceMonitor.endResize();
+      }
     },
-    [handleResize, throttledIPCWidth],
+    [handleResize],
   );
 
   const handleMinimize = useCallback(() => {
@@ -325,7 +339,7 @@ function ChatPanelSidebar(): React.JSX.Element | null {
         position: "relative",
       }}
     >
-      <DraggableDivider
+      <UltraOptimizedDraggableDivider
         onResize={handleResizeWithIPC}
         minWidth={CHAT_PANEL.MIN_WIDTH}
         maxWidth={CHAT_PANEL.MAX_WIDTH}
@@ -516,6 +530,33 @@ export function MainApp(): React.JSX.Element {
       }, 100);
     }
   }, [vibeAPIReady]);
+  
+  // Add performance monitoring keyboard shortcut
+  useEffect(() => {
+    const handleKeyPress = async (e: KeyboardEvent) => {
+      // Ctrl/Cmd + Shift + P to show performance metrics
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'P') {
+        e.preventDefault();
+        
+        // Log renderer metrics
+        console.log('\n=== RENDERER PROCESS METRICS ===');
+        performanceMonitor.logSummary();
+        
+        // Log main process metrics
+        if (window.electron?.ipcRenderer) {
+          try {
+            console.log('\n=== MAIN PROCESS METRICS ===');
+            await window.electron.ipcRenderer.invoke('performance:log-main-process-summary');
+          } catch (error) {
+            console.error('Failed to get main process metrics:', error);
+          }
+        }
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, []);
 
   return (
     <LayoutProvider>

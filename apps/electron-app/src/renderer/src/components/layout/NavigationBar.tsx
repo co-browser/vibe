@@ -138,7 +138,10 @@ const NavigationBar: React.FC = () => {
   const handleOverlaySuggestionClick = useCallback(
     (suggestion: any) => {
       try {
-        logger.info("Overlay suggestion clicked:", suggestion);
+        logger.info("🎯 Overlay suggestion clicked:", suggestion);
+        logger.info("🎯 Suggestion type:", suggestion?.type);
+        logger.info("🎯 Suggestion URL:", suggestion?.url);
+        logger.info("🎯 Current tab key:", currentTabKey);
 
         // Immediately hide suggestions and blur for instant UI response
         setShowSuggestions(false);
@@ -153,16 +156,38 @@ const NavigationBar: React.FC = () => {
         // Handle navigation asynchronously without blocking UI
         setTimeout(async () => {
           try {
+            logger.info("🚀 Starting navigation for suggestion:", suggestion);
+            
             if (suggestion.type === "context" && suggestion.url) {
+              logger.info("🔗 Navigating to context:", suggestion.url);
               await window.vibe.tabs.switchToTab(suggestion.url);
             } else if (suggestion.type === "agent" && suggestion.metadata) {
+              logger.info("🤖 Handling agent suggestion");
               if (suggestion.metadata.action === "ask-agent") {
                 await window.vibe.interface.toggleChatPanel(true);
               }
-            } else if (suggestion.url && currentTabKey) {
+            } else if (suggestion.type === "navigation" && suggestion.url && currentTabKey) {
+              logger.info("🧭 Navigating to URL:", suggestion.url);
+              await window.vibe.page.navigate(currentTabKey, suggestion.url);
+              setInputValue(suggestion.url);
+            } else if (suggestion.type === "history" && suggestion.url && currentTabKey) {
+              logger.info("📚 Navigating to history item:", suggestion.url);
+              await window.vibe.page.navigate(currentTabKey, suggestion.url);
+              setInputValue(suggestion.url);
+            } else if (suggestion.type === "perplexity" && suggestion.url && currentTabKey) {
+              logger.info("🔍 Navigating to Perplexity:", suggestion.url);
               await window.vibe.page.navigate(currentTabKey, suggestion.url);
               setInputValue(suggestion.text);
+            } else if (suggestion.type === "url" && suggestion.url && currentTabKey) {
+              logger.info("🌐 Navigating to URL suggestion:", suggestion.url);
+              await window.vibe.page.navigate(currentTabKey, suggestion.url);
+              setInputValue(suggestion.url);
+            } else if (suggestion.url && currentTabKey) {
+              logger.info("🎯 Fallback navigation to URL:", suggestion.url);
+              await window.vibe.page.navigate(currentTabKey, suggestion.url);
+              setInputValue(suggestion.text || suggestion.url);
             } else if (suggestion.type === "search" && currentTabKey) {
+              logger.info("🔎 Handling search suggestion:", suggestion.text);
               const defaultSearchEngine =
                 (await window.vibe.settings.get("defaultSearchEngine")) ||
                 "perplexity";
@@ -174,9 +199,11 @@ const NavigationBar: React.FC = () => {
               }
               await window.vibe.page.navigate(currentTabKey, searchUrl);
               setInputValue(suggestion.text);
+            } else {
+              logger.warn("⚠️ No handler found for suggestion:", suggestion);
             }
           } catch (error) {
-            logger.error("Failed to handle navigation:", error);
+            logger.error("❌ Failed to handle navigation:", error);
           }
         }, 0);
       } catch (error) {
@@ -1066,7 +1093,8 @@ const NavigationBar: React.FC = () => {
               logger.debug("Setting suggestions:", newSuggestions);
               setSuggestions(newSuggestions);
               setShowSuggestions(newSuggestions.length > 0);
-              setSelectedIndex(-1);
+              // Auto-select first item when showing suggestions
+              setSelectedIndex(newSuggestions.length > 0 ? 0 : -1);
             }
           } catch (error) {
             logger.error("Failed to generate suggestions:", error);
@@ -1095,18 +1123,24 @@ const NavigationBar: React.FC = () => {
     // Select all text when focusing the input
     inputRef.current?.select();
 
+    // Force clear overlay first to ensure clean state
+    forceClearOverlay();
+
     if (inputValue.trim() && suggestions.length === 0) {
       const newSuggestions = await generateRealSuggestions(inputValue);
       setSuggestions(newSuggestions);
       setShowSuggestions(newSuggestions.length > 0);
+      setSelectedIndex(newSuggestions.length > 0 ? 0 : -1);
     } else if (suggestions.length > 0) {
       setShowSuggestions(true);
+      setSelectedIndex(0);
     } else {
       // Show top sites when focusing empty input
       const topSites = await generateRealSuggestions("");
       if (topSites.length > 0) {
         setSuggestions(topSites);
         setShowSuggestions(true);
+        setSelectedIndex(0);
       }
     }
   };
@@ -1279,19 +1313,23 @@ const NavigationBar: React.FC = () => {
   // Removed old dropdown IPC listeners - now handled by overlay hook
 
   // Context menu items for navigation
-  const getNavigationContextMenuItems = () => [
-    { ...NavigationContextMenuItems.back, enabled: navigationState.canGoBack },
-    {
-      ...NavigationContextMenuItems.forward,
-      enabled: navigationState.canGoForward,
-    },
-    NavigationContextMenuItems.reload,
-    NavigationContextMenuItems.separator,
-    {
-      ...NavigationContextMenuItems.copyUrl,
-      data: { url: navigationState.url },
-    },
-  ];
+  const getNavigationContextMenuItems = () => {
+    const items = [
+      { ...NavigationContextMenuItems.back, enabled: navigationState.canGoBack },
+      {
+        ...NavigationContextMenuItems.forward,
+        enabled: navigationState.canGoForward,
+      },
+      NavigationContextMenuItems.reload,
+      NavigationContextMenuItems.separator,
+      {
+        ...NavigationContextMenuItems.copyUrl,
+        data: { url: navigationState.url },
+      },
+    ];
+    logger.debug("Navigation context menu items:", items);
+    return items;
+  };
 
   return (
     <div

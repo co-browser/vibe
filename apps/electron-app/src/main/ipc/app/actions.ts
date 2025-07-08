@@ -32,6 +32,15 @@ ipcMain.handle(
     coordinates?: { x: number; y: number },
   ) => {
     try {
+      logger.info("Showing context menu", { 
+        itemCount: items.length,
+        context, 
+        hasCoordinates: !!coordinates,
+        coordinates,
+        senderId: event.sender.id,
+        senderType: event.sender.constructor.name
+      });
+      
       // Create menu template from items
       const template: MenuItemConstructorOptions[] = items.map(item => {
         if (item.type === "separator") {
@@ -76,9 +85,13 @@ ipcMain.handle(
         }
       }
 
+      // Import the constants we need
+      const GLASSMORPHISM_PADDING = 8;
+      const BROWSER_CHROME_HEIGHT = 41 + 48; // TAB_BAR + NAVIGATION_BAR
+      
       // Get the WebContentsView bounds to convert renderer coordinates to window coordinates
-      const viewOffsetX = 0;
-      const viewOffsetY = 0;
+      let viewOffsetX = 0;
+      let viewOffsetY = 0;
 
       // Check if this is a WebContentsView (browser tab) or the main window renderer
       const currentWindow = BrowserWindow.fromWebContents(event.sender);
@@ -87,16 +100,15 @@ ipcMain.handle(
 
       if (!isMainWindowRenderer) {
         // This is a WebContentsView (browser tab), need to get its bounds
-        try {
-          // Try to find the WebContentsView that contains this webContents
-          // Skip view bounds lookup for now - would need access to TabManager instance
-          // which is not easily accessible from here
-          logger.debug("Skipping view bounds lookup");
-        } catch (error) {
-          logger.warn("Failed to get view bounds for context menu:", error);
-        }
+        // WebContentsViews are positioned with these offsets
+        viewOffsetX = GLASSMORPHISM_PADDING;
+        viewOffsetY = BROWSER_CHROME_HEIGHT + GLASSMORPHISM_PADDING;
+        logger.debug("WebContentsView detected, applying offsets", {
+          viewOffsetX,
+          viewOffsetY
+        });
       } else {
-        // This is the main window renderer (tab bar, chat page, etc.)
+        // This is the main window renderer (tab bar, nav bar, chat page, etc.)
         // Coordinates are already relative to the window, no offset needed
         logger.debug(
           "Context menu from main window renderer, no offset needed",
@@ -122,6 +134,7 @@ ipcMain.handle(
       });
 
       if (focusedFrame) {
+        logger.debug("Using showContextMenuWithFrameMain");
         showContextMenuWithFrameMain(
           event.sender,
           menu,
@@ -133,6 +146,7 @@ ipcMain.handle(
         // Fallback to standard popup - try to get frame from window
         const currentWindow = BrowserWindow.fromWebContents(event.sender);
         if (currentWindow) {
+          logger.debug("Using fallback menu.popup", { windowId: currentWindow.id });
           const fallbackFrame = currentWindow.webContents.focusedFrame;
           menu.popup({
             window: currentWindow,
@@ -140,6 +154,8 @@ ipcMain.handle(
             y: adjustedY,
             frame: fallbackFrame || undefined, // Include frame if available for Writing Tools support
           });
+        } else {
+          logger.error("No window found for context menu");
         }
       }
 

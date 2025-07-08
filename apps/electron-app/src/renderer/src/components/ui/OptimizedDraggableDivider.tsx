@@ -6,17 +6,17 @@ import React, {
   useMemo,
 } from "react";
 
-// Optimized throttle function with better performance characteristics
-function throttle<T extends (...args: any[]) => any>(
+// Ultra-optimized throttle for smooth dragging
+function smoothThrottle<T extends (...args: any[]) => any>(
   fn: T,
-  delay: number = 16, // 60fps by default
+  delay: number = 8, // 120fps for ultra-smooth dragging
 ): (...args: Parameters<T>) => void {
   let lastCall = 0;
   let lastArgs: Parameters<T> | null = null;
   let timer: number | null = null;
 
   return (...args: Parameters<T>) => {
-    const now = Date.now();
+    const now = performance.now(); // Use performance.now() for higher precision
     lastArgs = args;
 
     if (now - lastCall >= delay) {
@@ -29,7 +29,7 @@ function throttle<T extends (...args: any[]) => any>(
 
       timer = requestAnimationFrame(() => {
         if (lastArgs) {
-          lastCall = Date.now();
+          lastCall = performance.now();
           fn(...lastArgs);
           lastArgs = null;
         }
@@ -39,8 +39,8 @@ function throttle<T extends (...args: any[]) => any>(
   };
 }
 
-// Debounce function for final IPC calls
-function debounce<T extends (...args: any[]) => any>(
+// Efficient debounce for final updates
+function efficientDebounce<T extends (...args: any[]) => any>(
   fn: T,
   delay: number = 100,
 ): (...args: Parameters<T>) => void {
@@ -54,7 +54,7 @@ function debounce<T extends (...args: any[]) => any>(
   };
 }
 
-interface DraggableDividerProps {
+interface OptimizedDraggableDividerProps {
   onResize: (width: number) => void;
   minWidth: number;
   maxWidth: number;
@@ -62,7 +62,7 @@ interface DraggableDividerProps {
   onMinimize?: () => void;
 }
 
-export const DraggableDivider: React.FC<DraggableDividerProps> = ({
+export const OptimizedDraggableDivider: React.FC<OptimizedDraggableDividerProps> = ({
   onResize,
   minWidth,
   maxWidth,
@@ -74,41 +74,50 @@ export const DraggableDivider: React.FC<DraggableDividerProps> = ({
   const dividerRef = useRef<HTMLDivElement>(null);
   const startXRef = useRef(0);
   const startWidthRef = useRef(0);
+  const lastWidthRef = useRef(currentWidth);
 
   // Update visual width when currentWidth changes (from external sources)
   useEffect(() => {
     if (!isDragging) {
       setVisualWidth(currentWidth);
+      lastWidthRef.current = currentWidth;
     }
   }, [currentWidth, isDragging]);
 
-  // Create optimized resize functions
-  const throttledVisualResize = useMemo(
+  // Ultra-smooth visual updates
+  const smoothVisualResize = useMemo(
     () =>
-      throttle((width: number) => {
+      smoothThrottle((width: number) => {
         setVisualWidth(width);
-      }, 8), // 120fps for smooth visual feedback
+      }, 8), // 120fps for ultra-smooth visual feedback
     [],
   );
 
-  const debouncedFinalResize = useMemo(
+  // Efficient final resize with debouncing
+  const efficientFinalResize = useMemo(
     () =>
-      debounce((width: number) => {
-        onResize(width);
-      }, 50), // Faster debounce for better responsiveness
+      efficientDebounce((width: number) => {
+        if (Math.abs(width - lastWidthRef.current) > 1) {
+          lastWidthRef.current = width;
+          onResize(width);
+        }
+      }, 50), // Optimized debounce
     [onResize],
   );
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
       e.preventDefault();
+      e.stopPropagation();
+      
       setIsDragging(true);
       startXRef.current = e.clientX;
       startWidthRef.current = currentWidth;
 
-      // Add cursor style to body during drag
+      // Optimized cursor and selection handling
       document.body.style.cursor = "col-resize";
       document.body.style.userSelect = "none";
+      document.body.style.webkitUserSelect = "none";
     },
     [currentWidth],
   );
@@ -129,14 +138,15 @@ export const DraggableDivider: React.FC<DraggableDividerProps> = ({
         setIsDragging(false);
         document.body.style.cursor = "";
         document.body.style.userSelect = "";
+        document.body.style.webkitUserSelect = "";
         return;
       }
 
-      // Update visual feedback immediately for smooth dragging
-      throttledVisualResize(clampedWidth);
+      // Update visual feedback immediately for ultra-smooth dragging
+      smoothVisualResize(clampedWidth);
       
-      // Debounce the actual resize callback to reduce IPC calls
-      debouncedFinalResize(clampedWidth);
+      // Efficient final resize with debouncing
+      efficientFinalResize(clampedWidth);
     };
 
     const handleMouseUp = () => {
@@ -144,30 +154,37 @@ export const DraggableDivider: React.FC<DraggableDividerProps> = ({
         setIsDragging(false);
         document.body.style.cursor = "";
         document.body.style.userSelect = "";
+        document.body.style.webkitUserSelect = "";
         
         // Ensure final width is set
         const finalWidth = visualWidth;
-        onResize(finalWidth);
+        if (Math.abs(finalWidth - lastWidthRef.current) > 1) {
+          lastWidthRef.current = finalWidth;
+          onResize(finalWidth);
+        }
       }
     };
 
     if (isDragging) {
+      // Use passive listeners for better performance
       document.addEventListener("mousemove", handleMouseMove, {
         passive: true,
       });
-      document.addEventListener("mouseup", handleMouseUp);
+      document.addEventListener("mouseup", handleMouseUp, {
+        passive: true,
+      });
     }
 
     return () => {
       document.removeEventListener("mousemove", handleMouseMove);
       document.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [isDragging, minWidth, maxWidth, throttledVisualResize, debouncedFinalResize, onMinimize, visualWidth]);
+  }, [isDragging, minWidth, maxWidth, smoothVisualResize, efficientFinalResize, onMinimize, visualWidth, onResize]);
 
   return (
     <div
       ref={dividerRef}
-      className={`draggable-divider ${isDragging ? "dragging" : ""}`}
+      className={`optimized-draggable-divider ${isDragging ? "dragging" : ""}`}
       onMouseDown={handleMouseDown}
       style={{
         position: "absolute",
@@ -179,6 +196,9 @@ export const DraggableDivider: React.FC<DraggableDividerProps> = ({
         backgroundColor: "transparent",
         transition: isDragging ? "none" : "background-color 0.2s ease",
         zIndex: 100,
+        // Performance optimizations
+        willChange: "background-color",
+        transform: "translateZ(0)", // Force hardware acceleration
       }}
       onMouseEnter={e => {
         if (!isDragging) {
@@ -205,8 +225,10 @@ export const DraggableDivider: React.FC<DraggableDividerProps> = ({
           borderRadius: "1px",
           transition: isDragging ? "none" : "all 0.2s ease",
           opacity: isDragging ? 1 : 0.5,
+          // Performance optimizations
+          willChange: "background-color, opacity",
         }}
       />
     </div>
   );
-};
+}; 

@@ -9,6 +9,7 @@ import { EventEmitter } from "events";
 import path from "path";
 import { createLogger } from "@vibe/shared-types";
 import { chromeDataExtraction } from "@/services/chrome-data-extraction";
+import { DEFAULT_USER_AGENT } from "../constants/user-agent";
 
 const logger = createLogger("dialog-manager");
 
@@ -713,6 +714,9 @@ export class DialogManager extends EventEmitter {
         allowRunningInsecureContent: false,
       },
     });
+
+    // Set browser user agent
+    view.webContents.setUserAgent(DEFAULT_USER_AGENT);
 
     // Set view bounds to fill the dialog
     const updateViewBounds = () => {

@@ -127,6 +127,7 @@
   z-index: 1; /* Lower z-index than navigation */
   margin: 0;
   background-color: var(--browser-content-background, #ffffff);
+  gap: 0; /* Ensure no gap between flex items */
 }
 
 /* Browser Content Area - Flexible width, contains web page */
@@ -144,6 +145,9 @@
   overflow: hidden;
 
   /* Remove gap prevention - proper margins handle this now */
+  /* Performance optimizations */
+  will-change: width;
+  transform: translateZ(0); /* Force hardware acceleration */
 }
 
 .browser-view-content {
@@ -171,6 +175,9 @@
   /* Remove border for seamless integration */
   position: relative;
   z-index: 5;
+  /* Performance optimizations */
+  will-change: width;
+  transform: translateZ(0); /* Force hardware acceleration */
 }
 
 .chat-panel-content {

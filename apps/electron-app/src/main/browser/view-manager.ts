@@ -6,6 +6,8 @@ import {
 } from "@vibe/shared-types";
 import { createLogger } from "@vibe/shared-types";
 import { OverlayManager } from "./overlay-manager";
+import { DEFAULT_USER_AGENT } from "../constants/user-agent";
+import { mainProcessPerformanceMonitor } from "../utils/performanceMonitor";
 
 const logger = createLogger("ViewManager");
 
@@ -49,6 +51,14 @@ export class ViewManager {
 
   // Track which views are currently visible
   private visibleViews: Set<string> = new Set();
+  
+  // Cache for bounds calculations to avoid redundant updates
+  private lastBoundsCache: {
+    windowWidth: number;
+    windowHeight: number;
+    chatPanelWidth: number;
+    isChatVisible: boolean;
+  } | null = null;
 
   constructor(browser: any, window: BrowserWindow) {
     this._browser = browser;
@@ -398,6 +408,8 @@ export class ViewManager {
   public toggleChatPanel(isVisible?: boolean): void {
     this.isChatAreaVisible =
       isVisible !== undefined ? isVisible : !this.isChatAreaVisible;
+    // Invalidate cache since chat visibility changed
+    this.lastBoundsCache = null;
     this.updateBounds();
   }
 
@@ -414,8 +426,67 @@ export class ViewManager {
    * Sets the chat panel width and updates layout
    */
   public setChatPanelWidth(width: number): void {
-    this.currentChatPanelWidth = width;
-    this.updateBounds();
+    // Only update if width actually changed significantly
+    if (Math.abs(this.currentChatPanelWidth - width) > 1) {
+      const oldWidth = this.currentChatPanelWidth;
+      this.currentChatPanelWidth = width;
+      
+      // Optimize: Only update bounds for visible views when chat width changes
+      if (this.isChatAreaVisible) {
+        this.updateBoundsForChatResize(oldWidth, width);
+      }
+    }
+  }
+  
+  /**
+   * Optimized bounds update specifically for chat panel resize
+   * Avoids full bounds recalculation when only chat width changes
+   */
+  private updateBoundsForChatResize(_oldChatWidth: number, newChatWidth: number): void {
+    if (!this.window || this.window.isDestroyed()) return;
+    
+    // Start performance tracking
+    mainProcessPerformanceMonitor.startBoundsUpdate();
+    
+    // Use cached window dimensions if available
+    const windowWidth = this.lastBoundsCache?.windowWidth || this.window.getContentSize()[0];
+    
+    // Calculate new available width for webviews
+    const newAvailableWidth = Math.max(
+      1,
+      windowWidth - newChatWidth - GLASSMORPHISM_CONFIG.PADDING * 2
+    );
+    
+    // Only update width for visible views (no need to recalculate everything)
+    for (const tabKey of this.visibleViews) {
+      const view = this.browserViews.get(tabKey);
+      if (view && !view.webContents.isDestroyed()) {
+        try {
+          // Get current bounds and only update width
+          const currentBounds = view.getBounds();
+          if (currentBounds.width !== newAvailableWidth) {
+            view.setBounds({
+              ...currentBounds,
+              width: newAvailableWidth
+            });
+          }
+        } catch {
+          // Fallback to full update if getBounds fails
+          this.lastBoundsCache = null;
+          mainProcessPerformanceMonitor.endBoundsUpdate(true);
+          this.updateBounds();
+          return;
+        }
+      }
+    }
+    
+    // Update cache with new chat width
+    if (this.lastBoundsCache) {
+      this.lastBoundsCache.chatPanelWidth = newChatWidth;
+    }
+    
+    // End performance tracking
+    mainProcessPerformanceMonitor.endBoundsUpdate(true);
   }
 
   /**
@@ -484,8 +555,29 @@ export class ViewManager {
       logger.debug("🔧 updateBounds: No window available");
       return;
     }
+    
+    // Start performance tracking
+    mainProcessPerformanceMonitor.startBoundsUpdate();
 
     const [windowWidth, windowHeight] = this.window.getContentSize();
+    
+    // Check if bounds actually changed significantly
+    if (this.lastBoundsCache &&
+        Math.abs(this.lastBoundsCache.windowWidth - windowWidth) < 2 &&
+        Math.abs(this.lastBoundsCache.windowHeight - windowHeight) < 2 &&
+        Math.abs(this.lastBoundsCache.chatPanelWidth - this.currentChatPanelWidth) < 2 &&
+        this.lastBoundsCache.isChatVisible === this.isChatAreaVisible) {
+      // Nothing changed significantly, skip update
+      return;
+    }
+    
+    // Update cache
+    this.lastBoundsCache = {
+      windowWidth,
+      windowHeight,
+      chatPanelWidth: this.currentChatPanelWidth,
+      isChatVisible: this.isChatAreaVisible
+    };
     const chromeHeight = BROWSER_CHROME.TOTAL_CHROME_HEIGHT;
     const viewHeight = Math.max(
       1,
@@ -509,17 +601,8 @@ export class ViewManager {
       const leftViewWidth = Math.floor(availableWidth / 2);
       const rightViewWidth = availableWidth - leftViewWidth;
 
-      logger.info(
+      logger.debug(
         `🔧 Speedlane mode bounds: total=${availableWidth}, left=${leftViewWidth}, right=${rightViewWidth}`,
-      );
-      logger.info(
-        `🔧 Speedlane views: activeKey=${this.activeViewKey}, rightKey=${this.speedlaneRightViewKey}`,
-      );
-      logger.info(
-        `🔧 Visible views before update: ${Array.from(this.visibleViews).join(", ")}`,
-      );
-      logger.info(
-        `🔧 Browser views available: ${Array.from(this.browserViews.keys()).join(", ")}`,
       );
 
       // First, hide all views that shouldn't be visible
@@ -631,6 +714,9 @@ export class ViewManager {
     }
 
     // No z-index management needed - using visibility control
+    
+    // End performance tracking
+    mainProcessPerformanceMonitor.endBoundsUpdate(false);
   }
 
   /**
@@ -685,6 +771,9 @@ export function createBrowserView(
       allowRunningInsecureContent: false,
     },
   });
+
+  // Set browser user agent
+  view.webContents.setUserAgent(DEFAULT_USER_AGENT);
 
   // Use opaque white background to fix speedlane rendering issues
   // Transparent backgrounds can cause visibility problems when multiple views overlap

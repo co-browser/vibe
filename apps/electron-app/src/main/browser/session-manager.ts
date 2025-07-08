@@ -6,6 +6,7 @@ import { app, session } from "electron";
 import { EventEmitter } from "events";
 import { createLogger } from "@vibe/shared-types";
 import { useUserProfileStore } from "@/store/user-profile-store";
+import { maskElectronUserAgent } from "../constants/user-agent";
 
 const logger = createLogger("SessionManager");
 
@@ -27,8 +28,8 @@ export class SessionManager extends EventEmitter {
     const isDev = process.env.NODE_ENV === "development";
     this.config = {
       cspPolicy: isDev
-        ? "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' http://localhost:5173 ws://localhost:5173 http://127.0.0.1:8000 ws://127.0.0.1:8000 https:; object-src 'none';"
-        : "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' http://127.0.0.1:8000 ws://127.0.0.1:8000 https:;",
+        ? "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com https://ssl.gstatic.com https://ogs.google.com https://accounts.google.com https://accounts.youtube.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://ssl.gstatic.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' http://localhost:5173 ws://localhost:5173 http://127.0.0.1:8000 ws://127.0.0.1:8000 https:; object-src 'none'; worker-src 'self' blob: https://www.google.com https://www.gstatic.com https://ssl.gstatic.com; frame-src 'self' https://www.google.com https://accounts.google.com https://ogs.google.com https://accounts.youtube.com;"
+        : "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com https://ssl.gstatic.com https://ogs.google.com https://accounts.google.com https://accounts.youtube.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://ssl.gstatic.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' http://127.0.0.1:8000 ws://127.0.0.1:8000 https:; worker-src 'self' blob: https://www.google.com https://www.gstatic.com https://ssl.gstatic.com; frame-src 'self' https://www.google.com https://accounts.google.com https://ogs.google.com https://accounts.youtube.com;",
     };
 
     this.setupSessionHandlers();
@@ -93,6 +94,9 @@ export class SessionManager extends EventEmitter {
     // Apply Bluetooth handler if configured
     this.applyBluetoothHandler(targetSession, identifier);
 
+    // Apply WebAuthn/passkey support
+    this.applyWebAuthnSupport(targetSession, identifier);
+
     // Emit event for other services to hook into
     this.emit("session-registered", {
       partition: identifier,
@@ -140,6 +144,58 @@ export class SessionManager extends EventEmitter {
 
     logger.debug(`Applying Bluetooth handler to session: ${partition}`);
     targetSession.setBluetoothPairingHandler(this.config.bluetoothHandler);
+  }
+
+  /**
+   * Apply WebAuthn/passkey support to a session
+   */
+  private applyWebAuthnSupport(
+    targetSession: Electron.Session,
+    identifier: string,
+  ): void {
+    try {
+      // Set permission request handler for WebAuthn
+      targetSession.setPermissionRequestHandler((_webContents, permission, callback, details) => {
+        logger.info(`Permission request for ${identifier}: ${permission}`, details);
+        
+        // Allow WebAuthn/FIDO2 permissions
+        if ((permission as any) === 'usb' || (permission as any) === 'hid') {
+          logger.info(`Granting ${permission} permission for WebAuthn/FIDO2`);
+          callback(true);
+          return;
+        }
+        
+        // Allow other permissions that might be needed
+        if (permission === 'notifications' || permission === 'media' || (permission as any) === 'camera' || (permission as any) === 'microphone') {
+          callback(true);
+          return;
+        }
+        
+        // Default to granting permission for unhandled cases
+        logger.warn(`Unhandled permission request: ${permission}`);
+        callback(true);
+      });
+
+      // Enable WebAuthn for local files by setting up a privileged scheme
+      // Note: This is a workaround for Electron's WebAuthn limitations with local files
+      targetSession.webRequest.onBeforeRequest({ urls: ['file://*/*'] }, (_details, callback) => {
+        // Allow file:// URLs to use WebAuthn by not blocking them
+        callback({ cancel: false });
+      });
+
+      // Set a user agent that properly identifies as Chrome to ensure WebAuthn compatibility
+      const currentUserAgent = targetSession.getUserAgent();
+      // Use the centralized helper to mask Electron in the user agent
+      const newUserAgent = maskElectronUserAgent(currentUserAgent);
+      if (newUserAgent !== currentUserAgent) {
+        targetSession.setUserAgent(newUserAgent);
+        logger.info(`Updated user agent for WebAuthn support: ${newUserAgent}`);
+      }
+
+      logger.info(`WebAuthn support applied to session: ${identifier}`);
+    } catch (error) {
+      logger.error(`Failed to apply WebAuthn support to session ${identifier}:`, error);
+    }
   }
 
   /**

@@ -16,6 +16,7 @@ import { setupContextMenuHandlers } from "./context-menu";
 import { WindowBroadcast } from "@/utils/window-broadcast";
 import { NavigationErrorHandler } from "./navigation-error-handler";
 import { userAnalytics } from "@/services/user-analytics";
+import { DEFAULT_USER_AGENT } from "../constants/user-agent";
 // File system imports removed - now handled in protocol-handler
 
 const logger = createLogger("TabManager");
@@ -144,6 +145,9 @@ export class TabManager extends EventEmitter {
         session: activeSession, // Use profile-specific session
       },
     });
+
+    // Set browser user agent
+    view.webContents.setUserAgent(DEFAULT_USER_AGENT);
 
     // Use opaque white background to fix speedlane rendering issues
     // Transparent backgrounds can cause visibility problems when multiple views overlap
@@ -467,6 +471,20 @@ export class TabManager extends EventEmitter {
   }
 
   /**
+   * Safely check if a view or its webContents is destroyed
+   */
+  private isViewDestroyed(view: WebContentsView | null): boolean {
+    if (!view) return true;
+    
+    try {
+      return view.webContents.isDestroyed();
+    } catch (error) {
+      // View itself was destroyed
+      return true;
+    }
+  }
+
+  /**
    * Creates a new tab with smart positioning
    */
   public createTab(url?: string, options?: { activate?: boolean }): string {
@@ -522,14 +540,21 @@ export class TabManager extends EventEmitter {
     // Track tab creation - only in main window (renderer)
     const mainWindows = this._browser
       .getAllWindows()
-      .filter(
-        (w: any) =>
-          w &&
-          w.webContents &&
-          !w.webContents.isDestroyed() &&
-          (w.webContents.getURL().includes("localhost:5173") ||
-            w.webContents.getURL().startsWith("file://")),
-      );
+      .filter((w: any) => {
+        try {
+          return (
+            w &&
+            !w.isDestroyed() &&
+            w.webContents &&
+            !w.webContents.isDestroyed() &&
+            (w.webContents.getURL().includes("localhost:5173") ||
+              w.webContents.getURL().startsWith("file://"))
+          );
+        } catch (error) {
+          // Window or webContents was destroyed between checks
+          return false;
+        }
+      });
 
     mainWindows.forEach((window: any) => {
       window.webContents
@@ -578,7 +603,7 @@ export class TabManager extends EventEmitter {
     // Clean up CDP resources before removing the view
     if (this.cdpManager) {
       const view = this.getBrowserView(tabKey);
-      if (view && view.webContents && !view.webContents.isDestroyed()) {
+      if (view && !this.isViewDestroyed(view)) {
         this.cdpManager.cleanup(view.webContents);
       }
     }
@@ -600,14 +625,21 @@ export class TabManager extends EventEmitter {
     // Track tab closure - only in main window (renderer)
     const mainWindows = this._browser
       .getAllWindows()
-      .filter(
-        (w: any) =>
-          w &&
-          w.webContents &&
-          !w.webContents.isDestroyed() &&
-          (w.webContents.getURL().includes("localhost:5173") ||
-            w.webContents.getURL().startsWith("file://")),
-      );
+      .filter((w: any) => {
+        try {
+          return (
+            w &&
+            !w.isDestroyed() &&
+            w.webContents &&
+            !w.webContents.isDestroyed() &&
+            (w.webContents.getURL().includes("localhost:5173") ||
+              w.webContents.getURL().startsWith("file://"))
+          );
+        } catch (error) {
+          // Window or webContents was destroyed between checks
+          return false;
+        }
+      });
 
     mainWindows.forEach((window: any) => {
       window.webContents
@@ -690,14 +722,21 @@ export class TabManager extends EventEmitter {
 
       const mainWindows = this._browser
         .getAllWindows()
-        .filter(
-          (w: any) =>
-            w &&
-            w.webContents &&
-            !w.webContents.isDestroyed() &&
-            (w.webContents.getURL().includes("localhost:5173") ||
-              w.webContents.getURL().startsWith("file://")),
-        );
+        .filter((w: any) => {
+          try {
+            return (
+              w &&
+              !w.isDestroyed() &&
+              w.webContents &&
+              !w.webContents.isDestroyed() &&
+              (w.webContents.getURL().includes("localhost:5173") ||
+                w.webContents.getURL().startsWith("file://"))
+            );
+          } catch (error) {
+            // Window or webContents was destroyed between checks
+            return false;
+          }
+        });
 
       mainWindows.forEach((window: any) => {
         window.webContents
@@ -728,7 +767,14 @@ export class TabManager extends EventEmitter {
     if (!tab || tab.asleep) return false;
 
     const view = this.getBrowserView(tabKey);
-    if (!view || view.webContents.isDestroyed()) return false;
+    if (!view) return false;
+    
+    try {
+      if (view.webContents.isDestroyed()) return false;
+    } catch (error) {
+      // View itself was destroyed
+      return false;
+    }
 
     const { webContents } = view;
     const changes: string[] = [];
@@ -777,7 +823,7 @@ export class TabManager extends EventEmitter {
     let newCanGoBack = false;
     try {
       newCanGoBack =
-        (!webContents.isDestroyed() &&
+        (!this.isViewDestroyed(view) &&
           webContents.navigationHistory?.canGoBack()) ||
         false;
     } catch (error) {
@@ -795,7 +841,7 @@ export class TabManager extends EventEmitter {
     let newCanGoForward = false;
     try {
       newCanGoForward =
-        (!webContents.isDestroyed() &&
+        (!this.isViewDestroyed(view) &&
           webContents.navigationHistory?.canGoForward()) ||
         false;
     } catch (error) {
@@ -875,7 +921,7 @@ export class TabManager extends EventEmitter {
 
     try {
       const view = this.getBrowserView(tabKey);
-      if (!view || view.webContents.isDestroyed()) {
+      if (this.isViewDestroyed(view)) {
         return false;
       }
 
@@ -932,7 +978,7 @@ export class TabManager extends EventEmitter {
 
     try {
       const view = this.getBrowserView(tabKey);
-      if (!view || view.webContents.isDestroyed()) return false;
+      if (this.isViewDestroyed(view)) return false;
 
       const webContents = view.webContents;
 
@@ -1095,7 +1141,7 @@ export class TabManager extends EventEmitter {
    */
   private emergencyWakeUp(tabKey: string): void {
     const view = this.getBrowserView(tabKey);
-    if (view && !view.webContents.isDestroyed()) {
+    if (view && !this.isViewDestroyed(view)) {
       logger.warn(`Emergency wake up for tab ${tabKey}, loading default page`);
       view.webContents.loadURL("https://www.google.com").catch(() => {
         view.webContents.loadURL("about:blank");
@@ -1110,7 +1156,7 @@ export class TabManager extends EventEmitter {
    */
   public async loadUrl(tabKey: string, url: string): Promise<boolean> {
     const view = this.getBrowserView(tabKey);
-    if (!view || view.webContents.isDestroyed()) return false;
+    if (this.isViewDestroyed(view)) return false;
 
     try {
       await view.webContents.loadURL(url);
@@ -1127,7 +1173,7 @@ export class TabManager extends EventEmitter {
 
   public goBack(tabKey: string): boolean {
     const view = this.getBrowserView(tabKey);
-    if (!view || view.webContents.isDestroyed()) return false;
+    if (this.isViewDestroyed(view)) return false;
 
     try {
       if (!view.webContents.navigationHistory?.canGoBack()) return false;
@@ -1141,7 +1187,7 @@ export class TabManager extends EventEmitter {
 
   public goForward(tabKey: string): boolean {
     const view = this.getBrowserView(tabKey);
-    if (!view || view.webContents.isDestroyed()) return false;
+    if (this.isViewDestroyed(view)) return false;
 
     try {
       if (!view.webContents.navigationHistory?.canGoForward()) return false;
@@ -1155,7 +1201,7 @@ export class TabManager extends EventEmitter {
 
   public refresh(tabKey: string): boolean {
     const view = this.getBrowserView(tabKey);
-    if (!view || view.webContents.isDestroyed()) return false;
+    if (this.isViewDestroyed(view)) return false;
 
     view.webContents.reload();
     return true;
@@ -1422,7 +1468,7 @@ export class TabManager extends EventEmitter {
 
     // Apply/remove visual indicator
     const view = this.getBrowserView(tabKey);
-    if (view && !view.webContents.isDestroyed()) {
+    if (view && !this.isViewDestroyed(view)) {
       if (isActive) {
         this.applyAgentTabBorder(view);
       } else {
@@ -1517,7 +1563,7 @@ export class TabManager extends EventEmitter {
     }
 
     const view = this.getBrowserView(tabKey);
-    if (!view || view.webContents.isDestroyed()) {
+    if (this.isViewDestroyed(view)) {
       return;
     }
 
@@ -1594,7 +1640,7 @@ export class TabManager extends EventEmitter {
         const tab = this.tabs.get(nextTabKey);
         if (tab && !tab.asleep && !tab.isAgentActive) {
           const view = this.getBrowserView(nextTabKey);
-          if (view && !view.webContents.isDestroyed()) {
+          if (view && !this.isViewDestroyed(view)) {
             const url = view.webContents.getURL();
             const title = view.webContents.getTitle();
 

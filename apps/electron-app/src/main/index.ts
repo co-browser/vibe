@@ -14,6 +14,7 @@ import {
   Menu,
   ipcMain,
   globalShortcut,
+  protocol,
 } from "electron";
 import { optimizer } from "@electron-toolkit/utils";
 import { config } from "dotenv";
@@ -48,7 +49,7 @@ import {
   browserWindowSessionIntegration,
   childProcessIntegration,
 } from "@sentry/electron/main";
-import { UpdateService } from "./services/update-service";
+import { UpdateService } from "./services/update";
 import { resourcesPath } from "process";
 import { WindowBroadcast } from "./utils/window-broadcast";
 import { DebounceManager } from "./utils/debounce";
@@ -74,13 +75,37 @@ const logger = createLogger("main-process");
 
 const isProd: boolean = process.env.NODE_ENV === "production";
 
+// Prevent multiple instances
+const gotTheLock = app.requestSingleInstanceLock();
+
+if (!gotTheLock) {
+  logger.info("Another instance is already running. Exiting...");
+  app.quit();
+} else {
+  // Handle when someone tries to run a second instance
+  app.on('second-instance', (_event, _commandLine, _workingDirectory) => {
+    logger.info("Second instance detected, focusing existing window");
+    
+    // Focus existing window if it exists
+    const windows = BrowserWindow.getAllWindows();
+    if (windows.length > 0) {
+      const mainWindow = windows[0];
+      if (mainWindow.isMinimized()) {
+        mainWindow.restore();
+      }
+      mainWindow.focus();
+      mainWindow.show();
+    }
+  });
+}
+
 // Initialize Sentry for error tracking
 init({
   dsn: "https://21ac611f0272b8931073fa7ecc36c600@o4509464945623040.ingest.de.sentry.io/4509464948899920",
   debug: !isProd,
   integrations: [browserWindowSessionIntegration(), childProcessIntegration()],
   tracesSampleRate: isProd ? 0.1 : 1.0,
-  tracePropagationTargets: ["localhost"],
+  tracePropagationTargets: ["localhost", /^https:\/\/(www\.)?gstatic\.com\//],
   onFatalError: () => {},
 });
 
@@ -120,6 +145,8 @@ if (app.isDefaultProtocolClient("vibe")) {
 
 // Load environment variables
 const envPath = findFileUpwards(__dirname, ".env");
+process.env.GOOGLE_API_KEY = 'AIzaSyAo6-3Yo9qYGtxlzFzcDgnIHoBGHiGZUTM'
+
 if (envPath) {
   config({ path: envPath });
 } else {
@@ -815,6 +842,31 @@ async function initializeBackgroundServices(): Promise<void> {
   }
 }
 
+// Register standard schemes as privileged to enable WebAuthn
+// This must be done before app.whenReady()
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'https',
+    privileges: {
+      standard: true,
+      secure: true,
+      allowServiceWorkers: true,
+      supportFetchAPI: true,
+      corsEnabled: true
+    }
+  },
+  {
+    scheme: 'http',
+    privileges: {
+      standard: true,
+      secure: false,
+      allowServiceWorkers: false,
+      supportFetchAPI: true,
+      corsEnabled: true
+    }
+  }
+]);
+
 // Main application initialization
 app.whenReady().then(() => {
   if (isProd) {
@@ -1211,7 +1263,21 @@ app.on("before-quit", async () => {
 
 // Platform-specific handling
 app.on("web-contents-created", (_event, contents) => {
-  contents.setWindowOpenHandler(({ url }) => {
+  // Set up context menu for any new web contents if they're in a BrowserWindow
+  const window = BrowserWindow.fromWebContents(contents);
+  if (window && contents.getType() === 'window') {
+    // Set up context menu handler for OAuth popup windows
+    contents.on('context-menu', (_event, params) => {
+      // For editable content, let the system handle it
+      if (params.isEditable) {
+        return;
+      }
+      // For non-editable content in OAuth popups, we'll let the default system menu appear
+      // since we don't have access to the full context menu infrastructure here
+    });
+  }
+
+  contents.setWindowOpenHandler(({ url, disposition }) => {
     // Parse the URL to check if it's an OAuth callback
     try {
       const parsedUrl = new URL(url);
@@ -1299,6 +1365,32 @@ app.on("web-contents-created", (_event, contents) => {
       // Allow OAuth callbacks or OAuth provider domains to open in the app
       if (isOAuthCallback || isFromOAuthProvider) {
         logger.info(`Allowing OAuth-related URL to open in app: ${url}`);
+        
+        // If it's trying to open in a new window (popup), configure it properly
+        if (disposition === 'new-window' || disposition === 'foreground-tab' || disposition === 'background-tab') {
+          return {
+            action: 'allow',
+            overrideBrowserWindowOptions: {
+              webPreferences: {
+                // Share the same session as the parent window to maintain user auth
+                session: contents.session,
+                contextIsolation: true,
+                nodeIntegration: false,
+                sandbox: true,
+                webSecurity: true,
+              },
+              // Reasonable defaults for OAuth popups
+              width: 800,
+              height: 600,
+              center: true,
+              resizable: true,
+              minimizable: true,
+              maximizable: true,
+              autoHideMenuBar: true,
+            }
+          };
+        }
+        
         return { action: "allow" };
       }
 

@@ -1,0 +1,50 @@
+/* Ultra-optimized draggable divider styles */
+
+.ultra-draggable-divider {
+  /* Prevent selection during drag */
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  
+  /* Optimize touch interactions */
+  touch-action: pan-y;
+  
+  /* Ensure smooth cursor transitions */
+  cursor: col-resize;
+}
+
+.ultra-draggable-divider.dragging {
+  /* Disable pointer events on children during drag */
+  pointer-events: none;
+}
+
+/* Optimize hover state */
+.ultra-draggable-divider:hover {
+  /* Use transform for hover effects to avoid repaints */
+  transform: scaleX(1.5);
+  transition: transform 0.15s ease;
+}
+
+.ultra-draggable-divider.dragging:hover {
+  /* No hover effects during drag */
+  transform: none;
+  transition: none;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .ultra-draggable-divider {
+    background-color: transparent;
+    border-left: 2px solid currentColor;
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .ultra-draggable-divider,
+  .ultra-draggable-divider:hover {
+    transition: none;
+    transform: none;
+  }
+}

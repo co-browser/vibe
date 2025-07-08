@@ -9,10 +9,11 @@
  * - Memory-conscious resource management
  */
 
-import { WebContentsView, BrowserWindow, ipcMain } from "electron";
+import { WebContentsView, BrowserWindow, ipcMain, MessageChannelMain } from "electron";
 import * as path from "path";
 import { createLogger } from "@vibe/shared-types";
 import { EventEmitter } from "events";
+import { DEFAULT_USER_AGENT } from "../constants/user-agent";
 
 const logger = createLogger("OverlayManager");
 
@@ -51,6 +52,7 @@ export class OverlayManager extends EventEmitter {
   private readonly options: Required<OverlayOptions>;
   private currentContent: OverlayContent | null = null;
   private currentPriority: "low" | "normal" | "high" | "critical" = "normal";
+  private isMessagePortSetup: boolean = false;
 
   constructor(window: BrowserWindow, options: OverlayOptions = {}) {
     super();
@@ -99,6 +101,9 @@ export class OverlayManager extends EventEmitter {
       },
     });
 
+    // Set browser user agent
+    this.overlayView.webContents.setUserAgent(DEFAULT_USER_AGENT);
+
     // Set transparent background
     this.overlayView.setBackgroundColor("#00000000");
 
@@ -110,12 +115,13 @@ export class OverlayManager extends EventEmitter {
         <title>Overlay</title>
         <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline'; script-src 'self'; style-src 'self' 'unsafe-inline';">
         <style>
-          body { 
+          html, body { 
             margin: 0; 
             padding: 0; 
             overflow: hidden; 
-            background: theme('colors.transparent');
+            background: transparent !important;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            pointer-events: none !important;
           }
           #vibe-overlay-container { 
             position: fixed; 
@@ -123,19 +129,30 @@ export class OverlayManager extends EventEmitter {
             left: 0; 
             width: 100vw; 
             height: 100vh; 
-            pointer-events: none; 
+            pointer-events: none !important; 
             z-index: 2147483647; 
+            display: none;
+            visibility: hidden;
+            opacity: 0;
+            background: transparent;
+          }
+          #vibe-overlay-container.active {
             display: block;
             visibility: visible;
             opacity: 1;
           }
-          .vibe-overlay-interactive { pointer-events: auto; }
+          .vibe-overlay-interactive { 
+            pointer-events: auto !important;
+            position: relative;
+            background: rgba(248, 249, 251, 0.85);
+            backdrop-filter: blur(12px);
+          }
           .vibe-overlay-error {
             position: fixed;
             top: 10px;
             right: 10px;
-            background: theme('colors.red.500');
-            color: theme('colors.white');
+            background: #ef4444;
+            color: white;
             padding: 8px 12px;
             border-radius: 4px;
             font-size: 12px;
@@ -152,8 +169,47 @@ export class OverlayManager extends EventEmitter {
           (function() {
             'use strict';
             
-            // Report health status
-            if (window.electronAPI && window.electronAPI.overlay) {
+            // MessagePort for direct communication with main window
+            let messagePort = null;
+            
+            // Listen for MessagePort from main process
+            window.addEventListener('message', function(event) {
+              if (event.data && event.data === 'overlay-port' && event.ports && event.ports[0]) {
+                messagePort = event.ports[0];
+                messagePort.start();
+                
+                // Report health status via MessagePort if available
+                if (messagePort) {
+                  messagePort.postMessage({ 
+                    type: 'overlay:health-check',
+                    data: { status: 'ready', timestamp: Date.now() }
+                  });
+                }
+                
+                console.log('MessagePort established for overlay');
+              }
+            });
+            
+            // Fallback to IPC if MessagePort not available
+            function sendMessage(channel, data) {
+              console.log('🔥 OVERLAY: sendMessage called with channel:', channel, 'data:', data);
+              if (messagePort) {
+                // Use MessagePort for ultra-low latency
+                console.log('🔥 OVERLAY: Using MessagePort to send message');
+                messagePort.postMessage({ type: channel, data: data });
+              } else if (window.electronAPI && window.electronAPI.overlay) {
+                // Fallback to IPC
+                console.log('🔥 OVERLAY: Using IPC to send message');
+                window.electronAPI.overlay.send(channel, data);
+              } else {
+                console.error('🔥 OVERLAY: No communication channel available');
+                console.log('🔥 OVERLAY: window.electronAPI:', window.electronAPI);
+                console.log('🔥 OVERLAY: window.electronAPI.overlay:', window.electronAPI?.overlay);
+              }
+            }
+            
+            // Report health status via IPC fallback
+            if (!messagePort && window.electronAPI && window.electronAPI.overlay) {
               window.electronAPI.overlay.send('overlay:health-check', { 
                 status: 'ready',
                 timestamp: Date.now()
@@ -163,53 +219,89 @@ export class OverlayManager extends EventEmitter {
             // Safe event delegation with error handling
             function safeEventHandling() {
               try {
+                console.log('🔥 Setting up overlay event handlers');
+                
                 // Click debouncing for better performance
                 let lastClickTime = 0;
                 const CLICK_DEBOUNCE_MS = 100;
                 
-                // Click handling with debouncing
+                // Click handling with selective capturing only within dropdown bounds
                 document.addEventListener('click', function(e) {
                   try {
+                    console.log('🔥 OVERLAY CLICK DETECTED!', e.target);
+                    console.log('🔥 Target class:', e.target.className);
+                    console.log('🔥 Target dataset:', e.target.dataset);
+                    console.log('🔥 Target tagName:', e.target.tagName);
+                    
+                    const target = e.target;
+                    
+                    // Only handle clicks within interactive elements (dropdown content)
+                    const interactiveElement = target.closest('.vibe-overlay-interactive');
+                    if (!interactiveElement) {
+                      console.log('🔥 Click outside interactive area, ignoring');
+                      return; // Let the click pass through to underlying elements
+                    }
+                    
                     const now = Date.now();
                     if (now - lastClickTime < CLICK_DEBOUNCE_MS) {
                       e.preventDefault();
                       e.stopPropagation();
+                      console.log('🔥 Click debounced, ignoring');
                       return;
                     }
                     lastClickTime = now;
                     
-                    const target = e.target;
+                    console.log('🔥 Processing click within interactive area:', target, target.className);
+                    
+                    // Only prevent default and stop propagation for clicks within dropdown
+                    e.preventDefault();
+                    e.stopPropagation();
                     
                     // Handle delete button clicks with improved targeting
                     const deleteButton = target.closest('[data-delete-id]') || (target.dataset && target.dataset.deleteId ? target : null);
                     if (deleteButton && deleteButton.dataset && deleteButton.dataset.deleteId) {
                       e.preventDefault();
                       e.stopPropagation();
-                      // Delete button clicked - handled via IPC
-                      if (window.electronAPI && window.electronAPI.overlay) {
-                        // Immediately provide visual feedback
-                        deleteButton.style.color = theme('colors.red.500');
-                        deleteButton.style.transform = 'scale(1.2)';
-                        
-                        window.electronAPI.overlay.send('omnibox:delete-history', deleteButton.dataset.deleteId);
-                      }
+                      // Delete button clicked - use MessagePort or IPC
+                      // Immediately provide visual feedback
+                      deleteButton.style.color = '#ef4444';
+                      deleteButton.style.transform = 'scale(1.2)';
+                      
+                      sendMessage('omnibox:delete-history', deleteButton.dataset.deleteId);
                       return;
                     }
                     
-                    // Handle suggestion clicks
-                    if (target && target.dataset && target.dataset.suggestionId) {
-                      if (window.electronAPI && window.electronAPI.overlay) {
-                        // Immediately provide visual feedback
-                        target.style.backgroundColor = theme('colors.blue.200');
-                        
-                        window.electronAPI.overlay.send('omnibox:suggestion-clicked', {
-                          id: target.dataset.suggestionId,
-                          index: parseInt(target.dataset.suggestionIndex) || 0,
-                          type: target.dataset.suggestionType,
-                          url: target.dataset.suggestionUrl,
-                          text: target.dataset.suggestionText
-                        });
+                    // Handle suggestion clicks - use closest to handle clicks on child elements
+                    const suggestionItem = target.closest('[data-suggestion-id]');
+                    console.log('🔥 Suggestion item found:', suggestionItem);
+                    console.log('🔥 Suggestion item dataset:', suggestionItem?.dataset);
+                    
+                    if (suggestionItem && suggestionItem.dataset && suggestionItem.dataset.suggestionId) {
+                      console.log('🔥 SENDING SUGGESTION CLICK:', suggestionItem.dataset);
+                      // Immediately provide visual feedback
+                      suggestionItem.style.backgroundColor = 'rgba(59, 130, 246, 0.2)';
+                      
+                      // Try to get the full suggestion data first
+                      let suggestionData;
+                      try {
+                        if (suggestionItem.dataset.suggestionData) {
+                          suggestionData = JSON.parse(suggestionItem.dataset.suggestionData);
+                        }
+                      } catch (error) {
+                        console.warn('Failed to parse suggestion data, using fallback:', error);
                       }
+                      
+                      // Use complete data if available, otherwise fallback to basic data
+                      const clickData = suggestionData || {
+                        id: suggestionItem.dataset.suggestionId,
+                        index: parseInt(suggestionItem.dataset.suggestionIndex) || 0,
+                        type: suggestionItem.dataset.suggestionType,
+                        url: suggestionItem.dataset.suggestionUrl,
+                        text: suggestionItem.dataset.suggestionText,
+                        description: suggestionItem.dataset.suggestionDescription
+                      };
+                      
+                      sendMessage('omnibox:suggestion-clicked', clickData);
                     }
                   } catch (error) {
                     reportError('click-handler', error);
@@ -220,9 +312,7 @@ export class OverlayManager extends EventEmitter {
                 document.addEventListener('keydown', function(e) {
                   try {
                     if (e.key === 'Escape') {
-                      if (window.electronAPI && window.electronAPI.overlay) {
-                        window.electronAPI.overlay.send('omnibox:escape-dropdown');
-                      }
+                      sendMessage('omnibox:escape-dropdown', null);
                     }
                   } catch (error) {
                     reportError('keyboard-handler', error);
@@ -249,17 +339,26 @@ export class OverlayManager extends EventEmitter {
               }
               
               // Send to main process
-              if (window.electronAPI && window.electronAPI.overlay) {
-                window.electronAPI.overlay.send('overlay:error', { 
-                  type: type, 
-                  error: error.message || error.toString(),
-                  timestamp: Date.now()
-                });
-              }
+              sendMessage('overlay:error', { 
+                type: type, 
+                error: error.message || error.toString(),
+                timestamp: Date.now()
+              });
             }
             
             // Initialize safe event handling
             safeEventHandling();
+            
+            console.log('🔥 Overlay script initialized, DOM ready state:', document.readyState);
+            
+            // Test overlay functionality
+            setTimeout(() => {
+              console.log('🔥 Overlay container found:', !!document.getElementById('vibe-overlay-container'));
+              const container = document.getElementById('vibe-overlay-container');
+              if (container) {
+                console.log('🔥 Container innerHTML length:', container.innerHTML.length);
+              }
+            }, 100);
             
           })();
         </script>
@@ -272,16 +371,25 @@ export class OverlayManager extends EventEmitter {
       `data:text/html,${encodeURIComponent(safeHtml)}`,
     );
 
-    // Set initial bounds to cover entire window
+    // Set initial bounds to cover entire window but positioned off-screen initially
     const { width, height } = this.window.getContentBounds();
     this.overlayView.setBounds({ x: 0, y: 0, width, height });
+    
+    // Set transparent background and proper pointer events
+    this.overlayView.setBackgroundColor('#00000000'); // Fully transparent
 
     // Add to window
     this.window.contentView.addChildView(this.overlayView);
 
-    // Initially hide overlay
+    // Initially hide overlay completely
     this.overlayView.setVisible(false);
     this.isVisible = false;
+    
+    // Ensure overlay starts with proper pointer events disabled
+    await this.overlayView.webContents.executeJavaScript(`
+      document.documentElement.style.pointerEvents = 'none';
+      document.body.style.pointerEvents = 'none';
+    `);
 
     // Forward IPC messages from overlay to main window
     this.setupOverlayIpcForwarding();
@@ -303,29 +411,59 @@ export class OverlayManager extends EventEmitter {
   }
 
   /**
+   * Setup MessagePort for direct communication between overlay and main window
+   * This provides ultra-low latency communication without going through the main process
+   */
+  public setupMessagePort(): void {
+    if (!this.overlayView || this.isMessagePortSetup) return;
+
+    logger.info("Setting up MessagePort for direct overlay communication");
+
+    try {
+      // Create a MessageChannel for direct communication
+      const { port1, port2 } = new MessageChannelMain();
+      
+      // Send port1 to the main window
+      this.window.webContents.postMessage('overlay-port', { type: 'main' }, [port1]);
+      
+      // Send port2 to the overlay
+      this.overlayView.webContents.postMessage('overlay-port', { type: 'overlay' }, [port2]);
+      
+      this.isMessagePortSetup = true;
+      logger.info("MessagePort setup complete for direct overlay communication");
+    } catch (error) {
+      logger.error("Failed to setup MessagePort:", error);
+      // Fallback to IPC if MessagePort fails
+      this.setupOverlayIpcForwarding();
+    }
+  }
+
+  /**
    * Setup IPC forwarding from overlay to main window
    */
   private setupOverlayIpcForwarding(): void {
     if (!this.overlayView) return;
 
+    logger.info("🔥 MAIN: Setting up overlay IPC forwarding");
+
     // Forward omnibox events from overlay to main window
     this.overlayView.webContents.ipc.on(
       "omnibox:suggestion-clicked",
       (_event, suggestion) => {
-        logger.debug("Forwarding suggestion click from overlay:", suggestion);
+        logger.info("🔥 MAIN: Forwarding suggestion click from overlay:", suggestion);
         this.window.webContents.send("omnibox:suggestion-clicked", suggestion);
       },
     );
 
     this.overlayView.webContents.ipc.on("omnibox:escape-dropdown", () => {
-      logger.debug("Forwarding escape dropdown from overlay");
+      logger.info("🔥 MAIN: Forwarding escape dropdown from overlay");
       this.window.webContents.send("omnibox:escape-dropdown");
     });
 
     this.overlayView.webContents.ipc.on(
       "omnibox:delete-history",
       (_event, suggestionId) => {
-        logger.debug("Forwarding delete history from overlay:", suggestionId);
+        logger.info("🔥 MAIN: Forwarding delete history from overlay:", suggestionId);
         this.window.webContents.send("omnibox:delete-history", suggestionId);
       },
     );
@@ -333,14 +471,14 @@ export class OverlayManager extends EventEmitter {
     this.overlayView.webContents.ipc.on(
       "omnibox:navigate-and-close",
       (_event, url) => {
-        logger.debug("Navigating and closing overlay:", url);
+        logger.info("🔥 MAIN: Navigating and closing overlay:", url);
         this.window.webContents.send("omnibox:navigate-and-close", url);
       },
     );
 
     // Add error reporting from overlay
     this.overlayView.webContents.ipc.on("overlay:error", (_event, error) => {
-      logger.error("Overlay error reported:", error);
+      logger.error("🔥 MAIN: Overlay error reported:", error);
       this.emit("overlay-error", error);
     });
 
@@ -348,10 +486,13 @@ export class OverlayManager extends EventEmitter {
     this.overlayView.webContents.ipc.on(
       "overlay:health-check",
       (_event, status) => {
-        logger.debug("Overlay health check:", status);
+        logger.info("🔥 MAIN: Overlay health check:", status);
         this.emit("overlay-health", status);
       },
     );
+
+    // Add debugging: Log when overlay IPC forwarding is set up
+    logger.info("🔥 MAIN: Overlay IPC forwarding setup complete");
   }
 
   /**
@@ -593,37 +734,59 @@ export class OverlayManager extends EventEmitter {
     if (this.isVisible !== shouldShow) {
       if (shouldShow) {
         // Show overlay and ensure it's on top
+        logger.debug(`Showing overlay - was visible: ${this.isVisible}`);
         this.bringToFront();
         this.overlayView.setVisible(true);
         this.isVisible = true;
 
-        // Also make the content visible via JavaScript
+        // Enable pointer events only for interactive content and make visible
         await this.overlayView.webContents.executeJavaScript(`
           (function() {
             const container = document.getElementById('vibe-overlay-container');
             if (container) {
+              container.classList.add('active');
               container.style.display = 'block';
               container.style.visibility = 'visible';
               container.style.opacity = '1';
+              
+              // Enable pointer events only for the container, not the whole document
+              container.style.pointerEvents = 'none';
+              
+              // Interactive elements will have pointer-events: auto from CSS
+              console.log('🔥 Overlay container activated');
             }
           })();
         `);
       } else {
-        // Hide overlay
-        this.overlayView.setVisible(false);
-        this.isVisible = false;
-
-        // Also hide the content via JavaScript
+        // Hide overlay completely
+        logger.debug(`Hiding overlay - was visible: ${this.isVisible}, priority was: ${this.currentPriority}`);
+        
+        // First disable pointer events via JavaScript
         await this.overlayView.webContents.executeJavaScript(`
           (function() {
             const container = document.getElementById('vibe-overlay-container');
             if (container) {
+              container.classList.remove('active');
               container.style.display = 'none';
               container.style.visibility = 'hidden';
               container.style.opacity = '0';
+              container.style.pointerEvents = 'none';
+              
+              // Disable pointer events for the entire document
+              document.documentElement.style.pointerEvents = 'none';
+              document.body.style.pointerEvents = 'none';
+              
+              console.log('🔥 Overlay container deactivated');
             }
           })();
         `);
+        
+        // Then hide the WebContentsView
+        this.overlayView.setVisible(false);
+        this.isVisible = false;
+        
+        // Reset priority when hiding so the same content can be shown again
+        this.currentPriority = "normal";
       }
       this.emit("visibility-changed", shouldShow);
     }
@@ -643,7 +806,8 @@ export class OverlayManager extends EventEmitter {
     const priorityOrder = { low: 0, normal: 1, high: 2, critical: 3 };
 
     // Check if this content should override current content
-    if (priorityOrder[contentPriority] < priorityOrder[this.currentPriority]) {
+    // Always allow rendering if overlay is not visible (to fix re-showing issue)
+    if (this.isVisible && priorityOrder[contentPriority] < priorityOrder[this.currentPriority]) {
       logger.debug(
         `Ignoring overlay content with lower priority: ${contentPriority} < ${this.currentPriority} (type: ${contentType})`,
       );
@@ -651,7 +815,7 @@ export class OverlayManager extends EventEmitter {
     }
 
     logger.debug(
-      `Rendering overlay content: priority=${contentPriority}, type=${contentType}`,
+      `Rendering overlay content: priority=${contentPriority}, type=${contentType}, isVisible=${this.isVisible}, currentPriority=${this.currentPriority}`,
     );
 
     // Skip cache for critical content (autocomplete) - it changes too frequently
@@ -678,15 +842,46 @@ export class OverlayManager extends EventEmitter {
         await this.overlayView.webContents.executeJavaScript(`
           (function() {
             try {
+              console.log('🔥 UPDATING OVERLAY HTML CONTENT');
               const container = document.getElementById('vibe-overlay-container');
               if (container) {
                 container.innerHTML = ${JSON.stringify(content.html)};
+                // Ensure container is visible when content is rendered
+                container.style.display = 'block';
+                container.style.visibility = 'visible';
+                container.style.opacity = '1';
+                
+                console.log('🔥 HTML updated, container innerHTML length:', container.innerHTML.length);
+                console.log('🔥 Suggestion items found:', container.querySelectorAll('.suggestion-item').length);
+                
+                // Add click test
+                const items = container.querySelectorAll('.suggestion-item');
+                console.log('🔥 Found', items.length, 'suggestion items');
+                items.forEach((item, index) => {
+                  console.log('🔥 Item', index, ':', item.dataset.suggestionId, item.dataset.suggestionText);
+                });
+                
+                // Manually set up click listeners for each item as a test
+                items.forEach((item, index) => {
+                  item.addEventListener('click', function(e) {
+                    console.log('🔥 DIRECT CLICK HANDLER:', index, item.dataset.suggestionId);
+                    e.preventDefault();
+                    e.stopPropagation();
+                  });
+                });
+              } else {
+                console.log('🔥 ERROR: Container not found!');
               }
             } catch (error) {
-              // Overlay HTML update error - handled internally
+              console.log('🔥 ERROR updating HTML:', error);
             }
           })();
         `);
+        
+        // Setup MessagePort for this content if not already setup
+        if (!this.isMessagePortSetup) {
+          this.setupMessagePort();
+        }
       }
 
       // Update CSS content safely
@@ -1030,11 +1225,47 @@ export class OverlayManager extends EventEmitter {
     // Update bounds to match window
     this.updateBounds();
 
-    // Ensure visibility
-    this.overlayView.setVisible(true);
-    this.isVisible = true;
-
-    logger.debug("Overlay brought to front and made visible");
+    // Don't automatically set visible here - let the visibility command handle it
+    logger.debug("Overlay brought to front");
+  }
+  
+  /**
+   * Completely hide overlay and disable all pointer events
+   */
+  public async hideCompletely(): Promise<void> {
+    if (!this.overlayView) return;
+    
+    // First disable all pointer events
+    try {
+      await this.overlayView.webContents.executeJavaScript(`
+        (function() {
+          // Disable pointer events for entire document
+          document.documentElement.style.pointerEvents = 'none';
+          document.body.style.pointerEvents = 'none';
+          
+          // Hide container
+          const container = document.getElementById('vibe-overlay-container');
+          if (container) {
+            container.classList.remove('active');
+            container.style.display = 'none';
+            container.style.visibility = 'hidden';
+            container.style.opacity = '0';
+            container.style.pointerEvents = 'none';
+          }
+          
+          console.log('🔥 Overlay completely hidden');
+        })();
+      `);
+    } catch (error) {
+      logger.error('Failed to disable overlay pointer events:', error);
+    }
+    
+    // Then hide the WebContentsView
+    this.overlayView.setVisible(false);
+    this.isVisible = false;
+    this.currentPriority = "normal";
+    
+    logger.debug("Overlay completely hidden and deactivated");
   }
 
   /**

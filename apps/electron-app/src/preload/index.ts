@@ -753,6 +753,11 @@ const overlayAPI = {
     ipcRenderer.invoke("overlay:execute", script),
   // Enhanced methods
   getState: async () => ipcRenderer.invoke("overlay:getState"),
+  // Send method for overlay-to-main communication
+  send: (channel: string, data: any) => {
+    logger.debug(`[OverlayAPI] Sending IPC message: ${channel}`, data);
+    ipcRenderer.send(channel, data);
+  },
 };
 
 const downloadsAPI = {
@@ -915,6 +920,13 @@ if (process.contextIsolated) {
   try {
     contextBridge.exposeInMainWorld("vibe", vibeAPI);
     contextBridge.exposeInMainWorld("vibeOverlay", overlayAPI);
+    contextBridge.exposeInMainWorld("electronAPI", {
+      overlay: {
+        send: (channel: string, ...args: any[]) => {
+          ipcRenderer.send(channel, ...args);
+        }
+      }
+    });
     contextBridge.exposeInMainWorld("electron", {
       ...electronAPI,
       platform: process.platform,

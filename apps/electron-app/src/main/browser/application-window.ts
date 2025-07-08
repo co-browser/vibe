@@ -10,6 +10,7 @@ import { TabManager } from "./tab-manager";
 import { ViewManager } from "./view-manager";
 import { DialogManager } from "./dialog-manager";
 import { createLogger } from "@vibe/shared-types";
+import { DEFAULT_USER_AGENT } from "../constants/user-agent";
 
 const logger = createLogger("ApplicationWindow");
 import type { CDPManager } from "../services/cdp-service";
@@ -37,6 +38,9 @@ export class ApplicationWindow extends EventEmitter {
 
     // Create window with options
     this.window = new BrowserWindow(options || this.getDefaultOptions());
+
+    // Set browser user agent for the main window
+    this.window.webContents.setUserAgent(DEFAULT_USER_AGENT);
 
     this.window.webContents.on(
       "select-bluetooth-device",
@@ -168,8 +172,16 @@ export class ApplicationWindow extends EventEmitter {
       this.destroy();
     });
 
+    // Debounce resize events for better performance
+    let resizeTimeout: NodeJS.Timeout | null = null;
     this.window.on("resize", () => {
-      this.viewManager.updateBounds();
+      if (resizeTimeout) {
+        clearTimeout(resizeTimeout);
+      }
+      resizeTimeout = setTimeout(() => {
+        this.viewManager.updateBounds();
+        resizeTimeout = null;
+      }, 16); // ~60fps throttling
     });
 
     // Set up context menu handler for the main window

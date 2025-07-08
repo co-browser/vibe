@@ -18,6 +18,8 @@ import {
   type GmailTokens,
 } from "@vibe/shared-types";
 import type { ViewManagerState } from "../browser/view-manager";
+import { DEFAULT_USER_AGENT } from "../constants/user-agent";
+import { setupContextMenuHandlers } from "../browser/context-menu";
 
 const logger = createLogger("GmailService");
 
@@ -229,6 +231,8 @@ export class GmailOAuthService {
         allowRunningInsecureContent: false,
         // Use the default session partition to share cookies/auth with other tabs
         partition: undefined, // Uses default session, same as regular tabs
+        // Share the same session with main tabs to maintain user session
+        session: viewManager.mainWindow.webContents.session,
         // Allow navigation to OAuth URLs
         navigateOnDragDrop: false,
         // Disable features not needed for OAuth
@@ -237,9 +241,15 @@ export class GmailOAuthService {
       },
     });
 
+    // Spoof the User-Agent to appear as a regular browser
+    view.webContents.setUserAgent(DEFAULT_USER_AGENT);
+
     // Add to ViewManager
     viewManager.browserViews.set(GMAIL_CONFIG.OAUTH_TAB_KEY, view);
     viewManager.mainWindow.contentView.addChildView(view);
+
+    // Set up context menu handlers for OAuth view
+    setupContextMenuHandlers(view);
 
     // Set initial bounds
     const [width, height] = viewManager.mainWindow.getContentSize();

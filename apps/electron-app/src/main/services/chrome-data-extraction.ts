@@ -59,10 +59,15 @@ export class ChromeDataExtractionService {
       const localStatePath = path.join(chromeConfigPath, "Local State");
 
       if (fsSync.existsSync(localStatePath)) {
-        const localState = JSON.parse(
-          fsSync.readFileSync(localStatePath, "utf8"),
-        );
-        const profilesInfo = localState.profile?.info_cache || {};
+        let profilesInfo = {};
+        try {
+          const localStateContent = fsSync.readFileSync(localStatePath, "utf8");
+          const localState = JSON.parse(localStateContent);
+          profilesInfo = localState.profile?.info_cache || {};
+        } catch (parseError) {
+          logger.warn("Failed to parse Chrome Local State file", parseError);
+          // Continue with empty profiles info
+        }
 
         for (const [profileDir, info] of Object.entries(profilesInfo as any)) {
           const profilePath = path.join(chromeConfigPath, profileDir);
@@ -151,9 +156,17 @@ export class ChromeDataExtractionService {
         return { success: false, error: "Bookmarks file not found" };
       }
 
-      const bookmarksData = JSON.parse(
-        fsSync.readFileSync(bookmarksPath, "utf8"),
-      );
+      let bookmarksData;
+      try {
+        const bookmarksContent = fsSync.readFileSync(bookmarksPath, "utf8");
+        bookmarksData = JSON.parse(bookmarksContent);
+      } catch (parseError) {
+        logger.error("Failed to parse Chrome bookmarks file", parseError);
+        return {
+          success: false,
+          error: "Failed to parse bookmarks file",
+        };
+      }
       const bookmarks = this.parseBookmarksRecursive(bookmarksData.roots);
 
       onProgress?.(1.0, "Bookmarks extraction complete");
@@ -481,9 +494,14 @@ export class ChromeDataExtractionService {
           return null;
         }
 
-        const localState = JSON.parse(
-          fsSync.readFileSync(localStatePath, "utf8"),
-        );
+        let localState;
+        try {
+          const localStateContent = fsSync.readFileSync(localStatePath, "utf8");
+          localState = JSON.parse(localStateContent);
+        } catch (parseError) {
+          logger.error("Failed to parse Chrome Local State file for encryption key", parseError);
+          return null;
+        }
         const encryptedKey = localState.os_crypt?.encrypted_key;
 
         if (!encryptedKey) {

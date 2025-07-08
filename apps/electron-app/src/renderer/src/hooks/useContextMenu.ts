@@ -58,6 +58,14 @@ export function useContextMenu(): UseContextMenuReturn {
       event.stopPropagation();
 
       try {
+        logger.debug("Context menu triggered", {
+          hasVibe: !!window.vibe,
+          hasActions: !!window.vibe?.actions,
+          hasShowContextMenu: !!window.vibe?.actions?.showContextMenu,
+          items,
+          coordinates: { x: event.clientX, y: event.clientY }
+        });
+        
         if (window.vibe?.actions?.showContextMenu) {
           // Pass the click coordinates to the main process
           const coordinates = {
@@ -65,6 +73,11 @@ export function useContextMenu(): UseContextMenuReturn {
             y: event.clientY,
           };
           await window.vibe.actions.showContextMenu(items, coordinates);
+        } else {
+          logger.error("showContextMenu not available", {
+            vibe: window.vibe,
+            actions: window.vibe?.actions
+          });
         }
       } catch (error) {
         logger.error("Failed to show context menu:", error);

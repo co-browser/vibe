@@ -3,6 +3,7 @@ import { WindowBroadcast } from "@/utils/window-broadcast";
 import { browser } from "@/index";
 import { createLogger } from "@vibe/shared-types";
 import { userAnalytics } from "@/services/user-analytics";
+import { mainProcessPerformanceMonitor } from "@/utils/performanceMonitor";
 
 const logger = createLogger("ChatPanelIPC");
 
@@ -38,12 +39,12 @@ ipcMain.handle("interface:get-chat-panel-state", async event => {
   return appWindow.viewManager.getChatPanelState();
 });
 
+// Ultra-optimized chat panel width updates - direct pass-through
+// The renderer already handles debouncing/throttling
 ipcMain.on("interface:set-chat-panel-width", (event, widthInPixels: number) => {
-  logger.info(`Setting chat panel width to ${widthInPixels}px`);
-
-  // Update the ViewManager with the new chat panel width
   const appWindow = browser?.getApplicationWindow(event.sender.id);
   if (appWindow) {
+    // Direct pass-through - ViewManager already optimizes the update
     appWindow.viewManager.setChatPanelWidth(widthInPixels);
   }
 });
@@ -132,4 +133,14 @@ ipcMain.on("omnibox:escape-dropdown", event => {
 ipcMain.on("omnibox:delete-history", (_event, suggestionId) => {
   // Broadcast history deletion to all windows for sync
   WindowBroadcast.broadcastToAll("omnibox:delete-history", suggestionId);
+});
+
+// Performance monitoring endpoint
+ipcMain.handle("performance:get-main-process-metrics", async () => {
+  return mainProcessPerformanceMonitor.getMetrics();
+});
+
+ipcMain.handle("performance:log-main-process-summary", async () => {
+  mainProcessPerformanceMonitor.logSummary();
+  return { success: true };
 });

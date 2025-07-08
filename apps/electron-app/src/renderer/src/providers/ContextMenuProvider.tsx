@@ -23,7 +23,7 @@ export function ContextMenuProvider({ children }: ContextMenuProviderProps) {
 
     switch (actionId) {
       case "new-tab":
-        window.electron?.tabs?.create?.("https://www.google.com");
+        window.vibe?.tabs?.create?.("https://www.google.com");
         break;
       case "duplicate-tab":
         if (data?.tabKey) {
@@ -33,7 +33,7 @@ export function ContextMenuProvider({ children }: ContextMenuProviderProps) {
         break;
       case "close-tab":
         if (data?.tabKey) {
-          window.electron?.tabs?.close?.(data.tabKey);
+          window.vibe?.tabs?.close?.(data.tabKey);
         }
         break;
       case "close-other-tabs":
@@ -68,17 +68,17 @@ export function ContextMenuProvider({ children }: ContextMenuProviderProps) {
 
     switch (actionId) {
       case "nav-back":
-        window.electron?.page?.goBack?.();
+        window.vibe?.page?.goBack?.();
         break;
       case "nav-forward":
-        window.electron?.page?.goForward?.();
+        window.vibe?.page?.goForward?.();
         break;
       case "nav-reload":
-        window.electron?.page?.reload?.();
+        window.vibe?.page?.reload?.();
         break;
       case "copy-url":
         if (data?.url) {
-          window.electron?.app?.writeToClipboard?.(data.url);
+          window.vibe?.app?.writeToClipboard?.(data.url);
         }
         break;
       default:
@@ -99,12 +99,12 @@ export function ContextMenuProvider({ children }: ContextMenuProviderProps) {
         break;
       case "copy-message":
         if (data?.message) {
-          window.electron?.app?.writeToClipboard?.(data.message);
+          window.vibe?.app?.writeToClipboard?.(data.message);
         }
         break;
       case "copy-code":
         if (data?.code) {
-          window.electron?.app?.writeToClipboard?.(data.code);
+          window.vibe?.app?.writeToClipboard?.(data.code);
         }
         break;
       case "regenerate":
@@ -161,6 +161,8 @@ export function ContextMenuProvider({ children }: ContextMenuProviderProps) {
           handleContextMenuAction,
         );
       };
+    } else {
+      logger.warn("IPC renderer not available for context menu events");
     }
 
     return () => {
