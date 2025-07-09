@@ -4,7 +4,7 @@
   <img alt="Vibe Browser" src="./static/vibe-dark.png" width="100%">
 </picture>
 
-<h1 align="center">Vibe Browser – Interactive AI-Powered Browsing</h1>
+<h1 align="center">The Interactive Browser.</h1>
 
 <div align="center">
 
