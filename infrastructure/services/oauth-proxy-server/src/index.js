@@ -7,6 +7,7 @@ import { corsMiddleware } from './middleware/cors.js';
 import { createRateLimiter } from './middleware/rateLimit.js';
 import { requestLogger } from './middleware/logging.js';
 import authRoutes from './routes/auth-simple.js';
+import logger from './utils/logger.js';
 
 // Load environment variables
 dotenv.config();
@@ -92,9 +93,11 @@ app.get('/', (req, res) => {
 // Error handling middleware
 app.use((err, req, res, next) => {
   // Log error details server-side only
-  console.error('Error:', {
+  logger.error('Request error', {
     message: err.message,
     status: err.status,
+    path: req.path,
+    method: req.method,
     // Only log stack trace in development
     ...(process.env.NODE_ENV !== 'production' && { stack: err.stack })
   });
@@ -115,6 +118,8 @@ app.use((req, res) => {
 
 // Start server
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`OAuth proxy server running on port ${PORT}`);
-  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  logger.info('OAuth proxy server started', {
+    port: PORT,
+    environment: process.env.NODE_ENV || 'development'
+  });
 });

@@ -1,6 +1,7 @@
 import express from 'express';
 import crypto from 'crypto';
 import { OAuthManager } from '../utils/oauth.js';
+import logger from '../utils/logger.js';
 
 const router = express.Router();
 
@@ -41,7 +42,10 @@ router.get('/gmail/authorize', async (req, res) => {
     // Redirect directly to Google OAuth
     res.redirect(authUrl);
   } catch (error) {
-    console.error('OAuth authorize error:', error);
+    logger.error('OAuth authorize error', {
+      error: error.message,
+      stack: error.stack
+    });
     res.status(500).send('Failed to start OAuth flow');
   }
 });
@@ -83,7 +87,10 @@ router.get('/gmail/callback', async (req, res) => {
     // Redirect to success page with token ID only
     res.redirect(`/auth/gmail/success?tokenId=${tokenId}`);
   } catch (error) {
-    console.error('OAuth callback error:', error);
+    logger.error('OAuth callback error', {
+      error: error.message,
+      stack: error.stack
+    });
     res.redirect('/auth/gmail/error?error=token_exchange_failed');
   }
 });
