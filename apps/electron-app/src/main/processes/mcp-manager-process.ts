@@ -171,14 +171,14 @@ class MCPManager {
             ),
             ...(process.resourcesPath
               ? [
-                  path.join(
-                    process.resourcesPath,
-                    "mcp-servers",
-                    `mcp-${config.name}`,
-                    "dist",
-                    "index.js",
-                  ),
-                ]
+                path.join(
+                  process.resourcesPath,
+                  "mcp-servers",
+                  `mcp-${config.name}`,
+                  "dist",
+                  "index.js",
+                ),
+              ]
               : []),
           ];
         }
@@ -210,21 +210,21 @@ class MCPManager {
         // Try resourcesPath as well
         ...(process.resourcesPath
           ? [
-              path.join(
-                process.resourcesPath,
-                "mcp-servers",
-                `mcp-${config.name}`,
-                "dist",
-                "bundle-wrapper.mjs",
-              ),
-              path.join(
-                process.resourcesPath,
-                "mcp-servers",
-                `mcp-${config.name}`,
-                "dist",
-                "bundle.cjs",
-              ),
-            ]
+            path.join(
+              process.resourcesPath,
+              "mcp-servers",
+              `mcp-${config.name}`,
+              "dist",
+              "bundle-wrapper.mjs",
+            ),
+            path.join(
+              process.resourcesPath,
+              "mcp-servers",
+              `mcp-${config.name}`,
+              "dist",
+              "bundle.cjs",
+            ),
+          ]
           : []),
       ];
 
@@ -266,32 +266,43 @@ class MCPManager {
 
     // Special check for Gmail server dependencies
     if (config.name === "gmail") {
-      const oauthPath = path.join(
-        process.env.HOME || "",
-        ".gmail-mcp",
-        "gcp-oauth.keys.json",
-      );
-      const credentialsPath = path.join(
-        process.env.HOME || "",
-        ".gmail-mcp",
-        "credentials.json",
-      );
-
-      logger.debug(`Checking Gmail OAuth files:`, {
-        oauthPath,
-        oauthExists: fs.existsSync(oauthPath),
-        credentialsPath,
-        credentialsExists: fs.existsSync(credentialsPath),
+      const useLocalAuth = process.env.USE_LOCAL_GMAIL_AUTH === "true";
+      logger.debug(`Gmail auth mode:`, {
+        USE_LOCAL_GMAIL_AUTH: process.env.USE_LOCAL_GMAIL_AUTH,
+        useLocalAuth,
       });
 
-      if (!fs.existsSync(oauthPath)) {
-        logger.error(`Gmail OAuth keys not found at: ${oauthPath}`);
-        logger.error(`Please ensure Gmail is properly configured in the app`);
-      }
+      // Only check for local OAuth files if using local authentication
+      if (useLocalAuth) {
+        const oauthPath = path.join(
+          process.env.HOME || "",
+          ".gmail-mcp",
+          "gcp-oauth.keys.json",
+        );
+        const credentialsPath = path.join(
+          process.env.HOME || "",
+          ".gmail-mcp",
+          "credentials.json",
+        );
 
-      if (!fs.existsSync(credentialsPath)) {
-        logger.error(`Gmail credentials not found at: ${credentialsPath}`);
-        logger.error(`Please authenticate with Gmail through the app first`);
+        logger.debug(`Checking Gmail OAuth files:`, {
+          oauthPath,
+          oauthExists: fs.existsSync(oauthPath),
+          credentialsPath,
+          credentialsExists: fs.existsSync(credentialsPath),
+        });
+
+        if (!fs.existsSync(oauthPath)) {
+          logger.error(`Gmail OAuth keys not found at: ${oauthPath}`);
+          logger.error(`Please ensure Gmail is properly configured in the app`);
+        }
+
+        if (!fs.existsSync(credentialsPath)) {
+          logger.error(`Gmail credentials not found at: ${credentialsPath}`);
+          logger.error(`Please authenticate with Gmail through the app first`);
+        }
+      } else {
+        logger.info(`Gmail using cloud OAuth - skipping local file checks`);
       }
     }
 

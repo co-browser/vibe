@@ -14,7 +14,7 @@ export class TokenProvider {
   private tokenCache: TokenData | null = null;
   private cacheExpiry: number = 0;
   private readonly CACHE_TTL = 5 * 60 * 1000; // 5 minutes
-  
+
   // File paths for fallback
   private readonly CONFIG_DIR = path.join(os.homedir(), '.gmail-mcp');
   private readonly CREDENTIALS_PATH = path.join(this.CONFIG_DIR, 'credentials.json');
@@ -37,12 +37,18 @@ export class TokenProvider {
       console.log('Failed to get tokens from storage, trying local file:', error.message);
     }
 
-    // Try 2: Get from local file system (existing method)
-    const localTokens = await this.getFromFile();
-    if (localTokens) {
-      this.tokenCache = localTokens;
-      this.cacheExpiry = Date.now() + this.CACHE_TTL;
-      return localTokens;
+    // Only try local file system if USE_LOCAL_GMAIL_AUTH is explicitly set to true
+    const useLocalAuth = process.env.USE_LOCAL_GMAIL_AUTH === 'true';
+    console.log('[TokenProvider] USE_LOCAL_GMAIL_AUTH:', process.env.USE_LOCAL_GMAIL_AUTH, 'useLocalAuth:', useLocalAuth);
+
+    if (useLocalAuth) {
+      // Try 2: Get from local file system (existing method)
+      const localTokens = await this.getFromFile();
+      if (localTokens) {
+        this.tokenCache = localTokens;
+        this.cacheExpiry = Date.now() + this.CACHE_TTL;
+        return localTokens;
+      }
     }
 
     throw new Error('No Gmail tokens found. Please authenticate first.');
@@ -69,7 +75,7 @@ export class TokenProvider {
         const handler = (message: any) => {
           clearTimeout(timeout);
           process.removeListener('gmail-tokens-response' as any, handler);
-          
+
           if (message.error) {
             reject(new Error(message.error));
           } else if (message.tokens && this.isValidTokenData(message.tokens)) {
@@ -81,7 +87,7 @@ export class TokenProvider {
 
         // Listen for the custom event instead of standard message
         process.on('gmail-tokens-response' as any, handler);
-        
+
         // Send request to parent
         if (process.send) {
           console.log('[TokenProvider] Sending gmail-tokens-request to parent process');
@@ -111,7 +117,7 @@ export class TokenProvider {
       if (this.isValidTokenData(credentials)) {
         return credentials;
       }
-      
+
       return null;
     } catch (error) {
       console.error('Error reading local credentials:', error);
@@ -133,7 +139,7 @@ export class TokenProvider {
   async updateTokens(tokens: Partial<TokenData>): Promise<void> {
     // Get current tokens
     const currentTokens = await this.getTokens();
-    
+
     // Merge with new tokens
     const updatedTokens: TokenData = {
       ...currentTokens,

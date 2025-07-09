@@ -64,11 +64,11 @@ async function getGmailClient() {
   try {
     // Get tokens from TokenProvider (cloud or local)
     const tokens = await tokenProvider.getTokens();
-    
+
     // Create OAuth2Client with tokens
     const oauth2Client = new OAuth2Client();
     oauth2Client.setCredentials(tokens);
-    
+
     // Set up automatic token refresh
     oauth2Client.on('tokens', async (newTokens) => {
       if (newTokens.access_token) {
@@ -81,13 +81,19 @@ async function getGmailClient() {
         }
       }
     });
-    
+
     gmailClient = google.gmail({ version: 'v1', auth: oauth2Client });
     return gmailClient;
   } catch (error) {
+    // Only fallback to file-based approach if USE_LOCAL_GMAIL_AUTH is true
+    const useLocalAuth = process.env.USE_LOCAL_GMAIL_AUTH === 'true';
+    if (!useLocalAuth) {
+      throw new Error('Gmail authentication failed. Please sign in with Gmail through the app.');
+    }
+
     // Fallback to original file-based approach if TokenProvider fails
     console.log('TokenProvider failed, trying file-based approach:', error.message);
-    
+
     try {
       // Load OAuth keys
       const keysContent = JSON.parse(await fs.promises.readFile(OAUTH_PATH, 'utf8'));
@@ -124,7 +130,7 @@ async function getGmailClient() {
       await fs.promises.access(CREDENTIALS_PATH);
       const credentials = JSON.parse(await fs.promises.readFile(CREDENTIALS_PATH, 'utf8'));
       oauth2Client.setCredentials(credentials);
-      
+
       gmailClient = google.gmail({ version: 'v1', auth: oauth2Client });
       return gmailClient;
     } catch {
