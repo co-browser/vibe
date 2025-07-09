@@ -11,6 +11,7 @@ import {
   getAllMCPServerConfigs,
   type MCPServerConfig,
 } from "@vibe/shared-types";
+// (Type cleanup skipped to avoid circular deps)
 import {
   findWorkspaceRoot,
   getMonorepoPackagePath,
@@ -114,6 +115,16 @@ class MCPManager {
       __dirname.includes("/apps/electron-app/out/") ||
       __dirname.includes("/apps/electron-app/src/");
     const isDev = process.env.NODE_ENV === "development" || isDevPath;
+
+    // Enhanced logging for production debugging
+    logger.info(`MCP Server path resolution for ${config.name}:`, {
+      __dirname,
+      isDevPath,
+      isDev,
+      NODE_ENV: process.env.NODE_ENV,
+      resourcesPath: process.resourcesPath,
+      cwd: process.cwd(),
+    });
 
     // Try multiple possible locations
     let possiblePaths: string[] = [];
@@ -254,6 +265,20 @@ class MCPManager {
 
     if (!mcpPath) {
       logger.error(`MCP server not found. Tried paths:`, possiblePaths);
+
+      // Log additional debugging info for production
+      logger.error(`Additional debug info for ${config.name}:`, {
+        isDev,
+        NODE_ENV: process.env.NODE_ENV,
+        __dirname,
+        resourcesPath: process.resourcesPath,
+        possiblePathsDetailed: possiblePaths.map(p => ({
+          path: p,
+          exists: fs.existsSync(p),
+          parentExists: fs.existsSync(path.dirname(p)),
+        })),
+      });
+
       // For development, we'll continue without the server
       if (isDev) {
         logger.warn(
@@ -266,32 +291,43 @@ class MCPManager {
 
     // Special check for Gmail server dependencies
     if (config.name === "gmail") {
-      const oauthPath = path.join(
-        process.env.HOME || "",
-        ".gmail-mcp",
-        "gcp-oauth.keys.json",
-      );
-      const credentialsPath = path.join(
-        process.env.HOME || "",
-        ".gmail-mcp",
-        "credentials.json",
-      );
-
-      logger.debug(`Checking Gmail OAuth files:`, {
-        oauthPath,
-        oauthExists: fs.existsSync(oauthPath),
-        credentialsPath,
-        credentialsExists: fs.existsSync(credentialsPath),
+      const useLocalAuth = process.env.USE_LOCAL_GMAIL_AUTH === "true";
+      logger.debug(`Gmail auth mode:`, {
+        USE_LOCAL_GMAIL_AUTH: process.env.USE_LOCAL_GMAIL_AUTH,
+        useLocalAuth,
       });
 
-      if (!fs.existsSync(oauthPath)) {
-        logger.error(`Gmail OAuth keys not found at: ${oauthPath}`);
-        logger.error(`Please ensure Gmail is properly configured in the app`);
-      }
+      // Only check for local OAuth files if using local authentication
+      if (useLocalAuth) {
+        const oauthPath = path.join(
+          process.env.HOME || "",
+          ".gmail-mcp",
+          "gcp-oauth.keys.json",
+        );
+        const credentialsPath = path.join(
+          process.env.HOME || "",
+          ".gmail-mcp",
+          "credentials.json",
+        );
 
-      if (!fs.existsSync(credentialsPath)) {
-        logger.error(`Gmail credentials not found at: ${credentialsPath}`);
-        logger.error(`Please authenticate with Gmail through the app first`);
+        logger.debug(`Checking Gmail OAuth files:`, {
+          oauthPath,
+          oauthExists: fs.existsSync(oauthPath),
+          credentialsPath,
+          credentialsExists: fs.existsSync(credentialsPath),
+        });
+
+        if (!fs.existsSync(oauthPath)) {
+          logger.error(`Gmail OAuth keys not found at: ${oauthPath}`);
+          logger.error(`Please ensure Gmail is properly configured in the app`);
+        }
+
+        if (!fs.existsSync(credentialsPath)) {
+          logger.error(`Gmail credentials not found at: ${credentialsPath}`);
+          logger.error(`Please authenticate with Gmail through the app first`);
+        }
+      } else {
+        logger.info(`Gmail using cloud OAuth - skipping local file checks`);
       }
     }
 
@@ -352,7 +388,7 @@ class MCPManager {
     logger.debug(`Working directory: ${path.dirname(mcpPath)}`);
 
     const serverProcess = spawn(command, args, {
-      stdio: ["pipe", "pipe", "pipe"],
+      stdio: ["pipe", "pipe", "pipe", "ipc"],
       env: {
         ...process.env,
         PORT: config.port.toString(),
@@ -415,6 +451,32 @@ class MCPManager {
       }
     });
 
+    // Handle messages from the server process (including token requests and updates)
+    serverProcess.on("message", async (message: any) => {
+      logger.debug(`Message from ${config.name} server process:`, message);
+
+      if (message.type === "gmail-tokens-request") {
+        logger.debug(
+          "[Gmail] Received tokens request from child process, forwarding to parent",
+        );
+        // Forward the request to parent
+        process.parentPort?.postMessage({
+          type: "gmail-tokens-request",
+          source: "mcp-manager",
+        });
+      } else if (message.type === "gmail-tokens-update") {
+        logger.debug(
+          "[Gmail] Received tokens update from child process, forwarding to parent",
+        );
+        // Forward the token update to parent
+        process.parentPort?.postMessage({
+          type: "gmail-tokens-update",
+          source: "mcp-manager",
+          tokens: message.tokens,
+        });
+      }
+    });
+
     serverProcess.stderr?.on("data", data => {
       const error = data.toString().trim();
       logger.error(`[MCP-${config.name} stderr]:`, error);
@@ -422,7 +484,7 @@ class MCPManager {
       // Check for specific Gmail OAuth errors
       if (config.name === "gmail" && error.includes("No credentials found")) {
         logger.error(
-          `Gmail OAuth credentials missing. Expected at: ~/.gmail-mcp/gcp-oauth.keys.json and ~/.gmail-mcp/credentials.json`,
+          `Gmail OAuth credentials missing. Please authenticate through the Electron app first.`,
         );
       }
     });
@@ -584,20 +646,71 @@ class MCPManager {
     await Promise.all(stopPromises);
     logger.info("All MCP servers stopped");
   }
+
+  getServer(name: string): MCPServer | undefined {
+    return this.servers.get(name);
+  }
 }
 
 // Bootstrap the MCP manager
 const manager = new MCPManager();
 
 // Handle IPC messages from parent
-process.parentPort?.on("message", async (message: any) => {
-  logger.debug("Received message:", message.type);
+process.parentPort?.on("message", async (event: any) => {
+  logger.debug("Received message event:", JSON.stringify(event));
+
+  // Extract the actual message from the event data
+  const message = event?.data || event;
+
+  // Ensure message has type property
+  if (!message || typeof message !== "object") {
+    logger.error("Invalid message received:", message);
+    return;
+  }
+
+  logger.debug("Extracted message:", {
+    type: message.type,
+    hasTokens: !!message.tokens,
+  });
 
   switch (message.type) {
-    case "stop":
+    case "stop": {
       await manager.stopAllServers();
       process.exit(0);
+    }
     // eslint-disable-next-line no-fallthrough
+    case "gmail-tokens-response": {
+      logger.info(
+        "[Gmail] Received tokens response from parent, forwarding to Gmail server",
+      );
+      logger.debug("[Gmail] Tokens response details:", {
+        hasTokens: !!message.tokens,
+        hasError: !!message.error,
+      });
+
+      // Forward tokens to Gmail server
+      const gmailServer = manager.getServer("gmail");
+      if (gmailServer && gmailServer.process.send) {
+        logger.debug("[Gmail] Sending tokens response to Gmail server process");
+        gmailServer.process.send({
+          type: "gmail-tokens-response",
+          tokens: message.tokens,
+          error: message.error,
+        });
+        logger.debug("[Gmail] Tokens response sent to Gmail server");
+      } else {
+        logger.error("[Gmail] Gmail server not found or cannot send messages");
+      }
+      break;
+    }
+    case "gmail-tokens-update-response": {
+      logger.debug(
+        "[Gmail] Token update acknowledged by parent:",
+        message.success,
+      );
+      // Optionally notify the Gmail server of successful update
+      break;
+    }
     default:
       logger.warn("Unknown message type:", message.type);
   }

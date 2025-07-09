@@ -9,6 +9,7 @@ import { setupProcessStorageHandler } from "../ipc/user/settings/process-storage
 import path from "path";
 import fs from "fs";
 import { createElectronLogger } from "../utils/electron-logger";
+import { getStorageService } from "../store/storage-service";
 
 const logger = createElectronLogger("MCPWorker");
 
@@ -119,6 +120,21 @@ export class MCPWorker extends EventEmitter {
       PATH: process.env.PATH, // Pass through PATH for finding executables
       GMAIL_CLIENT_ID: process.env.GMAIL_CLIENT_ID,
       GMAIL_CLIENT_SECRET: process.env.GMAIL_CLIENT_SECRET,
+      // OAuth server environment variables
+      OAUTH_SERVER_URL: (() => {
+        const url =
+          process.env.OAUTH_SERVER_URL || "https://oauth.cobrowser.xyz";
+        try {
+          const parsed = new URL(url);
+          if (parsed.protocol !== "https:") {
+            throw new Error("OAuth server must use HTTPS");
+          }
+          return url;
+        } catch {
+          throw new Error(`Invalid OAuth server URL: ${url}`);
+        }
+      })(),
+      USE_LOCAL_GMAIL_AUTH: process.env.USE_LOCAL_GMAIL_AUTH || "false",
       // RAG server environment variables (default to "false" if not set)
       USE_LOCAL_RAG_SERVER: process.env.USE_LOCAL_RAG_SERVER || "false",
       RAG_SERVER_URL: process.env.RAG_SERVER_URL || "https://rag.cobrowser.xyz",
@@ -194,16 +210,119 @@ export class MCPWorker extends EventEmitter {
    * Handle messages from worker process
    */
   private handleWorkerMessage(message: any): void {
-    logger.debug("Received message from worker:", message.type);
+    logger.debug("Received message from worker:", message);
 
-    if (message.type === "ready") {
-      // Additional ready handling if needed
-      logger.debug("Worker ready signal received");
-    } else if (message.type === "mcp-server-status") {
-      // Forward MCP server status updates
-      this.emit("mcp-server-status", message.data);
-    } else {
-      logger.warn("Unknown message type from worker:", message.type);
+    // Handle different message types
+    switch (message?.type) {
+      case "ready":
+        logger.debug("Worker ready signal received");
+        break;
+
+      case "gmail-tokens-request":
+        this.handleGmailTokenRequest();
+        break;
+
+      case "gmail-tokens-update":
+        this.handleGmailTokensUpdate(message);
+        break;
+
+      case "mcp-server-status":
+        this.emit("mcp-server-status", message.data);
+        break;
+
+      default:
+        logger.warn("Unknown message type from worker:", message?.type);
+    }
+  }
+
+  /**
+   * Handle Gmail token request from MCP server
+   */
+  private async handleGmailTokenRequest(): Promise<void> {
+    try {
+      logger.debug("Handling Gmail token request from MCP server");
+
+      // Get storage service instance
+      const storageService = getStorageService();
+
+      // Get tokens from secure storage
+      const tokens = await storageService.get("secure.oauth.gmail.tokens");
+
+      logger.debug(
+        "Retrieved tokens from storage:",
+        tokens ? "found" : "not found",
+      );
+
+      // Create response message with explicit type
+      const response = {
+        type: "gmail-tokens-response",
+        tokens: tokens || undefined,
+        error: tokens ? undefined : "No Gmail tokens found in storage",
+      };
+
+      logger.debug("Sending response to worker:", {
+        hasTokens: !!tokens,
+        type: response.type,
+      });
+
+      if (this.workerProcess) {
+        this.workerProcess.postMessage(response);
+        logger.debug("Gmail tokens response sent to worker process");
+      } else {
+        logger.error("Worker process not available");
+      }
+    } catch (error) {
+      logger.error("Error retrieving Gmail tokens:", error);
+      const errorResponse = {
+        type: "gmail-tokens-response",
+        tokens: undefined,
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
+
+      if (this.workerProcess) {
+        this.workerProcess.postMessage(errorResponse);
+      }
+    }
+  }
+
+  /**
+   * Handle Gmail tokens update from MCP server
+   */
+  private async handleGmailTokensUpdate(message: any): Promise<void> {
+    try {
+      logger.debug("Handling Gmail tokens update from MCP server");
+
+      // Get storage service instance
+      const storageService = getStorageService();
+
+      // Update tokens in secure storage
+      await storageService.set("secure.oauth.gmail.tokens", message.tokens);
+
+      logger.debug("Gmail tokens updated successfully");
+
+      // Create response message
+      const response = {
+        type: "gmail-tokens-update-response",
+        success: true,
+      };
+
+      if (this.workerProcess) {
+        this.workerProcess.postMessage(response);
+        logger.debug("Gmail tokens update response sent to worker process");
+      } else {
+        logger.error("Worker process not available");
+      }
+    } catch (error) {
+      logger.error("Error updating Gmail tokens:", error);
+      const errorResponse = {
+        type: "gmail-tokens-update-response",
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
+
+      if (this.workerProcess) {
+        this.workerProcess.postMessage(errorResponse);
+      }
     }
   }
 

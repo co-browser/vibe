@@ -1,101 +1,137 @@
-import dotenv from 'dotenv';
-
-// Only load .env in development or when not running as subprocess
-if (process.env.NODE_ENV === 'development' || !process.env.ELECTRON_RUN_AS_NODE) {
-  dotenv.config();
-}
-
+// Import necessary modules
+import { Tool } from '@modelcontextprotocol/sdk/types.js';
 import { google, gmail_v1 } from 'googleapis';
-import { OAuth2Client } from 'google-auth-library';
-import fs from 'fs';
-import path from 'path';
-import os from 'os';
+import * as os from 'os';
+import * as path from 'path';
+import * as fs from 'fs';
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
+import { TokenProvider } from './token-provider.js';
 
-// Tool type definition
-interface GmailTool {
-  name: string;
-  description: string;
-  inputSchema: any;
-  zodSchema: z.ZodSchema<any>;
-  execute: (args: any) => Promise<string>;
+// Configuration paths
+const HOME_DIR = os.homedir();
+const CONFIG_DIR = path.join(HOME_DIR, '.gmail-mcp');
+
+// Ensure config directory exists
+try {
+  fs.mkdirSync(CONFIG_DIR, { recursive: true });
+} catch (error) {
+  console.error('Failed to create config directory:', error);
 }
 
-// Configuration
-const CONFIG_DIR = path.join(os.homedir(), '.gmail-mcp');
+const OAUTH_PATH = path.join(os.homedir(), '.gmail-mcp', 'gcp-oauth.keys.json');
+const OAUTH_REDIRECT_URI = 'urn:ietf:wg:oauth:2.0:oob';
+const CREDENTIALS_PATH = path.join(os.homedir(), '.gmail-mcp', 'credentials.json');
 
-function validatePath(envPath: string | undefined, defaultPath: string): string {
-  if (envPath) {
-    // Ensure the path is within allowed directories
-    const resolved = path.resolve(envPath);
-    if (!resolved.startsWith(os.homedir()) && !resolved.startsWith(CONFIG_DIR)) {
-      throw new Error(`Invalid path: ${envPath}`);
-    }
-    return resolved;
-  }
-  return defaultPath;
+// Helper functions for file-based auth
+async function readOAuthKeys() {
+  const keysContent = JSON.parse(await fs.promises.readFile(OAUTH_PATH, 'utf8'));
+  const keys = keysContent.installed || keysContent.web;
+  return {
+    client_id: keys.client_id,
+    client_secret: keys.client_secret,
+    redirect_uris: keys.redirect_uris || [OAUTH_REDIRECT_URI]
+  };
 }
 
-const OAUTH_PATH = validatePath(
-  process.env.GMAIL_OAUTH_PATH,
-  path.join(CONFIG_DIR, 'gcp-oauth.keys.json'),
-);
-const CREDENTIALS_PATH = validatePath(
-  process.env.GMAIL_CREDENTIALS_PATH,
-  path.join(CONFIG_DIR, 'credentials.json'),
-);
-const OAUTH_REDIRECT_URI =
-  process.env.OAUTH_REDIRECT_URI || 'http://localhost:3000/oauth2callback';
+async function readTokens() {
+  const credentials = JSON.parse(await fs.promises.readFile(CREDENTIALS_PATH, 'utf8'));
+  return credentials;
+}
+
+async function saveTokens(tokens: any) {
+  await fs.promises.writeFile(CREDENTIALS_PATH, JSON.stringify(tokens, null, 2));
+  console.log('OAuth tokens saved (file-based)');
+}
 
 // Initialize Gmail API
 let gmailClient: gmail_v1.Gmail | null = null;
+let cachedTokenExpiry: number | null = null;
 
-async function getGmailClient() {
-  if (gmailClient) return gmailClient;
+async function getGmailClient(): Promise<gmail_v1.Gmail> {
+  // Check if we have a cached client and if the token is still valid
+  if (gmailClient && cachedTokenExpiry) {
+    // Check if token will expire in the next 5 minutes
+    const now = Date.now();
+    const fiveMinutesFromNow = now + (5 * 60 * 1000);
 
-  // Load OAuth keys
-  const keysContent = JSON.parse(await fs.promises.readFile(OAUTH_PATH, 'utf8'));
-  const keys = keysContent.installed || keysContent.web;
-
-  const oauth2Client = new OAuth2Client(
-    keys.client_id,
-    keys.client_secret,
-    OAUTH_REDIRECT_URI
-  );
-
-  // Set up automatic token refresh
-  oauth2Client.on('tokens', (tokens) => {
-    if (tokens.access_token) {
-      try {
-        // Update stored credentials with new tokens
-        const credentials = JSON.parse(fs.readFileSync(CREDENTIALS_PATH, 'utf8'));
-        credentials.access_token = tokens.access_token;
-        if (tokens.refresh_token) {
-          credentials.refresh_token = tokens.refresh_token;
-        }
-        if (tokens.expiry_date) {
-          credentials.expiry_date = tokens.expiry_date;
-        }
-        fs.writeFileSync(CREDENTIALS_PATH, JSON.stringify(credentials, null, 2));
-        console.log('OAuth tokens refreshed and saved');
-      } catch (error) {
-        console.error('Failed to save refreshed tokens:', error);
-      }
+    if (cachedTokenExpiry < fiveMinutesFromNow) {
+      console.log('[mcp-gmail] Cached token is expired or expiring soon, clearing client');
+      gmailClient = null;
+      cachedTokenExpiry = null;
     }
-  });
-
-  // Load existing credentials - these should already exist from your Electron app
-  try {
-    await fs.promises.access(CREDENTIALS_PATH);
-    const credentials = JSON.parse(await fs.promises.readFile(CREDENTIALS_PATH, 'utf8'));
-    oauth2Client.setCredentials(credentials);
-  } catch {
-    throw new Error('No credentials found. Please authenticate through the Electron app first.');
   }
 
-  gmailClient = google.gmail({ version: 'v1', auth: oauth2Client });
-  return gmailClient;
+  if (gmailClient) {
+    return gmailClient;
+  }
+
+  try {
+    // Try to get tokens from TokenProvider (supports both cloud and local)
+    const tokenProvider = new TokenProvider();
+    const tokens = await tokenProvider.getTokens();
+
+    if (!tokens) {
+      throw new Error('No Gmail credentials available. Please sign in with Gmail.');
+    }
+
+    // Store the token expiry for later checks
+    cachedTokenExpiry = tokens.expiry_date;
+
+    // Set up OAuth2 client
+    const oauth2Client = new google.auth.OAuth2();
+    oauth2Client.setCredentials({
+      access_token: tokens.access_token,
+      refresh_token: tokens.refresh_token,
+      expiry_date: tokens.expiry_date
+    });
+
+    // Handle token refresh
+    oauth2Client.on('tokens', async (newTokens) => {
+      console.log('[mcp-gmail] Tokens refreshed, updating stored tokens');
+      // Update the cached expiry date
+      if (newTokens.expiry_date) {
+        cachedTokenExpiry = newTokens.expiry_date;
+      }
+      await tokenProvider.updateTokens(newTokens);
+    });
+
+    gmailClient = google.gmail({ version: 'v1', auth: oauth2Client });
+    return gmailClient;
+  } catch (error) {
+    // Only fallback to file-based approach if USE_LOCAL_GMAIL_AUTH is true
+    const useLocalAuth = process.env.USE_LOCAL_GMAIL_AUTH === 'true';
+    if (!useLocalAuth) {
+      throw new Error('Gmail authentication failed. Please sign in with Gmail through the app.');
+    }
+
+    // Fallback to original file-based approach if TokenProvider fails
+    console.log('TokenProvider failed, trying file-based approach:', error.message);
+
+    try {
+      const oauthKeys = await readOAuthKeys();
+      const existingTokens = await readTokens();
+
+      const oauth2Client = new google.auth.OAuth2(
+        oauthKeys.client_id,
+        oauthKeys.client_secret,
+        oauthKeys.redirect_uris[0]
+      );
+
+      oauth2Client.setCredentials(existingTokens);
+
+      oauth2Client.on('tokens', async (tokens) => {
+        const updatedTokens = { ...existingTokens, ...tokens };
+        await saveTokens(updatedTokens);
+      });
+
+      gmailClient = google.gmail({ version: 'v1', auth: oauth2Client });
+      return gmailClient;
+    } catch (fileError) {
+      console.error('File-based approach also failed:', fileError);
+      throw new Error('Gmail authentication failed. Please ensure you have valid credentials.');
+    }
+  }
 }
 
 // Email helpers
@@ -126,7 +162,17 @@ function encodeBase64Url(data: string): string {
     .replace(/=+$/, '');
 }
 
-function handleGmailError(error: any, _context: string): never {
+function handleGmailError(error: any): never {
+  // Clear the cached client on authentication errors
+  if (error.code === 401 || error.message?.includes('invalid authentication credentials')) {
+    console.log('[mcp-gmail] Authentication error detected, clearing cached Gmail client');
+    gmailClient = null;
+    cachedTokenExpiry = null;
+  }
+
+  if (error.code === 401) {
+    throw new Error('Gmail authentication failed. Please re-authenticate.');
+  }
   if (error.response?.data?.error?.message) {
     throw new Error(error.response.data.error.message);
   }
@@ -155,11 +201,11 @@ const DeleteEmailSchema = z.object({
 });
 
 // Tools
-export const GmailTools: GmailTool[] = [
+export const GmailTools: Tool[] = [
   {
     name: "send_email",
-    description: "Send an email via Gmail",
-    inputSchema: zodToJsonSchema(SendEmailSchema),
+    description: "Send an email using Gmail",
+    inputSchema: zodToJsonSchema(SendEmailSchema) as any,
     zodSchema: SendEmailSchema,
     execute: async (args: z.infer<typeof SendEmailSchema>) => {
       try {
@@ -179,14 +225,14 @@ export const GmailTools: GmailTool[] = [
 
         return `Email sent successfully with ID: ${response.data.id}`;
       } catch (error: any) {
-        handleGmailError(error, 'send_email');
+        handleGmailError(error);
       }
     },
   },
   {
     name: "draft_email",
-    description: "Draft a new email",
-    inputSchema: zodToJsonSchema(SendEmailSchema),
+    description: "Create a draft email in Gmail",
+    inputSchema: zodToJsonSchema(SendEmailSchema) as any,
     zodSchema: SendEmailSchema,
     execute: async (args: z.infer<typeof SendEmailSchema>) => {
       try {
@@ -208,14 +254,14 @@ export const GmailTools: GmailTool[] = [
 
         return `Email draft created successfully with ID: ${response.data.id}`;
       } catch (error: any) {
-        handleGmailError(error, 'draft_email');
+        handleGmailError(error);
       }
     },
   },
   {
     name: "search_emails",
-    description: "Search emails using Gmail query syntax",
-    inputSchema: zodToJsonSchema(SearchEmailsSchema),
+    description: "Search for emails in Gmail with flexible filters",
+    inputSchema: zodToJsonSchema(SearchEmailsSchema) as any,
     zodSchema: SearchEmailsSchema,
     execute: async (args: z.infer<typeof SearchEmailsSchema>) => {
       try {
@@ -248,14 +294,14 @@ export const GmailTools: GmailTool[] = [
 
         return JSON.stringify(results, null, 2);
       } catch (error: any) {
-        handleGmailError(error, 'search_emails');
+        handleGmailError(error);
       }
     },
   },
   {
     name: "read_email",
-    description: "Read the content of an email",
-    inputSchema: zodToJsonSchema(ReadEmailSchema),
+    description: "Read the full content of a specific email including its body and attachments",
+    inputSchema: zodToJsonSchema(ReadEmailSchema) as any,
     zodSchema: ReadEmailSchema,
     execute: async (args: z.infer<typeof ReadEmailSchema>) => {
       try {
@@ -310,14 +356,14 @@ export const GmailTools: GmailTool[] = [
           body,
         }, null, 2);
       } catch (error: any) {
-        handleGmailError(error, 'read_email');
+        handleGmailError(error);
       }
     },
   },
   {
     name: "delete_email",
-    description: "Permanently delete an email",
-    inputSchema: zodToJsonSchema(DeleteEmailSchema),
+    description: "Delete an email from Gmail (moves to trash)",
+    inputSchema: zodToJsonSchema(DeleteEmailSchema) as any,
     zodSchema: DeleteEmailSchema,
     execute: async (args: z.infer<typeof DeleteEmailSchema>) => {
       try {
@@ -329,7 +375,7 @@ export const GmailTools: GmailTool[] = [
 
         return `Email ${args.messageId} deleted successfully`;
       } catch (error: any) {
-        handleGmailError(error, 'delete_email');
+        handleGmailError(error);
       }
     },
   },

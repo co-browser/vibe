@@ -301,6 +301,9 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: ^1.13.0
         version: 1.13.0
+      '@vibe/shared-types':
+        specifier: workspace:*
+        version: link:../shared-types
       dotenv:
         specifier: ^16.4.7
         version: 16.5.0
