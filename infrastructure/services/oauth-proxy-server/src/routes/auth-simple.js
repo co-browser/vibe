@@ -351,7 +351,10 @@ router.get('/gmail/error', (req, res) => {
         </svg>
         <h1>Authentication failed</h1>
         <p>There was an error during authentication.</p>
-        <div class="error">${error}</div>
+        <div class="error">${error.replace(/[<>&"']/g, (c) => {
+          const entities = {'<':'&lt;', '>':'&gt;', '&':'&amp;', '"':'&quot;', "'":"&#39;"};
+          return entities[c];
+        })}</div>
       </div>
     </body>
     </html>
