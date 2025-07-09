@@ -8,6 +8,12 @@ export interface GmailTokensResponseMessage {
   error?: string;
 }
 
+export interface GmailTokensUpdateMessage {
+  type: "gmail-tokens-update";
+  tokens: any; // Replace with TokenData when shared
+}
+
 export type GmailIPCMessage =
   | GmailTokensRequestMessage
-  | GmailTokensResponseMessage;
+  | GmailTokensResponseMessage
+  | GmailTokensUpdateMessage;

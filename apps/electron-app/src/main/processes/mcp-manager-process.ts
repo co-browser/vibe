@@ -116,6 +116,16 @@ class MCPManager {
       __dirname.includes("/apps/electron-app/src/");
     const isDev = process.env.NODE_ENV === "development" || isDevPath;
 
+    // Enhanced logging for production debugging
+    logger.info(`MCP Server path resolution for ${config.name}:`, {
+      __dirname,
+      isDevPath,
+      isDev,
+      NODE_ENV: process.env.NODE_ENV,
+      resourcesPath: process.resourcesPath,
+      cwd: process.cwd(),
+    });
+
     // Try multiple possible locations
     let possiblePaths: string[] = [];
 
@@ -255,6 +265,20 @@ class MCPManager {
 
     if (!mcpPath) {
       logger.error(`MCP server not found. Tried paths:`, possiblePaths);
+
+      // Log additional debugging info for production
+      logger.error(`Additional debug info for ${config.name}:`, {
+        isDev,
+        NODE_ENV: process.env.NODE_ENV,
+        __dirname,
+        resourcesPath: process.resourcesPath,
+        possiblePathsDetailed: possiblePaths.map(p => ({
+          path: p,
+          exists: fs.existsSync(p),
+          parentExists: fs.existsSync(path.dirname(p)),
+        })),
+      });
+
       // For development, we'll continue without the server
       if (isDev) {
         logger.warn(
@@ -427,29 +451,31 @@ class MCPManager {
       }
     });
 
-    // Handle Gmail token requests from child process
-    if (config.name === "gmail") {
-      serverProcess.on("message", async (message: any) => {
+    // Handle messages from the server process (including token requests and updates)
+    serverProcess.on("message", async (message: any) => {
+      logger.debug(`Message from ${config.name} server process:`, message);
+
+      if (message.type === "gmail-tokens-request") {
         logger.debug(
-          `[Gmail] Received message from Gmail server:`,
-          message.type,
+          "[Gmail] Received tokens request from child process, forwarding to parent",
         );
-        if (message.type === "gmail-tokens-request") {
-          logger.info("[Gmail] Forwarding token request to parent process");
-          // Forward request to parent process
-          if (process.parentPort) {
-            process.parentPort.postMessage({
-              type: "gmail-tokens-request",
-              serverName: config.name,
-            });
-          } else {
-            logger.error(
-              "[Gmail] No parent port available to forward token request",
-            );
-          }
-        }
-      });
-    }
+        // Forward the request to parent
+        process.parentPort?.postMessage({
+          type: "gmail-tokens-request",
+          source: "mcp-manager",
+        });
+      } else if (message.type === "gmail-tokens-update") {
+        logger.debug(
+          "[Gmail] Received tokens update from child process, forwarding to parent",
+        );
+        // Forward the token update to parent
+        process.parentPort?.postMessage({
+          type: "gmail-tokens-update",
+          source: "mcp-manager",
+          tokens: message.tokens,
+        });
+      }
+    });
 
     serverProcess.stderr?.on("data", data => {
       const error = data.toString().trim();
@@ -651,8 +677,8 @@ process.parentPort?.on("message", async (event: any) => {
     case "stop": {
       await manager.stopAllServers();
       process.exit(0);
-      break; // Prevents fallthrough (important for testing)
     }
+    // eslint-disable-next-line no-fallthrough
     case "gmail-tokens-response": {
       logger.info(
         "[Gmail] Received tokens response from parent, forwarding to Gmail server",
@@ -675,6 +701,14 @@ process.parentPort?.on("message", async (event: any) => {
       } else {
         logger.error("[Gmail] Gmail server not found or cannot send messages");
       }
+      break;
+    }
+    case "gmail-tokens-update-response": {
+      logger.debug(
+        "[Gmail] Token update acknowledged by parent:",
+        message.success,
+      );
+      // Optionally notify the Gmail server of successful update
       break;
     }
     default:

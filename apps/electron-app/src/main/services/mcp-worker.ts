@@ -219,8 +219,11 @@ export class MCPWorker extends EventEmitter {
         break;
 
       case "gmail-tokens-request":
-        logger.info("Received Gmail token request from MCP server");
         this.handleGmailTokenRequest();
+        break;
+
+      case "gmail-tokens-update":
+        this.handleGmailTokensUpdate(message);
         break;
 
       case "mcp-server-status":
@@ -273,6 +276,47 @@ export class MCPWorker extends EventEmitter {
       const errorResponse = {
         type: "gmail-tokens-response",
         tokens: undefined,
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
+
+      if (this.workerProcess) {
+        this.workerProcess.postMessage(errorResponse);
+      }
+    }
+  }
+
+  /**
+   * Handle Gmail tokens update from MCP server
+   */
+  private async handleGmailTokensUpdate(message: any): Promise<void> {
+    try {
+      logger.debug("Handling Gmail tokens update from MCP server");
+
+      // Get storage service instance
+      const storageService = getStorageService();
+
+      // Update tokens in secure storage
+      await storageService.set("secure.oauth.gmail.tokens", message.tokens);
+
+      logger.debug("Gmail tokens updated successfully");
+
+      // Create response message
+      const response = {
+        type: "gmail-tokens-update-response",
+        success: true,
+      };
+
+      if (this.workerProcess) {
+        this.workerProcess.postMessage(response);
+        logger.debug("Gmail tokens update response sent to worker process");
+      } else {
+        logger.error("Worker process not available");
+      }
+    } catch (error) {
+      logger.error("Error updating Gmail tokens:", error);
+      const errorResponse = {
+        type: "gmail-tokens-update-response",
+        success: false,
         error: error instanceof Error ? error.message : "Unknown error",
       };
 

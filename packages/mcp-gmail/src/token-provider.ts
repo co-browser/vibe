@@ -173,9 +173,21 @@ export class TokenProvider {
         console.error('[TokenProvider] Failed to update local credentials:', error);
       }
     } else {
-      // For cloud OAuth, tokens are managed by the OAuth proxy server
-      // The refresh happens server-side, so we just update our local cache
-      console.log('[TokenProvider] Using cloud OAuth - token refresh handled by proxy server');
+      // For cloud OAuth, notify parent process of token updates
+      console.log('[TokenProvider] Using cloud OAuth - notifying parent of token refresh');
+
+      // Send updated tokens to parent process
+      if (process.send) {
+        try {
+          process.send({
+            type: 'gmail-tokens-update',
+            tokens: updatedTokens
+          });
+          console.log('[TokenProvider] Sent token update notification to parent process');
+        } catch (error) {
+          console.error('[TokenProvider] Failed to send token update to parent:', error);
+        }
+      }
     }
   }
 

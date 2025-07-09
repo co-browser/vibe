@@ -46,8 +46,22 @@ async function saveTokens(tokens: any) {
 
 // Initialize Gmail API
 let gmailClient: gmail_v1.Gmail | null = null;
+let cachedTokenExpiry: number | null = null;
 
 async function getGmailClient(): Promise<gmail_v1.Gmail> {
+  // Check if we have a cached client and if the token is still valid
+  if (gmailClient && cachedTokenExpiry) {
+    // Check if token will expire in the next 5 minutes
+    const now = Date.now();
+    const fiveMinutesFromNow = now + (5 * 60 * 1000);
+
+    if (cachedTokenExpiry < fiveMinutesFromNow) {
+      console.log('[mcp-gmail] Cached token is expired or expiring soon, clearing client');
+      gmailClient = null;
+      cachedTokenExpiry = null;
+    }
+  }
+
   if (gmailClient) {
     return gmailClient;
   }
@@ -61,6 +75,9 @@ async function getGmailClient(): Promise<gmail_v1.Gmail> {
       throw new Error('No Gmail credentials available. Please sign in with Gmail.');
     }
 
+    // Store the token expiry for later checks
+    cachedTokenExpiry = tokens.expiry_date;
+
     // Set up OAuth2 client
     const oauth2Client = new google.auth.OAuth2();
     oauth2Client.setCredentials({
@@ -72,6 +89,10 @@ async function getGmailClient(): Promise<gmail_v1.Gmail> {
     // Handle token refresh
     oauth2Client.on('tokens', async (newTokens) => {
       console.log('[mcp-gmail] Tokens refreshed, updating stored tokens');
+      // Update the cached expiry date
+      if (newTokens.expiry_date) {
+        cachedTokenExpiry = newTokens.expiry_date;
+      }
       await tokenProvider.updateTokens(newTokens);
     });
 
@@ -146,6 +167,7 @@ function handleGmailError(error: any): never {
   if (error.code === 401 || error.message?.includes('invalid authentication credentials')) {
     console.log('[mcp-gmail] Authentication error detected, clearing cached Gmail client');
     gmailClient = null;
+    cachedTokenExpiry = null;
   }
 
   if (error.code === 401) {

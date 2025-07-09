@@ -119,9 +119,24 @@ if (app.isPackaged) {
 }
 // ---------------------------------------------------------------------------
 
+// Handle USE_LOCAL_GMAIL_AUTH for production builds
+// Similar to RAG server, we force it to false unless explicitly enabled
+if (app.isPackaged) {
+  if (process.env.USE_LOCAL_GMAIL_AUTH !== "true") {
+    process.env.USE_LOCAL_GMAIL_AUTH = "false";
+    logger.info("Setting USE_LOCAL_GMAIL_AUTH to false for packaged build");
+  }
+} else {
+  // Development: if not set, default to false
+  if (!process.env.USE_LOCAL_GMAIL_AUTH) {
+    process.env.USE_LOCAL_GMAIL_AUTH = "false";
+  }
+}
+
 // Debug: Log environment state after loading
 logger.debug("Main Process Environment:", {
   USE_LOCAL_RAG_SERVER: process.env.USE_LOCAL_RAG_SERVER || "undefined",
+  USE_LOCAL_GMAIL_AUTH: process.env.USE_LOCAL_GMAIL_AUTH || "undefined",
   NODE_ENV: process.env.NODE_ENV || "undefined",
   PATH: process.env.PATH
     ? `${process.env.PATH.substring(0, 100)}...`

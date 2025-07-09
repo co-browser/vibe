@@ -49,6 +49,7 @@ module.exports = {
       NSMicrophoneUsageDescription: "webrtc access",
       LSEnvironment: {
         USE_LOCAL_RAG_SERVER: "false",
+        USE_LOCAL_GMAIL_AUTH: "false",
         NODE_ENV: "production",
         RAG_SERVER_URL: "https://rag.cobrowser.xyz",
       },
