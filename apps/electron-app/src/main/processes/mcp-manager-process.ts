@@ -171,14 +171,14 @@ class MCPManager {
             ),
             ...(process.resourcesPath
               ? [
-                path.join(
-                  process.resourcesPath,
-                  "mcp-servers",
-                  `mcp-${config.name}`,
-                  "dist",
-                  "index.js",
-                ),
-              ]
+                  path.join(
+                    process.resourcesPath,
+                    "mcp-servers",
+                    `mcp-${config.name}`,
+                    "dist",
+                    "index.js",
+                  ),
+                ]
               : []),
           ];
         }
@@ -210,21 +210,21 @@ class MCPManager {
         // Try resourcesPath as well
         ...(process.resourcesPath
           ? [
-            path.join(
-              process.resourcesPath,
-              "mcp-servers",
-              `mcp-${config.name}`,
-              "dist",
-              "bundle-wrapper.mjs",
-            ),
-            path.join(
-              process.resourcesPath,
-              "mcp-servers",
-              `mcp-${config.name}`,
-              "dist",
-              "bundle.cjs",
-            ),
-          ]
+              path.join(
+                process.resourcesPath,
+                "mcp-servers",
+                `mcp-${config.name}`,
+                "dist",
+                "bundle-wrapper.mjs",
+              ),
+              path.join(
+                process.resourcesPath,
+                "mcp-servers",
+                `mcp-${config.name}`,
+                "dist",
+                "bundle.cjs",
+              ),
+            ]
           : []),
       ];
 
