@@ -7,6 +7,17 @@ import { createServer } from 'node:http';
 import { Socket } from 'node:net';
 import { GmailTools } from './tools.js';
 
+// IPC message types
+interface IPCMessage {
+  type: string;
+}
+
+interface GmailTokensResponseMessage extends IPCMessage {
+  type: 'gmail-tokens-response';
+  tokens?: any;
+  error?: string;
+}
+
 const log = {
   info: (msg: string, ...args: any[]) => console.log(`[INFO] [mcp-gmail] ${msg}`, ...args),
   success: (msg: string, ...args: any[]) => console.log(`[SUCCESS] [mcp-gmail] ${msg}`, ...args),
@@ -151,12 +162,33 @@ process.on('uncaughtException', (error) => {
 if (process.send) {
   log.info('Running as child process, setting up IPC handlers');
   
-  process.on('message', (message: any) => {
-    log.info('Received IPC message:', message.type);
-    
-    if (message.type === 'gmail-tokens-response') {
-      // Emit an event that the token provider can listen to
-      process.emit('gmail-tokens-response' as any, message);
+  process.on('message', (message: unknown) => {
+    try {
+      // Validate message structure
+      if (!message || typeof message !== 'object') {
+        log.warn('Received invalid IPC message:', message);
+        return;
+      }
+      
+      const ipcMessage = message as IPCMessage;
+      log.info('Received IPC message:', ipcMessage.type);
+      
+      if (ipcMessage.type === 'gmail-tokens-response') {
+        // Type guard for gmail-tokens-response
+        const gmailMessage = message as GmailTokensResponseMessage;
+        
+        // Validate message has expected structure
+        if (!('tokens' in gmailMessage || 'error' in gmailMessage)) {
+          log.warn('Gmail tokens response missing required fields');
+          return;
+        }
+        
+        // Emit an event that the token provider can listen to
+        // Cast is needed because Node.js doesn't type custom events
+        (process as any).emit('gmail-tokens-response', gmailMessage);
+      }
+    } catch (error) {
+      log.error('Error handling IPC message:', error);
     }
   });
 }
