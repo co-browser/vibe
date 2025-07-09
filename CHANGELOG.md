@@ -1,6 +1,60 @@
 
+<a name="v0.1.6"></a>
+## [v0.1.6] - 2025-07-10
+### Chore
+- update README.md to clarify AI feature description
+- update README.md title for clarity
+- update README.md to enhance project description and clarify setup instructions
+- **oauth-proxy:** prepare v1.1.4 release
+
+### Feat
+- add cloud-based OAuth proxy server for Gmail authentication
+- enhance copy button error handling and memory safety
+- improve copy button accessibility
+- add copy button to assistant messages
+
+### Fix
+- ensure Gmail MCP server works in production builds
+- improve Gmail auth token handling and caching
+- remove unhandled gmail-tokens-update message and fix token update logic
+- prevent Gmail MCP from reading local credentials when USE_LOCAL_GMAIL_AUTH is false
+- prevent Gmail MCP from reading local credentials when USE_LOCAL_GMAIL_AUTH is false
+- **mcp-gmail:** improve IPC message handling with type safety and validation
+- **mcp-manager:** add break statement to prevent switch case fallthrough
+- **oauth-proxy:** restrict postMessage target origin for security
+- **oauth-proxy:** defer session destruction after token exchange
+- **oauth-proxy:** fix critical XSS vulnerability in error page
+- **oauth-proxy:** remove third-party crypto dependency - CRITICAL SECURITY FIX
+- **oauth-proxy:** update rate limiter key generator to use non-deprecated API
+- **oauth-proxy:** implement stricter endpoint-specific rate limiting
+- **oauth-proxy:** sanitize sensitive data in request logging
+- **security:** enforce HTTPS validation on OAuth server URLs
+- **ui:** set chat panel to be open by default on startup
+- **window:** resolve window lifecycle and control issues
+
+### Refactor
+- flatten infrastructure directory structure
+- **mcp-gmail:** enhance local authentication handling for Gmail
+
+### Pull Requests
+- Merge pull request [#70](https://github.com/co-browser/vibe/issues/70) from co-browser/feat/cloud-oauth-proxy
+- Merge pull request [#71](https://github.com/co-browser/vibe/issues/71) from co-browser/add-claude-github-actions-1751969875826
+- Merge pull request [#68](https://github.com/co-browser/vibe/issues/68) from co-browser/fix/chat-copy-paste-formatting
+- Merge pull request [#67](https://github.com/co-browser/vibe/issues/67) from co-browser/fix/chat-window-default-open
+- Merge pull request [#66](https://github.com/co-browser/vibe/issues/66) from co-browser/fix/window-lifecycle-and-controls
+
+### BREAKING CHANGE
+
+Gmail authentication now uses cloud OAuth by default. Users can opt-in to local OAuth with USE_LOCAL_GMAIL_AUTH=true
+
+🤖 Generated with [Claude Code](https://claude.ai/code)
+
+
 <a name="v0.1.5"></a>
 ## [v0.1.5] - 2025-07-07
+### Chore
+- **release:** v0.1.5
+
 ### Fix
 - enable remote RAG server connection and update build assets
 
@@ -239,6 +293,7 @@
 <a name="v0.0.0"></a>
 ## v0.0.0 - 2025-06-13
 
+[v0.1.6]: https://github.com/co-browser/vibe/compare/v0.1.5...v0.1.6
 [v0.1.5]: https://github.com/co-browser/vibe/compare/v0.1.4...v0.1.5
 [v0.1.4]: https://github.com/co-browser/vibe/compare/v0.1.3...v0.1.4
 [v0.1.3]: https://github.com/co-browser/vibe/compare/v0.1.2...v0.1.3
