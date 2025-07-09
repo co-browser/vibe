@@ -4,7 +4,12 @@ import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
 import { corsMiddleware } from './middleware/cors.js';
-import { createRateLimiter } from './middleware/rateLimit.js';
+import { 
+  createRateLimiter, 
+  createAuthorizeRateLimiter,
+  createCallbackRateLimiter,
+  createTokenRateLimiter 
+} from './middleware/rateLimit.js';
 import { requestLogger } from './middleware/logging.js';
 import authRoutes from './routes/auth-simple.js';
 import logger from './utils/logger.js';

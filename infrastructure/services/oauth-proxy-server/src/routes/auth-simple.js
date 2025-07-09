@@ -2,8 +2,18 @@ import express from 'express';
 import crypto from 'crypto';
 import { OAuthManager } from '../utils/oauth.js';
 import logger from '../utils/logger.js';
+import { 
+  createAuthorizeRateLimiter,
+  createCallbackRateLimiter,
+  createTokenRateLimiter 
+} from '../middleware/rateLimit.js';
 
 const router = express.Router();
+
+// Create rate limiters for specific endpoints
+const authorizeRateLimiter = createAuthorizeRateLimiter();
+const callbackRateLimiter = createCallbackRateLimiter();
+const tokenRateLimiter = createTokenRateLimiter();
 
 // Health check endpoint
 router.get('/health', (req, res) => {
@@ -24,7 +34,7 @@ function getOAuthManager() {
 }
 
 // Single endpoint that starts the OAuth flow
-router.get('/gmail/authorize', async (req, res) => {
+router.get('/gmail/authorize', authorizeRateLimiter, async (req, res) => {
   try {
     const oauthManager = getOAuthManager();
     
@@ -51,7 +61,7 @@ router.get('/gmail/authorize', async (req, res) => {
 });
 
 // OAuth callback - handles the return from Google
-router.get('/gmail/callback', async (req, res) => {
+router.get('/gmail/callback', callbackRateLimiter, async (req, res) => {
   try {
     const { code, state, error } = req.query;
     
@@ -96,7 +106,7 @@ router.get('/gmail/callback', async (req, res) => {
 });
 
 // API endpoint to retrieve tokens
-router.post('/gmail/tokens', (req, res) => {
+router.post('/gmail/tokens', tokenRateLimiter, (req, res) => {
   const { tokenId } = req.body;
   
   if (!tokenId || !globalThis.pendingTokens || !globalThis.pendingTokens.has(tokenId)) {
