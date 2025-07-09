@@ -2,13 +2,9 @@
 
 This directory contains standalone infrastructure services that are deployed independently from the main Vibe application.
 
-## Services
-
-### OAuth Proxy Server
+## OAuth Proxy Server
 
 A secure OAuth proxy server that handles Gmail authentication for Vibe users without requiring them to set up their own Google Cloud credentials.
-
-**Location:** `services/oauth-proxy-server/`
 
 **Key Features:**
 - OAuth 2.0 with PKCE flow
@@ -18,7 +14,7 @@ A secure OAuth proxy server that handles Gmail authentication for Vibe users wit
 
 **Build & Deploy:**
 ```bash
-cd services/oauth-proxy-server
+cd oauth-proxy-server
 docker build -t ghcr.io/co-browser/vibe-oauth-server:latest .
 docker push ghcr.io/co-browser/vibe-oauth-server:latest
 ```
