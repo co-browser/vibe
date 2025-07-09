@@ -123,6 +123,12 @@ router.post('/gmail/tokens', tokenRateLimiter, (req, res) => {
 router.get('/gmail/success', (req, res) => {
   const { tokenId } = req.query;
   
+  // Get the first allowed origin for postMessage security
+  const allowedOrigins = process.env.ALLOWED_ORIGINS ? 
+    process.env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim()) : 
+    ['http://localhost:3000'];
+  const primaryOrigin = allowedOrigins[0] || 'http://localhost:3000';
+  
   res.send(`
     <!DOCTYPE html>
     <html>
@@ -205,15 +211,25 @@ router.get('/gmail/success', (req, res) => {
       <script>
         // Send token ID to parent window or Electron
         const tokenId = '${tokenId}';
+        const allowedOrigin = '${primaryOrigin}';
         
         // Try multiple methods to communicate back
         if (tokenId) {
           // Method 1: PostMessage to opener (for popup windows)
           if (window.opener) {
-            window.opener.postMessage({
-              type: 'oauth-success',
-              tokenId: tokenId
-            }, '*');
+            try {
+              // Try with allowed origin first
+              window.opener.postMessage({
+                type: 'oauth-success',
+                tokenId: tokenId
+              }, allowedOrigin);
+            } catch (e) {
+              // Fallback to window.location.origin if cross-origin error
+              window.opener.postMessage({
+                type: 'oauth-success',
+                tokenId: tokenId
+              }, window.location.origin);
+            }
           }
           
           // Method 2: IPC for Electron WebContents
@@ -221,12 +237,13 @@ router.get('/gmail/success', (req, res) => {
             window.electron.ipcRenderer.send('oauth-success', { tokenId });
           }
           
-          // Method 3: Direct IPC (for some Electron configurations)
+          // Method 3: Direct postMessage to self (for Electron)
+          // This is safe as it's posting to the same window
           if (typeof window.postMessage === 'function') {
             window.postMessage({
               type: 'oauth-success',
               tokenId: tokenId
-            }, '*');
+            }, window.location.origin);
           }
         }
         
