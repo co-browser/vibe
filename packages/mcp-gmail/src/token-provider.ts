@@ -157,18 +157,25 @@ export class TokenProvider {
     this.tokenCache = updatedTokens;
     this.cacheExpiry = Date.now() + this.CACHE_TTL;
 
-    try {
-      // Send to parent process
-      process.send?.({
-        type: 'gmail-tokens-update',
-        tokens: updatedTokens
-      });
-    } catch (error) {
-      console.error('Failed to update tokens in storage:', error);
-      // Fall back to file update if we have local credentials
-      if (fs.existsSync(this.CREDENTIALS_PATH)) {
-        fs.writeFileSync(this.CREDENTIALS_PATH, JSON.stringify(updatedTokens, null, 2));
+    // Only update persistent storage if using local auth
+    const useLocalAuth = process.env.USE_LOCAL_GMAIL_AUTH === 'true';
+
+    if (useLocalAuth) {
+      try {
+        // Update local file if using local authentication
+        if (fs.existsSync(this.CREDENTIALS_PATH)) {
+          fs.writeFileSync(this.CREDENTIALS_PATH, JSON.stringify(updatedTokens, null, 2));
+          console.log('[TokenProvider] Updated local credentials file');
+        } else {
+          console.warn('[TokenProvider] Local credentials file not found, cannot persist token update');
+        }
+      } catch (error) {
+        console.error('[TokenProvider] Failed to update local credentials:', error);
       }
+    } else {
+      // For cloud OAuth, tokens are managed by the OAuth proxy server
+      // The refresh happens server-side, so we just update our local cache
+      console.log('[TokenProvider] Using cloud OAuth - token refresh handled by proxy server');
     }
   }
 
