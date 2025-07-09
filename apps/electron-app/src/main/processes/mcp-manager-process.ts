@@ -638,9 +638,9 @@ process.parentPort?.on("message", async (event: any) => {
   switch (message.type) {
     case "stop": {
       await manager.stopAllServers();
-      process.exit(0); // No break needed, process exits
+      process.exit(0);
+      break; // Prevents fallthrough (important for testing)
     }
-    // eslint-disable-next-line no-fallthrough
     case "gmail-tokens-response": {
       logger.info(
         "[Gmail] Received tokens response from parent, forwarding to Gmail server",
