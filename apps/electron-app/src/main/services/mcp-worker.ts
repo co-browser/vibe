@@ -121,8 +121,19 @@ export class MCPWorker extends EventEmitter {
       GMAIL_CLIENT_ID: process.env.GMAIL_CLIENT_ID,
       GMAIL_CLIENT_SECRET: process.env.GMAIL_CLIENT_SECRET,
       // OAuth server environment variables
-      OAUTH_SERVER_URL:
-        process.env.OAUTH_SERVER_URL || "https://oauth.cobrowser.xyz",
+      OAUTH_SERVER_URL: (() => {
+        const url =
+          process.env.OAUTH_SERVER_URL || "https://oauth.cobrowser.xyz";
+        try {
+          const parsed = new URL(url);
+          if (parsed.protocol !== "https:") {
+            throw new Error("OAuth server must use HTTPS");
+          }
+          return url;
+        } catch {
+          throw new Error(`Invalid OAuth server URL: ${url}`);
+        }
+      })(),
       USE_LOCAL_GMAIL_AUTH: process.env.USE_LOCAL_GMAIL_AUTH || "false",
       // RAG server environment variables (default to "false" if not set)
       USE_LOCAL_RAG_SERVER: process.env.USE_LOCAL_RAG_SERVER || "false",

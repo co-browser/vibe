@@ -277,8 +277,17 @@ export class GmailOAuthService {
     currentWindow?: BrowserWindow,
   ): Promise<GmailAuthResult> {
     try {
+      // Determine and validate OAuth server URL
       const oauthServerUrl =
         process.env.OAUTH_SERVER_URL || "https://oauth.cobrowser.xyz";
+      try {
+        const parsed = new URL(oauthServerUrl);
+        if (parsed.protocol !== "https:") {
+          throw new Error("OAuth server must use HTTPS");
+        }
+      } catch {
+        throw new Error(`Invalid OAuth server URL: ${oauthServerUrl}`);
+      }
 
       // Simple approach: Open OAuth start URL directly in the browser view
       // The browser view will handle all cookies and session management
