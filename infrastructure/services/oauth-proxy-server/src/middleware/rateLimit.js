@@ -7,8 +7,9 @@ const defaultConfig = {
   legacyHeaders: false,
   // Use custom key generator that works with proxies
   keyGenerator: (req) => {
-    // Trust X-Forwarded-For header from proxy
-    return req.ip || req.connection.remoteAddress;
+    // req.ip already respects the 'trust proxy' setting and handles X-Forwarded-For
+    // Use req.socket.remoteAddress as fallback (req.connection is deprecated)
+    return req.ip || req.socket.remoteAddress;
   },
   handler: (request, response) => {
     response.status(429).json({
