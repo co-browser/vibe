@@ -19,7 +19,7 @@ interface GmailTokensResponseMessage {
 export class TokenProvider {
   private tokenCache: TokenData | null = null;
   private cacheExpiry: number = 0;
-  private readonly CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+  private readonly CACHE_TTL = 30 * 1000; // 30 seconds (reduced from 5 minutes for faster token refresh)
 
   // File paths for fallback
   private readonly CONFIG_DIR = path.join(os.homedir(), '.gmail-mcp');
