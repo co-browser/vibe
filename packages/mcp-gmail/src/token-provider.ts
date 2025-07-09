@@ -10,6 +10,12 @@ interface TokenData {
   scope?: string;
 }
 
+interface GmailTokensResponseMessage {
+  type: 'gmail-tokens-response';
+  tokens?: TokenData;
+  error?: string;
+}
+
 export class TokenProvider {
   private tokenCache: TokenData | null = null;
   private cacheExpiry: number = 0;
@@ -72,7 +78,7 @@ export class TokenProvider {
           reject(new Error('Timeout getting tokens from parent process'));
         }, 5000);
 
-        const handler = (message: any) => {
+        const handler = (message: GmailTokensResponseMessage) => {
           clearTimeout(timeout);
           process.removeListener('gmail-tokens-response' as any, handler);
 

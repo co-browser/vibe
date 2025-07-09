@@ -11,6 +11,7 @@ import {
   getAllMCPServerConfigs,
   type MCPServerConfig,
 } from "@vibe/shared-types";
+// (Type cleanup skipped to avoid circular deps)
 import {
   findWorkspaceRoot,
   getMonorepoPackagePath,

@@ -9,6 +9,7 @@
 export * from "./types.js";
 export * from "./errors.js";
 export * from "./constants.js";
+export * from "./gmail-ipc";
 
 // Import for use in this file
 import type { MCPServerConfig } from "./types.js";
