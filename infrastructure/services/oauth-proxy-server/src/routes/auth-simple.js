@@ -81,8 +81,10 @@ router.get('/gmail/callback', callbackRateLimiter, async (req, res) => {
       req.session.codeVerifier
     );
     
-    // Clear session
-    req.session.destroy();
+    // Clear only OAuth-specific session data instead of destroying entire session
+    // This prevents issues if users refresh the success page
+    delete req.session.oauthState;
+    delete req.session.codeVerifier;
     
     // Store tokens temporarily in memory (will be sent via postMessage)
     const tokenId = crypto.randomBytes(16).toString('hex');
