@@ -46,7 +46,7 @@ export class Browser extends EventEmitter {
   private setupMenu(): void {
     setupApplicationMenu(this);
     logger.debug("[Browser] Application menu initialized (static structure)");
-    
+
     this.setupContentSecurityPolicy();
     logger.debug("[Browser] Content Security Policy configured");
   }

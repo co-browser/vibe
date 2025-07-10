@@ -13,6 +13,7 @@ import { BrowserWindow } from "electron";
 import { createLogger } from "@vibe/shared-types";
 import type { IAgentProvider } from "@vibe/shared-types";
 import { mainStore } from "@/store/store";
+import { userAnalytics } from "@/services/user-analytics";
 
 const logger = createLogger("tab-agent");
 

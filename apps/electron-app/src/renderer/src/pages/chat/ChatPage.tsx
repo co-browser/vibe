@@ -11,9 +11,7 @@ import { Messages } from "@/components/chat/Messages";
 import { ChatWelcome } from "@/components/chat/ChatWelcome";
 import { AgentStatusIndicator } from "@/components/chat/StatusIndicator";
 import { ChatInput } from "@/components/chat/ChatInput";
-import { OnlineStatusStrip } from "@/components/ui/OnlineStatusStrip";
 import { useContextMenu, ChatContextMenuItems } from "@/hooks/useContextMenu";
-import { FileDropZone } from "@/components/ui/FileDropZone";
 
 import "@/components/styles/ChatView.css";
 
@@ -23,7 +21,6 @@ export function ChatPage(): React.JSX.Element {
   }));
 
   const [messages, setMessages] = useState<AiSDKMessage[]>([]);
-  const [droppedFiles, setDroppedFiles] = useState<File[]>([]);
   const { handleContextMenu } = useContextMenu();
   const { setStreamingContent, currentReasoningText, hasLiveReasoning } =
     useStreamingContent();
@@ -79,12 +76,6 @@ export function ChatPage(): React.JSX.Element {
     sendMessageInput(trimmedInput);
   };
 
-  const handleInputValueChange = (value: string): void => {
-    handleInputChange({
-      target: { value },
-    } as React.ChangeEvent<HTMLInputElement>);
-  };
-
   const handleActionChipClick = (action: string): void => {
     handleInputValueChange(action);
     // Slightly delay sending to allow UI to update
@@ -92,32 +83,6 @@ export function ChatPage(): React.JSX.Element {
       sendMessageInput(action);
     }, 50);
   };
-
-  const handleFileDrop = useCallback(
-    (files: File[]) => {
-      console.log("Files dropped:", files);
-      setDroppedFiles(prev => [...prev, ...files]);
-
-      // Auto-fill input with file information
-      const fileNames = files.map(f => f.name).join(", ");
-      const fileInfo = `Attached files: ${fileNames}`;
-
-      if (input.trim()) {
-        handleInputChange({
-          target: { value: `${input}\n\n${fileInfo}` },
-        } as React.ChangeEvent<HTMLTextAreaElement>);
-      } else {
-        handleInputChange({
-          target: { value: fileInfo },
-        } as React.ChangeEvent<HTMLTextAreaElement>);
-      }
-    },
-    [input, handleInputChange],
-  );
-
-  const handleRemoveFile = useCallback((index: number) => {
-    setDroppedFiles(prev => prev.filter((_, i) => i !== index));
-  }, []);
 
   const handleEditMessage = (messageId: string, newContent: string): void => {
     if (!newContent.trim()) return;

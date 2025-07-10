@@ -2,6 +2,9 @@ import React, { useState, useEffect } from "react";
 import { Loader2, Mail } from "lucide-react";
 import { IconWithStatus } from "@/components/ui/icon-with-status";
 import { GMAIL_CONFIG } from "@vibe/shared-types";
+import { createLogger } from "@/utils/logger";
+
+const logger = createLogger("GmailAuthButton");
 
 interface AuthStatus {
   authenticated: boolean;

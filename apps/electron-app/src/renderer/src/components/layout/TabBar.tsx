@@ -7,6 +7,8 @@ import { Tabs } from "@sinm/react-chrome-tabs";
 import "@sinm/react-chrome-tabs/css/chrome-tabs.css";
 import type { TabState } from "@vibe/shared-types";
 import { GMAIL_CONFIG } from "@vibe/shared-types";
+import { createLogger } from "@/utils/logger";
+import { useContextMenu, TabContextMenuItems } from "@/hooks/useContextMenu";
 import "../styles/TabBar.css";
 
 const logger = createLogger("TabBar");
@@ -243,19 +245,6 @@ export const ChromeTabBar: React.FC = () => {
       await window.vibe.tabs.switchToTab(tabId);
     } catch (error) {
       console.error("Failed to switch tab:", error);
-    }
-  };
-
-  const handleTabClose = async (tabId: string): Promise<void> => {
-    // Prevent closing OAuth tabs - they close automatically
-    if (tabId === GMAIL_CONFIG.OAUTH_TAB_KEY) {
-      return;
-    }
-
-    try {
-      await window.vibe.tabs.closeTab(tabId);
-    } catch (error) {
-      console.error("Failed to close tab:", error);
     }
   };
 

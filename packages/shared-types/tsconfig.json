@@ -12,8 +12,7 @@
     "forceConsistentCasingInFileNames": true,
     "composite": true,
     "moduleResolution": "node",
-    "resolveJsonModule": true,
-    "composite": true
+    "resolveJsonModule": true
   },
   "include": ["src/**/*"],
   "exclude": ["dist", "node_modules"]

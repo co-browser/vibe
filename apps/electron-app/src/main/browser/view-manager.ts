@@ -1,9 +1,5 @@
 import { WebContentsView, BrowserWindow } from "electron";
-import {
-  BROWSER_CHROME,
-  GLASSMORPHISM_CONFIG,
-  CHAT_PANEL,
-} from "@vibe/shared-types";
+import { BROWSER_CHROME, GLASSMORPHISM_CONFIG } from "@vibe/shared-types";
 import { createLogger } from "@vibe/shared-types";
 import { DEFAULT_USER_AGENT } from "../constants/user-agent";
 import { mainProcessPerformanceMonitor } from "../utils/performanceMonitor";
@@ -51,6 +47,14 @@ export class ViewManager {
     chatPanelWidth: number;
     isChatVisible: boolean;
   } | null = null;
+
+  // Speedlane mode properties
+  private isSpeedlaneMode: boolean = false;
+  private speedlaneLeftViewKey: string | null = null;
+  private speedlaneRightViewKey: string | null = null;
+
+  // Chat panel width tracking (as percentage)
+  private currentChatPanelWidth: number = 30; // Default 30% width
 
   constructor(browser: any, window: BrowserWindow) {
     this._browser = browser;

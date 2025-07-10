@@ -18,8 +18,6 @@ interface PendingMessage {
   timeout: NodeJS.Timeout;
 }
 
-const logger = createLogger("AgentWorker");
-
 export class AgentWorker extends EventEmitter {
   private workerProcess: UtilityProcess | null = null;
   private messageQueue: Map<string, PendingMessage> = new Map();

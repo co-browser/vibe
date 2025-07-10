@@ -6,13 +6,14 @@ import {
   app,
   BrowserWindow,
   dialog,
-  shell,
   powerMonitor,
   powerSaveBlocker,
   protocol,
   net,
+  globalShortcut,
 } from "electron";
 import { join } from "path";
+import * as path from "path";
 import { optimizer } from "@electron-toolkit/utils";
 import { config } from "dotenv";
 
@@ -31,12 +32,18 @@ import { initializeStorage } from "@/store/initialize-storage";
 import { getStorageService } from "@/store/storage-service";
 import { createLogger, MAIN_PROCESS_CONFIG } from "@vibe/shared-types";
 import { findFileUpwards } from "@vibe/shared-types/utils/path";
+import { userAnalytics } from "@/services/user-analytics";
+import { NotificationService } from "@/services/notification-service";
+import { FileDropService } from "@/services/file-drop-service";
+import { WindowBroadcast } from "@/utils/window-broadcast";
+import { useUserProfileStore } from "@/store/user-profile-store";
+import { initializeSessionManager } from "@/browser/session-manager";
 
 import {
+  init,
   browserWindowSessionIntegration,
   childProcessIntegration,
 } from "@sentry/electron/main";
-import AppUpdater from "./services/update-service";
 import log from "electron-log";
 
 // Configure electron-log to write to file
@@ -76,6 +83,21 @@ app.commandLine.appendSwitch("prompt-api-for-gemini-nano");
 const logger = createLogger("main-process");
 
 const isProd: boolean = process.env.NODE_ENV === "production";
+
+// Variables for keyboard shortcuts
+let lastCPressTime = 0;
+let notificationService: NotificationService | null = null;
+let fileDropService: FileDropService | null = null;
+
+// Handle CC shortcut (copy functionality)
+function handleCCShortcut(): void {
+  // Get the focused window and execute copy command
+  const focusedWindow = BrowserWindow.getFocusedWindow();
+  if (focusedWindow && focusedWindow.webContents) {
+    focusedWindow.webContents.copy();
+    logger.debug("CC shortcut triggered - copy executed");
+  }
+}
 
 // Prevent multiple instances
 const gotTheLock = app.requestSingleInstanceLock();
@@ -916,6 +938,8 @@ app.whenReady().then(async () => {
   }
 
   app.on("ready", () => {
+    // TODO: Re-enable Google OAuth when package is installed
+    /*
     const myApiOauth = new ElectronGoogleOAuth2(
       "756422833444-057sg8uit7bh2ocoepbahb0h9gsghh74.apps.googleusercontent.com",
       "CLIENT_SECRET",
@@ -926,6 +950,7 @@ app.whenReady().then(async () => {
       logger.info("Google OAuth token received", { token });
       // use your token.access_token
     });
+    */
   });
 
   app.on("browser-window-created", (_, window) => {
@@ -1152,8 +1177,8 @@ app.on("before-quit", async event => {
   // Clean up window broadcast utilities
   WindowBroadcast.cleanup();
 
-  // Clean up debounce manager
-  DebounceManager.cleanup();
+  // TODO: Clean up debounce manager when implemented
+  // DebounceManager.cleanup();
 
   // Clean up user profile store
   try {

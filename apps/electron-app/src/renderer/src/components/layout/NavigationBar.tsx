@@ -21,7 +21,7 @@ import {
 } from "@ant-design/icons";
 import OmniboxDropdown from "./OmniboxDropdown";
 import type { SuggestionMetadata } from "../../../../types/metadata";
-import { createLogger } from "@vibe/shared-types";
+import { createLogger } from "@/utils/logger";
 import { useLayout } from "@/hooks/useLayout";
 import { useSearchWorker } from "../../hooks/useSearchWorker";
 import "../styles/NavigationBar.css";
@@ -696,20 +696,6 @@ const NavigationBar: React.FC = () => {
     }
   }, []);
 
-  const isDomain = useCallback((string: string): boolean => {
-    const domainRegex = /^[a-zA-Z0-9][a-zA-Z0-9-_.]*[a-zA-Z0-9]\.[a-zA-Z]{2,}$/;
-    return domainRegex.test(string);
-  }, []);
-
-  const detectInputType = useCallback(
-    (input: string): "url" | "domain" | "search" => {
-      if (isValidURL(input)) return "url";
-      if (isDomain(input)) return "domain";
-      return "search";
-    },
-    [isValidURL, isDomain],
-  );
-
   // Generate intelligent suggestions using vibe APIs
   const generateRealSuggestions = useCallback(
     async (input: string): Promise<Suggestion[]> => {
@@ -842,9 +828,9 @@ const NavigationBar: React.FC = () => {
       searchInWorker(value);
 
       // Generate non-history suggestions in parallel
-      generateNonHistorySuggestions(value).then(setNonHistorySuggestions);
+      generateRealSuggestions(value).then(setNonHistorySuggestions);
     },
-    [searchInWorker, generateNonHistorySuggestions],
+    [searchInWorker, generateRealSuggestions],
   );
 
   const handleInputFocus = () => {
@@ -856,7 +842,7 @@ const NavigationBar: React.FC = () => {
     // Pre-load necessary data
     loadAllHistoryForWorker();
     searchInWorker(inputValue);
-    generateNonHistorySuggestions(inputValue).then(setNonHistorySuggestions);
+    generateRealSuggestions(inputValue).then(setNonHistorySuggestions);
   };
 
   const handleInputBlur = () => {

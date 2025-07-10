@@ -3,6 +3,7 @@ import type { ChatMessage, IAgentProvider } from "@vibe/shared-types";
 import { createLogger } from "@vibe/shared-types";
 import { mainStore } from "@/store/store";
 import { getTabContextOrchestrator } from "./tab-context";
+import { userAnalytics } from "@/services/user-analytics";
 
 const logger = createLogger("chat-messaging");
 

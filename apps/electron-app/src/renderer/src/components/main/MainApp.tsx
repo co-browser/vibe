@@ -9,25 +9,14 @@ import {
   IPC_EVENTS,
   type LayoutContextType,
 } from "@vibe/shared-types";
+import { createLogger } from "@/utils/logger";
+import { LayoutContext, useLayout } from "@/hooks/useLayout";
+import { UltraOptimizedDraggableDivider } from "../ui/UltraOptimizedDraggableDivider";
+import { SettingsModal } from "../modals/SettingsModal";
+import { DownloadsModal } from "../modals/DownloadsModal";
+import { performanceMonitor } from "@/utils/performanceMonitor";
 
-// Ensure window interface extensions are available
-declare global {
-  interface Window {
-    electron?: {
-      ipcRenderer: {
-        on: (channel: string, listener: (...args: any[]) => void) => void;
-        removeListener: (
-          channel: string,
-          listener: (...args: any[]) => void,
-        ) => void;
-        send: (channel: string, ...args: any[]) => void;
-        invoke: (channel: string, ...args: any[]) => Promise<any>;
-      };
-      platform: string;
-      [key: string]: any;
-    };
-  }
-}
+const logger = createLogger("MainApp");
 
 // Type guard for chat panel state
 function isChatPanelState(value: unknown): value is { isVisible: boolean } {
@@ -105,71 +94,7 @@ function useChatPanelHealthCheck(
   }, [isChatPanelVisible, setChatPanelKey, setChatPanelVisible]);
 }
 
-// Custom hook for chat panel health monitoring
-function useChatPanelHealthCheck(
-  isChatPanelVisible: boolean,
-  setChatPanelKey: React.Dispatch<React.SetStateAction<number>>,
-  setChatPanelVisible: React.Dispatch<React.SetStateAction<boolean>>,
-): void {
-  useEffect(() => {
-    if (!isChatPanelVisible) return;
-
-    const healthCheckInterval = setInterval(async () => {
-      try {
-        const chatPanel = document.querySelector(".chat-panel-sidebar");
-        const chatContent = document.querySelector(".chat-panel-content");
-        const chatBody = document.querySelector(".chat-panel-body");
-
-        if (chatPanel && chatContent && chatBody) {
-          const hasVisibleElements = Array.from(
-            chatBody.querySelectorAll("*"),
-          ).some(el => {
-            const computed = window.getComputedStyle(el);
-            return (
-              computed.display !== "none" && computed.visibility !== "hidden"
-            );
-          });
-
-          if (!hasVisibleElements) {
-            try {
-              const authoritativeState =
-                await window.vibe?.interface?.getChatPanelState?.();
-              if (
-                isChatPanelState(authoritativeState) &&
-                authoritativeState.isVisible
-              ) {
-                setChatPanelKey(prev => prev + 1);
-              }
-            } catch {
-              // Silent fallback
-            }
-          }
-        } else if (isChatPanelVisible) {
-          try {
-            const authoritativeState =
-              await window.vibe?.interface?.getChatPanelState?.();
-            if (
-              isChatPanelState(authoritativeState) &&
-              authoritativeState.isVisible
-            ) {
-              setChatPanelKey(prev => prev + 1);
-            } else {
-              setChatPanelVisible(false);
-            }
-          } catch {
-            // Silent fallback
-          }
-        }
-      } catch {
-        // Silent fallback
-      }
-    }, CHAT_PANEL_RECOVERY.HEALTH_CHECK_INTERVAL_MS);
-
-    return () => {
-      clearInterval(healthCheckInterval);
-    };
-  }, [isChatPanelVisible, setChatPanelKey, setChatPanelVisible]);
-}
+// Removed duplicate function definition
 
 function LayoutProvider({
   children,
@@ -301,8 +226,24 @@ function LayoutProvider({
 }
 
 function ChatPanelSidebar(): React.JSX.Element | null {
-  const { isChatPanelVisible, chatPanelWidth, chatPanelKey, isRecovering } =
-    useLayout();
+  const {
+    isChatPanelVisible,
+    chatPanelWidth,
+    chatPanelKey,
+    isRecovering,
+    setChatPanelWidth,
+    setChatPanelVisible,
+  } = useLayout();
+
+  const handleResizeWithIPC = (newWidth: number) => {
+    setChatPanelWidth(newWidth);
+    window.vibe?.interface?.setChatPanelWidth?.(newWidth);
+  };
+
+  const handleMinimize = () => {
+    setChatPanelVisible(false);
+    window.vibe?.interface?.toggleChatPanel?.(false);
+  };
 
   if (!isChatPanelVisible) {
     return null;

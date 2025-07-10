@@ -115,10 +115,6 @@ ipcMain.handle(
         );
       }
 
-      // Use the new WebFrameMain API utility function for better cross-platform compatibility
-      // This works across webcontent, nav, and chat areas
-      const focusedFrame = event.sender.focusedFrame;
-
       // Add view offsets to convert from renderer coordinates to window coordinates
       const adjustedX = (cursorPosition.x || 0) + viewOffsetX;
       const adjustedY = (cursorPosition.y || 0) + viewOffsetY;
@@ -133,33 +129,9 @@ ipcMain.handle(
         windowId: currentWindow?.id,
       });
 
-      if (focusedFrame) {
-        logger.debug("Using showContextMenuWithFrameMain");
-        showContextMenuWithFrameMain(
-          event.sender,
-          menu,
-          adjustedX,
-          adjustedY,
-          focusedFrame,
-        );
-      } else {
-        // Fallback to standard popup - try to get frame from window
-        const currentWindow = BrowserWindow.fromWebContents(event.sender);
-        if (currentWindow) {
-          logger.debug("Using fallback menu.popup", {
-            windowId: currentWindow.id,
-          });
-          const fallbackFrame = currentWindow.webContents.focusedFrame;
-          menu.popup({
-            window: currentWindow,
-            x: adjustedX,
-            y: adjustedY,
-            frame: fallbackFrame || undefined, // Include frame if available for Writing Tools support
-          });
-        } else {
-          logger.error("No window found for context menu");
-        }
-      }
+      // Show context menu using the utility function
+      logger.debug("Using showContextMenuWithFrameMain");
+      showContextMenuWithFrameMain(event.sender, menu, adjustedX, adjustedY);
 
       return { success: true };
     } catch (error) {

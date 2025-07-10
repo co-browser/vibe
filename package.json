@@ -72,12 +72,16 @@
   },
   "pnpm": {
     "onlyBuiltDependencies": [
+      "@reown/appkit",
       "@sentry/cli",
       "better-sqlite3",
+      "bufferutil",
       "electron",
+      "electron-winstaller",
       "esbuild",
       "sqlite3",
-      "tree-sitter"
+      "tree-sitter",
+      "utf-8-validate"
     ]
   }
 }

@@ -25,6 +25,9 @@ export class ApplicationWindow extends EventEmitter {
   public readonly window: BrowserWindow;
   public readonly tabManager: TabManager;
   public readonly viewManager: ViewManager;
+  public dialogManager: DialogManager;
+  private selectBluetoothCallback: ((deviceId: string) => void) | null = null;
+  private bluetoothPinCallback: ((pin: string) => void) | null = null;
   private isDestroying = false;
 
   constructor(

@@ -1,9 +1,7 @@
 import { ipcMain } from "electron";
-import { WindowBroadcast } from "@/utils/window-broadcast";
 import { browser } from "@/index";
 import { createLogger } from "@vibe/shared-types";
 import { userAnalytics } from "@/services/user-analytics";
-import { mainProcessPerformanceMonitor } from "@/utils/performanceMonitor";
 
 const logger = createLogger("ChatPanelIPC");
 

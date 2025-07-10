@@ -59,14 +59,13 @@ export interface ContextMenuParams {
 
 /**
  * Utility function to show context menus across webcontent, nav, and chat areas
- * Uses the new WebFrameMain API for better cross-platform compatibility
  */
 export function showContextMenuWithFrameMain(
   webContents: Electron.WebContents,
   menu: Menu,
   x: number,
   y: number,
-  frame: Electron.WebFrameMain,
+  frame?: Electron.WebFrameMain,
 ): void {
   try {
     const currentWindow = BrowserWindow.fromWebContents(webContents);
@@ -75,22 +74,21 @@ export function showContextMenuWithFrameMain(
       return;
     }
     // Use standard popup method
+    // popup does have frame: https://www.electronjs.org/blog#writing-tools-support
     menu.popup({
       window: currentWindow,
-      frame,
       x,
       y,
+      frame,
     });
     logger.debug("Context menu shown");
   } catch (error) {
-    logger.error("Failed to show context menu with WebFrameMain", { error });
+    logger.error("Failed to show context menu", { error });
     // Final fallback
     try {
       const currentWindow = BrowserWindow.fromWebContents(webContents);
-      const fallbackFrame = currentWindow?.webContents.focusedFrame;
-
-      if (currentWindow && fallbackFrame) {
-        menu.popup({ window: currentWindow, x, y, frame: fallbackFrame });
+      if (currentWindow) {
+        menu.popup({ window: currentWindow, x, y });
       }
     } catch (fallbackError) {
       logger.error("Final fallback context menu failed", { fallbackError });
@@ -354,12 +352,12 @@ function createContextMenuTemplate(
 }
 
 /**
- * Shows a context menu for a WebContentsView using the new WebFrameMain API
+ * Shows a context menu for a WebContentsView
  */
 export function showContextMenu(
   view: WebContentsView,
   params: ContextMenuParams,
-  frame: Electron.WebFrameMain,
+  frame?: Electron.WebFrameMain,
 ): void {
   try {
     const template = createContextMenuTemplate(view, params);
@@ -404,7 +402,6 @@ export function setupContextMenuHandlers(view: WebContentsView): void {
   webContents.on("context-menu", (event, params) => {
     // Always prevent default to show our custom menu
     event.preventDefault();
-
     // Get the focused frame for Writing Tools support
     const focusedFrame = webContents.focusedFrame;
     if (focusedFrame) {

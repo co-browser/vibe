@@ -12,15 +12,12 @@ import type {
   IAgentService,
   ExtractedPage,
 } from "@vibe/shared-types";
-import { createLogger } from "@vibe/shared-types";
 import { getProfileService } from "./profile-service";
 import { getSetting } from "../ipc/user/shared-utils";
 import {
   isValidOpenAIApiKey,
   sanitizeApiKeyForLogging,
 } from "../utils/api-key-validation";
-
-const logger = createLogger("AgentService");
 
 const logger = createLogger("AgentService");
 

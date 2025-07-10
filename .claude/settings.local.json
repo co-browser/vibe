@@ -43,7 +43,10 @@
       "Bash(mkdir:*)",
       "Bash(mv:*)",
       "Bash(npm install:*)",
-      "Bash(git rm:*)"
+      "Bash(git rm:*)",
+      "Bash(electron-vite build:*)",
+      "Bash(npx electron-vite build:*)",
+      "Bash(awk:*)"
     ],
     "deny": []
   }
