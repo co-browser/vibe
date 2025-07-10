@@ -6,12 +6,8 @@ import {
   app,
   BrowserWindow,
   dialog,
-  shell,
   powerMonitor,
   powerSaveBlocker,
-  Tray,
-  nativeImage,
-  Menu,
   ipcMain,
   globalShortcut,
   protocol,
@@ -19,7 +15,6 @@ import {
 import { optimizer } from "@electron-toolkit/utils";
 import { config } from "dotenv";
 import * as path from "path";
-import * as fs from "fs";
 // import { autoUpdater } from "electron-updater";
 import ElectronGoogleOAuth2 from "@getstation/electron-google-oauth2";
 
@@ -173,8 +168,6 @@ let isShuttingDown = false;
 
 // Cleanup functions
 let unsubscribeVibe: (() => void) | null = null;
-const unsubscribeStore: (() => void) | null = null;
-const unsubscribeBrowser: (() => void) | null = null;
 let memoryMonitor: ReturnType<typeof setupMemoryMonitoring> | null = null;
 
 // Track last C key press for double-press detection
@@ -301,14 +294,6 @@ async function gracefulShutdown(signal: string): Promise<void> {
       fileDropService = null;
     }
 
-    if (unsubscribeBrowser) {
-      unsubscribeBrowser();
-    }
-
-    if (unsubscribeStore) {
-      unsubscribeStore();
-    }
-
     if (unsubscribeVibe) {
       unsubscribeVibe();
     }
@@ -325,6 +310,12 @@ async function gracefulShutdown(signal: string): Promise<void> {
         window.close();
       }
     });
+
+    // Clean up tray
+    if (tray) {
+      tray.destroy();
+      tray = null;
+    }
 
     // Console cleanup no longer needed with proper logging system
 
@@ -842,6 +833,9 @@ async function initializeBackgroundServices(): Promise<void> {
   }
 }
 
+// Disable hardware acceleration to fix overlay click issues
+app.disableHardwareAcceleration();
+
 // Register standard schemes as privileged to enable WebAuthn
 // This must be done before app.whenReady()
 protocol.registerSchemesAsPrivileged([
@@ -890,176 +884,34 @@ app.whenReady().then(() => {
     optimizer.watchWindowShortcuts(window);
   });
 
-  // Try to load tray icon from resources folder
-  let trayIconPath: string;
-  if (app.isPackaged) {
-    // In production, use the resources path
-    trayIconPath = path.join(process.resourcesPath, "tray.png");
-  } else {
-    // In development, use the local resources folder
-    trayIconPath = path.join(__dirname, "../../resources/tray.png");
-  }
-
-  let icon: Electron.NativeImage;
-  try {
-    // Try to load from file first
-    if (fs.existsSync(trayIconPath)) {
-      const originalIcon = nativeImage.createFromPath(trayIconPath);
-
-      // Resize based on platform
-      // macOS: 22x22 for retina displays (will be 22x22 @1x or 44x44 @2x)
-      // Windows/Linux: 16x16
-      const size = process.platform === "darwin" ? 22 : 16;
-      icon = originalIcon.resize({ width: size, height: size });
-
-      logger.info(
-        `Loaded and resized tray icon from: ${trayIconPath} to ${size}x${size}`,
-      );
-    } else {
-      // Fallback to embedded base64 icon if file not found
-      logger.warn(
-        `Tray icon not found at: ${trayIconPath}, using embedded icon`,
-      );
-      const originalIcon = nativeImage.createFromDataURL(
-        "data:image/png;base64,AAABAAQADBACAAEAAQCwAAAARgAAABggAgABAAEAMAEAAPYAAAAkMAIAAQABADADAAAmAgAAMEACAAEAAQAwBAAAVgUAACgAAAAMAAAAIAAAAAEAAQAAAAAAQAAAAMMOAADDDgAAAgAAAAIAAAA/VwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKAAAABgAAABAAAAAAQABAAAAAACAAAAAww4AAMMOAAACAAAAAgAAAD9XAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACgAAAAkAAAAYAAAAAEAAQAAAAAAgAEAAMMOAADDDgAAAgAAAAIAAAA/VwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACgAAAAwAAAAgAAAAAEAAQAAAAAAAAIAAMMOAADDDgAAAgAAAAIAAAA/VwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
-      );
-
-      // Resize the embedded icon too
-      const size = process.platform === "darwin" ? 22 : 16;
-      icon = originalIcon.resize({ width: size, height: size });
-    }
-  } catch (error) {
-    logger.error("Failed to load tray icon:", error);
-    // Use embedded icon as fallback
-    const originalIcon = nativeImage.createFromDataURL(
-      "data:image/png;base64,AAABAAQADBACAAEAAQCwAAAARgAAABggAgABAAEAMAEAAPYAAAAkMAIAAQABADADAAAmAgAAMEACAAEAAQAwBAAAVgUAACgAAAAMAAAAIAAAAAEAAQAAAAAAQAAAAMMOAADDDgAAAgAAAAIAAAA/VwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKAAAABgAAABAAAAAAQABAAAAAACAAAAAww4AAMMOAAACAAAAAgAAAD9XAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACgAAAAkAAAAYAAAAAEAAQAAAAAAgAEAAMMOAADDDgAAAgAAAAIAAAA/VwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACgAAAAwAAAAgAAAAAEAAQAAAAAAAAIAAMMOAADDDgAAAgAAAAIAAAA/VwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
-    );
-
-    // Resize the fallback icon too
-    const size = process.platform === "darwin" ? 22 : 16;
-    icon = originalIcon.resize({ width: size, height: size });
-  }
-
-  // On macOS, mark as template image so it adapts to light/dark mode
-  if (process.platform === "darwin") {
-    icon.setTemplateImage(true);
-  }
-
-  tray = new Tray(icon);
-
-  // --- Differentiated Tray Menu ---
-  // Provides quick access to Vibe's core AI features without needing to open the main window.
-
-  // Update tray icon color based on persona
-  const updateTrayIconForPersona = (persona: "work" | "pure" | "sexy") => {
-    if (!tray || process.platform !== "darwin") return; // Only works on macOS with template images
-
+  // Initialize tray based on settings (default to enabled)
+  const initializeTray = async () => {
     try {
-      // Create a new image with persona color tint
-      // Note: For macOS template images, we can't directly change color
-      // But we can update the tooltip to indicate persona
-      const personaColors = {
-        work: "Work Mode (Blue)",
-        pure: "Pure Mode (Yellow)",
-        sexy: "Sexy Mode (Red)",
-      };
+      const userProfileStore = useUserProfileStore.getState();
+      const activeProfile = userProfileStore.getActiveProfile();
+      const trayEnabled = activeProfile?.settings?.tray?.enabled ?? true;
 
-      tray.setToolTip(`Vibing - ${personaColors[persona]}`);
+      if (trayEnabled) {
+        const { createTray } = await import("./tray-manager");
+        tray = await createTray();
+        // Set the tray reference in the IPC handler
+        const { setMainTray } = await import("./ipc/app/tray-control");
+        setMainTray(tray);
+        logger.info("Tray initialized from settings");
+      } else {
+        logger.info("Tray disabled in settings");
+      }
     } catch (error) {
-      logger.error("Failed to update tray icon for persona:", error);
+      logger.error("Failed to initialize tray from settings:", error);
     }
   };
 
-  // Broadcast persona change to all windows
-  const broadcastPersonaChange = (persona: "work" | "pure" | "sexy") => {
-    const allWindows = BrowserWindow.getAllWindows();
-    allWindows.forEach(window => {
-      if (!window.isDestroyed()) {
-        window.webContents.send("persona:change", persona);
-      }
-    });
-
-    // Update tray icon
-    updateTrayIconForPersona(persona);
-  };
-
-  const contextMenu = Menu.buildFromTemplate([
-    {
-      label: "Writing Style",
-      enabled: false,
-    },
-    { type: "separator" },
-    {
-      label: "Executive",
-      enabled: false,
-      type: "radio",
-      checked: true,
-      click: () => {
-        logger.info("Switched to Work persona");
-        broadcastPersonaChange("work");
-      },
-    },
-    {
-      label: "Balanced",
-      enabled: false,
-      type: "radio",
-      click: () => {
-        logger.info("Switched to Pure persona");
-        broadcastPersonaChange("pure");
-      },
-    },
-    {
-      label: "Twitter",
-      enabled: false,
-      type: "radio",
-      click: () => {
-        logger.info("Switched to Sexy persona");
-        broadcastPersonaChange("sexy");
-      },
-    },
-    { type: "separator" },
-    { label: "Feature Request", role: "help" },
-  ]);
-
-  tray.setToolTip("Vibing");
-  tray.setContextMenu(contextMenu);
-
-  // --- Dock Menu (macOS) ---
-  if (process.platform === "darwin") {
-    const dockMenu = Menu.buildFromTemplate([
-      {
-        label: "Persona",
-        enabled: false,
-      },
-      { type: "separator" },
-      {
-        label: "Work",
-        type: "radio",
-        checked: true,
-        click: () => {
-          logger.info("Switched to Work persona");
-          broadcastPersonaChange("work");
-        },
-      },
-      {
-        label: "Pure",
-        type: "radio",
-        click: () => {
-          logger.info("Switched to Pure persona");
-          broadcastPersonaChange("pure");
-        },
-      },
-      {
-        label: "Sexy",
-        type: "radio",
-        click: () => {
-          logger.info("Switched to Sexy persona");
-          broadcastPersonaChange("sexy");
-        },
-      },
-    ]);
-    app.dock?.setMenu(dockMenu);
-  }
+  // Initialize tray and hotkeys after app is ready
+  initializeTray().then(async () => {
+    // Initialize password paste hotkey
+    const { initializePasswordPasteHotkey } = await import("./hotkey-manager");
+    initializePasswordPasteHotkey();
+  });
 
   // Register the global img:// protocol for PDF handling
   registerImgProtocol();
@@ -1225,6 +1077,10 @@ app.on("before-quit", async () => {
   // Clean up global shortcuts
   globalShortcut.unregisterAll();
 
+  // Clean up hotkey manager
+  const { cleanupHotkeys } = await import("./hotkey-manager");
+  cleanupHotkeys();
+
   // Clean up browser resources
   if (browser && !browser.isDestroyed()) {
     browser.destroy();
@@ -1279,134 +1135,59 @@ app.on("web-contents-created", (_event, contents) => {
 
   contents.setWindowOpenHandler(({ url, disposition }) => {
     // Parse the URL to check if it's an OAuth callback
-    try {
-      const parsedUrl = new URL(url);
-
-      // Check if this is an OAuth callback URL
-      // Common OAuth callback patterns:
-      // - Contains 'callback' in the path
-      // - Contains 'oauth' in the path
-      // - Contains 'code=' or 'token=' in query params
-      // - Is from a known OAuth provider domain
-      const isOAuthCallback =
-        parsedUrl.pathname.includes("callback") ||
-        parsedUrl.pathname.includes("oauth") ||
-        parsedUrl.searchParams.has("code") ||
-        parsedUrl.searchParams.has("token") ||
-        parsedUrl.searchParams.has("access_token") ||
-        parsedUrl.searchParams.has("state");
-
-      // List of known OAuth provider domains that should be allowed
-      const allowedOAuthDomains = [
-        "accounts.google.com",
-        "login.microsoftonline.com",
-        "github.com",
-        "api.github.com",
-        "oauth.github.com",
-        "login.live.com",
-        "login.windows.net",
-        "facebook.com",
-        "www.facebook.com",
-        "twitter.com",
-        "api.twitter.com",
-        "linkedin.com",
-        "www.linkedin.com",
-        "api.linkedin.com",
-        "discord.com",
-        "discord.gg",
-        "slack.com",
-        "api.slack.com",
-        "dropbox.com",
-        "www.dropbox.com",
-        "api.dropbox.com",
-        "reddit.com",
-        "www.reddit.com",
-        "oauth.reddit.com",
-        "twitch.tv",
-        "api.twitch.tv",
-        "id.twitch.tv",
-        "spotify.com",
-        "accounts.spotify.com",
-        "api.spotify.com",
-        "amazon.com",
-        "www.amazon.com",
-        "api.amazon.com",
-        "apple.com",
-        "appleid.apple.com",
-        "developer.apple.com",
-        "paypal.com",
-        "www.paypal.com",
-        "api.paypal.com",
-        "stripe.com",
-        "connect.stripe.com",
-        "dashboard.stripe.com",
-        "zoom.us",
-        "api.zoom.us",
-        "salesforce.com",
-        "login.salesforce.com",
-        "test.salesforce.com",
-        "box.com",
-        "app.box.com",
-        "account.box.com",
-        "atlassian.com",
-        "auth.atlassian.com",
-        "id.atlassian.com",
-        "gitlab.com",
-        "bitbucket.org",
-        "auth.bitbucket.org",
-      ];
-
-      const isFromOAuthProvider = allowedOAuthDomains.some(
-        domain =>
-          parsedUrl.hostname === domain ||
-          parsedUrl.hostname.endsWith("." + domain),
-      );
-
-      // Allow OAuth callbacks or OAuth provider domains to open in the app
-      if (isOAuthCallback || isFromOAuthProvider) {
-        logger.info(`Allowing OAuth-related URL to open in app: ${url}`);
-
-        // If it's trying to open in a new window (popup), configure it properly
-        if (
-          disposition === "new-window" ||
-          disposition === "foreground-tab" ||
-          disposition === "background-tab"
-        ) {
-          return {
-            action: "allow",
-            overrideBrowserWindowOptions: {
-              webPreferences: {
-                // Share the same session as the parent window to maintain user auth
-                session: contents.session,
-                contextIsolation: true,
-                nodeIntegration: false,
-                sandbox: true,
-                webSecurity: true,
-              },
-              // Reasonable defaults for OAuth popups
-              width: 800,
-              height: 600,
-              center: true,
-              resizable: true,
-              minimizable: true,
-              maximizable: true,
-              autoHideMenuBar: true,
-            },
-          };
-        }
-
-        return { action: "allow" };
+    // Check if this is an OAuth callback URL
+    // Common OAuth callback patterns:
+    // - Contains 'callback' in the path
+    // - Contains 'oauth' in the path
+    // - Contains 'code=' or 'token=' in query params
+    // - Is from a known OAuth provider domain
+    // Allow OAuth callbacks or OAuth provider domains to open in the app
+    //  if (isOAuthCallback || isFromOAuthProvider) {
+    //  logger.info(`Allowing OAuth-related URL to open in app: ${url}`);
+    logger.info("window open handler for URL:", { url, disposition });
+    // If it's trying to open in a new window (popup), configure it properly
+    if (disposition === "foreground-tab" || disposition === "background-tab") {
+      return {
+        action: "allow",
+        overrideBrowserWindowOptions: {
+          webPreferences: {
+            // Share the same session as the parent window to maintain user auth
+            session: contents.session,
+            contextIsolation: true,
+            nodeIntegration: false,
+            sandbox: true,
+            webSecurity: true,
+          },
+          // Reasonable defaults for OAuth popups
+          width: 800,
+          height: 600,
+          center: true,
+          resizable: true,
+          minimizable: true,
+          maximizable: true,
+          autoHideMenuBar: true,
+        },
+      };
+    } else if (disposition === "new-window") {
+      const appWindow = browser?.getMainApplicationWindow();
+      if (appWindow) {
+        appWindow.tabManager.createTab(url);
+      } else {
+        logger.warn("No main application window available, cannot open URL", {
+          url,
+        });
       }
 
+      // If it's a foreground tab, allow it to open
+      return { action: "allow" };
+
       // For all other URLs, open externally
-      shell.openExternal(url);
-      return { action: "deny" };
-    } catch (error) {
-      // If URL parsing fails, default to opening externally
-      logger.error("Failed to parse URL for OAuth check:", error);
-      shell.openExternal(url);
-      return { action: "deny" };
+      // shell.openExternal(url);
+      // return { action: "deny" };
     }
+
+    // Default case - deny the request
+    return { action: "deny" };
   });
 });
 

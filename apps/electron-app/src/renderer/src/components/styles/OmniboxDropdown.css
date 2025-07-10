@@ -1,0 +1,35 @@
+/* eslint-env worker */
+/* global self */
+.omnibox-dropdown {
+  position: fixed;
+  top: var(--omnibar-bottom);
+  left: var(--omnibar-left);
+  width: var(--omnibar-width);
+  max-width: 100vw;
+  max-height: 400px;
+  will-change: transform, opacity;
+  background: #fff;
+  border: 1px solid var(--nav-border, #d1d5db);
+  border-radius: 4px;
+  z-index: 2147483647;
+  padding: 4px 0;
+  /* Remove box-shadow for flat look */
+  box-shadow: none;
+  isolation: isolate;
+  pointer-events: none;
+}
+
+/* Hide scrollbars for dropdown and its children */
+.omnibox-dropdown,
+.omnibox-dropdown * {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE 10+ */
+}
+.omnibox-dropdown::-webkit-scrollbar,
+.omnibox-dropdown *::-webkit-scrollbar {
+  display: none;
+}
+
+.suggestion-item {
+  pointer-events: auto;
+}

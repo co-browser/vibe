@@ -6,7 +6,6 @@
       "Bash(grep:*)",
       "Bash(npm run dev:*)",
       "Bash(rg:*)",
-      "Bash(pkill:*)",
       "Bash(npm run typecheck:*)",
       "Bash(true)",
       "Bash(npm start)",
@@ -33,7 +32,7 @@
       "Bash(pnpm build:*)",
       "Bash(git commit:*)",
       "Bash(pnpm build:*)",
-      "Bash(mv:*)",
+      "Bash(npx repomix@latest --no-security-check  --remove-comments --remove-empty-lines --compress --style xml -o repo.xml)",
       "Bash(git checkout:*)",
       "Bash(pnpm:*)",
       "Bash(npx prettier:*)",
@@ -41,7 +40,9 @@
       "Bash(pnpm:*)",
       "Bash(timeout 10 npm run dev:*)",
       "Bash(git ls-tree:*)",
-      "Bash(mkdir:*)"
+      "Bash(mkdir:*)",
+      "Bash(mv:*)",
+      "Bash(npm install:*)"
     ],
     "deny": []
   }

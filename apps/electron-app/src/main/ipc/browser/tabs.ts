@@ -178,3 +178,30 @@ ipcMain.on("tab:create", async (event, url?: string) => {
     logger.error("Failed to create tab from context menu:", error);
   }
 });
+
+// Web view visibility control for omnibox dropdown
+ipcMain.on(
+  "browser:setWebViewVisibility",
+  (event, { visible }: { visible: boolean }) => {
+    try {
+      const appWindow = browser?.getApplicationWindow(event.sender.id);
+      if (!appWindow) {
+        logger.error(
+          "No application window found for web view visibility control",
+        );
+        return;
+      }
+
+      const activeTabKey = appWindow.tabManager.getActiveTabKey();
+      if (activeTabKey) {
+        const view = appWindow.viewManager.getView(activeTabKey);
+        if (view) {
+          view.setVisible(visible);
+          logger.debug(`Set web view visibility to ${visible} for active tab`);
+        }
+      }
+    } catch (error) {
+      logger.error("Failed to set web view visibility:", error);
+    }
+  },
+);

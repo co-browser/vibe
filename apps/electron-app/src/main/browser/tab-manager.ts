@@ -151,7 +151,7 @@ export class TabManager extends EventEmitter {
 
     // Use opaque white background to fix speedlane rendering issues
     // Transparent backgrounds can cause visibility problems when multiple views overlap
-    view.setBackgroundColor("#FFFFFF");
+    //view.setBackgroundColor("#FFFFFF");
 
     // Add rounded corners for glassmorphism design
     view.setBorderRadius(GLASSMORPHISM_CONFIG.BORDER_RADIUS);

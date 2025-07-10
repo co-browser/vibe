@@ -406,14 +406,7 @@ function BrowserContentArea(): React.JSX.Element {
 
   return (
     <div className="browser-view-content">
-      {isLoading ? (
-        <div className="loading-state">
-          <div className="loading-spinner animate-spin-custom"></div>
-          <span>Loading...</span>
-        </div>
-      ) : currentUrl ? (
-        <div className="ready-state" style={{ display: "none" }}></div>
-      ) : (
+      {!currentUrl && !isLoading && (
         <div className="ready-state">
           <div className="welcome-message">
             <h2>Welcome to Vibe Browser</h2>

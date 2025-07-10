@@ -108,6 +108,7 @@ const items: MenuItem[] = [
       { key: "browser", label: "Browser Notifications" },
       { key: "system", label: "System Notifications" },
       { key: "sounds", label: "Notification Sounds" },
+      { key: "tray", label: "System Tray" },
     ],
   },
   {
@@ -179,6 +180,10 @@ const renderContent = (
   handleApiKeyChange?: any,
   saveApiKeys?: any,
   setPasswordVisible?: any,
+  trayEnabled?: boolean,
+  onTrayToggle?: (enabled: boolean) => void,
+  passwordPasteHotkey?: string,
+  onPasswordPasteHotkeyChange?: (hotkey: string) => void,
 ) => {
   switch (selectedKey) {
     case "startup":
@@ -429,6 +434,47 @@ const renderContent = (
         </div>
       );
 
+    case "tray":
+      return (
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            padding: "40px 0",
+          }}
+        >
+          <Card
+            title="System Tray"
+            style={{ width: "100%", maxWidth: 600, textAlign: "center" }}
+          >
+            <Space direction="vertical" style={{ width: "100%" }}>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  padding: "16px 0",
+                }}
+              >
+                <div style={{ textAlign: "left" }}>
+                  <Text strong>Show system tray icon</Text>
+                  <br />
+                  <Text type="secondary">
+                    Display Vibe icon in the system tray for quick access
+                  </Text>
+                </div>
+                <Switch
+                  size="default"
+                  checked={trayEnabled}
+                  onChange={onTrayToggle}
+                />
+              </div>
+            </Space>
+          </Card>
+        </div>
+      );
+
     case "enable":
       return (
         <div
@@ -555,6 +601,48 @@ const renderContent = (
               >
                 <Text>Refresh</Text>
                 <Text code>⌘R</Text>
+              </div>
+            </Space>
+          </Card>
+        </div>
+      );
+
+    case "browser-actions":
+      return (
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            padding: "40px 0",
+          }}
+        >
+          <Card
+            title="Browser Actions"
+            style={{ width: "100%", maxWidth: 600, textAlign: "center" }}
+          >
+            <Space direction="vertical" style={{ width: "100%" }}>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  padding: "16px 0",
+                }}
+              >
+                <div style={{ textAlign: "left" }}>
+                  <Text strong>Paste Password</Text>
+                  <br />
+                  <Text type="secondary">
+                    Paste the most recent password for the current website
+                  </Text>
+                </div>
+                <Input
+                  value={passwordPasteHotkey || "⌘⇧P"}
+                  onChange={e => onPasswordPasteHotkeyChange?.(e.target.value)}
+                  style={{ width: 120, textAlign: "center" }}
+                  placeholder="⌘⇧P"
+                />
               </div>
             </Space>
           </Card>
@@ -885,10 +973,14 @@ export function SettingsPane() {
     openai: false,
     turbopuffer: false,
   });
+  const [trayEnabled, setTrayEnabled] = useState(true);
+  const [passwordPasteHotkey, setPasswordPasteHotkey] = useState("⌘⇧P");
 
-  // Load API keys from profile on mount
+  // Load API keys and tray setting from profile on mount
   useEffect(() => {
     loadApiKeys();
+    loadTraySetting();
+    loadPasswordPasteHotkey();
   }, []);
 
   const loadApiKeys = async () => {
@@ -904,6 +996,33 @@ export function SettingsPane() {
     } catch (error) {
       console.error("Failed to load API keys:", error);
       message.error("Failed to load API keys");
+    }
+  };
+
+  const loadTraySetting = async () => {
+    try {
+      const { ipcRenderer } = await import("electron");
+      const trayEnabled = await ipcRenderer.invoke(
+        "settings:get",
+        "tray.enabled",
+      );
+      setTrayEnabled(trayEnabled ?? true); // Default to true if not set
+    } catch (error) {
+      console.error("Failed to load tray setting:", error);
+      setTrayEnabled(true); // Default to true on error
+    }
+  };
+
+  const loadPasswordPasteHotkey = async () => {
+    try {
+      const { ipcRenderer } = await import("electron");
+      const result = await ipcRenderer.invoke("hotkeys:get-password-paste");
+      if (result.success) {
+        setPasswordPasteHotkey(result.hotkey);
+      }
+    } catch (error) {
+      console.error("Failed to load password paste hotkey:", error);
+      setPasswordPasteHotkey("⌘⇧P"); // Default hotkey
     }
   };
 
@@ -930,6 +1049,43 @@ export function SettingsPane() {
     } catch (error) {
       console.error("Failed to save API keys:", error);
       message.error("Failed to save API keys");
+    }
+  };
+
+  const handleTrayToggle = async (enabled: boolean) => {
+    try {
+      const { ipcRenderer } = await import("electron");
+      if (enabled) {
+        await ipcRenderer.invoke("tray:create");
+      } else {
+        await ipcRenderer.invoke("tray:destroy");
+      }
+      // Save setting
+      await ipcRenderer.invoke("settings:set", "tray.enabled", enabled);
+      setTrayEnabled(enabled);
+      message.success(`System tray ${enabled ? "enabled" : "disabled"}`);
+    } catch (error) {
+      console.error("Failed to toggle tray:", error);
+      message.error("Failed to toggle system tray");
+    }
+  };
+
+  const handlePasswordPasteHotkeyChange = async (hotkey: string) => {
+    try {
+      const { ipcRenderer } = await import("electron");
+      const result = await ipcRenderer.invoke(
+        "hotkeys:set-password-paste",
+        hotkey,
+      );
+      if (result.success) {
+        setPasswordPasteHotkey(hotkey);
+        message.success("Password paste hotkey updated");
+      } else {
+        message.error("Failed to update hotkey");
+      }
+    } catch (error) {
+      console.error("Failed to update password paste hotkey:", error);
+      message.error("Failed to update hotkey");
     }
   };
 
@@ -1129,6 +1285,10 @@ export function SettingsPane() {
               handleApiKeyChange,
               saveApiKeys,
               setPasswordVisible,
+              trayEnabled,
+              handleTrayToggle,
+              passwordPasteHotkey,
+              handlePasswordPasteHotkeyChange,
             )}
           </div>
         </Content>

@@ -12,6 +12,9 @@ import "@/ipc/app/actions";
 import "@/ipc/app/gmail";
 import "@/ipc/app/api-keys";
 import "@/ipc/app/modals";
+import "@/ipc/app/tray-control";
+import "@/ipc/app/password-paste";
+import "@/ipc/app/hotkey-control";
 
 // Chat APIs - direct imports (register themselves)
 import "@/ipc/chat/chat-messaging";

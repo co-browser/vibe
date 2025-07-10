@@ -4,7 +4,8 @@
     "src/renderer/src/global.d.ts",
     "src/renderer/src/**/*.ts",
     "src/renderer/src/**/*.tsx",
-    "src/main/store/types.ts"
+    "src/main/store/types.ts",
+    "src/types/**/*.ts"
   ],
   "compilerOptions": {
     "composite": true,

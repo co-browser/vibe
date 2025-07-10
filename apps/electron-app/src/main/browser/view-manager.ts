@@ -5,7 +5,6 @@ import {
   CHAT_PANEL,
 } from "@vibe/shared-types";
 import { createLogger } from "@vibe/shared-types";
-import { OverlayManager } from "./overlay-manager";
 import { DEFAULT_USER_AGENT } from "../constants/user-agent";
 import { mainProcessPerformanceMonitor } from "../utils/performanceMonitor";
 
@@ -46,9 +45,6 @@ export class ViewManager {
   private speedlaneLeftViewKey: string | null = null;
   private speedlaneRightViewKey: string | null = null;
 
-  // Overlay manager
-  private overlayManager: OverlayManager;
-
   // Track which views are currently visible
   private visibleViews: Set<string> = new Set();
 
@@ -63,7 +59,6 @@ export class ViewManager {
   constructor(browser: any, window: BrowserWindow) {
     this._browser = browser;
     this.window = window;
-    this.overlayManager = new OverlayManager(window);
   }
 
   // === OVERLAY MANAGEMENT ===
@@ -72,22 +67,7 @@ export class ViewManager {
    * Initialize the overlay system
    */
   public async initializeOverlay(): Promise<void> {
-    await this.overlayManager.initialize();
-    this.ensureOverlayOnTop();
-  }
-
-  /**
-   * Ensure overlay stays on top of all views
-   */
-  private ensureOverlayOnTop(): void {
-    this.overlayManager.bringToFront();
-  }
-
-  /**
-   * Get the overlay manager
-   */
-  public getOverlayManager(): OverlayManager {
-    return this.overlayManager;
+    // Overlay system has been removed - using DOM injection instead
   }
 
   // === PURE UTILITY INTERFACE ===
@@ -102,8 +82,6 @@ export class ViewManager {
     if (this.window) {
       this.window.contentView.addChildView(view);
       this.updateBoundsForView(tabKey);
-      // Ensure overlay stays on top
-      this.ensureOverlayOnTop();
     }
   }
 
@@ -275,9 +253,6 @@ export class ViewManager {
 
     // Update bounds for the newly visible view
     this.updateBoundsForView(tabKey);
-
-    // Ensure overlay stays on top
-    this.ensureOverlayOnTop();
 
     return true;
   }
@@ -695,9 +670,6 @@ export class ViewManager {
       } else {
         logger.debug(`🔧 No speedlaneRightViewKey set yet`);
       }
-
-      // Ensure overlay stays on top after setting up both views
-      this.ensureOverlayOnTop();
     } else {
       // Normal mode - single webview takes full available width
       logger.debug(
@@ -748,9 +720,6 @@ export class ViewManager {
    * Destroys the view manager
    */
   public destroy(): void {
-    // Clean up overlay manager
-    this.overlayManager.destroy();
-
     for (const [tabKey] of this.browserViews) {
       this.removeBrowserView(tabKey);
     }

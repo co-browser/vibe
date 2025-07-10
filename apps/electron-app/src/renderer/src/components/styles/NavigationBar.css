@@ -31,6 +31,12 @@
   z-index: 2147483646; /* One less than suggestions dropdown */
 }
 
+/* Ensure omnibar container has proper stacking context */
+.omnibar-container {
+  position: relative;
+  z-index: 2147483646;
+}
+
 .nav-controls {
   display: flex;
   align-items: center;
@@ -295,10 +301,10 @@
   align-items: center;
   padding: 12px 16px;
   cursor: pointer;
-  transition: all 0.15s ease;
   border-bottom: 1px solid rgba(0, 0, 0, 0.05);
   -webkit-app-region: no-drag;
   background: transparent;
+  transition: none !important;
 }
 
 .suggestion-item:last-child {
@@ -306,13 +312,11 @@
 }
 
 .suggestion-item:hover {
-  background-color: rgba(0, 0, 0, 0.18);
-  backdrop-filter: blur(12px);
-  transform: translateX(4px);
-  box-shadow:
-    0 4px 12px rgba(0, 0, 0, 0.15),
-    inset 0 0 0 1px rgba(0, 0, 0, 0.1);
-  transition: all 0.15s ease-out;
+  background-color: rgba(0, 0, 0, 0.08) !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  transform: none !important;
 }
 
 .suggestion-item.selected {
@@ -798,4 +802,18 @@
 
 .nav-button.speedlane-active:hover {
   background-color: #d97706;
+}
+
+.omnibox-dropdown,
+.omnibar-suggestions,
+.omnibar-suggestions-portal {
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease,
+    opacity 0.15s ease,
+    transform 0.15s ease !important;
+  animation-duration: 0.15s !important;
+  border: 1px solid var(--nav-border, #d1d5db) !important;
+  outline: none !important;
 }

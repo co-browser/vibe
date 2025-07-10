@@ -26,7 +26,6 @@ export class UpdateNotifier {
 
   public async initialize(): Promise<void> {
     try {
-      // Removed tray setup - should use main app's tray instead
       this.isInitialized = true;
       logger.info("Update notifier initialized");
     } catch (error) {
@@ -100,8 +99,6 @@ export class UpdateNotifier {
 
       // Show the notification
       notification.show();
-
-      // Update notifications don't need tray interaction
 
       logger.info("Update notification shown", { title });
     } catch (error) {
@@ -190,12 +187,6 @@ export class UpdateNotifier {
       }
       mainWindow.focus();
     }
-  }
-
-  public updateTrayIcon(hasUpdate: boolean): void {
-    // Tray icon updates should be handled by the main app
-    // This method is kept for compatibility but does nothing
-    logger.info("Update tray icon request", { hasUpdate });
   }
 
   public async cleanup(): Promise<void> {

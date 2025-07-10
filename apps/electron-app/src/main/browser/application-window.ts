@@ -135,14 +135,14 @@ export class ApplicationWindow extends EventEmitter {
       titleBarOverlay: {
         height: 30,
         symbolColor: nativeTheme.shouldUseDarkColors ? "white" : "black",
-        color: "transparent",
+        color: nativeTheme.shouldUseDarkColors ? "#1a1a1a" : "#ffffff",
       },
       ...(process.platform === "darwin" && {
         trafficLightPosition: WINDOW_CONFIG.TRAFFIC_LIGHT_POSITION,
       }),
-      backgroundColor: "transparent",
+      backgroundColor: nativeTheme.shouldUseDarkColors ? "#1a1a1a" : "#ffffff",
       frame: false,
-      transparent: true,
+      transparent: false,
       resizable: true,
       visualEffectState: "active",
       backgroundMaterial: "acrylic",
@@ -161,8 +161,8 @@ export class ApplicationWindow extends EventEmitter {
 
   private setupEvents(): void {
     this.window.once("ready-to-show", async () => {
-      // Initialize overlay before showing window
-      await this.viewManager.initializeOverlay();
+      // Overlay initialization disabled - using DOM-injected dropdown instead
+      // await this.viewManager.initializeOverlay();
 
       this.window.show();
       this.window.focus();

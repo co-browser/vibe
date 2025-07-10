@@ -926,6 +926,16 @@ if (process.contextIsolated) {
           ipcRenderer.send(channel, ...args);
         },
       },
+      // Direct send method for debugging
+      send: (channel: string, ...args: any[]) => {
+        console.log(
+          "🔥 PRELOAD: Direct send called with channel:",
+          channel,
+          "args:",
+          args,
+        );
+        ipcRenderer.send(channel, ...args);
+      },
     });
     contextBridge.exposeInMainWorld("electron", {
       ...electronAPI,
