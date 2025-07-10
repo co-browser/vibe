@@ -1,6 +1,7 @@
 import { ipcMain } from "electron";
 import { browser } from "@/index";
 import { createLogger } from "@vibe/shared-types";
+import { userAnalytics } from "@/services/user-analytics";
 
 const logger = createLogger("ChatPanelIPC");
 
@@ -12,6 +13,18 @@ const logger = createLogger("ChatPanelIPC");
 ipcMain.on("toggle-custom-chat-area", (event, isVisible: boolean) => {
   const appWindow = browser?.getApplicationWindow(event.sender.id);
   if (!appWindow) return;
+
+  // Track chat panel toggle
+  userAnalytics.trackChatEngagement(isVisible ? "chat_opened" : "chat_closed");
+  userAnalytics.trackNavigation("chat-panel-toggled", {
+    isVisible: isVisible,
+    windowId: event.sender.id,
+  });
+
+  // Update usage stats for chat usage
+  if (isVisible) {
+    userAnalytics.updateUsageStats({ chatUsed: true });
+  }
 
   appWindow.viewManager.toggleChatPanel(isVisible);
   appWindow.window.webContents.send("chat-area-visibility-changed", isVisible);

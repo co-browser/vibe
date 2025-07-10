@@ -12,8 +12,8 @@ module.exports = {
     "!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}",
     "out/**/*",
   ],
-  afterSign: "scripts/notarize.js",
-  afterAllArtifactBuild: "scripts/notarizedmg.js",
+  afterSign: process.env.NOTARIZE === 'true' ? "scripts/notarize.js" : undefined,
+  afterAllArtifactBuild: process.env.NOTARIZE === 'true' ? "scripts/notarizedmg.js" : undefined,
   asarUnpack: [
     "dist/mac-arm64/vibe.app/Contents/Resources/app.asar.unpacked/node_modules/sqlite3/build/Release/node_sqlite3.node",
     "**/out/main/processes/mcp-manager-process.js",
@@ -43,7 +43,25 @@ module.exports = {
   mac: {
     appId: "xyz.cobrowser.vibe",
     extendInfo: {
-      NSBluetoothAlwaysUsageDescription: "passkey access",
+      NSBonjourServices: ["_http._tcp"],
+      ASWebAuthenticationSessionWebBrowserSupportCapabilities: {
+        IsSupported: true,
+        EphemeralBrowserSessionIsSupported: true,
+        CallbackURLMatchingIsSupported: true,
+        AdditionalHeaderFieldsAreSupported: true,
+      },
+      ASWebAuthenticationSessionWebBrowserSupport: {
+        IsSupported: true,
+        EphemeralBrowserSessionIsSupported: true,
+        CallbackURLMatchingIsSupported: true,
+        AdditionalHeaderFieldsAreSupported: true,
+      },
+      ASAccountAuthenticationModificationOptOutOfSecurityPromptsOnSignIn: true,
+      UIRequiredDeviceCapabilities: ["embedded-web-browser-engine"],
+      BEEmbeddedWebBrowserEngine: "chromium",
+      BEEmbeddedWebBrowserEngineVersion: "138.0.0.0",
+      NSDockTilePlugIn: "DockTile.docktileplugin",
+    NSBluetoothAlwaysUsageDescription: "passkey access",
       NSBluetoothPeripheralUsageDescription: "passkey access",
       NSCameraUsageDescription: "webrtc access",
       NSMicrophoneUsageDescription: "webrtc access",
@@ -55,14 +73,16 @@ module.exports = {
       },
     },
     category: "public.app-category.developer-tools",
-    entitlements: "resources/entitlements.mac.plist",
+    entitlements: "resources/entitlements.mac.plist", 
+    entitlementsInherit: "resources/entitlements.mac.plist",
     darkModeSupport: true,
     electronLanguages: ["en"],
     hardenedRuntime: true,
     gatekeeperAssess: true,
     icon: "resources/icon.icns",
-    notarize: false,
+    notarize: process.env.NOTARIZE === 'true' || false,
     type: "distribution",
+    identity: process.env.APPLE_IDENTITY || (process.env.CSC_LINK ? "E2566872AC26692C6196F1E880B092B692C0B981" : null),
     helperBundleId: "${appId}.helper",
     helperEHBundleId: "${appId}.helper.eh",
     helperGPUBundleId: "${appId}.helper.gpu",
@@ -74,11 +94,11 @@ module.exports = {
   },
   dmg: {
     icon: "resources/icon.icns",
-    background: "resources/DMG_Background.tiff",
-    sign: true,
+    background: "resources/bg.tiff",
+    sign: process.env.CSC_LINK ? true : false,
     format: "ULFO",
     internetEnabled: true,
-    title: "COBROWSER",
+    title: "[ v i b e ]",
     window: {
       width: 600,
       height: 600,
@@ -102,6 +122,13 @@ module.exports = {
     maintainer: "vibe-maintainers@example.com",
     category: "Utility",
   },
+  publish: {
+    provider: "github",
+    owner: "co-browser",
+    repo: "vibe",
+    private: false,
+    releaseType: "release"
+  },
   extraMetadata: {
     version: process.env.VIBE_VERSION || require("./package.json").version,
     env: "production",
@@ -124,4 +151,14 @@ module.exports = {
   electronDownload: {
     mirror: "https://npmmirror.com/mirrors/electron/",
   },
+  electronFuses: {
+    runAsNode: false,
+    enableCookieEncryption: true,
+    enableNodeOptionsEnvironmentVariable: false,
+    enableNodeCliInspectArguments: false,
+    enableEmbeddedAsarIntegrityValidation: true,
+    onlyLoadAppFromAsar: true,
+    loadBrowserProcessSpecificV8Snapshot: true,
+    grantFileProtocolExtraPrivileges: false
+}
 };

@@ -108,7 +108,18 @@ export interface VibeChatAPI {
 }
 
 export interface VibeSettingsAPI {
-  [key: string]: any;
+  get: (key: string) => Promise<any>;
+  set: (key: string, value: any) => Promise<boolean>;
+  remove: (key: string) => Promise<boolean>;
+  getAll: () => Promise<Record<string, any>>;
+  getAllUnmasked: () => Promise<Record<string, any>>;
+  getOrSet: (key: string, defaultValue: any) => Promise<any>;
+  watch: (keys: string[]) => Promise<void>;
+  unwatch: (keys: string[]) => Promise<void>;
+  reset: () => Promise<boolean>;
+  export: () => Promise<string>;
+  import: (data: string) => Promise<boolean>;
+  onChange: (callback: (key: string, value: any) => void) => () => void;
 }
 
 export interface VibeSessionAPI {
@@ -116,6 +127,10 @@ export interface VibeSessionAPI {
 }
 
 export interface VibeUpdateAPI {
+  [key: string]: any;
+}
+
+export interface VibeProfileAPI {
   [key: string]: any;
 }
 
@@ -134,6 +149,7 @@ declare global {
       settings: VibeSettingsAPI;
       session: VibeSessionAPI;
       update: VibeUpdateAPI;
+      profile: VibeProfileAPI;
     };
   }
 }

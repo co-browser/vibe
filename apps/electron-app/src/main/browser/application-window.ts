@@ -1,15 +1,21 @@
-import { BrowserWindow, nativeTheme, shell } from "electron";
+import { BrowserWindow, nativeTheme, shell, ipcMain } from "electron";
 import { EventEmitter } from "events";
 import { join } from "path";
 import { is } from "@electron-toolkit/utils";
 import { WINDOW_CONFIG } from "@vibe/shared-types";
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { download, CancelError } = require("electron-dl");
 
 import { TabManager } from "./tab-manager";
 import { ViewManager } from "./view-manager";
+import { DialogManager } from "./dialog-manager";
 import { createLogger } from "@vibe/shared-types";
+import { DEFAULT_USER_AGENT } from "../constants/user-agent";
 
 const logger = createLogger("ApplicationWindow");
 import type { CDPManager } from "../services/cdp-service";
+
+// Bluetooth handlers now moved to instance variables for proper cleanup
 
 /**
  * ApplicationWindow - Simple window wrapper that contains per-window managers
@@ -19,6 +25,9 @@ export class ApplicationWindow extends EventEmitter {
   public readonly window: BrowserWindow;
   public readonly tabManager: TabManager;
   public readonly viewManager: ViewManager;
+  public dialogManager: DialogManager;
+  private selectBluetoothCallback: ((deviceId: string) => void) | null = null;
+  private bluetoothPinCallback: ((pin: string) => void) | null = null;
   private isDestroying = false;
 
   constructor(
@@ -30,14 +39,83 @@ export class ApplicationWindow extends EventEmitter {
 
     // Create window with options
     this.window = new BrowserWindow(options || this.getDefaultOptions());
+
+    // Set browser user agent for the main window
+    this.window.webContents.setUserAgent(DEFAULT_USER_AGENT);
+
+    this.window.webContents.on(
+      "select-bluetooth-device",
+      (_event, deviceList, callback) => {
+        _event.preventDefault();
+        logger.warn("Bluetooth select!");
+
+        this.selectBluetoothCallback = callback;
+        const result = deviceList.find(device => {
+          return device.deviceName === "vibe";
+        });
+        if (result) {
+          callback(result.deviceId);
+        } else {
+          logger.warn("Bluetooth device not found");
+        }
+      },
+    );
+
+    // Use instance-specific handlers that can be properly cleaned up
+    const cancelBluetoothHandler = (_event: any) => {
+      if (this.selectBluetoothCallback) {
+        this.selectBluetoothCallback("");
+      }
+    };
+
+    const bluetoothPairingHandler = (_event: any, response: any) => {
+      if (this.bluetoothPinCallback) {
+        this.bluetoothPinCallback(response);
+      }
+    };
+
+    ipcMain.on("cancel-bluetooth-request", cancelBluetoothHandler);
+    ipcMain.on("bluetooth-pairing-response", bluetoothPairingHandler);
+
+    // Store handlers for cleanup
+    this.window.once("closed", () => {
+      ipcMain.removeListener(
+        "cancel-bluetooth-request",
+        cancelBluetoothHandler,
+      );
+      ipcMain.removeListener(
+        "bluetooth-pairing-response",
+        bluetoothPairingHandler,
+      );
+    });
+
+    // Set up Bluetooth handler for this window's session
+    const bluetoothHandler = (
+      details: any,
+      callback: (response: any) => void,
+    ) => {
+      this.bluetoothPinCallback = callback;
+      // Send a message to the renderer to prompt the user to confirm the pairing.
+      this.window.webContents.send("bluetooth-pairing-request", details);
+    };
+
+    // Apply to this window's session
+    this.window.webContents.session.setBluetoothPairingHandler(
+      bluetoothHandler,
+    );
+
     this.id = this.window.id;
 
     // Create window-specific managers (ViewManager first, then TabManager)
     this.viewManager = new ViewManager(browser, this.window);
     this.tabManager = new TabManager(browser, this.viewManager, cdpManager);
+    this.dialogManager = new DialogManager(this.window);
 
     // Set up tab event forwarding for this window
     this.setupTabEventForwarding();
+
+    // Set up dialog event forwarding for this window
+    this.setupDialogEventForwarding();
 
     // Simple lifecycle management
     this.setupEvents();
@@ -58,7 +136,7 @@ export class ApplicationWindow extends EventEmitter {
       titleBarOverlay: {
         height: 30,
         symbolColor: nativeTheme.shouldUseDarkColors ? "white" : "black",
-        color: "rgba(0,0,0,0)",
+        color: nativeTheme.shouldUseDarkColors ? "#1a1a1a" : "#ffffff",
       },
       ...(process.platform === "darwin" && {
         trafficLightPosition: WINDOW_CONFIG.TRAFFIC_LIGHT_POSITION,
@@ -67,9 +145,9 @@ export class ApplicationWindow extends EventEmitter {
       transparent: true,
       resizable: true,
       visualEffectState: "active",
-      backgroundMaterial: "none",
+      backgroundMaterial: "acrylic",
       roundedCorners: true,
-      vibrancy: process.platform === "darwin" ? "fullscreen-ui" : undefined,
+      vibrancy: process.platform === "darwin" ? "under-window" : undefined,
       webPreferences: {
         preload: join(__dirname, "../preload/index.js"),
         sandbox: false,
@@ -82,7 +160,10 @@ export class ApplicationWindow extends EventEmitter {
   }
 
   private setupEvents(): void {
-    this.window.once("ready-to-show", () => {
+    this.window.once("ready-to-show", async () => {
+      // Overlay initialization disabled - using DOM-injected dropdown instead
+      // await this.viewManager.initializeOverlay();
+
       this.window.show();
       this.window.focus();
     });
@@ -91,13 +172,115 @@ export class ApplicationWindow extends EventEmitter {
       this.destroy();
     });
 
+    // Debounce resize events for better performance
+    let resizeTimeout: NodeJS.Timeout | null = null;
     this.window.on("resize", () => {
-      this.viewManager.updateBounds();
+      if (resizeTimeout) {
+        clearTimeout(resizeTimeout);
+      }
+      resizeTimeout = setTimeout(() => {
+        this.viewManager.updateBounds();
+        resizeTimeout = null;
+      }, 16); // ~60fps throttling
     });
 
+    // Set up context menu handler for the main window
+    this.setupMainWindowContextMenu();
+
     this.window.webContents.setWindowOpenHandler(details => {
-      shell.openExternal(details.url);
-      return { action: "deny" };
+      // This handler is redundant since we already handle it in main/index.ts
+      // But we'll keep it for consistency with the same OAuth logic
+      try {
+        const parsedUrl = new URL(details.url);
+
+        // Check if this is an OAuth callback URL
+        const isOAuthCallback =
+          parsedUrl.pathname.includes("callback") ||
+          parsedUrl.pathname.includes("oauth") ||
+          parsedUrl.searchParams.has("code") ||
+          parsedUrl.searchParams.has("token") ||
+          parsedUrl.searchParams.has("access_token") ||
+          parsedUrl.searchParams.has("state");
+
+        // List of known OAuth provider domains
+        const allowedOAuthDomains = [
+          "accounts.google.com",
+          "login.microsoftonline.com",
+          "github.com",
+          "api.github.com",
+          "oauth.github.com",
+          "login.live.com",
+          "login.windows.net",
+          "facebook.com",
+          "www.facebook.com",
+          "twitter.com",
+          "api.twitter.com",
+          "linkedin.com",
+          "www.linkedin.com",
+          "api.linkedin.com",
+          "discord.com",
+          "discord.gg",
+          "slack.com",
+          "api.slack.com",
+          "dropbox.com",
+          "www.dropbox.com",
+          "api.dropbox.com",
+          "reddit.com",
+          "www.reddit.com",
+          "oauth.reddit.com",
+          "twitch.tv",
+          "api.twitch.tv",
+          "id.twitch.tv",
+          "spotify.com",
+          "accounts.spotify.com",
+          "api.spotify.com",
+          "amazon.com",
+          "www.amazon.com",
+          "api.amazon.com",
+          "apple.com",
+          "appleid.apple.com",
+          "developer.apple.com",
+          "paypal.com",
+          "www.paypal.com",
+          "api.paypal.com",
+          "stripe.com",
+          "connect.stripe.com",
+          "dashboard.stripe.com",
+          "zoom.us",
+          "api.zoom.us",
+          "salesforce.com",
+          "login.salesforce.com",
+          "test.salesforce.com",
+          "box.com",
+          "app.box.com",
+          "account.box.com",
+          "atlassian.com",
+          "auth.atlassian.com",
+          "id.atlassian.com",
+          "gitlab.com",
+          "bitbucket.org",
+          "auth.bitbucket.org",
+        ];
+
+        const isFromOAuthProvider = allowedOAuthDomains.some(
+          domain =>
+            parsedUrl.hostname === domain ||
+            parsedUrl.hostname.endsWith("." + domain),
+        );
+
+        // Allow OAuth callbacks or OAuth provider domains to open in the app
+        if (isOAuthCallback || isFromOAuthProvider) {
+          return { action: "allow" };
+        }
+
+        // For all other URLs, open externally
+        shell.openExternal(details.url);
+        return { action: "deny" };
+      } catch {
+        // If URL parsing fails, default to opening externally
+        shell.openExternal(details.url);
+        return { action: "deny" };
+      }
     });
   }
 
@@ -132,6 +315,31 @@ export class ApplicationWindow extends EventEmitter {
         this.window.webContents.send("browser-tabs-reordered", tabs);
       }
     });
+  }
+
+  private setupDialogEventForwarding(): void {
+    this.dialogManager.on("dialog-closed", (dialogType: string) => {
+      if (!this.window.isDestroyed()) {
+        this.window.webContents.send("dialog-closed", dialogType);
+      }
+    });
+  }
+
+  private setupMainWindowContextMenu(): void {
+    // Set up context menu handler for the main window's renderer process
+    this.window.webContents.on("context-menu", (_event, params) => {
+      // For editable content (text inputs, textareas), let the system handle it
+      // This allows the native context menu with cut/copy/paste/etc. to appear
+      if (params.isEditable) {
+        // Don't prevent default - allow system context menu
+        return;
+      }
+
+      // For non-editable content, we'll let the renderer handle it with custom menus
+      // The renderer will use the useContextMenu hook to show custom menus
+    });
+
+    logger.debug("Context menu handler set up for main window");
   }
 
   private async loadRenderer(): Promise<void> {
@@ -228,6 +436,13 @@ export class ApplicationWindow extends EventEmitter {
       logger.warn("Error destroying ViewManager:", error);
     }
 
+    try {
+      // Clean up DialogManager
+      this.dialogManager.destroy();
+    } catch (error) {
+      logger.warn("Error destroying DialogManager:", error);
+    }
+
     this.emit("destroy");
     this.removeAllListeners();
 
@@ -237,3 +452,18 @@ export class ApplicationWindow extends EventEmitter {
     }
   }
 }
+
+ipcMain.on("download-button", async (_event, { url }) => {
+  const win = BrowserWindow.getFocusedWindow();
+  if (win) {
+    try {
+      logger.info("Download completed:", await download(win, url));
+    } catch (error) {
+      if (error instanceof CancelError) {
+        logger.info("item.cancel() was called");
+      } else {
+        logger.error("Download error:", error);
+      }
+    }
+  }
+});

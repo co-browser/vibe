@@ -13,15 +13,28 @@
   box-sizing: border-box;
   -webkit-app-region: no-drag;
   position: relative;
-  z-index: 3;
+  z-index: 100;
   flex-shrink: 0;
   width: 100%;
+  /* Create a new stacking context to ensure proper z-index behavior */
+  isolation: isolate;
 }
 
 /* Omnibox overlay behavior */
 .navigation-bar:focus-within {
-  z-index: 999;
-  /* Elevate to omnibox overlay level when focused */
+  z-index: 10000;
+  /* Elevate significantly above all browser content when focused */
+}
+
+/* When suggestions are shown, ensure navigation bar stays on top */
+.navigation-bar:has(.omnibar-suggestions) {
+  z-index: 2147483646; /* One less than suggestions dropdown */
+}
+
+/* Ensure omnibar container has proper stacking context */
+.omnibar-container {
+  position: relative;
+  z-index: 2147483646;
 }
 
 .nav-controls {
@@ -78,6 +91,83 @@
   height: 16px;
 }
 
+/* Speedlane mode button styling */
+.nav-button.speedlane-active {
+  background-color: #fbbf24;
+  color: #1f2937;
+  box-shadow: 0 0 10px rgba(251, 191, 36, 0.5);
+  animation: pulse-speedlane 2s infinite;
+}
+
+.nav-button.speedlane-active:hover {
+  background-color: #f59e0b;
+  box-shadow: 0 0 15px rgba(251, 191, 36, 0.7);
+}
+
+@keyframes pulse-speedlane {
+  0% {
+    box-shadow: 0 0 10px rgba(251, 191, 36, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(251, 191, 36, 0.8);
+  }
+  100% {
+    box-shadow: 0 0 10px rgba(251, 191, 36, 0.5);
+  }
+}
+
+/* Sparkle animation for minimized chat button */
+.nav-button.sparkle-animation {
+  position: relative;
+  overflow: visible;
+}
+
+.sparkle {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  background-color: #10b981;
+  border-radius: 50%;
+  animation: sparkle-move 3s infinite ease-in-out;
+  pointer-events: none;
+}
+
+.sparkle-1 {
+  top: -5px;
+  left: 50%;
+  animation-delay: 0s;
+}
+
+.sparkle-2 {
+  bottom: -5px;
+  right: 25%;
+  animation-delay: 0.75s;
+}
+
+.sparkle-3 {
+  top: 50%;
+  right: -5px;
+  animation-delay: 1.5s;
+}
+
+.sparkle-4 {
+  bottom: 25%;
+  left: -5px;
+  animation-delay: 2.25s;
+}
+
+@keyframes sparkle-move {
+  0%,
+  100% {
+    opacity: 0;
+    transform: scale(0) rotate(0deg);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.5) rotate(180deg);
+  }
+}
+
 /* Enhanced omnibar container with overlay behavior */
 .omnibar-container {
   flex: 1;
@@ -85,11 +175,16 @@
   position: relative;
   box-sizing: border-box;
   -webkit-app-region: no-drag;
+  /* Force new stacking context with high z-index */
+  z-index: 10000;
+  isolation: isolate;
 }
 
 .omnibar-wrapper {
   position: relative;
   width: 100%;
+  /* Ensure wrapper is also in high stacking order */
+  z-index: 10001;
 }
 
 .omnibar-input {
@@ -122,23 +217,71 @@
   position: absolute;
   top: 100%;
   left: 0;
-  right: 0;
-  background-color: var(--input-background);
+  width: 60%;
+  max-width: 60%;
+  background-color: var(--input-background, #ffffff);
   border: 1px solid var(--nav-border);
-  border-radius: 12px;
+  border-top: none;
+  border-radius: 0 0 12px 12px;
   box-shadow:
     0 8px 24px rgba(0, 0, 0, 0.12),
     0 0 0 1px rgba(0, 0, 0, 0.05);
-  margin-top: 4px;
+  margin: 0;
   max-height: 400px;
   overflow-y: auto;
-  z-index: 1001;
-  /* Above the elevated navigation bar */
+  z-index: 1000;
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   transform: translateY(-2px);
   opacity: 0;
   animation: omniboxSuggestionsAppear 0.15s ease-out forwards;
+  isolation: isolate;
+  pointer-events: auto;
+}
+
+/* Portal-based omnibox suggestions dropdown */
+.omnibar-suggestions-portal {
+  position: fixed;
+  /* Position will be set dynamically via JavaScript */
+  background: rgba(
+    255,
+    255,
+    255,
+    0.65
+  ); /* More transparent frosted glass background */
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-top: none;
+  border-radius: 0 0 8px 8px; /* Smaller radius on top for smooth connection */
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.12),
+    0 2px 8px rgba(0, 0, 0, 0.08),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.6); /* Inner glow for glass effect */
+  max-height: 320px; /* Slightly smaller max height */
+  overflow-y: auto;
+  overflow-x: hidden;
+  z-index: 2147483647; /* Maximum z-index */
+  width: 60%;
+  max-width: 60%;
+
+  /* Enhanced frosted glass effect */
+  backdrop-filter: blur(20px) saturate(180%) brightness(1.05);
+  -webkit-backdrop-filter: blur(20px) saturate(180%) brightness(1.05);
+
+  /* Smooth appearance */
+  animation: omniboxDropdownAppear 0.15s ease-out;
+  isolation: isolate;
+  pointer-events: auto;
+}
+
+@keyframes omniboxDropdownAppear {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @keyframes omniboxSuggestionsAppear {
@@ -158,22 +301,31 @@
   align-items: center;
   padding: 12px 16px;
   cursor: pointer;
-  transition: all 0.15s ease;
-  border-bottom: 1px solid var(--nav-border);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
   -webkit-app-region: no-drag;
+  background: transparent;
+  transition: none !important;
 }
 
 .suggestion-item:last-child {
   border-bottom: none;
 }
 
-.suggestion-item:hover,
-.suggestion-item.selected {
-  background-color: var(--button-hover);
+.suggestion-item:hover {
+  background-color: rgba(0, 0, 0, 0.08) !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  transform: none !important;
 }
 
 .suggestion-item.selected {
-  background-color: rgba(59, 130, 246, 0.1);
+  background-color: rgba(59, 130, 246, 0.15);
+  box-shadow:
+    inset 0 0 0 1px rgba(59, 130, 246, 0.3),
+    0 2px 8px rgba(59, 130, 246, 0.1);
+  backdrop-filter: blur(12px);
+  transform: translateX(2px);
 }
 
 .suggestion-icon {
@@ -244,24 +396,60 @@
   /* Purple for URLs */
 }
 
+.suggestion-item[data-type="perplexity"] .suggestion-icon {
+  color: #06b6d4;
+  /* Cyan for Perplexity suggestions */
+}
+
+.suggestion-item[data-type="agent"] .suggestion-icon {
+  color: #ec4899;
+  /* Pink for agent suggestions */
+}
+
+/* Loading indicator for async suggestions */
+.suggestion-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  border-top: 1px solid var(--nav-border);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
 /* Dark mode removed - using light theme exclusively */
 
-/* Scrollbar styling for suggestions */
-.omnibar-suggestions::-webkit-scrollbar {
-  width: 6px;
+/* Scrollbar styling for suggestions portal */
+.omnibar-suggestions-portal::-webkit-scrollbar {
+  width: 8px;
 }
 
-.omnibar-suggestions::-webkit-scrollbar-track {
-  background: transparent;
+.omnibar-suggestions-portal::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 4px;
+  margin: 8px 0;
 }
 
-.omnibar-suggestions::-webkit-scrollbar-thumb {
-  background-color: var(--button-disabled);
-  border-radius: 3px;
+.omnibar-suggestions-portal::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+  border: 2px solid transparent;
+  background-clip: content-box;
 }
 
-.omnibar-suggestions::-webkit-scrollbar-thumb:hover {
-  background-color: var(--button-hover);
+.omnibar-suggestions-portal::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(0, 0, 0, 0.3);
 }
 
 /* Responsive adjustments */
@@ -314,3 +502,318 @@
 }
 
 /* Additional dark mode removed - using light theme exclusively */
+
+/* Suggestion actions container */
+.suggestion-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.suggestion-delete {
+  background: none;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  color: #666;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.suggestion-item:hover .suggestion-delete {
+  opacity: 1;
+}
+
+.suggestion-delete:hover {
+  color: #ff4444;
+}
+
+/* Omnibox dropdown container */
+.omnibox-dropdown-container {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px) saturate(180%) brightness(1.05);
+  -webkit-backdrop-filter: blur(20px) saturate(180%) brightness(1.05);
+  border-radius: 8px;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.12),
+    0 2px 8px rgba(0, 0, 0, 0.08),
+    0 0 0 1px rgba(0, 0, 0, 0.05);
+  overflow: auto;
+  width: 100%;
+  height: 100%;
+  padding: 8px 0;
+}
+
+/* Fallback suggestions dropdown when overlay system is disabled */
+.omnibar-suggestions-fallback {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 100%;
+  max-width: 100%;
+  /* Match overlay transparent styling */
+  background: rgba(248, 249, 251, 0.85);
+  border: 1px solid rgba(209, 213, 219, 0.3);
+  border-top: none;
+  border-radius: 0 0 12px 12px;
+  /* Better corner smoothing */
+  -webkit-corner-smoothing: 100%;
+  -electron-corner-smoothing: 100%;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.08),
+    0 2px 8px rgba(0, 0, 0, 0.04),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+  margin: 0;
+  max-height: 400px;
+  overflow-y: auto;
+  z-index: 1000;
+  /* Optimized backdrop filter */
+  backdrop-filter: blur(12px) saturate(150%);
+  -webkit-backdrop-filter: blur(12px) saturate(150%);
+  /* Performance optimizations */
+  will-change: transform, opacity;
+  transform: translateY(-2px);
+  opacity: 0;
+  animation: omniboxSuggestionsAppear 0.15s ease-out forwards;
+  isolation: isolate;
+  pointer-events: auto;
+}
+
+.suggestion-item-fallback {
+  display: flex;
+  align-items: center;
+  padding: 10px 14px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.03);
+  -webkit-app-region: no-drag;
+  background: transparent;
+  position: relative;
+}
+
+.suggestion-item-fallback:last-child {
+  border-bottom: none;
+}
+
+.suggestion-item-fallback:hover {
+  background-color: rgba(59, 130, 246, 0.08);
+  transform: translateX(2px);
+}
+
+.suggestion-item-fallback.selected {
+  background-color: rgba(59, 130, 246, 0.12);
+  box-shadow: inset 0 0 0 1.5px rgba(59, 130, 246, 0.25);
+}
+
+.suggestion-icon-fallback {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 12px;
+  flex-shrink: 0;
+  font-size: 18px;
+  /* Better icon container styling */
+  background: rgba(0, 0, 0, 0.02);
+  border-radius: 6px;
+  padding: 2px;
+}
+
+.suggestion-content-fallback {
+  flex: 1;
+  min-width: 0;
+}
+
+.suggestion-text-fallback {
+  font-size: 14px;
+  color: var(--text-primary);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.suggestion-description-fallback {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.suggestion-type-fallback {
+  font-size: 11px;
+  color: var(--text-disabled);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+  margin-left: 12px;
+  flex-shrink: 0;
+  background-color: var(--button-background);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+/* Overlay status indicator */
+.overlay-status-indicator {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 107, 107, 0.1);
+  border-radius: 50%;
+  cursor: pointer;
+  z-index: 1001;
+}
+
+.overlay-status-indicator:hover {
+  background: rgba(255, 107, 107, 0.2);
+}
+
+/* Enhanced sparkle animation for minimized chat robot button */
+.nav-button.sparkle-animation {
+  position: relative;
+  background-color: #064e3b;
+  color: #d1fae5;
+  animation: dark-fog-pulse 2s infinite ease-in-out;
+  overflow: visible;
+  box-shadow:
+    0 0 20px rgba(5, 150, 105, 0.9),
+    0 0 40px rgba(5, 150, 105, 0.7),
+    0 0 60px rgba(5, 150, 105, 0.5),
+    inset 0 0 20px rgba(5, 150, 105, 0.4);
+}
+
+.nav-button.sparkle-animation:hover {
+  background-color: #065f46;
+  color: #ecfdf5;
+  box-shadow:
+    0 0 30px rgba(5, 150, 105, 1),
+    0 0 50px rgba(5, 150, 105, 0.8),
+    0 0 70px rgba(5, 150, 105, 0.6),
+    inset 0 0 25px rgba(5, 150, 105, 0.5);
+}
+
+@keyframes dark-fog-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 20px rgba(5, 150, 105, 0.9),
+      0 0 40px rgba(5, 150, 105, 0.7),
+      0 0 60px rgba(5, 150, 105, 0.5),
+      inset 0 0 20px rgba(5, 150, 105, 0.4);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow:
+      0 0 30px rgba(5, 150, 105, 1),
+      0 0 60px rgba(5, 150, 105, 0.8),
+      0 0 80px rgba(5, 150, 105, 0.6),
+      inset 0 0 30px rgba(5, 150, 105, 0.6);
+    transform: scale(1.02);
+  }
+}
+
+/* Enhanced sparkle ember elements */
+.sparkle {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background: radial-gradient(
+    circle,
+    #86efac 0%,
+    #34d399 30%,
+    #10b981 60%,
+    transparent 80%
+  );
+  border-radius: 50%;
+  pointer-events: none;
+  animation: ember-float 2.5s infinite ease-out;
+  filter: brightness(2) contrast(1.5) drop-shadow(0 0 3px #34d399);
+  box-shadow:
+    0 0 12px #34d399,
+    0 0 24px rgba(52, 211, 153, 0.8),
+    inset 0 0 4px #86efac;
+}
+
+.sparkle-1 {
+  top: -10px;
+  left: 8px;
+  animation-delay: 0s;
+}
+
+.sparkle-2 {
+  top: -6px;
+  right: 6px;
+  animation-delay: 0.6s;
+}
+
+.sparkle-3 {
+  bottom: -8px;
+  left: 10px;
+  animation-delay: 1.2s;
+}
+
+.sparkle-4 {
+  bottom: -6px;
+  right: 8px;
+  animation-delay: 1.8s;
+}
+
+@keyframes ember-float {
+  0% {
+    opacity: 0;
+    transform: scale(0) translateY(0) rotate(0deg);
+    filter: brightness(2) contrast(1.5) drop-shadow(0 0 3px #34d399);
+  }
+  15% {
+    opacity: 1;
+    transform: scale(1.3) translateY(-3px) rotate(45deg);
+    filter: brightness(2.5) contrast(2) drop-shadow(0 0 6px #34d399);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1) translateY(-12px) rotate(180deg);
+    filter: brightness(2.2) contrast(1.8) drop-shadow(0 0 5px #34d399);
+  }
+  70% {
+    opacity: 0.7;
+    transform: scale(0.7) translateY(-22px) rotate(315deg);
+    filter: brightness(1.8) contrast(1.5) drop-shadow(0 0 4px #34d399);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.3) translateY(-30px) rotate(450deg);
+    filter: brightness(1) contrast(1) drop-shadow(0 0 2px #34d399);
+  }
+}
+
+/* Speedlane mode active state */
+.nav-button.speedlane-active {
+  background-color: #f59e0b;
+  color: white;
+}
+
+.nav-button.speedlane-active:hover {
+  background-color: #d97706;
+}
+
+.omnibox-dropdown,
+.omnibar-suggestions,
+.omnibar-suggestions-portal {
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease,
+    opacity 0.15s ease,
+    transform 0.15s ease !important;
+  animation-duration: 0.15s !important;
+  border: 1px solid var(--nav-border, #d1d5db) !important;
+  outline: none !important;
+}

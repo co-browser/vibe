@@ -21,10 +21,10 @@
   }
 
   body {
-    @apply bg-white text-gray-900;
-    /*TODO: change the below back from transparent for color */
-    background-color: transparent !important;
-    color: transparent !important;
+    @apply text-gray-900;
+    /* Transparent background for frosted glass effect */
+    background-color: transparent;
+    color: var(--text-primary);
   }
 }
 
@@ -32,8 +32,7 @@
   /* Browser Window Layout */
   .browser-window {
     @apply w-full h-screen overflow-hidden relative;
-    /*TODO to remove transparency, change below to: -    background-color: var(--app-background); */
-    background-color: transparent !important;
+    background-color: var(--app-background);
     font-family:
       -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", sans-serif;
   }
@@ -179,7 +178,7 @@
   /* Legacy Layout Support (for backward compatibility) */
   .app-container {
     @apply flex flex-col h-screen overflow-hidden;
-    background-color: var(--app-background);
+    background-color: transparent;
   }
 
   .browser-container {
@@ -199,7 +198,7 @@
 
   .main-and-chat-area {
     @apply flex flex-row flex-grow overflow-hidden relative m-0 p-0;
-    background-color: var(--app-background);
+    background-color: transparent;
   }
 
   .browser-view-placeholder {
@@ -208,7 +207,7 @@
 
   .browser-content {
     @apply w-full h-full flex items-center justify-center;
-    background-color: var(--app-background);
+    background-color: transparent;
   }
 
   .chat-panel-container {

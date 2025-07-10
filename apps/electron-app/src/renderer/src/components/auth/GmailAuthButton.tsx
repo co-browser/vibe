@@ -2,6 +2,9 @@ import React, { useState, useEffect } from "react";
 import { Loader2, Mail } from "lucide-react";
 import { IconWithStatus } from "@/components/ui/icon-with-status";
 import { GMAIL_CONFIG } from "@vibe/shared-types";
+import { createLogger } from "@/utils/logger";
+
+const logger = createLogger("GmailAuthButton");
 
 interface AuthStatus {
   authenticated: boolean;
@@ -22,7 +25,7 @@ export const GmailAuthButton: React.FC = () => {
       const status = await window.vibe.app.gmail.checkAuth();
       setAuthStatus(status);
     } catch (error) {
-      console.error("Error checking Gmail auth status:", error);
+      logger.error("Error checking Gmail auth status:", error);
       setAuthStatus({
         authenticated: false,
         hasOAuthKeys: false,
@@ -40,7 +43,7 @@ export const GmailAuthButton: React.FC = () => {
       await window.vibe.app.gmail.startAuth();
       // Auth status will be refreshed via IPC event listener
     } catch (error) {
-      console.error("Error during Gmail authentication:", error);
+      logger.error("Error during Gmail authentication:", error);
       setAuthStatus(prev => ({
         ...prev,
         authenticated: false,
@@ -59,7 +62,7 @@ export const GmailAuthButton: React.FC = () => {
       await window.vibe.app.gmail.clearAuth();
       await checkAuthStatus(); // Refresh status after clearing
     } catch (error) {
-      console.error("Error clearing Gmail auth:", error);
+      logger.error("Error clearing Gmail auth:", error);
     } finally {
       setIsAuthenticating(false);
     }

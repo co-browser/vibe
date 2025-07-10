@@ -13,7 +13,24 @@ import { APP_CONFIG } from "@vibe/shared-types";
 import App from "./App";
 import ErrorBoundary from "./components/ErrorBoundary";
 
-init({ debug: true });
+// Initialize online status service
+import "./services/onlineStatusService";
+
+// Check if we're in production
+const isProd = process.env.NODE_ENV === "production";
+
+init({
+  debug: !isProd, // Only enable debug in development
+  tracesSampleRate: isProd ? 0.05 : 1.0, // 5% in production, 100% in dev
+  maxBreadcrumbs: 50, // Limit breadcrumb collection for performance
+  beforeBreadcrumb: breadcrumb => {
+    // Filter out noisy breadcrumbs in production
+    if (isProd && breadcrumb.category === "console") {
+      return null;
+    }
+    return breadcrumb;
+  },
+});
 
 // Validate Privy configuration
 if (!APP_CONFIG.PRIVY_APP_ID) {

@@ -6,36 +6,44 @@ import {
   app,
   BrowserWindow,
   dialog,
-  shell,
   powerMonitor,
   powerSaveBlocker,
   protocol,
   net,
+  globalShortcut,
 } from "electron";
 import { join } from "path";
+import * as path from "path";
 import { optimizer } from "@electron-toolkit/utils";
 import { config } from "dotenv";
 
 import { Browser } from "@/browser/browser";
 import { registerAllIpcHandlers } from "@/ipc";
 import { setupMemoryMonitoring } from "@/utils/helpers";
+import { registerImgProtocol } from "@/browser/protocol-handler";
 import { AgentService } from "@/services/agent-service";
 import { MCPService } from "@/services/mcp-service";
 import { setMCPServiceInstance } from "@/ipc/mcp/mcp-status";
 import { setAgentServiceInstance as setAgentStatusInstance } from "@/ipc/chat/agent-status";
+// import { sendTabToAgent } from "@/utils/tab-agent";
 import { setAgentServiceInstance as setChatMessagingInstance } from "@/ipc/chat/chat-messaging";
 import { setAgentServiceInstance as setTabAgentInstance } from "@/utils/tab-agent";
 import { initializeStorage } from "@/store/initialize-storage";
 import { getStorageService } from "@/store/storage-service";
 import { createLogger, MAIN_PROCESS_CONFIG } from "@vibe/shared-types";
 import { findFileUpwards } from "@vibe/shared-types/utils/path";
+import { userAnalytics } from "@/services/user-analytics";
+import { NotificationService } from "@/services/notification-service";
+import { FileDropService } from "@/services/file-drop-service";
+import { WindowBroadcast } from "@/utils/window-broadcast";
+import { useUserProfileStore } from "@/store/user-profile-store";
+import { initializeSessionManager } from "@/browser/session-manager";
 
 import {
   init,
   browserWindowSessionIntegration,
   childProcessIntegration,
 } from "@sentry/electron/main";
-import AppUpdater from "./services/update-service";
 import log from "electron-log";
 
 // Configure electron-log to write to file
@@ -56,9 +64,64 @@ if (process.env.NODE_ENV === "development") {
   process.env.SENTRY_LOG_LEVEL = "error";
 }
 
+let tray;
+
+// Set consistent log level for all processes
+if (!process.env.LOG_LEVEL) {
+  process.env.LOG_LEVEL =
+    process.env.NODE_ENV === "development" ? "info" : "error";
+}
+
+// Reduce Sentry noise in development
+if (process.env.NODE_ENV === "development") {
+  // Silence verbose Sentry logs
+  process.env.SENTRY_LOG_LEVEL = "error";
+}
+app.commandLine.appendSwitch("enable-experimental-web-platform-features");
+app.commandLine.appendSwitch("optimization-guide-on-device-model");
+app.commandLine.appendSwitch("prompt-api-for-gemini-nano");
 const logger = createLogger("main-process");
 
 const isProd: boolean = process.env.NODE_ENV === "production";
+
+// Variables for keyboard shortcuts
+let lastCPressTime = 0;
+let notificationService: NotificationService | null = null;
+let fileDropService: FileDropService | null = null;
+
+// Handle CC shortcut (copy functionality)
+function handleCCShortcut(): void {
+  // Get the focused window and execute copy command
+  const focusedWindow = BrowserWindow.getFocusedWindow();
+  if (focusedWindow && focusedWindow.webContents) {
+    focusedWindow.webContents.copy();
+    logger.debug("CC shortcut triggered - copy executed");
+  }
+}
+
+// Prevent multiple instances
+const gotTheLock = app.requestSingleInstanceLock();
+
+if (!gotTheLock) {
+  logger.info("Another instance is already running. Exiting...");
+  app.quit();
+} else {
+  // Handle when someone tries to run a second instance
+  app.on("second-instance", (_event, _commandLine, _workingDirectory) => {
+    logger.info("Second instance detected, focusing existing window");
+
+    // Focus existing window if it exists
+    const windows = BrowserWindow.getAllWindows();
+    if (windows.length > 0) {
+      const mainWindow = windows[0];
+      if (mainWindow.isMinimized()) {
+        mainWindow.restore();
+      }
+      mainWindow.focus();
+      mainWindow.show();
+    }
+  });
+}
 
 // Initialize Sentry for error tracking
 init({
@@ -66,11 +129,43 @@ init({
   debug: !isProd,
   integrations: [browserWindowSessionIntegration(), childProcessIntegration()],
   tracesSampleRate: isProd ? 0.1 : 1.0,
-  tracePropagationTargets: ["localhost"],
+  tracePropagationTargets: ["localhost", /^https:\/\/(www\.)?gstatic\.com\//],
   onFatalError: () => {},
 });
 
-// Simple logging only for now
+// Set up protocol handler for deep links
+const isDefaultApp =
+  process.defaultApp || process.mas || process.env.NODE_ENV === "development";
+
+if (isDefaultApp) {
+  if (process.argv.length >= 2) {
+    const result = app.setAsDefaultProtocolClient("vibe", process.execPath, [
+      path.resolve(process.argv[1]),
+    ]);
+    logger.info(
+      `Protocol handler registration (dev): ${result ? "success" : "failed"}`,
+    );
+  }
+} else {
+  const result = app.setAsDefaultProtocolClient("vibe");
+  logger.info(
+    `Protocol handler registration (prod): ${result ? "success" : "failed"}`,
+  );
+}
+
+// Check if we're already the default protocol client
+if (app.isDefaultProtocolClient("vibe")) {
+  logger.info(
+    "Vibe is registered as the default protocol client for vibe:// URLs",
+  );
+} else {
+  logger.warn(
+    "Vibe is NOT registered as the default protocol client for vibe:// URLs",
+  );
+  logger.warn(
+    "Deep links may not work until the app is set as the default handler",
+  );
+}
 
 // Load environment variables only in development
 // In production, environment variables should be set via LSEnvironment or system
@@ -164,8 +259,6 @@ let browserDestroyed = false;
 
 // Cleanup functions
 let unsubscribeVibe: (() => void) | null = null;
-const unsubscribeStore: (() => void) | null = null;
-const unsubscribeBrowser: (() => void) | null = null;
 let memoryMonitor: ReturnType<typeof setupMemoryMonitoring> | null = null;
 
 // Register custom protocol as secure for WebCrypto API support
@@ -280,12 +373,26 @@ async function gracefulShutdown(signal: string): Promise<void> {
       agentService = null;
     }
 
-    if (unsubscribeBrowser) {
-      unsubscribeBrowser();
+    // Clean up notification service
+    if (notificationService) {
+      try {
+        await notificationService.destroy();
+        logger.info("Notification service destroyed successfully");
+      } catch (error) {
+        logger.error("Error during notification service cleanup:", error);
+      }
+      notificationService = null;
     }
 
-    if (unsubscribeStore) {
-      unsubscribeStore();
+    // Clean up file drop service
+    if (fileDropService) {
+      try {
+        // No explicit cleanup needed for FileDropService singleton
+        logger.info("File drop service cleaned up successfully");
+      } catch (error) {
+        logger.error("Error during file drop service cleanup:", error);
+      }
+      fileDropService = null;
     }
 
     if (unsubscribeVibe) {
@@ -306,6 +413,12 @@ async function gracefulShutdown(signal: string): Promise<void> {
         window.close();
       }
     });
+
+    // Clean up tray
+    if (tray) {
+      tray.destroy();
+      tray = null;
+    }
 
     // Console cleanup no longer needed with proper logging system
 
@@ -446,8 +559,18 @@ function initializeApp(): boolean {
   setupChatPanelRecovery();
 
   // Setup second instance handler
-  app.on("second-instance", () => {
+  app.on("second-instance", (event, commandLine, workingDirectory) => {
+    logger.info("Second instance detected", { commandLine, workingDirectory });
+
     if (!browser) return;
+
+    // Check if there's a protocol URL in the command line arguments
+    const protocolUrl = commandLine.find(arg => arg.startsWith("vibe://"));
+    if (protocolUrl) {
+      logger.info(`Second instance with protocol URL: ${protocolUrl}`);
+      // Trigger the open-url handler manually for second instance
+      app.emit("open-url", event, protocolUrl);
+    }
 
     const mainWindow = browser.getMainWindow();
     if (mainWindow) {
@@ -508,8 +631,92 @@ function initializeApp(): boolean {
  *
  * @throws If service initialization fails unexpectedly.
  */
-async function initializeServices(): Promise<void> {
+async function initializeEssentialServices(): Promise<void> {
   try {
+    // Initialize session manager first
+    logger.info("Initializing session manager");
+    initializeSessionManager();
+    logger.info("Session manager initialized");
+
+    // Initialize file drop service (needed for window drop handling)
+    try {
+      logger.info("Initializing file drop service");
+      fileDropService = FileDropService.getInstance();
+      logger.info("File drop service initialized successfully");
+    } catch (error) {
+      logger.error("File drop service initialization failed:", error);
+      logger.warn("Application will continue without file drop functionality");
+    }
+
+    logger.info("Essential services initialized successfully");
+  } catch (error) {
+    logger.error(
+      "Essential service initialization failed:",
+      error instanceof Error ? error.message : String(error),
+    );
+    throw error;
+  }
+}
+
+/**
+ * Initializes background services that don't block window creation.
+ * These services run asynchronously and broadcast their status when ready.
+ */
+async function initializeBackgroundServices(): Promise<void> {
+  try {
+    logger.info("Starting background service initialization");
+
+    // Initialize user profile store
+    logger.info("Initializing user profile store");
+    const userProfileStore = useUserProfileStore.getState();
+    await userProfileStore.initialize();
+    logger.info("User profile store initialized");
+
+    // Test profile system
+    const testProfile = userProfileStore.getActiveProfile();
+    logger.info("Profile system test:", {
+      hasActiveProfile: !!testProfile,
+      profileId: testProfile?.id,
+      profileName: testProfile?.name,
+      isStoreReady: userProfileStore.isStoreReady(),
+      profilesCount: userProfileStore.profiles.size,
+    });
+
+    // Broadcast user profile ready status
+    const allWindows = BrowserWindow.getAllWindows();
+    allWindows.forEach(window => {
+      if (!window.isDestroyed()) {
+        window.webContents.send("service-status", {
+          service: "user-profile",
+          status: "ready",
+          data: { hasActiveProfile: !!testProfile },
+        });
+      }
+    });
+
+    // Initialize notification service
+    try {
+      logger.info("Initializing notification service");
+      notificationService = NotificationService.getInstance();
+      await notificationService.initialize();
+      logger.info("Notification service initialized successfully");
+
+      // Broadcast notification service ready status
+      allWindows.forEach(window => {
+        if (!window.isDestroyed()) {
+          window.webContents.send("service-status", {
+            service: "notifications",
+            status: "ready",
+          });
+        }
+      });
+    } catch (error) {
+      logger.error("Notification service initialization failed:", error);
+      logger.warn(
+        "Application will continue without enhanced notification features",
+      );
+    }
+
     // Initialize simple analytics instead of complex telemetry system
     logger.info("Using simplified analytics system");
 
@@ -665,18 +872,49 @@ async function initializeServices(): Promise<void> {
       logger.error("Agent initialization failed:", error);
       // Don't fail the whole startup process - app can work without agent
     }
+
+    logger.info("Background services initialization completed");
   } catch (error) {
     logger.error(
-      "Service initialization failed:",
+      "Background service initialization failed:",
       error instanceof Error ? error.message : String(error),
     );
 
     // Log service initialization failure
-    logger.error("Service initialization failed:", error);
+    logger.error("Background service initialization failed:", error);
 
-    throw error;
+    // Don't throw error - background services shouldn't crash the app
+    logger.warn("Application will continue with reduced functionality");
   }
 }
+
+// Disable hardware acceleration to fix overlay click issues
+app.disableHardwareAcceleration();
+
+// Register standard schemes as privileged to enable WebAuthn
+// This must be done before app.whenReady()
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: "https",
+    privileges: {
+      standard: true,
+      secure: true,
+      allowServiceWorkers: true,
+      supportFetchAPI: true,
+      corsEnabled: true,
+    },
+  },
+  {
+    scheme: "http",
+    privileges: {
+      standard: true,
+      secure: false,
+      allowServiceWorkers: false,
+      supportFetchAPI: true,
+      corsEnabled: true,
+    },
+  },
+]);
 
 // Main application initialization
 app.whenReady().then(async () => {
@@ -708,9 +946,58 @@ app.whenReady().then(async () => {
   if (isProd) {
     //updater.init();
   }
+
+  app.on("ready", () => {
+    // TODO: Re-enable Google OAuth when package is installed
+    /*
+    const myApiOauth = new ElectronGoogleOAuth2(
+      "756422833444-057sg8uit7bh2ocoepbahb0h9gsghh74.apps.googleusercontent.com",
+      "CLIENT_SECRET",
+      ["https://www.googleapis.com/auth/drive.metadata.readonly"],
+    );
+
+    myApiOauth.openAuthWindowAndGetTokens().then(token => {
+      logger.info("Google OAuth token received", { token });
+      // use your token.access_token
+    });
+    */
+  });
+
   app.on("browser-window-created", (_, window) => {
     optimizer.watchWindowShortcuts(window);
   });
+
+  // Initialize tray based on settings (default to enabled)
+  const initializeTray = async () => {
+    try {
+      const userProfileStore = useUserProfileStore.getState();
+      const activeProfile = userProfileStore.getActiveProfile();
+      const trayEnabled = activeProfile?.settings?.tray?.enabled ?? true;
+
+      if (trayEnabled) {
+        const { createTray } = await import("./tray-manager");
+        tray = await createTray();
+        // Set the tray reference in the IPC handler
+        const { setMainTray } = await import("./ipc/app/tray-control");
+        setMainTray(tray);
+        logger.info("Tray initialized from settings");
+      } else {
+        logger.info("Tray disabled in settings");
+      }
+    } catch (error) {
+      logger.error("Failed to initialize tray from settings:", error);
+    }
+  };
+
+  // Initialize tray and hotkeys after app is ready
+  initializeTray().then(async () => {
+    // Initialize password paste hotkey
+    const { initializePasswordPasteHotkey } = await import("./hotkey-manager");
+    initializePasswordPasteHotkey();
+  });
+
+  // Register the global img:// protocol for PDF handling
+  registerImgProtocol();
 
   const initialized = initializeApp();
   if (!initialized) {
@@ -719,10 +1006,59 @@ app.whenReady().then(async () => {
     return;
   }
 
-  // Initialize services and create initial window
-  initializeServices()
-    .then(() => createInitialWindow())
-    .then(() => {
+  // Register global shortcuts - using a dedicated shortcut instead of double-press
+  const ccShortcutRegistered = globalShortcut.register(
+    "CommandOrControl+Shift+C",
+    () => {
+      handleCCShortcut();
+    },
+  );
+
+  // Also register the old double-press CC shortcut as fallback
+  const ccDoublePressRegistered = globalShortcut.register(
+    "CommandOrControl+C",
+    () => {
+      // Check if this is a double-press (CC)
+      const now = Date.now();
+      if (now - lastCPressTime < 400) {
+        // Double press detected, handle CC shortcut
+        lastCPressTime = 0;
+        handleCCShortcut();
+      } else {
+        // Set a timeout to reset if no second press
+        lastCPressTime = now;
+      }
+    },
+  );
+
+  if (ccShortcutRegistered) {
+    logger.info("CC global shortcut (Ctrl+Shift+C) registered successfully");
+  } else {
+    logger.error("Failed to register CC global shortcut (Ctrl+Shift+C)");
+  }
+
+  if (ccDoublePressRegistered) {
+    logger.info("CC double-press shortcut (CC) registered successfully");
+  } else {
+    logger.error("Failed to register CC double-press shortcut (CC)");
+  }
+
+  // Initialize essential services and create window immediately, then background services
+  userAnalytics
+    .monitorPerformance("app-initialization", async () => {
+      // Phase 1: Essential services + window creation (fast)
+      await initializeEssentialServices();
+      await createInitialWindow();
+
+      // Initialize user analytics
+      await userAnalytics.initialize();
+
+      // Track memory usage after window creation
+      userAnalytics.trackMemoryUsage("post-window-creation");
+
+      // Phase 2: Background services (non-blocking)
+      initializeBackgroundServices(); // Don't await - runs in background
+
       // Track app startup after window is ready
       setTimeout(() => {
         const windows = browser?.getAllWindows();
@@ -734,19 +1070,19 @@ app.whenReady().then(async () => {
             !mainWindow.webContents.isDestroyed()
           ) {
             //TODO: move to ipc service
-            const appUpdater = new AppUpdater(mainWindow);
-            appUpdater.checkForUpdates();
+            // UpdateService is now initialized globally and handles updates automatically
+            // No need to manually check for updates here as it's handled by the service
             mainWindow.webContents
               .executeJavaScript(
                 `
-              if (window.umami && typeof window.umami.track === 'function') {
-                window.umami.track('app-started', {
-                  version: '${app.getVersion()}',
-                  platform: '${process.platform}',
-                  timestamp: ${Date.now()}
-                });
-              }
-            `,
+            if (window.umami && typeof window.umami.track === 'function') {
+              window.umami.track('app-started', {
+                version: '${app.getVersion()}',
+                platform: '${process.platform}',
+                timestamp: ${Date.now()}
+              });
+            }
+          `,
               )
               .catch(err => {
                 logger.error("Failed to track app startup", {
@@ -758,10 +1094,8 @@ app.whenReady().then(async () => {
       }, 1000); // Small delay to ensure renderer is ready
     })
     .catch(error => {
-      logger.error(
-        "Error during initialization:",
-        error instanceof Error ? error.message : String(error),
-      );
+      logger.error("App initialization failed:", error);
+      userAnalytics.trackMemoryUsage("initialization-failed");
     });
 });
 
@@ -831,6 +1165,13 @@ app.on("before-quit", async event => {
     logger.error("Error during shutdown logging:", error);
   }
 
+  // Clean up global shortcuts
+  globalShortcut.unregisterAll();
+
+  // Clean up hotkey manager
+  const { cleanupHotkeys } = await import("./hotkey-manager");
+  cleanupHotkeys();
+
   // Clean up browser resources
   if (browser && !browserDestroyed && !browser.isDestroyed()) {
     browserDestroyed = true;
@@ -841,6 +1182,20 @@ app.on("before-quit", async event => {
   // Clean up memory monitor
   if (memoryMonitor) {
     memoryMonitor = null;
+  }
+
+  // Clean up window broadcast utilities
+  WindowBroadcast.cleanup();
+
+  // TODO: Clean up debounce manager when implemented
+  // DebounceManager.cleanup();
+
+  // Clean up user profile store
+  try {
+    const userProfileStore = useUserProfileStore.getState();
+    userProfileStore.cleanup();
+  } catch (error) {
+    logger.error("Error cleaning up user profile store:", error);
   }
 
   // Clean up IPC handlers
@@ -857,8 +1212,74 @@ app.on("before-quit", async event => {
 
 // Platform-specific handling
 app.on("web-contents-created", (_event, contents) => {
-  contents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url);
+  // Set up context menu for any new web contents if they're in a BrowserWindow
+  const window = BrowserWindow.fromWebContents(contents);
+  if (window && contents.getType() === "window") {
+    // Set up context menu handler for OAuth popup windows
+    contents.on("context-menu", (_event, params) => {
+      // For editable content, let the system handle it
+      if (params.isEditable) {
+        return;
+      }
+      // For non-editable content in OAuth popups, we'll let the default system menu appear
+      // since we don't have access to the full context menu infrastructure here
+    });
+  }
+
+  contents.setWindowOpenHandler(({ url, disposition }) => {
+    // Parse the URL to check if it's an OAuth callback
+    // Check if this is an OAuth callback URL
+    // Common OAuth callback patterns:
+    // - Contains 'callback' in the path
+    // - Contains 'oauth' in the path
+    // - Contains 'code=' or 'token=' in query params
+    // - Is from a known OAuth provider domain
+    // Allow OAuth callbacks or OAuth provider domains to open in the app
+    //  if (isOAuthCallback || isFromOAuthProvider) {
+    //  logger.info(`Allowing OAuth-related URL to open in app: ${url}`);
+    logger.info("window open handler for URL:", { url, disposition });
+    // If it's trying to open in a new window (popup), configure it properly
+    if (disposition === "foreground-tab" || disposition === "background-tab") {
+      return {
+        action: "allow",
+        overrideBrowserWindowOptions: {
+          webPreferences: {
+            // Share the same session as the parent window to maintain user auth
+            session: contents.session,
+            contextIsolation: true,
+            nodeIntegration: false,
+            sandbox: true,
+            webSecurity: true,
+          },
+          // Reasonable defaults for OAuth popups
+          width: 800,
+          height: 600,
+          center: true,
+          resizable: true,
+          minimizable: true,
+          maximizable: true,
+          autoHideMenuBar: true,
+        },
+      };
+    } else if (disposition === "new-window") {
+      const appWindow = browser?.getMainApplicationWindow();
+      if (appWindow) {
+        appWindow.tabManager.createTab(url);
+      } else {
+        logger.warn("No main application window available, cannot open URL", {
+          url,
+        });
+      }
+
+      // If it's a foreground tab, allow it to open
+      return { action: "allow" };
+
+      // For all other URLs, open externally
+      // shell.openExternal(url);
+      // return { action: "deny" };
+    }
+
+    // Default case - deny the request
     return { action: "deny" };
   });
 });

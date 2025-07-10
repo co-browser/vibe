@@ -1,28 +1,138 @@
 /**
- * Enhanced NavigationBar component
+ * Enhanced NavigationBar component with DOM-injected dropdown
  * Provides browser navigation controls and intelligent omnibar using vibe APIs
  */
 
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, {
+  useState,
+  useRef,
+  useEffect,
+  useCallback,
+  useMemo,
+} from "react";
 import {
   LeftOutlined,
   RightOutlined,
   ReloadOutlined,
   RobotOutlined,
   SearchOutlined,
-  ClockCircleOutlined,
   GlobalOutlined,
   LinkOutlined,
 } from "@ant-design/icons";
+import OmniboxDropdown from "./OmniboxDropdown";
+import type { SuggestionMetadata } from "../../../../types/metadata";
+import { createLogger } from "@/utils/logger";
+import { useLayout } from "@/hooks/useLayout";
+import { useSearchWorker } from "../../hooks/useSearchWorker";
 import "../styles/NavigationBar.css";
+
+const logger = createLogger("NavigationBar");
+
+// Performance monitoring utility
+const performanceMonitor = {
+  timers: new Map<string, number>(),
+
+  start(label: string) {
+    this.timers.set(label, performance.now());
+  },
+
+  end(label: string) {
+    const startTime = this.timers.get(label);
+    if (startTime) {
+      const duration = performance.now() - startTime;
+      logger.debug(`⏱️ ${label}: ${duration.toFixed(2)}ms`);
+      this.timers.delete(label);
+      return duration;
+    }
+    return 0;
+  },
+};
+
+// URL/Title formatting utilities
+function formatSuggestionTitle(title: string, url: string): string {
+  if (!title || title === url) {
+    return formatUrlForDisplay(url).display;
+  }
+
+  // Remove common SEO patterns
+  const patterns = [
+    /\s*[|–-]\s*.*?(Official Site|Website|Home Page).*$/i,
+    /^(Home|Welcome)\s*[|–-]\s*/i,
+    /\s*[|–-]\s*\w+\.com$/i,
+  ];
+
+  let cleaned = title;
+  for (const pattern of patterns) {
+    cleaned = cleaned.replace(pattern, "");
+  }
+
+  return cleaned.trim() || formatUrlForDisplay(url).display;
+}
+
+// Format URLs for readable display
+function formatUrlForDisplay(url: string): { display: string; domain: string } {
+  try {
+    const urlObj = new URL(url);
+    const domain = urlObj.hostname.replace(/^www\./, "");
+
+    // Special handling for search engines
+    if (
+      urlObj.hostname.includes("google.com") &&
+      urlObj.searchParams.has("q")
+    ) {
+      return {
+        display: `Search: "${urlObj.searchParams.get("q")}"`,
+        domain: "Google",
+      };
+    }
+
+    // Show clean path without query params
+    const path = urlObj.pathname === "/" ? "" : urlObj.pathname.split("?")[0];
+    return {
+      display: domain + (path.length > 30 ? "/..." + path.slice(-25) : path),
+      domain: domain,
+    };
+  } catch {
+    return { display: url, domain: url };
+  }
+}
+
+// Format last visit timestamp for display
+function formatLastVisit(timestamp: number | undefined): string {
+  if (!timestamp) return "Never";
+
+  const date = new Date(timestamp);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 1) return "Just now";
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays < 7) return `${diffDays}d ago`;
+
+  return date.toLocaleDateString();
+}
 
 interface Suggestion {
   id: string;
-  type: "url" | "search" | "history" | "bookmark" | "context";
+  type:
+    | "url"
+    | "search"
+    | "history"
+    | "bookmark"
+    | "context"
+    | "perplexity"
+    | "agent"
+    | "navigation";
   text: string;
   url?: string;
   icon: React.ReactNode;
+  iconType?: string;
   description?: string;
+  metadata?: SuggestionMetadata;
 }
 
 interface TabNavigationState {
@@ -33,13 +143,38 @@ interface TabNavigationState {
   title: string;
 }
 
+// Helper function to get icon type from suggestion
+function getIconType(suggestion: Suggestion): string {
+  switch (suggestion.type) {
+    case "url":
+      return "global";
+    case "search":
+      return "search";
+    case "history":
+      return "history";
+    case "bookmark":
+      return "star";
+    case "context":
+      return "link";
+    case "perplexity":
+      return "robot";
+    case "agent":
+      return "robot";
+    case "navigation":
+      return "arrow-right";
+    default:
+      return "default";
+  }
+}
+
 /**
- * Enhanced navigation bar component with direct vibe API integration
+ * Enhanced navigation bar component with direct DOM dropdown
  */
 const NavigationBar: React.FC = () => {
   const [currentTabKey, setCurrentTabKey] = useState<string>("");
   const [inputValue, setInputValue] = useState("");
-  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [originalUrl, setOriginalUrl] = useState("");
+  const [isUserTyping, setIsUserTyping] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [navigationState, setNavigationState] = useState<TabNavigationState>({
@@ -50,29 +185,306 @@ const NavigationBar: React.FC = () => {
     title: "",
   });
   const [agentStatus, setAgentStatus] = useState(false);
-  const [chatPanelVisible, setChatPanelVisible] = useState(false);
+
+  // Use layout context for chat panel state
+  const { isChatPanelVisible: chatPanelVisible, setChatPanelVisible } =
+    useLayout();
 
   const inputRef = useRef<HTMLInputElement>(null);
-  const suggestionsRef = useRef<HTMLDivElement>(null);
+  // Remove the unused variable 'handleContextMenu'
 
-  // Get current active tab
-  useEffect(() => {
-    const getCurrentTab = async () => {
+  // Use search worker for filtering suggestions
+  const {
+    results: workerSuggestions,
+    search: searchInWorker,
+    updateSuggestions: updateWorkerSuggestions,
+    updateResults: updateWorkerResults,
+  } = useSearchWorker([]);
+  const allHistoryLoadedRef = useRef(false);
+
+  // Performance optimization: Cache recent history queries
+  const historyCache = useRef<Map<string, { data: any[]; timestamp: number }>>(
+    new Map(),
+  );
+
+  // Load all history data for the worker
+  const loadAllHistoryForWorker = useCallback(
+    async (forceReload = false) => {
+      performanceMonitor.start("loadAllHistoryForWorker");
+
+      logger.debug("🚀 loadAllHistoryForWorker called", {
+        forceReload,
+        allHistoryLoaded: allHistoryLoadedRef.current,
+      });
+
+      if (allHistoryLoadedRef.current && !forceReload) {
+        logger.debug(`📚 History already loaded, skipping`);
+        performanceMonitor.end("loadAllHistoryForWorker");
+        return;
+      }
+
       try {
-        // Check if vibe API is available
-        if (!window.vibe?.tabs?.getActiveTabKey) {
+        // Check cache first
+        const cacheKey = "history-worker-cache";
+        const cached = historyCache.current.get(cacheKey);
+        const now = Date.now();
+
+        if (cached && !forceReload && now - cached.timestamp < 30000) {
+          // 30 second cache
+          logger.debug(
+            `📚 Using cached history data: ${cached.data.length} items`,
+          );
+          updateWorkerSuggestions(cached.data);
+          performanceMonitor.end("loadAllHistoryForWorker");
           return;
         }
 
-        // ✅ FIX: Use active tab API instead of tabs[0]
+        logger.debug(`📚 Loading history data from API...`);
+
+        // Check if profile API is available
+        if (!window.vibe?.profile?.getNavigationHistory) {
+          logger.error(
+            "❌ window.vibe.profile.getNavigationHistory not available",
+          );
+          performanceMonitor.end("loadAllHistoryForWorker");
+          return;
+        }
+
+        // Load a smaller, more focused set of history items for better performance
+        const allHistory =
+          (await window.vibe.profile.getNavigationHistory("", 50)) || [];
+
+        logger.debug(`📚 Loaded ${allHistory.length} history items from API`, {
+          firstItem: allHistory[0],
+          lastItem: allHistory[allHistory.length - 1],
+        });
+
+        // If no history from API, try to get some basic suggestions
+        if (allHistory.length === 0) {
+          logger.debug(`📚 No history found, creating fallback suggestions`);
+          const fallbackSuggestions = [
+            {
+              id: "fallback-google",
+              type: "search" as const,
+              text: "Search with Google",
+              url: "https://www.google.com",
+              description: "Search the web with Google",
+              visitCount: 1,
+              lastVisit: Date.now(),
+              metadata: { title: "Google", url: "https://www.google.com" },
+            },
+            {
+              id: "fallback-perplexity",
+              type: "search" as const,
+              text: "Search with Perplexity",
+              url: "https://www.perplexity.ai",
+              description: "AI-powered search with Perplexity",
+              visitCount: 1,
+              lastVisit: Date.now(),
+              metadata: {
+                title: "Perplexity",
+                url: "https://www.perplexity.ai",
+              },
+            },
+          ];
+
+          logger.debug(
+            `📚 Created ${fallbackSuggestions.length} fallback suggestions`,
+          );
+          updateWorkerSuggestions(fallbackSuggestions);
+          allHistoryLoadedRef.current = !forceReload;
+          performanceMonitor.end("loadAllHistoryForWorker");
+          return;
+        }
+
+        // Pre-process and cache the formatted data
+        const workerSuggestions = allHistory.map((entry, index) => ({
+          id: `history-${entry.url}-${index}`,
+          type: "history" as const,
+          text: formatSuggestionTitle(entry.title || "", entry.url || ""),
+          url: entry.url || "",
+          description: `${formatUrlForDisplay(entry.url || "").domain} • Visited ${entry.visitCount} time${entry.visitCount !== 1 ? "s" : ""} • ${formatLastVisit(entry.lastVisit)}`,
+          visitCount: entry.visitCount,
+          lastVisit: entry.lastVisit,
+          metadata: entry,
+        }));
+
+        logger.debug(
+          `📚 Processed ${workerSuggestions.length} history suggestions`,
+          {
+            firstSuggestion: workerSuggestions[0],
+            lastSuggestion: workerSuggestions[workerSuggestions.length - 1],
+          },
+        );
+
+        // Cache the processed data
+        historyCache.current.set(cacheKey, {
+          data: workerSuggestions,
+          timestamp: now,
+        });
+
+        updateWorkerSuggestions(workerSuggestions);
+        allHistoryLoadedRef.current = !forceReload; // Only set to true if not forcing reload
+      } catch (error) {
+        logger.error("Failed to load history for worker:", error);
+      } finally {
+        performanceMonitor.end("loadAllHistoryForWorker");
+      }
+    },
+    [updateWorkerSuggestions],
+  );
+
+  // Handle suggestion click from dropdown
+  const handleSuggestionClick = useCallback(
+    async (suggestion: any) => {
+      try {
+        logger.info("🎯 Suggestion clicked:", suggestion);
+
+        // Immediately hide suggestions
+        setShowSuggestions(false);
+        inputRef.current?.blur();
+
+        // Reset typing state after navigation
+        setIsUserTyping(false);
+
+        // Get current tab key if not available
+        let tabKey = currentTabKey;
+        if (!tabKey) {
+          const activeTab = await window.vibe.tabs.getActiveTab();
+          if (activeTab && activeTab.key) {
+            tabKey = activeTab.key;
+            setCurrentTabKey(tabKey);
+          }
+        }
+
+        if (!tabKey) {
+          logger.error("❌ No active tab found, cannot navigate");
+          return;
+        }
+
+        // Handle navigation based on suggestion type
+        if (suggestion.type === "context" && suggestion.url) {
+          await window.vibe.tabs.switchToTab(suggestion.url);
+        } else if (suggestion.type === "agent" && suggestion.metadata) {
+          if (suggestion.metadata.action === "ask-agent") {
+            await window.vibe.interface.toggleChatPanel(true);
+          }
+        } else if (suggestion.url && tabKey) {
+          await window.vibe.page.navigate(tabKey, suggestion.url);
+          setInputValue(suggestion.url);
+        } else if (suggestion.type === "search" && tabKey) {
+          const defaultSearchEngine =
+            (await window.vibe.settings.get("defaultSearchEngine")) ||
+            "perplexity";
+          let searchUrl = `https://www.${defaultSearchEngine}.com/search?q=${encodeURIComponent(suggestion.text)}`;
+          if (defaultSearchEngine === "perplexity") {
+            searchUrl = `https://www.perplexity.ai/search?q=${encodeURIComponent(suggestion.text)}`;
+          } else if (defaultSearchEngine === "google") {
+            searchUrl = `https://www.google.com/search?q=${encodeURIComponent(suggestion.text)}`;
+          }
+          await window.vibe.page.navigate(tabKey, searchUrl);
+          setInputValue(suggestion.text);
+        }
+      } catch (error) {
+        logger.error("Failed to handle suggestion click:", error);
+      }
+    },
+    [currentTabKey],
+  );
+
+  // Non-history suggestions state
+  const [nonHistorySuggestions, setNonHistorySuggestions] = useState<
+    Suggestion[]
+  >([]);
+
+  // Create serializable suggestions for dropdown - single source of truth
+  const dropdownSuggestions = useMemo(() => {
+    const combined = [...workerSuggestions, ...nonHistorySuggestions];
+
+    // Map to a serializable format for the dropdown
+    return combined.map(s => ({
+      ...s,
+      icon: undefined, // Remove React nodes before passing down
+      iconType: getIconType(s),
+    }));
+  }, [workerSuggestions, nonHistorySuggestions]);
+
+  // Remove redundant suggestions state sync - we'll use dropdownSuggestions directly
+
+  const handleDeleteHistory = useCallback(
+    async (suggestionId: string) => {
+      try {
+        logger.info("🗑️ Deleting history item:", suggestionId);
+
+        const suggestionToDelete = dropdownSuggestions.find(
+          s => s.id === suggestionId,
+        );
+
+        // Optimistically update the UI by removing from worker results
+        // This will trigger a re-render of dropdownSuggestions
+        const workerFiltered = workerSuggestions.filter(
+          s => s.id !== suggestionId,
+        );
+        const nonHistoryFiltered = nonHistorySuggestions.filter(
+          s => s.id !== suggestionId,
+        );
+
+        // Update the worker's data
+        updateWorkerResults(workerFiltered);
+        setNonHistorySuggestions(nonHistoryFiltered);
+
+        if (suggestionToDelete?.url) {
+          await window.vibe.profile?.deleteFromHistory?.(
+            suggestionToDelete.url,
+          );
+          // Clear cache to force a reload on next query
+          historyCache.current.clear();
+          // Optionally, you can trigger a re-fetch of history here
+          loadAllHistoryForWorker(true); // Pass a flag to force reload
+        }
+      } catch (error) {
+        logger.error("Failed to delete history item:", error);
+      }
+    },
+    [
+      dropdownSuggestions,
+      loadAllHistoryForWorker,
+      updateWorkerResults,
+      workerSuggestions,
+      nonHistorySuggestions,
+    ],
+  );
+
+  // Get current active tab and load history
+  useEffect(() => {
+    const getCurrentTab = async () => {
+      try {
+        // Debug: Check if vibe APIs are available
+        logger.debug("🔍 Checking vibe APIs availability:", {
+          hasVibe: !!window.vibe,
+          hasProfile: !!window.vibe?.profile,
+          hasGetNavigationHistory: !!window.vibe?.profile?.getNavigationHistory,
+          hasTabs: !!window.vibe?.tabs,
+          hasGetActiveTabKey: !!window.vibe?.tabs?.getActiveTabKey,
+        });
+
+        if (!window.vibe?.tabs?.getActiveTabKey) {
+          logger.error("❌ window.vibe.tabs.getActiveTabKey not available");
+          return;
+        }
+
         const activeTabKey = await window.vibe.tabs.getActiveTabKey();
+        logger.debug("🔍 Active tab key:", activeTabKey);
+
         if (activeTabKey) {
           setCurrentTabKey(activeTabKey);
 
-          // Get the active tab details
           const activeTab = await window.vibe.tabs.getActiveTab();
+          logger.debug("🔍 Active tab:", activeTab);
+
           if (activeTab) {
             setInputValue(activeTab.url || "");
+            setOriginalUrl(activeTab.url || "");
             setNavigationState(prev => ({
               ...prev,
               url: activeTab.url || "",
@@ -84,11 +496,96 @@ const NavigationBar: React.FC = () => {
           }
         }
       } catch (error) {
-        console.error("Failed to get active tab:", error);
+        logger.error("Failed to get active tab:", error);
       }
     };
 
     getCurrentTab();
+  }, []);
+
+  // Load history data for the worker on mount
+  useEffect(() => {
+    // Preload history data in background for better performance
+    const preloadHistory = async () => {
+      try {
+        await loadAllHistoryForWorker();
+      } catch (error) {
+        logger.error("Failed to preload history:", error);
+      }
+    };
+
+    // Use requestIdleCallback for better performance if available
+    if (window.requestIdleCallback) {
+      window.requestIdleCallback(() => preloadHistory());
+    } else {
+      // Fallback to setTimeout for browsers without requestIdleCallback
+      setTimeout(preloadHistory, 100);
+    }
+  }, [loadAllHistoryForWorker]);
+
+  // Test effect to check APIs on mount
+  useEffect(() => {
+    const testAPIs = async () => {
+      logger.debug("🧪 Testing APIs on mount...");
+
+      try {
+        // Test if window.vibe exists
+        if (!window.vibe) {
+          logger.error("❌ window.vibe is not available");
+          return;
+        }
+
+        logger.debug("✅ window.vibe is available");
+
+        // Test profile API
+        if (!window.vibe.profile) {
+          logger.error("❌ window.vibe.profile is not available");
+          return;
+        }
+
+        logger.debug("✅ window.vibe.profile is available");
+
+        // Test getNavigationHistory
+        if (!window.vibe.profile.getNavigationHistory) {
+          logger.error(
+            "❌ window.vibe.profile.getNavigationHistory is not available",
+          );
+          return;
+        }
+
+        logger.debug(
+          "✅ window.vibe.profile.getNavigationHistory is available",
+        );
+
+        // Test tabs API
+        if (!window.vibe.tabs) {
+          logger.error("❌ window.vibe.tabs is not available");
+          return;
+        }
+
+        logger.debug("✅ window.vibe.tabs is available");
+
+        // Test getActiveTabKey
+        if (!window.vibe.tabs.getActiveTabKey) {
+          logger.error("❌ window.vibe.tabs.getActiveTabKey is not available");
+          return;
+        }
+
+        logger.debug("✅ window.vibe.tabs.getActiveTabKey is available");
+
+        // Try to get active tab
+        const activeTabKey = await window.vibe.tabs.getActiveTabKey();
+        logger.debug("🧪 Active tab key:", activeTabKey);
+
+        // Try to get navigation history
+        const history = await window.vibe.profile.getNavigationHistory("", 5);
+        logger.debug("🧪 Navigation history sample:", history);
+      } catch (error) {
+        logger.error("❌ API test failed:", error);
+      }
+    };
+
+    testAPIs();
   }, []);
 
   // Monitor tab state changes
@@ -99,7 +596,11 @@ const NavigationBar: React.FC = () => {
 
     const cleanup = window.vibe.tabs.onTabStateUpdate(tabState => {
       if (tabState.key === currentTabKey) {
-        setInputValue(tabState.url || "");
+        // Only update input value if user is not typing
+        if (!isUserTyping) {
+          setInputValue(tabState.url || "");
+          setOriginalUrl(tabState.url || "");
+        }
         setNavigationState(prev => ({
           ...prev,
           url: tabState.url || "",
@@ -112,22 +613,24 @@ const NavigationBar: React.FC = () => {
     });
 
     return cleanup;
-  }, [currentTabKey]);
+  }, [currentTabKey, isUserTyping]);
 
-  // Listen for tab switching events to update current tab
+  // Listen for tab switching events
   useEffect(() => {
     const cleanup = window.vibe.tabs.onTabSwitched(switchData => {
-      // Update to the new active tab
       const newTabKey = switchData.to;
       if (newTabKey && newTabKey !== currentTabKey) {
         setCurrentTabKey(newTabKey);
 
-        // Get the new tab's details
         window.vibe.tabs
           .getTab(newTabKey)
           .then(newTab => {
             if (newTab) {
-              setInputValue(newTab.url || "");
+              // Only update input value if user is not typing
+              if (!isUserTyping) {
+                setInputValue(newTab.url || "");
+                setOriginalUrl(newTab.url || "");
+              }
               setNavigationState(prev => ({
                 ...prev,
                 url: newTab.url || "",
@@ -139,13 +642,13 @@ const NavigationBar: React.FC = () => {
             }
           })
           .catch(error => {
-            console.error("Failed to get switched tab details:", error);
+            logger.error("Failed to get switched tab details:", error);
           });
       }
     });
 
     return cleanup;
-  }, [currentTabKey]);
+  }, [currentTabKey, isUserTyping]);
 
   // Monitor agent status
   useEffect(() => {
@@ -154,13 +657,12 @@ const NavigationBar: React.FC = () => {
         const status = await window.vibe.chat.getAgentStatus();
         setAgentStatus(status);
       } catch (error) {
-        console.error("Failed to check agent status:", error);
+        logger.error("Failed to check agent status:", error);
       }
     };
 
     checkAgentStatus();
 
-    // Listen for agent status changes
     const cleanup = window.vibe.chat.onAgentStatusChanged(status => {
       setAgentStatus(status);
     });
@@ -168,60 +670,41 @@ const NavigationBar: React.FC = () => {
     return cleanup;
   }, []);
 
-  // Monitor chat panel visibility
-  useEffect(() => {
-    const getChatPanelState = async () => {
-      try {
-        const state = await window.vibe.interface.getChatPanelState();
-        setChatPanelVisible(state.isVisible);
-      } catch (error) {
-        console.error("Failed to get chat panel state:", error);
-      }
-    };
-
-    getChatPanelState();
-
-    // Listen for chat panel visibility changes
-    const cleanup = window.vibe.interface.onChatPanelVisibilityChanged(
-      isVisible => {
-        setChatPanelVisible(isVisible);
-      },
-    );
-
-    return cleanup;
-  }, []);
-
   // Validation helpers
   const isValidURL = useCallback((string: string): boolean => {
     try {
-      new URL(string.includes("://") ? string : `https://${string}`);
-      return true;
+      const searchIndicators =
+        /\s|^(what|when|where|why|how|who|is|are|do|does|can|will|should)/i;
+      if (searchIndicators.test(string.trim())) {
+        return false;
+      }
+
+      const withProtocol = string.includes("://")
+        ? string
+        : `https://${string}`;
+
+      const url = new URL(withProtocol);
+
+      if (!url.hostname.includes(".") || url.hostname.includes(" ")) {
+        return false;
+      }
+
+      const hostnamePattern =
+        /^[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]*(\.[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]*)*\.[a-zA-Z]{2,}$/;
+      return hostnamePattern.test(url.hostname);
     } catch {
       return false;
     }
   }, []);
 
-  const isDomain = useCallback((string: string): boolean => {
-    const domainRegex = /^[a-zA-Z0-9][a-zA-Z0-9-_.]*[a-zA-Z0-9]\.[a-zA-Z]{2,}$/;
-    return domainRegex.test(string);
-  }, []);
-
-  const detectInputType = useCallback(
-    (input: string): "url" | "domain" | "search" => {
-      if (isValidURL(input)) return "url";
-      if (isDomain(input)) return "domain";
-      return "search";
-    },
-    [isValidURL, isDomain],
-  );
-
   // Generate intelligent suggestions using vibe APIs
   const generateRealSuggestions = useCallback(
     async (input: string): Promise<Suggestion[]> => {
+      const suggestions: Suggestion[] = [];
+
       if (!input.trim()) return [];
 
-      const suggestions: Suggestion[] = [];
-      const inputType = detectInputType(input);
+      const inputType = isValidURL(input) ? "url" : "search";
       const inputLower = input.toLowerCase();
 
       try {
@@ -235,55 +718,41 @@ const NavigationBar: React.FC = () => {
             icon: <GlobalOutlined />,
             description: "Navigate to URL",
           });
-        } else if (inputType === "domain") {
-          suggestions.push({
-            id: "navigate-domain",
-            type: "url",
-            text: input,
-            url: `https://${input}`,
-            icon: <GlobalOutlined />,
-            description: "Go to website",
-          });
         } else {
-          // Add search suggestion
           const defaultSearchEngine =
-            (await window.vibe.settings.get("defaultSearchEngine")) || "google";
+            (await window.vibe.settings.get("defaultSearchEngine")) ||
+            "perplexity";
+
+          let searchUrl;
+          let searchDescription;
+
+          if (defaultSearchEngine === "perplexity") {
+            searchUrl = `https://www.perplexity.ai/search?q=${encodeURIComponent(input)}`;
+            searchDescription = "AI-powered search with Perplexity";
+          } else if (defaultSearchEngine === "google") {
+            searchUrl = `https://www.google.com/search?q=${encodeURIComponent(input)}`;
+            searchDescription = "Search with Google";
+          } else {
+            searchUrl = `https://www.${defaultSearchEngine}.com/search?q=${encodeURIComponent(input)}`;
+            searchDescription = `Search with ${defaultSearchEngine}`;
+          }
+
           suggestions.push({
             id: "search-query",
             type: "search",
-            text: `Search for "${input}"`,
-            url: `https://www.${defaultSearchEngine}.com/search?q=${encodeURIComponent(input)}`,
+            text: input,
+            url: searchUrl,
             icon: <SearchOutlined />,
-            description: `Search with ${defaultSearchEngine}`,
+            description: searchDescription,
           });
         }
 
-        // Get real browsing history from saved contexts
-        const contexts = await window.vibe.content.getSavedContexts();
-        const historyMatches = contexts
-          .filter(
-            ctx =>
-              (ctx.url && ctx.url.toLowerCase().includes(inputLower)) ||
-              (ctx.title && ctx.title.toLowerCase().includes(inputLower)),
-          )
-          .slice(0, 3)
-          .map((ctx, index) => ({
-            id: `history-${index}`,
-            type: "history" as const,
-            text: ctx.title || ctx.url || "Untitled",
-            url: ctx.url || "",
-            icon: <ClockCircleOutlined />,
-            description: ctx.url,
-          }));
-
-        suggestions.push(...historyMatches);
-
-        // Get current tabs for "switch to tab" suggestions
+        // Get open tabs
         const tabs = await window.vibe.tabs.getTabs();
         const tabMatches = tabs
           .filter(
             tab =>
-              tab.key !== currentTabKey && // Don't suggest current tab
+              tab.key !== currentTabKey &&
               ((tab.title && tab.title.toLowerCase().includes(inputLower)) ||
                 (tab.url && tab.url.toLowerCase().includes(inputLower))),
           )
@@ -292,46 +761,28 @@ const NavigationBar: React.FC = () => {
             id: `tab-${index}`,
             type: "context" as const,
             text: `Switch to: ${tab.title || "Untitled"}`,
-            url: tab.key, // Use tab key as URL for tab switching
+            url: tab.key,
             icon: <LinkOutlined />,
             description: tab.url || "No URL",
           }));
 
         suggestions.push(...tabMatches);
       } catch (error) {
-        console.error("Failed to generate suggestions:", error);
-
-        // Fallback to basic search suggestion
-        if (suggestions.length === 0) {
-          suggestions.push({
-            id: "fallback-search",
-            type: "search",
-            text: `Search for "${input}"`,
-            url: `https://www.google.com/search?q=${encodeURIComponent(input)}`,
-            icon: <SearchOutlined />,
-            description: "Search with Google",
-          });
-        }
+        logger.error("Failed to generate non-history suggestions:", error);
       }
 
-      return suggestions.slice(0, 6); // Limit to 6 suggestions
+      return suggestions;
     },
-    [currentTabKey, detectInputType],
+    [currentTabKey, isValidURL],
   );
 
-  // Navigation handlers using vibe APIs
+  // Navigation handlers
   const handleBack = useCallback(async () => {
     if (currentTabKey && navigationState.canGoBack) {
       try {
         await window.vibe.page.goBack(currentTabKey);
-
-        // Track navigation
-        (window as any).umami?.track?.("page-navigated", {
-          action: "back",
-          timestamp: Date.now(),
-        });
       } catch (error) {
-        console.error("Failed to go back:", error);
+        logger.error("Failed to go back:", error);
       }
     }
   }, [currentTabKey, navigationState.canGoBack]);
@@ -340,14 +791,8 @@ const NavigationBar: React.FC = () => {
     if (currentTabKey && navigationState.canGoForward) {
       try {
         await window.vibe.page.goForward(currentTabKey);
-
-        // Track navigation
-        (window as any).umami?.track?.("page-navigated", {
-          action: "forward",
-          timestamp: Date.now(),
-        });
       } catch (error) {
-        console.error("Failed to go forward:", error);
+        logger.error("Failed to go forward:", error);
       }
     }
   }, [currentTabKey, navigationState.canGoForward]);
@@ -356,14 +801,8 @@ const NavigationBar: React.FC = () => {
     if (currentTabKey) {
       try {
         await window.vibe.page.reload(currentTabKey);
-
-        // Track navigation
-        (window as any).umami?.track?.("page-navigated", {
-          action: "reload",
-          timestamp: Date.now(),
-        });
       } catch (error) {
-        console.error("Failed to reload:", error);
+        logger.error("Failed to reload:", error);
       }
     }
   }, [currentTabKey]);
@@ -374,64 +813,92 @@ const NavigationBar: React.FC = () => {
       window.vibe.interface.toggleChatPanel(newVisibility);
       setChatPanelVisible(newVisibility);
     } catch (error) {
-      console.error("Failed to toggle chat:", error);
+      logger.error("Failed to toggle chat:", error);
     }
-  }, [chatPanelVisible]);
+  }, [chatPanelVisible, setChatPanelVisible]);
 
-  // Telemetry handlers are now passed as props from BrowserUI
+  // Simplified input handling
+  const handleInputChange = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const value = e.target.value;
+      setInputValue(value);
+      setIsUserTyping(true);
+      setShowSuggestions(true);
 
-  // Input handling
-  const handleInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setInputValue(value);
+      // Search in worker immediately
+      searchInWorker(value);
 
-    if (value.trim()) {
-      const newSuggestions = await generateRealSuggestions(value);
-      setSuggestions(newSuggestions);
-      setShowSuggestions(newSuggestions.length > 0);
-    } else {
-      setSuggestions([]);
-      setShowSuggestions(false);
-    }
-    setSelectedIndex(-1);
-  };
+      // Generate non-history suggestions in parallel
+      generateRealSuggestions(value).then(setNonHistorySuggestions);
+    },
+    [searchInWorker, generateRealSuggestions],
+  );
 
-  const handleInputFocus = async () => {
-    if (inputValue.trim()) {
-      const newSuggestions = await generateRealSuggestions(inputValue);
-      setSuggestions(newSuggestions);
-      setShowSuggestions(newSuggestions.length > 0);
-    }
+  const handleInputFocus = () => {
+    inputRef.current?.select();
+    setIsUserTyping(true);
+    setShowSuggestions(true);
+    setOriginalUrl(inputValue);
+
+    // Pre-load necessary data
+    loadAllHistoryForWorker();
+    searchInWorker(inputValue);
+    generateRealSuggestions(inputValue).then(setNonHistorySuggestions);
   };
 
   const handleInputBlur = () => {
-    // Delay hiding suggestions to allow for clicks
-    setTimeout(() => setShowSuggestions(false), 150);
+    // Use a short timeout to allow clicks on the dropdown to register
+    setTimeout(() => {
+      setIsUserTyping(false);
+      setShowSuggestions(false);
+    }, 150);
   };
 
+  useEffect(() => {}, [showSuggestions]);
+
+  // Log OmniboxDropdown props before rendering
+  // Remove all console.log calls from this file
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (!showSuggestions) return;
+    if (!showSuggestions && e.key !== "Enter") return;
 
     switch (e.key) {
       case "ArrowDown":
         e.preventDefault();
-        setSelectedIndex(prev =>
-          prev < suggestions.length - 1 ? prev + 1 : prev,
-        );
+        setSelectedIndex(prev => {
+          // If nothing selected, select first item
+          if (prev === -1) return 0;
+          // Otherwise move down
+          const newIndex =
+            prev < dropdownSuggestions.length - 1 ? prev + 1 : prev;
+          return newIndex;
+        });
         break;
       case "ArrowUp":
         e.preventDefault();
-        setSelectedIndex(prev => (prev > 0 ? prev - 1 : -1));
+        setSelectedIndex(prev => {
+          const newIndex = prev > 0 ? prev - 1 : -1;
+          return newIndex;
+        });
+        break;
+      case "Tab":
+        e.preventDefault();
+        if (showSuggestions && selectedIndex >= 0) {
+          handleSuggestionClick(dropdownSuggestions[selectedIndex]);
+        }
         break;
       case "Enter":
         e.preventDefault();
-        if (selectedIndex >= 0 && suggestions[selectedIndex]) {
-          handleSuggestionClick(suggestions[selectedIndex]);
+        if (selectedIndex >= 0 && dropdownSuggestions[selectedIndex]) {
+          handleSuggestionClick(dropdownSuggestions[selectedIndex]);
         } else {
           handleSubmit();
         }
         break;
       case "Escape":
+        // Restore original URL
+        setInputValue(originalUrl);
+        setIsUserTyping(false);
         setShowSuggestions(false);
         setSelectedIndex(-1);
         inputRef.current?.blur();
@@ -446,137 +913,70 @@ const NavigationBar: React.FC = () => {
       let finalUrl = inputValue;
 
       if (!inputValue.includes("://")) {
-        if (isDomain(inputValue) || isValidURL(inputValue)) {
+        if (isValidURL(inputValue)) {
           finalUrl = `https://${inputValue}`;
         } else {
-          // Search query
           const searchEngine =
             (await window.vibe.settings.get("defaultSearchEngine")) || "google";
-          finalUrl = `https://www.${searchEngine}.com/search?q=${encodeURIComponent(inputValue)}`;
+
+          if (searchEngine === "perplexity") {
+            finalUrl = `https://www.perplexity.ai/search?q=${encodeURIComponent(inputValue)}`;
+          } else if (searchEngine === "google") {
+            finalUrl = `https://www.google.com/search?q=${encodeURIComponent(inputValue)}`;
+          }
         }
       }
 
-      await window.vibe.page.navigate(currentTabKey, finalUrl);
-      setShowSuggestions(false);
-      inputRef.current?.blur();
-
-      // Track navigation
-      (window as any).umami?.track?.("page-navigated", {
-        action: "url-entered",
-        isSearch:
-          !isDomain(inputValue) &&
-          !isValidURL(inputValue) &&
-          !inputValue.includes("://"),
-        timestamp: Date.now(),
-      });
-    } catch (error) {
-      console.error("Failed to navigate:", error);
-    }
-  };
-
-  const handleSuggestionClick = async (suggestion: Suggestion) => {
-    try {
-      if (suggestion.type === "context" && suggestion.url) {
-        // Switch to existing tab
-        await window.vibe.tabs.switchToTab(suggestion.url);
-      } else if (suggestion.url && currentTabKey) {
-        // Navigate to URL
-        await window.vibe.page.navigate(currentTabKey, suggestion.url);
-        setInputValue(suggestion.text);
-
-        // Track navigation via suggestion
-        (window as any).umami?.track?.("page-navigated", {
-          action: "suggestion-clicked",
-          suggestionType: suggestion.type,
-          timestamp: Date.now(),
-        });
+      if (finalUrl) {
+        await window.vibe.page.navigate(currentTabKey, finalUrl);
+        setInputValue(finalUrl);
+        setOriginalUrl(finalUrl);
       }
-
-      setShowSuggestions(false);
-      inputRef.current?.blur();
     } catch (error) {
-      console.error("Failed to handle suggestion click:", error);
+      logger.error("Failed to handle input submit:", error);
     }
   };
 
   return (
     <div className="navigation-bar">
-      <div className="nav-controls">
-        <button
-          className={`nav-button ${navigationState.canGoBack ? "enabled" : ""}`}
-          onClick={handleBack}
-          disabled={!navigationState.canGoBack}
-          title="Go back"
-        >
+      <div className="navigation-bar-left">
+        <button onClick={handleBack} disabled={!navigationState.canGoBack}>
           <LeftOutlined />
         </button>
+        <button onClick={handleReload} disabled={navigationState.isLoading}>
+          <ReloadOutlined />
+        </button>
         <button
-          className={`nav-button ${navigationState.canGoForward ? "enabled" : ""}`}
           onClick={handleForward}
           disabled={!navigationState.canGoForward}
-          title="Go forward"
         >
           <RightOutlined />
         </button>
-        <button
-          className="nav-button"
-          onClick={handleReload}
-          title="Reload page"
-        >
-          <ReloadOutlined spin={navigationState.isLoading} />
-        </button>
-        <button
-          className={`nav-button ${chatPanelVisible ? "active" : ""} ${agentStatus ? "enabled" : ""}`}
-          onClick={handleToggleChat}
-          title={
-            agentStatus ? "Toggle AI assistant" : "AI assistant not available"
-          }
-          disabled={!agentStatus}
-        >
+      </div>
+      <div className="navigation-bar-center">
+        <input
+          type="text"
+          placeholder="Search or type URL"
+          value={inputValue}
+          onChange={handleInputChange}
+          onFocus={handleInputFocus}
+          onBlur={handleInputBlur}
+          onKeyDown={handleKeyDown}
+          ref={inputRef}
+        />
+        <OmniboxDropdown
+          suggestions={dropdownSuggestions}
+          onSuggestionClick={handleSuggestionClick}
+          onDeleteHistory={handleDeleteHistory}
+          selectedIndex={selectedIndex}
+          isVisible={showSuggestions}
+          omnibarRef={inputRef}
+        />
+      </div>
+      <div className="navigation-bar-right">
+        <button onClick={handleToggleChat} disabled={agentStatus}>
           <RobotOutlined />
         </button>
-      </div>
-
-      <div className="omnibar-container">
-        <div className="omnibar-wrapper">
-          <input
-            ref={inputRef}
-            className="omnibar-input"
-            value={inputValue}
-            onChange={handleInputChange}
-            onFocus={handleInputFocus}
-            onBlur={handleInputBlur}
-            onKeyDown={handleKeyDown}
-            placeholder="Search or enter URL"
-            aria-label="Search or enter URL"
-            spellCheck={false}
-            autoComplete="off"
-          />
-
-          {showSuggestions && suggestions.length > 0 && (
-            <div ref={suggestionsRef} className="omnibar-suggestions">
-              {suggestions.map((suggestion, index) => (
-                <div
-                  key={suggestion.id}
-                  className={`suggestion-item ${index === selectedIndex ? "selected" : ""}`}
-                  onClick={() => handleSuggestionClick(suggestion)}
-                  onMouseEnter={() => setSelectedIndex(index)}
-                >
-                  <div className="suggestion-icon">{suggestion.icon}</div>
-                  <div className="suggestion-content">
-                    <div className="suggestion-text">{suggestion.text}</div>
-                    {suggestion.description && (
-                      <div className="suggestion-description">
-                        {suggestion.description}
-                      </div>
-                    )}
-                  </div>
-                  <div className="suggestion-type">{suggestion.type}</div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
       </div>
     </div>
   );

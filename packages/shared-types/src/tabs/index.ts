@@ -29,6 +29,7 @@ export interface TabState {
   isAgentActive?: boolean;
   isCompleted?: boolean;
   isFallback?: boolean;
+  isAgentControlled?: boolean; // For Speedlane mode - tab controlled by agent
 
   // === CDP INTEGRATION ===
   /**

@@ -5,11 +5,18 @@ import {
   createLogger,
   truncateUrl,
 } from "@vibe/shared-types";
-import { WebContentsView } from "electron";
+import { WebContentsView, BrowserWindow, session } from "electron";
 import { EventEmitter } from "events";
+import fs from "fs-extra";
 import type { CDPManager } from "../services/cdp-service";
 import { fetchFaviconAsDataUrl } from "@/utils/favicon";
 import { autoSaveTabToMemory } from "@/utils/tab-agent";
+import { useUserProfileStore } from "@/store/user-profile-store";
+import { setupContextMenuHandlers } from "./context-menu";
+import { WindowBroadcast } from "@/utils/window-broadcast";
+import { NavigationErrorHandler } from "./navigation-error-handler";
+import { userAnalytics } from "@/services/user-analytics";
+import { DEFAULT_USER_AGENT } from "../constants/user-agent";
 
 const logger = createLogger("TabManager");
 
@@ -28,6 +35,88 @@ export class TabManager extends EventEmitter {
   private activeSaves: Set<string> = new Set(); // Track tabs currently being saved
   private saveQueue: string[] = []; // Queue for saves when at max concurrency
   private readonly maxConcurrentSaves = 3; // Limit concurrent saves
+  private downloadIdMap = new Map<any, string>(); // Map download items to their IDs
+
+  private updateTaskbarProgress(progress: number): void {
+    try {
+      const mainWindow = BrowserWindow.getAllWindows().find(
+        win => !win.isDestroyed() && win.webContents,
+      );
+      if (mainWindow) {
+        mainWindow.setProgressBar(progress);
+        logger.debug(
+          `Download progress updated to: ${(progress * 100).toFixed(1)}%`,
+        );
+      }
+    } catch (error) {
+      logger.warn("Failed to update download progress bar:", error);
+    }
+  }
+
+  private clearTaskbarProgress(): void {
+    try {
+      const mainWindow = BrowserWindow.getAllWindows().find(
+        win => !win.isDestroyed() && win.webContents,
+      );
+      if (mainWindow) {
+        mainWindow.setProgressBar(-1); // Clear progress bar
+        logger.debug("Download progress bar cleared");
+      }
+    } catch (error) {
+      logger.warn("Failed to clear download progress bar:", error);
+    }
+  }
+
+  private updateTaskbarProgressFromOldestDownload(): void {
+    try {
+      const userProfileStore = useUserProfileStore.getState();
+      const activeProfile = userProfileStore.getActiveProfile();
+
+      if (!activeProfile) return;
+
+      const downloads = userProfileStore.getDownloadHistory(activeProfile.id);
+      const downloadingItems = downloads.filter(
+        d => d.status === "downloading",
+      );
+
+      if (downloadingItems.length === 0) {
+        this.clearTaskbarProgress();
+        return;
+      }
+
+      // Find the oldest downloading item
+      const oldestDownloading = downloadingItems.sort(
+        (a, b) => a.createdAt - b.createdAt,
+      )[0];
+
+      if (oldestDownloading && oldestDownloading.progress !== undefined) {
+        const progress = oldestDownloading.progress / 100; // Convert percentage to 0-1 range
+        this.updateTaskbarProgress(progress);
+      }
+    } catch (error) {
+      logger.warn(
+        "Failed to update taskbar progress from oldest download:",
+        error,
+      );
+    }
+  }
+
+  /**
+   * Broadcasts an event to all renderer windows to signal that the download history has been updated.
+   * This is used to trigger a refresh in the downloads window without polling.
+   */
+  private sendDownloadsUpdate(): void {
+    try {
+      // Using a debounced broadcast to prevent spamming renderers during rapid progress updates.
+      WindowBroadcast.debouncedBroadcast(
+        "downloads:history-updated",
+        null,
+        250,
+      );
+    } catch (error) {
+      logger.warn("Failed to broadcast download update:", error);
+    }
+  }
 
   constructor(browser: any, viewManager: any, cdpManager?: CDPManager) {
     super();
@@ -41,6 +130,10 @@ export class TabManager extends EventEmitter {
    * Creates a WebContentsView for a tab
    */
   private createWebContentsView(tabKey: string, url?: string): WebContentsView {
+    // Get active session from user profile store
+    const userProfileStore = useUserProfileStore.getState();
+    const activeSession = userProfileStore.getActiveSession();
+
     const view = new WebContentsView({
       webPreferences: {
         contextIsolation: true,
@@ -48,10 +141,16 @@ export class TabManager extends EventEmitter {
         sandbox: true,
         webSecurity: true,
         allowRunningInsecureContent: false,
+        session: activeSession, // Use profile-specific session
       },
     });
 
-    view.setBackgroundColor("#00000000");
+    // Set browser user agent
+    view.webContents.setUserAgent(DEFAULT_USER_AGENT);
+
+    // Use opaque white background to fix speedlane rendering issues
+    // Transparent backgrounds can cause visibility problems when multiple views overlap
+    //view.setBackgroundColor("#FFFFFF");
 
     // Add rounded corners for glassmorphism design
     view.setBorderRadius(GLASSMORPHISM_CONFIG.BORDER_RADIUS);
@@ -96,6 +195,10 @@ export class TabManager extends EventEmitter {
    * Extracted from ViewManager for clean architecture
    */
   private setupNavigationHandlers(view: WebContentsView, tabKey: string): void {
+    logger.debug(
+      "[Download Debug] *** setupNavigationHandlers called for tab:",
+      tabKey,
+    );
     const webContents = view.webContents;
 
     // Navigation event handlers for tab state updates
@@ -129,6 +232,216 @@ export class TabManager extends EventEmitter {
       });
     });
 
+    // Setup navigation error handlers
+    NavigationErrorHandler.getInstance().setupErrorHandlers(view as any);
+
+    // PDF detection for URLs that don't end in .pdf
+    // Use will-download event to detect PDF downloads and convert them
+    logger.debug(
+      "[Download Debug] Setting up will-download listener for tab:",
+      tabKey,
+    );
+    logger.debug("[Download Debug] Session info:", {
+      tabKey,
+      isDefaultSession: webContents.session === session.defaultSession,
+      sessionType: webContents.session.isPersistent()
+        ? "persistent"
+        : "in-memory",
+    });
+    webContents.session.on("will-download", (event, item, webContents) => {
+      const url = item.getURL();
+      const mimeType = item.getMimeType();
+      const fileName = item.getFilename();
+
+      logger.debug("[Download Debug] *** DOWNLOAD EVENT TRIGGERED ***");
+      logger.debug("[Download Debug] Tab manager will-download event:", {
+        tabKey,
+        url,
+        mimeType,
+        fileName,
+        isPDF:
+          mimeType === "application/pdf" || url.toLowerCase().endsWith(".pdf"),
+        sessionType:
+          webContents.session === session.defaultSession ? "default" : "custom",
+      });
+
+      // Check if this is a PDF download
+      if (
+        mimeType === "application/pdf" ||
+        url.toLowerCase().endsWith(".pdf")
+      ) {
+        logger.debug(`PDF detected via download: ${url}`);
+        logger.debug("[Download Debug] PDF download intercepted and cancelled");
+
+        // Cancel the download
+        event.preventDefault();
+
+        // Convert the PDF URL to use our custom protocol
+        const pdfUrl = `img://${Buffer.from(url).toString("base64")}`;
+
+        // Navigate to the PDF via our custom protocol
+        setTimeout(() => {
+          webContents.loadURL(pdfUrl).catch(error => {
+            logger.error("Failed to load PDF via custom protocol:", error);
+          });
+        }, 100);
+      } else {
+        logger.debug("[Download Debug] Non-PDF download allowed to proceed");
+
+        // Track the download for non-PDF files
+        const savePath = item.getSavePath();
+        const downloadId = `download_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+        logger.debug("[Download Debug] Tracking download:", {
+          downloadId,
+          fileName,
+          savePath,
+          totalBytes: item.getTotalBytes(),
+        });
+
+        // Add download to history immediately as "downloading"
+        const userProfileStore = useUserProfileStore.getState();
+        const activeProfile = userProfileStore.getActiveProfile();
+
+        if (activeProfile) {
+          logger.debug("[Download Debug] Adding download to profile:", {
+            profileId: activeProfile.id,
+            fileName,
+            savePath,
+            totalBytes: item.getTotalBytes(),
+          });
+
+          const downloadEntry = userProfileStore.addDownloadEntry(
+            activeProfile.id,
+            {
+              fileName,
+              filePath: savePath,
+              createdAt: Date.now(),
+              status: "downloading",
+              progress: 0,
+              totalBytes: item.getTotalBytes(),
+              receivedBytes: 0,
+              startTime: Date.now(),
+            },
+          );
+
+          logger.debug("[Download Debug] Download entry created:", {
+            downloadId: downloadEntry.id,
+            fileName: downloadEntry.fileName,
+            status: downloadEntry.status,
+          });
+
+          // Store the actual download ID for later use
+          this.downloadIdMap.set(item, downloadEntry.id);
+
+          // Verify the download was added to the profile
+          const downloads = userProfileStore.getDownloadHistory(
+            activeProfile.id,
+          );
+          logger.debug("[Download Debug] Profile downloads after adding:", {
+            profileId: activeProfile.id,
+            downloadsCount: downloads.length,
+            latestDownload: downloads[downloads.length - 1],
+          });
+        } else {
+          logger.debug(
+            "[Download Debug] No active profile for download tracking",
+          );
+        }
+
+        // Track download progress
+        item.on("updated", (_event, state) => {
+          if (state === "progressing" && activeProfile) {
+            const receivedBytes = item.getReceivedBytes();
+            const totalBytes = item.getTotalBytes();
+            const progress = Math.round((receivedBytes / totalBytes) * 100);
+            const actualDownloadId = this.downloadIdMap.get(item);
+
+            if (actualDownloadId) {
+              userProfileStore.updateDownloadProgress(
+                activeProfile.id,
+                actualDownloadId,
+                progress,
+                receivedBytes,
+                totalBytes,
+              );
+
+              // Update taskbar progress based on oldest downloading item
+              this.updateTaskbarProgressFromOldestDownload();
+
+              // Notify renderer of the update
+              this.sendDownloadsUpdate();
+            }
+          }
+        });
+
+        // Track when download completes
+        item.on("done", (_event, state) => {
+          const actualDownloadId = this.downloadIdMap.get(item);
+          logger.debug("[Download Debug] Download done event (tab manager):", {
+            downloadId: actualDownloadId,
+            fileName,
+            state,
+            savePath,
+          });
+
+          if (state === "completed" && activeProfile && actualDownloadId) {
+            logger.info(`Download completed: ${fileName}`);
+
+            // Update download status to completed
+            userProfileStore.completeDownload(
+              activeProfile.id,
+              actualDownloadId,
+            );
+
+            // Update file existence
+            const exists = fs.existsSync(savePath);
+            logger.debug(
+              "[Download Debug] Download completed and updated in profile:",
+              {
+                profileId: activeProfile.id,
+                downloadId: actualDownloadId,
+                fileName,
+                fileExists: exists,
+              },
+            );
+
+            // Clean up the download ID mapping
+            this.downloadIdMap.delete(item);
+
+            // Update taskbar progress (will clear if no more downloads)
+            this.updateTaskbarProgressFromOldestDownload();
+
+            // Notify renderer of the update
+            this.sendDownloadsUpdate();
+          } else if (activeProfile && actualDownloadId) {
+            logger.warn(`Download ${state}: ${fileName}`);
+
+            if (state === "cancelled") {
+              userProfileStore.cancelDownload(
+                activeProfile.id,
+                actualDownloadId,
+              );
+            } else {
+              userProfileStore.errorDownload(
+                activeProfile.id,
+                actualDownloadId,
+              );
+            }
+
+            // Clean up the download ID mapping
+            this.downloadIdMap.delete(item);
+
+            // Update taskbar progress even for failed/cancelled downloads
+            this.updateTaskbarProgressFromOldestDownload();
+
+            // Notify renderer of the update
+            this.sendDownloadsUpdate();
+          }
+        });
+      }
+    });
+
     // Favicon update handler
     webContents.on("page-favicon-updated", async (_event, favicons) => {
       if (favicons.length > 0) {
@@ -139,8 +452,8 @@ export class TabManager extends EventEmitter {
             try {
               state.favicon = await fetchFaviconAsDataUrl(favicons[0]);
               this.updateTabState(this.getActiveTabKey()!);
-            } catch (error) {
-              logger.error("Error updating favicon:", error);
+            } catch {
+              logger.error("Error updating favicon:", Error);
             }
           }
         }
@@ -151,15 +464,40 @@ export class TabManager extends EventEmitter {
     if (this.cdpManager) {
       this.cdpManager.setupEventHandlers(webContents, tabKey);
     }
+
+    // Set up context menu handlers
+    setupContextMenuHandlers(view);
+  }
+
+  /**
+   * Safely check if a view or its webContents is destroyed
+   */
+  private isViewDestroyed(view: WebContentsView | null): boolean {
+    if (!view) return true;
+
+    try {
+      return view.webContents.isDestroyed();
+    } catch {
+      // View itself was destroyed
+      return true;
+    }
   }
 
   /**
    * Creates a new tab with smart positioning
    */
-  public createTab(url?: string): string {
+  public createTab(url?: string, options?: { activate?: boolean }): string {
     const key = this.generateTabKey();
     const targetUrl = url || "https://www.google.com";
     const newTabPosition = this.calculateNewTabPosition();
+    const shouldActivate = options?.activate !== false; // Default to true
+
+    logger.debug("[Download Debug] *** createTab called:", {
+      key,
+      targetUrl,
+      newTabPosition,
+      shouldActivate,
+    });
 
     const tabState: TabState = {
       key,
@@ -176,9 +514,27 @@ export class TabManager extends EventEmitter {
 
     this.tabs.set(key, tabState);
     this.createBrowserView(key, targetUrl);
-    this.setActiveTab(key);
+
+    if (shouldActivate) {
+      this.setActiveTab(key);
+    }
+
     this.normalizeTabPositions();
     this.emit("tab-created", key);
+
+    // Start feature timer for this tab
+    userAnalytics.startFeatureTimer(`tab-${key}`);
+
+    // Track tab creation
+    userAnalytics.trackNavigation("tab-created", {
+      tabKey: key,
+      url: targetUrl,
+      totalTabs: this.tabs.size,
+      activate: shouldActivate,
+    });
+
+    // Update usage stats for tab creation
+    userAnalytics.updateUsageStats({ tabCreated: true });
 
     // Track tab creation - only in main window (renderer)
     try {
@@ -233,11 +589,23 @@ export class TabManager extends EventEmitter {
     }
 
     const wasActive = this.activeTabKey === tabKey;
+    const closedTab = this.tabs.get(tabKey);
+
+    // End feature timer for this tab
+    userAnalytics.endFeatureTimer(`tab-${tabKey}`);
+
+    // Track tab closure
+    userAnalytics.trackNavigation("tab-closed", {
+      tabKey: tabKey,
+      url: closedTab?.url || "unknown",
+      totalTabs: this.tabs.size - 1,
+      wasActive: wasActive,
+    });
 
     // Clean up CDP resources before removing the view
     if (this.cdpManager) {
       const view = this.getBrowserView(tabKey);
-      if (view && view.webContents && !view.webContents.isDestroyed()) {
+      if (view && !this.isViewDestroyed(view)) {
         this.cdpManager.cleanup(view.webContents);
       }
     }
@@ -336,16 +704,37 @@ export class TabManager extends EventEmitter {
 
     // Track tab switching (only if it's actually a switch, not initial creation)
     if (previousActiveKey && previousActiveKey !== tabKey) {
-      const mainWindows = this._browser
-        .getAllWindows()
-        .filter(
-          (w: any) =>
+      // End timer for previous tab
+      userAnalytics.endFeatureTimer(`tab-${previousActiveKey}`);
+
+      // Start timer for new tab
+      userAnalytics.startFeatureTimer(`tab-${tabKey}`);
+
+      // Track navigation
+      const tab = this.tabs.get(tabKey);
+      userAnalytics.trackNavigation("tab-switched", {
+        from: previousActiveKey,
+        to: tabKey,
+        tabUrl: tab?.url,
+        tabTitle: tab?.title,
+        totalTabs: this.tabs.size,
+      });
+
+      const mainWindows = this._browser.getAllWindows().filter((w: any) => {
+        try {
+          return (
             w &&
+            !w.isDestroyed() &&
             w.webContents &&
             !w.webContents.isDestroyed() &&
             (w.webContents.getURL().includes("localhost:5173") ||
-              w.webContents.getURL().startsWith("file://")),
-        );
+              w.webContents.getURL().startsWith("file://"))
+          );
+        } catch {
+          // Window or webContents was destroyed between checks
+          return false;
+        }
+      });
 
       mainWindows.forEach((window: any) => {
         window.webContents
@@ -376,7 +765,14 @@ export class TabManager extends EventEmitter {
     if (!tab || tab.asleep) return false;
 
     const view = this.getBrowserView(tabKey);
-    if (!view || view.webContents.isDestroyed()) return false;
+    if (!view) return false;
+
+    try {
+      if (view.webContents.isDestroyed()) return false;
+    } catch {
+      // View itself was destroyed
+      return false;
+    }
 
     const { webContents } = view;
     const changes: string[] = [];
@@ -390,8 +786,29 @@ export class TabManager extends EventEmitter {
 
     const newUrl = webContents.getURL();
     if (newUrl !== tab.url) {
+      const oldUrl = tab.url;
       tab.url = newUrl;
       changes.push("url");
+
+      // Track navigation breadcrumb
+      userAnalytics.trackNavigation("url-changed", {
+        tabKey: tabKey,
+        oldUrl: oldUrl,
+        newUrl: newUrl,
+        isActiveTab: this.activeTabKey === tabKey,
+      });
+
+      // Track navigation history for user profile
+      const userProfileStore = useUserProfileStore.getState();
+      const activeProfile = userProfileStore.getActiveProfile();
+      if (activeProfile && newUrl && !this.shouldSkipUrl(newUrl)) {
+        userProfileStore.addNavigationEntry(activeProfile.id, {
+          url: newUrl,
+          title: tab.title || newUrl,
+          timestamp: Date.now(),
+          favicon: tab.favicon,
+        });
+      }
     }
 
     const newIsLoading = webContents.isLoading();
@@ -400,13 +817,38 @@ export class TabManager extends EventEmitter {
       changes.push("isLoading");
     }
 
-    const newCanGoBack = webContents.navigationHistory.canGoBack();
+    // Safely check navigation history with fallback
+    let newCanGoBack = false;
+    try {
+      newCanGoBack =
+        (!this.isViewDestroyed(view) &&
+          webContents.navigationHistory?.canGoBack()) ||
+        false;
+    } catch (error) {
+      logger.warn(
+        `Failed to check canGoBack for tab ${tab.key}, falling back to false:`,
+        error,
+      );
+    }
+
     if (newCanGoBack !== tab.canGoBack) {
       tab.canGoBack = newCanGoBack;
       changes.push("canGoBack");
     }
 
-    const newCanGoForward = webContents.navigationHistory.canGoForward();
+    let newCanGoForward = false;
+    try {
+      newCanGoForward =
+        (!this.isViewDestroyed(view) &&
+          webContents.navigationHistory?.canGoForward()) ||
+        false;
+    } catch (error) {
+      logger.warn(
+        `Failed to check canGoForward for tab ${tab.key}, falling back to false:`,
+        error,
+      );
+    }
+
     if (newCanGoForward !== tab.canGoForward) {
       tab.canGoForward = newCanGoForward;
       changes.push("canGoForward");
@@ -679,7 +1121,7 @@ export class TabManager extends EventEmitter {
    */
   public async loadUrl(tabKey: string, url: string): Promise<boolean> {
     const view = this.getBrowserView(tabKey);
-    if (!view || view.webContents.isDestroyed()) return false;
+    if (this.isViewDestroyed(view)) return false;
 
     try {
       await view.webContents.loadURL(url);
@@ -696,24 +1138,35 @@ export class TabManager extends EventEmitter {
 
   public goBack(tabKey: string): boolean {
     const view = this.getBrowserView(tabKey);
-    if (!view || !view.webContents.navigationHistory.canGoBack()) return false;
+    if (this.isViewDestroyed(view)) return false;
 
-    view.webContents.goBack();
-    return true;
+    try {
+      if (!view.webContents.navigationHistory?.canGoBack()) return false;
+      view.webContents.goBack();
+      return true;
+    } catch (error) {
+      logger.error(`Failed to navigate back for tab ${tabKey}:`, error);
+      return false;
+    }
   }
 
   public goForward(tabKey: string): boolean {
     const view = this.getBrowserView(tabKey);
-    if (!view || !view.webContents.navigationHistory.canGoForward())
-      return false;
+    if (this.isViewDestroyed(view)) return false;
 
-    view.webContents.goForward();
-    return true;
+    try {
+      if (!view.webContents.navigationHistory?.canGoForward()) return false;
+      view.webContents.goForward();
+      return true;
+    } catch (error) {
+      logger.error(`Failed to navigate forward for tab ${tabKey}:`, error);
+      return false;
+    }
   }
 
   public refresh(tabKey: string): boolean {
     const view = this.getBrowserView(tabKey);
-    if (!view || view.webContents.isDestroyed()) return false;
+    if (this.isViewDestroyed(view)) return false;
 
     view.webContents.reload();
     return true;
@@ -813,10 +1266,20 @@ export class TabManager extends EventEmitter {
   }
 
   private createBrowserView(tabKey: string, url: string): void {
+    logger.debug(
+      "[Download Debug] *** createBrowserView called for tab:",
+      tabKey,
+      "with URL:",
+      url,
+    );
     // Create the WebContentsView internally (moved from ViewManager)
     const view = this.createWebContentsView(tabKey, url);
 
     // Set up navigation events here (moved from ViewManager)
+    logger.debug(
+      "[Download Debug] *** About to call setupNavigationHandlers for tab:",
+      tabKey,
+    );
     this.setupNavigationHandlers(view, tabKey);
 
     // Register with pure ViewManager utility
@@ -970,7 +1433,7 @@ export class TabManager extends EventEmitter {
 
     // Apply/remove visual indicator
     const view = this.getBrowserView(tabKey);
-    if (view && !view.webContents.isDestroyed()) {
+    if (view && !this.isViewDestroyed(view)) {
       if (isActive) {
         this.applyAgentTabBorder(view);
       } else {
@@ -1029,8 +1492,8 @@ export class TabManager extends EventEmitter {
               bottom: 0;
               pointer-events: none;
               z-index: 2147483647;
-              box-shadow: inset 0 0 0 10px rgba(0, 255, 0, 0.2);
-              border: 5px solid rgba(0, 200, 0, 0.3);
+              box-shadow: inset 0 0 0 10px theme('colors.green.200');
+              border: 5px solid theme('colors.green.300');
               box-sizing: border-box;
             }
           \`;
@@ -1065,7 +1528,7 @@ export class TabManager extends EventEmitter {
     }
 
     const view = this.getBrowserView(tabKey);
-    if (!view || view.webContents.isDestroyed()) {
+    if (this.isViewDestroyed(view)) {
       return;
     }
 
@@ -1142,7 +1605,7 @@ export class TabManager extends EventEmitter {
         const tab = this.tabs.get(nextTabKey);
         if (tab && !tab.asleep && !tab.isAgentActive) {
           const view = this.getBrowserView(nextTabKey);
-          if (view && !view.webContents.isDestroyed()) {
+          if (view && !this.isViewDestroyed(view)) {
             const url = view.webContents.getURL();
             const title = view.webContents.getTitle();
 
@@ -1166,7 +1629,14 @@ export class TabManager extends EventEmitter {
   private shouldSkipUrl(url: string): boolean {
     if (!url || typeof url !== "string") return true;
 
-    // Skip internal/system URLs
+    // Security: Check URL length to prevent memory exhaustion
+    const MAX_URL_LENGTH = 2048; // RFC 2616 recommendation
+    if (url.length > MAX_URL_LENGTH) {
+      logger.warn("URL exceeds maximum length, skipping");
+      return true;
+    }
+
+    // Skip internal/system URLs and potentially dangerous schemes
     const skipPrefixes = [
       "about:",
       "chrome:",
@@ -1175,9 +1645,13 @@ export class TabManager extends EventEmitter {
       "file:",
       "data:",
       "blob:",
+      "javascript:",
+      "vbscript:",
       "moz-extension:",
       "safari-extension:",
       "edge-extension:",
+      "ms-appx:",
+      "ms-appx-web:",
     ];
 
     const lowerUrl = url.toLowerCase();
@@ -1185,11 +1659,35 @@ export class TabManager extends EventEmitter {
       return true;
     }
 
-    // Skip very short URLs or localhost
-    if (url.length < 10 || lowerUrl.includes("localhost")) {
+    // Security: Validate URL scheme is HTTP/HTTPS
+    try {
+      const urlObj = new URL(url);
+      if (!["http:", "https:"].includes(urlObj.protocol)) {
+        logger.debug("Non-HTTP/HTTPS URL skipped:", urlObj.protocol);
+        return true;
+      }
+
+      // Additional security checks
+      if (
+        urlObj.hostname === "localhost" ||
+        urlObj.hostname === "127.0.0.1" ||
+        urlObj.hostname.endsWith(".local")
+      ) {
+        return true;
+      }
+    } catch {
+      // Invalid URL format
+      logger.debug("Invalid URL format, skipping");
+      return true;
+    }
+
+    // Skip very short URLs
+    if (url.length < 10) {
       return true;
     }
 
     return false;
   }
 }
+
+// PDF to image conversion is now handled in the global protocol handler

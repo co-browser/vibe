@@ -3,7 +3,7 @@
   "include": [
     "electron.vite.config.*",
     "src/main/**/*",
-    "src/preload/**/*"
+    "src/preload/**/*",
   ],
   "exclude": [
     "src/main/**/__tests__/**/*",

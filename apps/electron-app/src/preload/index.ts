@@ -7,6 +7,9 @@ import { contextBridge, ipcRenderer, IpcRendererEvent } from "electron";
 import { electronAPI } from "@electron-toolkit/preload";
 import "@sentry/electron/preload";
 
+// Increase max listeners to prevent memory leak warnings for chat input
+ipcRenderer.setMaxListeners(20);
+
 // Import shared vibe types
 import { TabState, createLogger } from "@vibe/shared-types";
 
@@ -125,8 +128,13 @@ const actionsAPI: VibeActionsAPI = {
   copyLink: async (url: string) => {
     ipcRenderer.send("actions:copy-link", url);
   },
-  showContextMenu: async items => {
-    return ipcRenderer.invoke("actions:show-context-menu", items);
+  showContextMenu: async (items, coordinates?) => {
+    return ipcRenderer.invoke(
+      "actions:show-context-menu",
+      items,
+      "default",
+      coordinates,
+    );
   },
   executeAction: async (actionId: string, ...args: any[]) => {
     return ipcRenderer.invoke("actions:execute", actionId, ...args);
@@ -744,6 +752,178 @@ const sessionAPI: VibeSessionAPI = {
   },
 };
 
+// Profile API for user profile management
+const profileAPI = {
+  getNavigationHistory: async (query?: string, limit?: number) => {
+    return ipcRenderer.invoke("profile:getNavigationHistory", query, limit);
+  },
+  clearNavigationHistory: async () => {
+    return ipcRenderer.invoke("profile:clearNavigationHistory");
+  },
+  deleteFromHistory: async (url: string) => {
+    return ipcRenderer.invoke("profile:deleteFromNavigationHistory", url);
+  },
+  getActiveProfile: async () => {
+    return ipcRenderer.invoke("profile:getActiveProfile");
+  },
+};
+
+// Consolidated electron API - moved to main API exposure section
+
+// Overlay API for transparent overlay system with performance optimizations
+const overlayAPI = {
+  show: async () => ipcRenderer.invoke("overlay:show"),
+  hide: async () => ipcRenderer.invoke("overlay:hide"),
+  render: async (content: any) => ipcRenderer.invoke("overlay:render", content),
+  clear: async () => ipcRenderer.invoke("overlay:clear"),
+  update: async (updates: any) => ipcRenderer.invoke("overlay:update", updates),
+  execute: async (script: string) =>
+    ipcRenderer.invoke("overlay:execute", script),
+  // Enhanced methods
+  getState: async () => ipcRenderer.invoke("overlay:getState"),
+  // Send method for overlay-to-main communication
+  send: (channel: string, data: any) => {
+    logger.debug(`[OverlayAPI] Sending IPC message: ${channel}`, data);
+    ipcRenderer.send(channel, data);
+  },
+};
+
+const downloadsAPI = {
+  getHistory: async () => ipcRenderer.invoke("downloads.getHistory"),
+  openFile: async (filePath: string) =>
+    ipcRenderer.invoke("downloads.openFile", filePath),
+  showFileInFolder: async (filePath: string) =>
+    ipcRenderer.invoke("downloads.showFileInFolder", filePath),
+  removeFromHistory: async (id: string) =>
+    ipcRenderer.invoke("downloads.removeFromHistory", id),
+  clearHistory: async () => ipcRenderer.invoke("downloads.clearHistory"),
+};
+
+const fileDropAPI = {
+  registerZone: async (zoneId: string, config: any) =>
+    ipcRenderer.invoke("file-drop:register-zone", zoneId, config),
+  unregisterZone: async (zoneId: string) =>
+    ipcRenderer.invoke("file-drop:unregister-zone", zoneId),
+  processFiles: async (zoneId: string, filePaths: string[]) =>
+    ipcRenderer.invoke("file-drop:process-files", zoneId, filePaths),
+  getPreview: async (filePath: string) =>
+    ipcRenderer.invoke("file-drop:get-preview", filePath),
+};
+
+const dialogAPI = {
+  close: async (dialogType: string) => {
+    logger.debug(`[DialogAPI] Closing dialog: ${dialogType}`);
+    return ipcRenderer.invoke("dialog:close", dialogType);
+  },
+  forceClose: async (dialogType: string) => {
+    logger.debug(`[DialogAPI] Force closing dialog: ${dialogType}`);
+    return ipcRenderer.invoke("dialog:force-close", dialogType);
+  },
+  showDownloads: async () => {
+    logger.debug(`[DialogAPI] Showing downloads dialog`);
+    return ipcRenderer.invoke("dialog:show-downloads");
+  },
+  showSettings: async () => {
+    logger.debug(`[DialogAPI] Showing settings dialog`);
+    return ipcRenderer.invoke("dialog:show-settings");
+  },
+};
+
+// Enhanced Notifications API with APNS support
+const notificationsAPI = {
+  // Local notifications
+  showLocal: async (options: {
+    title: string;
+    body?: string;
+    subtitle?: string;
+    icon?: string;
+    sound?: string;
+    actions?: Array<{ type: string; text: string }>;
+    silent?: boolean;
+  }) => {
+    return ipcRenderer.invoke("notifications:show-local", options);
+  },
+
+  // Legacy method for backward compatibility
+  show: (title: string, body: string) => {
+    ipcRenderer.send("app:show-notification", title, body);
+  },
+
+  // Push notifications via APNS
+  sendPush: async (params: {
+    deviceToken: string;
+    payload: {
+      aps: {
+        alert?:
+          | {
+              title?: string;
+              body?: string;
+              subtitle?: string;
+            }
+          | string;
+        badge?: number;
+        sound?: string;
+        "content-available"?: number;
+        category?: string;
+      };
+      [key: string]: any;
+    };
+    options?: {
+      topic?: string;
+      priority?: 10 | 5;
+      expiry?: number;
+      collapseId?: string;
+    };
+  }) => {
+    return ipcRenderer.invoke("notifications:send-push", params);
+  },
+
+  // Device registration for push notifications
+  registerDevice: async (registration: {
+    deviceToken: string;
+    userId?: string;
+    platform: "ios" | "macos";
+    timestamp?: number;
+  }) => {
+    return ipcRenderer.invoke("notifications:register-device", {
+      ...registration,
+      timestamp: registration.timestamp || Date.now(),
+    });
+  },
+
+  unregisterDevice: async (deviceToken: string, platform: "ios" | "macos") => {
+    return ipcRenderer.invoke(
+      "notifications:unregister-device",
+      deviceToken,
+      platform,
+    );
+  },
+
+  getRegisteredDevices: async () => {
+    return ipcRenderer.invoke("notifications:get-registered-devices");
+  },
+
+  // APNS configuration
+  configureAPNS: async (config: {
+    teamId: string;
+    keyId: string;
+    bundleId: string;
+    keyFile?: string;
+    keyData?: string;
+    production?: boolean;
+  }) => {
+    return ipcRenderer.invoke("notifications:configure-apns", config);
+  },
+
+  getAPNSStatus: async () => {
+    return ipcRenderer.invoke("notifications:get-apns-status");
+  },
+
+  testAPNS: async (deviceToken?: string) => {
+    return ipcRenderer.invoke("notifications:test-apns", deviceToken);
+  },
+};
+
 const vibeAPI = {
   app: appAPI,
   actions: actionsAPI,
@@ -756,15 +936,59 @@ const vibeAPI = {
   settings: settingsAPI,
   session: sessionAPI,
   update: updateAPI,
+  profile: profileAPI,
+  downloads: downloadsAPI,
+  dialog: dialogAPI,
+  notifications: notificationsAPI,
+  fileDrop: fileDropAPI,
 };
 
 // Expose APIs to the renderer process
 if (process.contextIsolated) {
   try {
     contextBridge.exposeInMainWorld("vibe", vibeAPI);
+    contextBridge.exposeInMainWorld("vibeOverlay", overlayAPI);
+    contextBridge.exposeInMainWorld("electronAPI", {
+      overlay: {
+        send: (channel: string, ...args: any[]) => {
+          ipcRenderer.send(channel, ...args);
+        },
+      },
+      // Direct send method for debugging
+      send: (channel: string, ...args: any[]) => {
+        console.log(
+          "🔥 PRELOAD: Direct send called with channel:",
+          channel,
+          "args:",
+          args,
+        );
+        ipcRenderer.send(channel, ...args);
+      },
+    });
     contextBridge.exposeInMainWorld("electron", {
       ...electronAPI,
       platform: process.platform,
+      // Drag and drop functionality
+      startDrag: (fileName: string) =>
+        ipcRenderer.send("ondragstart", fileName),
+      // IPC renderer for direct communication
+      ipcRenderer: {
+        on: (channel: string, listener: (...args: any[]) => void) => {
+          ipcRenderer.on(channel, listener);
+        },
+        removeListener: (
+          channel: string,
+          listener: (...args: any[]) => void,
+        ) => {
+          ipcRenderer.removeListener(channel, listener);
+        },
+        send: (channel: string, ...args: any[]) => {
+          ipcRenderer.send(channel, ...args);
+        },
+        invoke: (channel: string, ...args: any[]) => {
+          return ipcRenderer.invoke(channel, ...args);
+        },
+      },
       // Legacy methods for backward compatibility
       ...legacyListeners,
       // Legacy individual methods - deprecated, functionality removed

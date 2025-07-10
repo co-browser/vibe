@@ -1,0 +1,168 @@
+/* Performance optimizations for chat panel */
+
+.chat-panel-sidebar {
+  /* Layout containment for better performance */
+  contain: layout style size;
+
+  /* Prevent layout thrashing */
+  will-change: width;
+
+  /* Force GPU acceleration */
+  transform: translateZ(0);
+
+  /* Optimize repaints */
+  isolation: isolate;
+}
+
+.chat-panel-content {
+  /* Contain paint and layout */
+  contain: strict;
+
+  /* Prevent content from affecting parent layout */
+  overflow: hidden;
+
+  /* Optimize scrolling performance */
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+.chat-panel-body {
+  /* Optimize for scrolling performance */
+  will-change: scroll-position;
+
+  /* Contain layout */
+  contain: layout style;
+
+  /* Force layer creation */
+  transform: translateZ(0);
+
+  /* Optimize reflows */
+  position: relative;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Optimize chat messages */
+.chat-messages-container {
+  /* Prevent reflows from affecting parent */
+  contain: layout style paint;
+
+  /* Optimize scrolling */
+  will-change: contents;
+
+  /* Force GPU layer */
+  transform: translateZ(0);
+}
+
+/* Optimize draggable divider */
+.ultra-draggable-divider {
+  /* Prevent divider from triggering parent reflows */
+  contain: strict;
+
+  /* Optimize cursor changes */
+  will-change: cursor;
+}
+
+.ultra-draggable-divider.dragging {
+  /* Optimize dragging performance */
+  will-change: auto;
+  pointer-events: none;
+}
+
+/* Optimize browser view content area during resize */
+.browser-view-content {
+  /* Contain layout during resize */
+  contain: layout style;
+
+  /* Prevent content shifts */
+  overflow: hidden;
+
+  /* Optimize resize performance */
+  will-change: width;
+
+  /* Force GPU acceleration */
+  transform: translateZ(0);
+}
+
+/* Main content wrapper optimizations */
+.main-content-wrapper {
+  /* Prevent children from affecting layout */
+  contain: layout;
+
+  /* Optimize flex layout changes */
+  will-change: contents;
+
+  /* Force layer creation */
+  transform: translateZ(0);
+}
+
+/* Optimize transitions during resize */
+@media (prefers-reduced-motion: no-preference) {
+  .chat-panel-sidebar {
+    /* Disable transitions during active resize */
+    transition: none;
+  }
+
+  .browser-view-content {
+    /* Smooth transition after resize ends */
+    transition: width 0.1s ease-out;
+  }
+}
+
+/* High-performance shadow for divider */
+.ultra-draggable-divider::before {
+  content: "";
+  position: absolute;
+  left: -10px;
+  right: -10px;
+  top: 0;
+  bottom: 0;
+  background: transparent;
+  /* Only show shadow on hover/drag */
+  opacity: 0;
+  transition: opacity 0.2s;
+  pointer-events: none;
+}
+
+.ultra-draggable-divider:hover::before,
+.ultra-draggable-divider.dragging::before {
+  opacity: 1;
+  background: linear-gradient(
+    to right,
+    transparent,
+    rgba(0, 0, 0, 0.03) 40%,
+    rgba(0, 0, 0, 0.06) 50%,
+    rgba(0, 0, 0, 0.03) 60%,
+    transparent
+  );
+}
+
+/* Optimize React re-renders with CSS Grid */
+.browser-layout-root {
+  /* Use CSS custom properties for dynamic values */
+  --chat-panel-width-optimized: var(--chat-panel-width, 300px);
+
+  /* Prevent layout recalculation */
+  contain: layout;
+}
+
+/* Use CSS Grid for better resize performance */
+@supports (display: grid) {
+  .main-content-wrapper {
+    display: grid;
+    grid-template-columns: 1fr var(--chat-panel-width-optimized);
+    gap: 0;
+    /* Optimize grid layout updates */
+    will-change: grid-template-columns;
+  }
+
+  .browser-view-content {
+    grid-column: 1;
+  }
+
+  .chat-panel-sidebar {
+    grid-column: 2;
+    /* Override width since grid handles it */
+    width: 100% !important;
+  }
+}

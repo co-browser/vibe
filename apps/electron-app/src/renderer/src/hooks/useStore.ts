@@ -94,6 +94,7 @@ const createUseBridgedStore = <S_AppState extends AppState>(
       messages: [],
       requestedTabContext: [],
       sessionTabs: [],
+      downloads: [],
     };
     const dummyVanillaStore = createZustandVanillaStore<S_AppState>(
       () => initialLocalState as S_AppState,

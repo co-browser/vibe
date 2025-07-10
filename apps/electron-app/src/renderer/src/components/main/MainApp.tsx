@@ -9,25 +9,14 @@ import {
   IPC_EVENTS,
   type LayoutContextType,
 } from "@vibe/shared-types";
+import { createLogger } from "@/utils/logger";
+import { LayoutContext, useLayout } from "@/hooks/useLayout";
+import { UltraOptimizedDraggableDivider } from "../ui/UltraOptimizedDraggableDivider";
+import { SettingsModal } from "../modals/SettingsModal";
+import { DownloadsModal } from "../modals/DownloadsModal";
+import { performanceMonitor } from "@/utils/performanceMonitor";
 
-// Ensure window interface extensions are available
-declare global {
-  interface Window {
-    electron?: {
-      ipcRenderer: {
-        on: (channel: string, listener: (...args: any[]) => void) => void;
-        removeListener: (
-          channel: string,
-          listener: (...args: any[]) => void,
-        ) => void;
-        send: (channel: string, ...args: any[]) => void;
-        invoke: (channel: string, ...args: any[]) => Promise<any>;
-      };
-      platform: string;
-      [key: string]: any;
-    };
-  }
-}
+const logger = createLogger("MainApp");
 
 // Type guard for chat panel state
 function isChatPanelState(value: unknown): value is { isVisible: boolean } {
@@ -105,15 +94,7 @@ function useChatPanelHealthCheck(
   }, [isChatPanelVisible, setChatPanelKey, setChatPanelVisible]);
 }
 
-const LayoutContext = React.createContext<LayoutContextType | null>(null);
-
-function useLayout(): LayoutContextType {
-  const context = React.useContext(LayoutContext);
-  if (!context) {
-    throw new Error("useLayout must be used within a LayoutProvider");
-  }
-  return context;
-}
+// Removed duplicate function definition
 
 function LayoutProvider({
   children,
@@ -245,8 +226,24 @@ function LayoutProvider({
 }
 
 function ChatPanelSidebar(): React.JSX.Element | null {
-  const { isChatPanelVisible, chatPanelWidth, chatPanelKey, isRecovering } =
-    useLayout();
+  const {
+    isChatPanelVisible,
+    chatPanelWidth,
+    chatPanelKey,
+    isRecovering,
+    setChatPanelWidth,
+    setChatPanelVisible,
+  } = useLayout();
+
+  const handleResizeWithIPC = (newWidth: number) => {
+    setChatPanelWidth(newWidth);
+    window.vibe?.interface?.setChatPanelWidth?.(newWidth);
+  };
+
+  const handleMinimize = () => {
+    setChatPanelVisible(false);
+    window.vibe?.interface?.toggleChatPanel?.(false);
+  };
 
   if (!isChatPanelVisible) {
     return null;
@@ -259,8 +256,16 @@ function ChatPanelSidebar(): React.JSX.Element | null {
         width: `${chatPanelWidth}px`,
         minWidth: `${CHAT_PANEL.MIN_WIDTH}px`,
         maxWidth: `${CHAT_PANEL.MAX_WIDTH}px`,
+        position: "relative",
       }}
     >
+      <UltraOptimizedDraggableDivider
+        onResize={handleResizeWithIPC}
+        minWidth={CHAT_PANEL.MIN_WIDTH}
+        maxWidth={CHAT_PANEL.MAX_WIDTH}
+        currentWidth={chatPanelWidth}
+        onMinimize={handleMinimize}
+      />
       <div className="chat-panel-content">
         {isRecovering && (
           <div
@@ -377,6 +382,17 @@ function BrowserLayout(): React.JSX.Element {
 export function MainApp(): React.JSX.Element {
   const [isReady, setIsReady] = useState(false);
   const [vibeAPIReady, setVibeAPIReady] = useState(false);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [isDownloadsModalOpen, setIsDownloadsModalOpen] = useState(false);
+
+  // Debug logging for modal states
+  useEffect(() => {
+    logger.debug("Settings modal state changed:", isSettingsModalOpen);
+  }, [isSettingsModalOpen]);
+
+  useEffect(() => {
+    logger.debug("Downloads modal state changed:", isDownloadsModalOpen);
+  }, [isDownloadsModalOpen]);
 
   useEffect(() => {
     const checkVibeAPI = () => {
@@ -402,6 +418,35 @@ export function MainApp(): React.JSX.Element {
       }, 100);
     }
   }, [vibeAPIReady]);
+
+  // Add performance monitoring keyboard shortcut
+  useEffect(() => {
+    const handleKeyPress = async (e: KeyboardEvent) => {
+      // Ctrl/Cmd + Shift + P to show performance metrics
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "P") {
+        e.preventDefault();
+
+        // Log renderer metrics
+        console.log("\n=== RENDERER PROCESS METRICS ===");
+        performanceMonitor.logSummary();
+
+        // Log main process metrics
+        if (window.electron?.ipcRenderer) {
+          try {
+            console.log("\n=== MAIN PROCESS METRICS ===");
+            await window.electron.ipcRenderer.invoke(
+              "performance:log-main-process-summary",
+            );
+          } catch (error) {
+            console.error("Failed to get main process metrics:", error);
+          }
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyPress);
+    return () => window.removeEventListener("keydown", handleKeyPress);
+  }, []);
 
   return (
     <LayoutProvider>
@@ -434,6 +479,21 @@ export function MainApp(): React.JSX.Element {
             )}
           </div>
         </div>
+
+        <SettingsModal
+          isOpen={isSettingsModalOpen}
+          onClose={() => {
+            logger.debug("Closing settings modal");
+            setIsSettingsModalOpen(false);
+          }}
+        />
+        <DownloadsModal
+          isOpen={isDownloadsModalOpen}
+          onClose={() => {
+            logger.debug("Closing downloads modal");
+            setIsDownloadsModalOpen(false);
+          }}
+        />
       </div>
     </LayoutProvider>
   );

@@ -5,13 +5,13 @@
 
 import { EventEmitter } from "events";
 import { AgentWorker } from "./agent-worker";
+import { createLogger } from "@vibe/shared-types";
 import type {
   AgentConfig,
   AgentStatus,
   IAgentService,
   ExtractedPage,
 } from "@vibe/shared-types";
-import { createLogger } from "@vibe/shared-types";
 import { getProfileService } from "./profile-service";
 import { getSetting } from "../ipc/user/shared-utils";
 import {

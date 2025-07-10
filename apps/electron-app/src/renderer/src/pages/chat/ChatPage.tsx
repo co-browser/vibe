@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import type { Message as AiSDKMessage } from "@ai-sdk/react";
 import { useAppStore } from "@/hooks/useStore";
 import { useAgentStatus } from "@/hooks/useAgentStatus";
@@ -11,6 +11,7 @@ import { Messages } from "@/components/chat/Messages";
 import { ChatWelcome } from "@/components/chat/ChatWelcome";
 import { AgentStatusIndicator } from "@/components/chat/StatusIndicator";
 import { ChatInput } from "@/components/chat/ChatInput";
+import { useContextMenu, ChatContextMenuItems } from "@/hooks/useContextMenu";
 
 import "@/components/styles/ChatView.css";
 
@@ -20,6 +21,7 @@ export function ChatPage(): React.JSX.Element {
   }));
 
   const [messages, setMessages] = useState<AiSDKMessage[]>([]);
+  const { handleContextMenu } = useContextMenu();
   const { setStreamingContent, currentReasoningText, hasLiveReasoning } =
     useStreamingContent();
 
@@ -38,6 +40,32 @@ export function ChatPage(): React.JSX.Element {
   useChatEvents(setMessages, setIsAiGenerating, setStreamingContent);
   const { isAgentInitializing, isDisabled } = useAgentStatus();
 
+  const handleInputValueChange = useCallback(
+    (value: string): void => {
+      handleInputChange({
+        target: { value },
+      } as React.ChangeEvent<HTMLTextAreaElement>);
+    },
+    [handleInputChange],
+  );
+
+  // Listen for main process events to set input text (e.g., from tray menu)
+  useEffect(() => {
+    const handleSetInput = (_event: any, text: string) => {
+      if (typeof text === "string") {
+        handleInputValueChange(text);
+      }
+    };
+
+    window.electron?.ipcRenderer.on("chat:set-input", handleSetInput);
+    return () => {
+      window.electron?.ipcRenderer.removeListener(
+        "chat:set-input",
+        handleSetInput,
+      );
+    };
+  }, [handleInputValueChange]);
+
   useEffect(() => {
     // Track message updates for state management
   }, [messages, isRestoreModeRef]);
@@ -46,12 +74,6 @@ export function ChatPage(): React.JSX.Element {
     const trimmedInput = input.trim();
     if (!trimmedInput) return;
     sendMessageInput(trimmedInput);
-  };
-
-  const handleInputValueChange = (value: string): void => {
-    handleInputChange({
-      target: { value },
-    } as React.ChangeEvent<HTMLInputElement>);
   };
 
   const handleActionChipClick = (action: string): void => {
@@ -91,10 +113,33 @@ export function ChatPage(): React.JSX.Element {
   const groupedMessages = groupMessages(messages);
   const showWelcome = groupedMessages.length === 0 && !input;
 
+  // Context menu items for chat
+  const getChatContextMenuItems = () => [
+    ChatContextMenuItems.clearChat,
+    ChatContextMenuItems.exportChat,
+    ChatContextMenuItems.separator,
+    ChatContextMenuItems.regenerate,
+  ];
+
   return (
     <div
       className="chat-container"
       style={{ height: "100%", display: "flex", flexDirection: "column" }}
+      onContextMenu={e => {
+        // Check if the context menu is on an editable element
+        const target = e.target as HTMLElement;
+        const isEditable =
+          target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.contentEditable === "true" ||
+          target.closest('input, textarea, [contenteditable="true"]');
+
+        // Only show custom context menu for non-editable areas
+        if (!isEditable) {
+          handleContextMenu(getChatContextMenuItems())(e);
+        }
+        // For editable areas, let the system show native context menu with Writing Tools
+      }}
     >
       <AgentStatusIndicator isInitializing={isAgentInitializing} />
 

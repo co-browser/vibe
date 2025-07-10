@@ -3,6 +3,7 @@ import type { ChatMessage, IAgentProvider } from "@vibe/shared-types";
 import { createLogger } from "@vibe/shared-types";
 import { mainStore } from "@/store/store";
 import { getTabContextOrchestrator } from "./tab-context";
+import { userAnalytics } from "@/services/user-analytics";
 
 const logger = createLogger("chat-messaging");
 
@@ -296,6 +297,14 @@ ipcMain.on("chat:send-message", async (event, message: string) => {
         logger.info(`Stream completed (${partCount} parts)`);
 
         // Track agent response completion
+        userAnalytics.trackChatEngagement("message_received");
+        userAnalytics.trackNavigation("chat-message-received", {
+          responseLength: accumulatedText.length,
+          hasReasoning: accumulatedReasoning.trim().length > 0,
+          partCount: partCount,
+          historyCount: chatHistory.length + 1,
+        });
+
         if (!event.sender.isDestroyed()) {
           // Serialize parameters to avoid injection risks
           const responseTrackingData = JSON.stringify({

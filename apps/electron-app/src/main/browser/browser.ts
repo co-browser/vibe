@@ -33,8 +33,10 @@ export class Browser extends EventEmitter {
     this.windowManager = new WindowManager(this);
     this.cdpManager = new CDPManager();
 
-    // Set up Content Security Policy
-    this.setupContentSecurityPolicy();
+    // Session manager will handle CSP and other session-level features
+    logger.debug(
+      "[Browser] Session manager initialized with CSP and feature parity",
+    );
   }
 
   /**
@@ -44,6 +46,9 @@ export class Browser extends EventEmitter {
   private setupMenu(): void {
     setupApplicationMenu(this);
     logger.debug("[Browser] Application menu initialized (static structure)");
+
+    this.setupContentSecurityPolicy();
+    logger.debug("[Browser] Content Security Policy configured");
   }
 
   /**
@@ -168,6 +173,19 @@ export class Browser extends EventEmitter {
    */
   public getCDPManager(): CDPManager {
     return this.cdpManager;
+  }
+
+  /**
+   * Gets the dialog manager from the main window
+   */
+  public getDialogManager(): any {
+    const mainWindow = this.getMainWindow();
+    if (mainWindow) {
+      // Fix: Use webContents.id instead of window.id
+      const appWindow = this.getApplicationWindow(mainWindow.webContents.id);
+      return appWindow?.dialogManager || null;
+    }
+    return null;
   }
 
   /**
