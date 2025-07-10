@@ -591,8 +591,17 @@ function initializeApp(): boolean {
     memoryMonitor.setBrowserInstance(browser);
   }
 
+  // Use before-quit for better control over shutdown process
+  app.on("before-quit", async event => {
+    if (!isShuttingDown) {
+      event.preventDefault();
+      await gracefulShutdown("before-quit");
+      app.quit(); // Trigger quit again after cleanup
+    }
+  });
+
   app.on("will-quit", event => {
-    // If we're not already shutting down, prevent quit and use graceful shutdown
+    // Only allow quit if shutdown is complete
     if (!isShuttingDown) {
       event.preventDefault();
       gracefulShutdown("will-quit");
@@ -607,6 +616,7 @@ function initializeApp(): boolean {
 
     // Force exit after a timeout if process doesn't exit cleanly
     setTimeout(() => {
+      logger.warn("Force exiting after timeout");
       process.exit(0);
     }, 2000);
   });
