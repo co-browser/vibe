@@ -39,6 +39,11 @@ export interface VibeAppAPI {
     get: (keyName: string) => Promise<string | null>;
     set: (keyName: string, value: string) => Promise<boolean>;
   };
+  setAuthToken: (token: string | null) => Promise<{ success: boolean }>;
+  completeOnboardingFirstStep: () => Promise<{
+    success: boolean;
+    error?: string;
+  }>;
 }
 
 // Actions API - User actions and interactions
@@ -96,9 +101,6 @@ export interface VibeInterfaceAPI {
     message?: string;
     error?: string;
   }>;
-
-  // Speedlane mode
-  setSpeedlaneMode?: (enabled: boolean) => void;
 }
 
 export interface VibeChatAPI {

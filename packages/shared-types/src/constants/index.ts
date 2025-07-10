@@ -3,6 +3,25 @@
  */
 
 /**
+ * Application Configuration
+ * Public configuration values that are safe to expose in client code.
+ * Do NOT put sensitive secrets here - only public identifiers.
+ */
+export const APP_CONFIG = {
+  // Authentication
+  PRIVY_APP_ID: "cmcar624m02fhla0mymqxwdwy",
+
+  // Analytics (if needed in future)
+  // ANALYTICS_ID: 'your-analytics-id',
+
+  // Public API endpoints
+  // API_BASE_URL: 'https://api.example.com',
+
+  // Feature flags
+  // ENABLE_FEATURE_X: true,
+} as const;
+
+/**
  * IPC Event Channel Names
  * Centralized definition for type-safe IPC communication
  */
@@ -25,7 +44,6 @@ export const IPC_EVENTS = {
     GET_CHAT_PANEL_STATE: "interface:get-chat-panel-state",
     SET_CHAT_PANEL_WIDTH: "interface:set-chat-panel-width",
     RECOVER_CHAT_PANEL: "interface:recover-chat-panel",
-    OMNIBOX_SUGGESTIONS_VISIBILITY: "interface:omnibox-suggestions-visibility",
   },
 } as const;
 

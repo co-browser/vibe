@@ -4,15 +4,15 @@ import { ActionButton } from "@/components/ui/action-button";
 import { StatusIndicator } from "@/components/ui/status-indicator";
 import { TabContextDisplay } from "@/components/ui/tab-context-display";
 import { GmailAuthButton } from "@/components/auth/GmailAuthButton";
+import { PrivyAuthButton } from "@/components/auth/PrivyAuthButton";
+import { OpenAIKeyButton } from "@/components/auth/OpenAIKeyButton";
 import { TabAliasSuggestions } from "./TabAliasSuggestions";
 import { TabContextBar } from "./TabContextBar";
 import { useTabContext } from "@/hooks/useTabContextUtils";
 import { useTabAliases } from "@/hooks/useTabAliases";
+import { useAgentStatus } from "@/hooks/useAgentStatus";
 import { TabContextItem } from "@/types/tabContext";
-import { createLogger } from "@vibe/shared-types";
 import "@/components/styles/TabAliasSuggestions.css";
-
-const logger = createLogger("ChatInput");
 
 interface ChatInputProps {
   value: string;
@@ -33,6 +33,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   disabled = false,
   tabContext,
 }) => {
+  // Import useAgentStatus to get hasApiKey status
+  const { hasApiKey } = useAgentStatus();
+
   const {
     globalStatus,
     globalStatusTitle,
@@ -64,7 +67,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
       // Check if we should show suggestions
       const lastAtIndex = newValue.lastIndexOf("@");
-      logger.debug("Input changed:", {
+      console.log("[ChatInput] Input changed:", {
         newValue,
         lastAtIndex,
         isAtEnd: lastAtIndex === newValue.length - 1,
@@ -73,7 +76,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       if (lastAtIndex !== -1 && lastAtIndex === newValue.length - 1) {
         // Just typed @, show all suggestions
         const suggestions = getSuggestions("");
-        logger.debug("Just typed @, suggestions:", suggestions);
+        console.log("[ChatInput] Just typed @, suggestions:", suggestions);
         setCurrentSuggestions(suggestions);
         setShowSuggestions(true);
       } else if (lastAtIndex !== -1) {
@@ -84,7 +87,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         if (spaceIndex === -1) {
           // Still typing the alias
           const suggestions = getSuggestions(textAfterAt);
-          logger.debug("Typing after @:", {
+          console.log("[ChatInput] Typing after @:", {
             textAfterAt,
             suggestions,
           });
@@ -100,7 +103,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       // Log using state setter pattern to avoid dependency
       setShowSuggestions(prevShow => {
         setCurrentSuggestions(prevSuggestions => {
-          logger.debug("State after change:", {
+          console.log("[ChatInput] State after change:", {
             showSuggestions: prevShow,
             suggestionsCount: prevSuggestions.length,
           });
@@ -205,7 +208,11 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             moreTabsCount={moreTabsCount}
           />
         </div>
-        <GmailAuthButton />
+        <div style={{ display: "flex", gap: "6px" }}>
+          <OpenAIKeyButton />
+          <GmailAuthButton />
+          <PrivyAuthButton />
+        </div>
       </div>
       {selectedTabs.length > 0 && (
         <TabContextBar
@@ -239,9 +246,13 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             }
             return false;
           }}
-          placeholder="Type @ to reference tabs"
+          placeholder={
+            !hasApiKey
+              ? "OpenAI API key required to use chat"
+              : "Type @ to reference tabs"
+          }
           disabled={disabled}
-          autoFocus
+          autoFocus={!disabled}
           rows={1}
           className="chat-input-field"
         />

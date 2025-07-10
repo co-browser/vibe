@@ -6,6 +6,14 @@ import { hostname } from 'node:os';
 import { createServer } from 'node:http';
 import { Socket } from 'node:net';
 import { RAGTools } from './tools.js';
+import { validatePrivyToken } from './middleware/auth.js';
+import dotenv from 'dotenv';
+
+// Load environment variables only in development or when not running as subprocess
+// In production packaged app, environment variables come from parent process
+if (process.env.NODE_ENV === 'development' || !process.env.ELECTRON_RUN_AS_NODE) {
+  dotenv.config();
+}
 
 const logger = createLogger('mcp-rag');
 
@@ -32,21 +40,39 @@ const router = express.Router();
 const MCP_ENDPOINT = '/mcp';
 const PORT = process.env.PORT || 3000;
 
-router.post(MCP_ENDPOINT, async (req: Request, res: Response) => {
-  await server.handlePostRequest(req, res);
-});
+// Check if we're in local mode (no auth) or cloud mode (auth required)
+const isLocalMode = process.env.USE_LOCAL_RAG_SERVER === 'true';
 
-router.get(MCP_ENDPOINT, async (req: Request, res: Response) => {
-  await server.handleGetRequest(req, res);
-});
+if (!isLocalMode) {
+  // Cloud mode - require authentication
+  logger.info('Running in cloud mode with Privy authentication enabled');
+  router.post(MCP_ENDPOINT, validatePrivyToken, async (req: Request, res: Response) => {
+    await server.handlePostRequest(req, res);
+  });
 
-// Health check endpoint
+  router.get(MCP_ENDPOINT, validatePrivyToken, async (req: Request, res: Response) => {
+    await server.handleGetRequest(req, res);
+  });
+} else {
+  // Local mode - no authentication
+  logger.info('Running in local mode without authentication');
+  router.post(MCP_ENDPOINT, async (req: Request, res: Response) => {
+    await server.handlePostRequest(req, res);
+  });
+
+  router.get(MCP_ENDPOINT, async (req: Request, res: Response) => {
+    await server.handleGetRequest(req, res);
+  });
+}
+
+// Health check endpoint (no auth required)
 router.get('/health', (req: Request, res: Response) => {
   res.json({
     status: 'healthy',
     service: 'rag-mcp',
     timestamp: new Date().toISOString(),
-    port: PORT
+    port: PORT,
+    auth: isLocalMode ? 'disabled' : 'enabled'
   });
 });
 

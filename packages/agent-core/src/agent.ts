@@ -8,7 +8,11 @@ import type {
   IStreamProcessor,
   IAgentConfig,
 } from "./interfaces/index.js";
-import type { StreamResponse, ExtractedPage } from "@vibe/shared-types";
+import type {
+  StreamResponse,
+  ExtractedPage,
+  IMCPManager,
+} from "@vibe/shared-types";
 import { createLogger } from "@vibe/shared-types";
 
 const logger = createLogger("Agent");
@@ -20,10 +24,13 @@ export class Agent {
     private toolManager: IToolManager,
     private streamProcessor: IStreamProcessor,
     private config: IAgentConfig,
+    private mcpManager?: IMCPManager,
   ) {}
 
   private async getProcessor(): Promise<ReActProcessor | CoActProcessor> {
     if (!this._processor) {
+      // Clear any stale tool cache before creating processor
+      this.toolManager.clearToolCache();
       this._processor = await ProcessorFactory.create(
         this.config,
         this.toolManager,
@@ -89,4 +96,32 @@ export class Agent {
     logger.debug(`Tab memory saved in ${(endTime - startTime).toFixed(2)}ms`);
     return result;
   }
+
+  async updateMCPConnections(authToken: string | null): Promise<void> {
+    if (!this.mcpManager) {
+      logger.warn("No MCP manager available for connection updates");
+      return;
+    }
+
+    try {
+      // Update auth token and manage RAG connections dynamically
+      await this.mcpManager.updateAuthToken(authToken);
+      logger.info("MCP connections updated with new auth token");
+
+      // Clear tool cache and recreate processor to include new tools
+      this.toolManager.clearToolCache();
+      this._processor = await ProcessorFactory.create(
+        this.config,
+        this.toolManager,
+      );
+      logger.info("Processor recreated with updated MCP connections");
+    } catch (error) {
+      logger.error("Failed to update MCP connections:", error);
+      throw error;
+    }
+  }
+
+  // Note: updateOpenAIApiKey method has been removed.
+  // When the OpenAI API key changes, the entire agent is restarted
+  // to ensure clean MCP connections. See agent-process.ts handleUpdateOpenAIApiKey.
 }

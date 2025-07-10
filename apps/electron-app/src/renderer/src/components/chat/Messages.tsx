@@ -2,18 +2,10 @@ import React, { useState, useMemo } from "react";
 import type { Message as AiSDKMessage } from "@ai-sdk/react";
 import { useAutoScroll } from "../../hooks/useAutoScroll";
 import { createMessageContentRenderer } from "../../utils/messageContentRenderer";
-import { StatusIndicator } from "@/components/ui/status-indicator";
-import { TabContextDisplay } from "@/components/ui/tab-context-display";
-import { GmailAuthButton } from "@/components/auth/GmailAuthButton";
-import { useTabContext } from "@/hooks/useTabContextUtils";
-import { TabContextItem } from "@/types/tabContext";
-import { Edit3, Check, X } from "lucide-react";
+import { Edit3, Check, X, Copy } from "lucide-react";
 import { TabReferencePill } from "./TabReferencePill";
 import { useTabAliases } from "@/hooks/useTabAliases";
 import { TabContextBar } from "./TabContextBar";
-import { createLogger } from "@vibe/shared-types";
-
-const logger = createLogger("Messages");
 
 export interface GroupedMessage {
   id: string;
@@ -28,7 +20,6 @@ interface MessagesProps {
     currentReasoningText: string;
     hasLiveReasoning: boolean;
   };
-  tabContext?: TabContextItem[];
   onEditMessage?: (messageId: string, newContent: string) => void;
 }
 
@@ -36,13 +27,17 @@ export const Messages: React.FC<MessagesProps> = ({
   groupedMessages,
   isAiGenerating,
   streamingContent,
-  tabContext = [],
   onEditMessage,
 }) => {
   const { currentReasoningText = "", hasLiveReasoning = false } =
     streamingContent || {};
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState<string>("");
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const [copyErrorMessageId, setCopyErrorMessageId] = useState<string | null>(
+    null,
+  );
+  const copyTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
   const { getSuggestions, parsePrompt } = useTabAliases();
   const [tabs, setTabs] = useState<any[]>([]);
 
@@ -55,6 +50,15 @@ export const Messages: React.FC<MessagesProps> = ({
     groupedMessages,
     isAiGenerating,
   );
+
+  // Cleanup copy timeout on unmount
+  React.useEffect(() => {
+    return () => {
+      if (copyTimeoutRef.current) {
+        clearTimeout(copyTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Fetch tabs to check for current tab
   React.useEffect(() => {
@@ -70,7 +74,7 @@ export const Messages: React.FC<MessagesProps> = ({
           setTabs(allTabs);
         }
       } catch (error) {
-        logger.error("Failed to fetch tabs:", error);
+        console.error("Failed to fetch tabs:", error);
       }
     };
 
@@ -197,17 +201,6 @@ export const Messages: React.FC<MessagesProps> = ({
     return { tabs: tabsData, isCurrentTabAuto };
   };
 
-  const {
-    globalStatus,
-    globalStatusTitle,
-    shouldShowStatus,
-    sharedLoadingEntry,
-    completedTabs,
-    regularTabs,
-    hasMoreTabs,
-    moreTabsCount,
-  } = useTabContext(tabContext);
-
   const handleEditStart = (message: AiSDKMessage) => {
     setEditingMessageId(message.id);
     setEditContent(
@@ -239,9 +232,72 @@ export const Messages: React.FC<MessagesProps> = ({
     }
   };
 
+  const handleCopy = (e: React.ClipboardEvent) => {
+    const selection = window.getSelection()?.toString();
+    if (selection) {
+      e.preventDefault();
+      e.clipboardData.setData("text/plain", selection);
+    }
+  };
+
+  const handleCopyMessage = async (messageId: string, content: any) => {
+    let textContent = "";
+
+    if (typeof content === "string") {
+      textContent = content;
+    } else if (Array.isArray(content)) {
+      textContent = content
+        .map(part => (part.type === "text" ? part.text : ""))
+        .join("");
+    } else {
+      textContent = JSON.stringify(content);
+    }
+
+    // Clear any existing timeout
+    if (copyTimeoutRef.current) {
+      clearTimeout(copyTimeoutRef.current);
+    }
+
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(textContent);
+      } else {
+        // Fallback for browsers that don't support clipboard API
+        const textarea = document.createElement("textarea");
+        textarea.value = textContent;
+        textarea.style.position = "fixed";
+        textarea.style.left = "-999999px";
+        document.body.appendChild(textarea);
+        textarea.select();
+        const success = document.execCommand("copy");
+        document.body.removeChild(textarea);
+
+        if (!success) {
+          throw new Error("Copy command failed");
+        }
+      }
+
+      setCopiedMessageId(messageId);
+      setCopyErrorMessageId(null);
+
+      copyTimeoutRef.current = setTimeout(() => {
+        setCopiedMessageId(null);
+      }, 2000);
+    } catch (err) {
+      console.error("Failed to copy text:", err);
+      setCopyErrorMessageId(messageId);
+      setCopiedMessageId(null);
+
+      // Clear error after 2 seconds
+      copyTimeoutRef.current = setTimeout(() => {
+        setCopyErrorMessageId(null);
+      }, 2000);
+    }
+  };
+
   return (
     <>
-      <div className="space-y-6" ref={containerRef}>
+      <div className="space-y-6" ref={containerRef} onCopy={handleCopy}>
         {groupedMessages.map((group, index) => {
           const isLatestGroup = index === groupedMessages.length - 1;
           const isEditing = editingMessageId === group.userMessage.id;
@@ -258,20 +314,34 @@ export const Messages: React.FC<MessagesProps> = ({
             <div key={group.id} className="message-group">
               <div className="user-message">
                 <div className="user-message-bubble">
-                  <div className="user-message-status-section">
-                    <div className="user-message-status-left">
-                      <StatusIndicator
-                        status={globalStatus}
-                        title={globalStatusTitle}
-                        show={shouldShowStatus}
-                      />
-                      <TabContextDisplay
-                        sharedLoadingEntry={sharedLoadingEntry}
-                        completedTabs={completedTabs}
-                        regularTabs={regularTabs}
-                        hasMoreTabs={hasMoreTabs}
-                        moreTabsCount={moreTabsCount}
-                      />
+                  {hasTabContext && (
+                    <TabContextBar
+                      tabs={tabContextData.tabs}
+                      isCurrentTabAuto={tabContextData.isCurrentTabAuto}
+                    />
+                  )}
+                  <div className="user-message-content-wrapper">
+                    <div className="user-message-content">
+                      {isEditing ? (
+                        <textarea
+                          className="user-message-edit-field"
+                          value={editContent}
+                          onChange={e => setEditContent(e.target.value)}
+                          onKeyDown={e =>
+                            handleKeyDown(e, group.userMessage.id)
+                          }
+                          autoFocus
+                          rows={2}
+                        />
+                      ) : (
+                        <span className="user-message-text">
+                          {typeof group.userMessage.content === "string"
+                            ? renderMessageWithTabPills(
+                                group.userMessage.content,
+                              )
+                            : JSON.stringify(group.userMessage.content)}
+                        </span>
+                      )}
                     </div>
                     <div className="user-message-actions">
                       {isEditing ? (
@@ -292,42 +362,15 @@ export const Messages: React.FC<MessagesProps> = ({
                           </button>
                         </>
                       ) : (
-                        <>
-                          <button
-                            className="message-edit-button edit"
-                            onClick={() => handleEditStart(group.userMessage)}
-                            title="Edit message"
-                          >
-                            <Edit3 size={14} />
-                          </button>
-                          <GmailAuthButton />
-                        </>
+                        <button
+                          className="message-edit-button edit"
+                          onClick={() => handleEditStart(group.userMessage)}
+                          title="Edit message"
+                        >
+                          <Edit3 size={14} />
+                        </button>
                       )}
                     </div>
-                  </div>
-                  {hasTabContext && (
-                    <TabContextBar
-                      tabs={tabContextData.tabs}
-                      isCurrentTabAuto={tabContextData.isCurrentTabAuto}
-                    />
-                  )}
-                  <div className="user-message-content">
-                    {isEditing ? (
-                      <textarea
-                        className="user-message-edit-field"
-                        value={editContent}
-                        onChange={e => setEditContent(e.target.value)}
-                        onKeyDown={e => handleKeyDown(e, group.userMessage.id)}
-                        autoFocus
-                        rows={2}
-                      />
-                    ) : (
-                      <span className="user-message-text">
-                        {typeof group.userMessage.content === "string"
-                          ? renderMessageWithTabPills(group.userMessage.content)
-                          : JSON.stringify(group.userMessage.content)}
-                      </span>
-                    )}
                   </div>
                 </div>
               </div>
@@ -358,6 +401,40 @@ export const Messages: React.FC<MessagesProps> = ({
                             group.assistantMessages,
                           )}
                         </div>
+                        {aiMsg.content &&
+                          typeof aiMsg.content !== "undefined" && (
+                            <button
+                              className={`assistant-message-copy-button ${
+                                copyErrorMessageId === aiMsg.id ? "error" : ""
+                              }`}
+                              onClick={() =>
+                                handleCopyMessage(aiMsg.id, aiMsg.content)
+                              }
+                              title={
+                                copyErrorMessageId === aiMsg.id
+                                  ? "Failed to copy"
+                                  : copiedMessageId === aiMsg.id
+                                    ? "Copied!"
+                                    : "Copy message"
+                              }
+                              aria-label={
+                                copyErrorMessageId === aiMsg.id
+                                  ? "Failed to copy message"
+                                  : copiedMessageId === aiMsg.id
+                                    ? "Message copied"
+                                    : "Copy message to clipboard"
+                              }
+                              disabled={copiedMessageId === aiMsg.id}
+                            >
+                              {copyErrorMessageId === aiMsg.id ? (
+                                <X size={14} />
+                              ) : copiedMessageId === aiMsg.id ? (
+                                <Check size={14} />
+                              ) : (
+                                <Copy size={14} />
+                              )}
+                            </button>
+                          )}
                       </div>
                     );
                   })}

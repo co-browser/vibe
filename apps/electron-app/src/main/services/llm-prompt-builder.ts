@@ -156,8 +156,19 @@ IMPORTANT SECURITY INSTRUCTIONS:
    * Sanitize content with injection prevention
    */
   private sanitizeContent(content: string): string {
+    // First, ensure the string is properly encoded to handle surrogate pairs
+    // This fixes the ByteString conversion error with Unicode characters
+    const encoded = content
+      // Remove any lone surrogates that could cause encoding issues
+      .replace(
+        /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g,
+        "",
+      )
+      // Convert to ensure proper UTF-8 encoding
+      .normalize("NFC");
+
     // Replace potential injection patterns
-    const sanitized = content
+    const sanitized = encoded
       // Remove control characters except newlines and tabs
       .replace(/\p{Cc}/gu, match => {
         // Preserve newlines and tabs

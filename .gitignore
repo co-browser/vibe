@@ -158,5 +158,15 @@ tmp/
 temp/
 tmp-build/
 *.tsbuildinfo
+scripts/release.sh
+scripts/start-vibe.sh
+apps/electron-app/debug-app.sh
+scripts/release.sh
+scripts/start-vibe.sh
+CLAUDE.md
 
-repo.xml
+.claude/settings.local.json
+
+# Infrastructure services
+infrastructure/services/*/node_modules
+infrastructure/services/*/.env

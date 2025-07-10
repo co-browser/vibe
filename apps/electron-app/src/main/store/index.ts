@@ -46,3 +46,7 @@ export type Store = {
 
 export type { AppState } from "./types";
 export { mainStore } from "./store";
+
+// Export new simplified storage
+export { StorageService, getStorageService } from "./storage-service";
+export { initializeStorage, isStorageReady } from "./initialize-storage";

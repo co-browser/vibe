@@ -14,15 +14,6 @@ import { type Request, type Response } from 'express';
 import { randomUUID } from 'node:crypto';
 import { GmailTools } from './tools.js';
 
-// Tool type definition (should match the one in tools.ts)
-interface GmailTool {
-  name: string;
-  description: string;
-  inputSchema: any;
-  zodSchema: { safeParse: (args: any) => { success: boolean; data?: any; error?: { message: string } } };
-  execute: (args: any) => Promise<string>;
-}
-
 // Simple console logger - MCP Gmail runs as child process
 const log = {
   info: (msg: string, ...args: any[]) => console.log(`[INFO] [mcp-gmail] ${msg}`, ...args),
@@ -90,7 +81,11 @@ export class StreamableHTTPServer {
     this.server.setRequestHandler(ListToolsRequestSchema, async (_request) => {
       return {
         jsonrpc: JSON_RPC,
-        tools: GmailTools,
+        tools: GmailTools.map(tool => ({
+          name: tool.name,
+          description: tool.description,
+          inputSchema: tool.inputSchema,
+        })),
       };
     });
 
@@ -99,7 +94,7 @@ export class StreamableHTTPServer {
       async (request, _extra) => {
         const args = request.params.arguments;
         const toolName = request.params.name;
-        const tool: GmailTool | undefined = GmailTools.find((tool) => tool.name === toolName);
+        const tool = GmailTools.find((tool) => tool.name === toolName) as any;
 
         log.info(`Handling CallToolRequest for tool: ${toolName}`);
 

@@ -6,7 +6,7 @@ import { ipcMain } from "electron";
 import type { MCPService } from "@/services/mcp-service";
 import { createLogger } from "@vibe/shared-types";
 
-const logger = createLogger("mcp-status");
+const logger = createLogger("MCPStatus");
 
 // Module-level reference to MCP service instance
 let mcpServiceInstance: MCPService | null = null;

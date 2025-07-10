@@ -1,26 +1,33 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import NavigationBar from "../layout/NavigationBar";
 import ChromeTabBar from "../layout/TabBar";
 import { ChatPage } from "../../pages/chat/ChatPage";
 import { ChatErrorBoundary } from "../ui/error-boundary";
-import { SettingsModal } from "../modals/SettingsModal";
-import { DownloadsModal } from "../modals/DownloadsModal";
-import { UltraOptimizedDraggableDivider } from "../ui/UltraOptimizedDraggableDivider";
-import { performanceMonitor } from "../../utils/performanceMonitor";
-
 import {
   CHAT_PANEL,
   CHAT_PANEL_RECOVERY,
   IPC_EVENTS,
   type LayoutContextType,
-  createLogger,
 } from "@vibe/shared-types";
-import { useLayout, LayoutContext } from "@/hooks/useLayout";
-import "../styles/ChatPanelOptimizations.css";
 
-const logger = createLogger("MainApp");
-
-// Window interface is defined in env.d.ts
+// Ensure window interface extensions are available
+declare global {
+  interface Window {
+    electron?: {
+      ipcRenderer: {
+        on: (channel: string, listener: (...args: any[]) => void) => void;
+        removeListener: (
+          channel: string,
+          listener: (...args: any[]) => void,
+        ) => void;
+        send: (channel: string, ...args: any[]) => void;
+        invoke: (channel: string, ...args: any[]) => Promise<any>;
+      };
+      platform: string;
+      [key: string]: any;
+    };
+  }
+}
 
 // Type guard for chat panel state
 function isChatPanelState(value: unknown): value is { isVisible: boolean } {
@@ -98,19 +105,83 @@ function useChatPanelHealthCheck(
   }, [isChatPanelVisible, setChatPanelKey, setChatPanelVisible]);
 }
 
+// Custom hook for chat panel health monitoring
+function useChatPanelHealthCheck(
+  isChatPanelVisible: boolean,
+  setChatPanelKey: React.Dispatch<React.SetStateAction<number>>,
+  setChatPanelVisible: React.Dispatch<React.SetStateAction<boolean>>,
+): void {
+  useEffect(() => {
+    if (!isChatPanelVisible) return;
+
+    const healthCheckInterval = setInterval(async () => {
+      try {
+        const chatPanel = document.querySelector(".chat-panel-sidebar");
+        const chatContent = document.querySelector(".chat-panel-content");
+        const chatBody = document.querySelector(".chat-panel-body");
+
+        if (chatPanel && chatContent && chatBody) {
+          const hasVisibleElements = Array.from(
+            chatBody.querySelectorAll("*"),
+          ).some(el => {
+            const computed = window.getComputedStyle(el);
+            return (
+              computed.display !== "none" && computed.visibility !== "hidden"
+            );
+          });
+
+          if (!hasVisibleElements) {
+            try {
+              const authoritativeState =
+                await window.vibe?.interface?.getChatPanelState?.();
+              if (
+                isChatPanelState(authoritativeState) &&
+                authoritativeState.isVisible
+              ) {
+                setChatPanelKey(prev => prev + 1);
+              }
+            } catch {
+              // Silent fallback
+            }
+          }
+        } else if (isChatPanelVisible) {
+          try {
+            const authoritativeState =
+              await window.vibe?.interface?.getChatPanelState?.();
+            if (
+              isChatPanelState(authoritativeState) &&
+              authoritativeState.isVisible
+            ) {
+              setChatPanelKey(prev => prev + 1);
+            } else {
+              setChatPanelVisible(false);
+            }
+          } catch {
+            // Silent fallback
+          }
+        }
+      } catch {
+        // Silent fallback
+      }
+    }, CHAT_PANEL_RECOVERY.HEALTH_CHECK_INTERVAL_MS);
+
+    return () => {
+      clearInterval(healthCheckInterval);
+    };
+  }, [isChatPanelVisible, setChatPanelKey, setChatPanelVisible]);
+}
+
 function LayoutProvider({
   children,
 }: {
   children: React.ReactNode;
 }): React.JSX.Element {
-  const [isChatPanelVisible, setChatPanelVisible] = useState(false);
+  const [isChatPanelVisible, setChatPanelVisible] = useState(true);
   const [chatPanelWidth, setChatPanelWidth] = useState<number>(
     CHAT_PANEL.DEFAULT_WIDTH,
   );
   const [chatPanelKey, setChatPanelKey] = useState(0);
   const [isRecovering, setIsRecovering] = useState(false);
-  const [isChatMinimizedFromResize, setIsChatMinimizedFromResize] =
-    useState(false);
 
   const debounceTimeout = useRef<NodeJS.Timeout | null>(null);
   const pendingState = useRef<boolean | null>(null);
@@ -211,8 +282,6 @@ function LayoutProvider({
     setChatPanelWidth,
     chatPanelKey,
     isRecovering,
-    isChatMinimizedFromResize,
-    setIsChatMinimizedFromResize,
   };
 
   return (
@@ -232,95 +301,8 @@ function LayoutProvider({
 }
 
 function ChatPanelSidebar(): React.JSX.Element | null {
-  const {
-    isChatPanelVisible,
-    chatPanelWidth,
-    chatPanelKey,
-    isRecovering,
-    setChatPanelWidth,
-    setChatPanelVisible,
-    setIsChatMinimizedFromResize,
-  } = useLayout();
-
-  // Optimized resize handling with reduced IPC calls
-  const handleResize = useCallback(
-    (newWidth: number) => {
-      setChatPanelWidth(newWidth);
-
-      // Reset the minimized from resize state since we're actively resizing
-      // The DraggableDivider will handle the actual minimize when too small
-      setIsChatMinimizedFromResize(false);
-    },
-    [setChatPanelWidth, setIsChatMinimizedFromResize],
-  );
-
-  // Create RAF-based IPC batching for ultra-smooth performance
-  const ipcBatcherRef = useRef<{
-    rafId: number | null;
-    pendingWidth: number | null;
-    lastSentWidth: number;
-  }>({
-    rafId: null,
-    pendingWidth: null,
-    lastSentWidth: chatPanelWidth,
-  });
-
-  // Cleanup RAF on unmount
-  useEffect(() => {
-    const batcher = ipcBatcherRef.current;
-    return () => {
-      if (batcher.rafId) {
-        cancelAnimationFrame(batcher.rafId);
-      }
-    };
-  }, []);
-
-  // Ultra-optimized resize handler with performance monitoring
-  const handleResizeWithIPC = useCallback(
-    (newWidth: number) => {
-      // Start performance tracking
-      performanceMonitor.startResize();
-
-      // Update local state immediately for responsive UI
-      handleResize(newWidth);
-
-      // Batch IPC calls using RAF
-      const batcher = ipcBatcherRef.current;
-      batcher.pendingWidth = newWidth;
-
-      // Only send IPC if width changed significantly
-      if (Math.abs(newWidth - batcher.lastSentWidth) > 5) {
-        if (!batcher.rafId) {
-          batcher.rafId = requestAnimationFrame(() => {
-            if (
-              batcher.pendingWidth !== null &&
-              Math.abs(batcher.pendingWidth - batcher.lastSentWidth) > 5
-            ) {
-              // Track IPC call
-              performanceMonitor.trackIPCCall();
-              window.vibe?.interface?.setChatPanelWidth?.(batcher.pendingWidth);
-              batcher.lastSentWidth = batcher.pendingWidth;
-            }
-            batcher.rafId = null;
-            // End performance tracking after IPC completes
-            performanceMonitor.endResize();
-          });
-        }
-      } else {
-        // End immediately if no IPC needed
-        performanceMonitor.endResize();
-      }
-    },
-    [handleResize],
-  );
-
-  const handleMinimize = useCallback(() => {
-    // This is called by DraggableDivider when resized too small
-    // So we should set enhanced mode to true
-    setIsChatMinimizedFromResize(true);
-    setChatPanelVisible(false);
-    window.vibe?.interface?.toggleChatPanel?.(false);
-  }, [setIsChatMinimizedFromResize, setChatPanelVisible]);
+  const { isChatPanelVisible, chatPanelWidth, chatPanelKey, isRecovering } =
+    useLayout();
 
   if (!isChatPanelVisible) {
     return null;
@@ -406,7 +388,14 @@ function BrowserContentArea(): React.JSX.Element {
 
   return (
     <div className="browser-view-content">
-      {!currentUrl && !isLoading && (
+      {isLoading ? (
+        <div className="loading-state">
+          <div className="loading-spinner animate-spin-custom"></div>
+          <span>Loading...</span>
+        </div>
+      ) : currentUrl ? (
+        <div className="ready-state" style={{ display: "none" }}></div>
+      ) : (
         <div className="ready-state">
           <div className="welcome-message">
             <h2>Welcome to Vibe Browser</h2>
@@ -479,38 +468,6 @@ export function MainApp(): React.JSX.Element {
     };
 
     checkVibeAPI();
-  }, []);
-
-  // Handle modal IPC events
-  useEffect(() => {
-    const handleShowSettingsModal = () => {
-      logger.info("Received app:show-settings-modal event");
-      setIsSettingsModalOpen(true);
-    };
-
-    const handleShowDownloadsModal = () => {
-      logger.info("Received app:show-downloads-modal event");
-      setIsDownloadsModalOpen(true);
-    };
-
-    if (typeof window !== "undefined" && window.electron?.ipcRenderer) {
-      const ipcRenderer = window.electron.ipcRenderer;
-      ipcRenderer.on("app:show-settings-modal", handleShowSettingsModal);
-      ipcRenderer.on("app:show-downloads-modal", handleShowDownloadsModal);
-
-      return () => {
-        ipcRenderer.removeListener(
-          "app:show-settings-modal",
-          handleShowSettingsModal,
-        );
-        ipcRenderer.removeListener(
-          "app:show-downloads-modal",
-          handleShowDownloadsModal,
-        );
-      };
-    }
-
-    return undefined;
   }, []);
 
   useEffect(() => {

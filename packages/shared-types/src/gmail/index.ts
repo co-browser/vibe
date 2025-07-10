@@ -9,6 +9,7 @@ export interface GmailAuthStatus {
   hasOAuthKeys: boolean;
   hasCredentials: boolean;
   error?: string;
+  isCloudAuth?: boolean;
 }
 
 /** Gmail OAuth authentication result */
@@ -16,6 +17,7 @@ export interface GmailAuthResult {
   success: boolean;
   authUrl?: string;
   error?: string;
+  isCloudAuth?: boolean;
 }
 
 /** Gmail OAuth clear authentication result */

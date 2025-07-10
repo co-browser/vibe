@@ -670,7 +670,7 @@ const NavigationBar: React.FC = () => {
   }, []);
 
   // Validation helpers
-  const isValidURL = (string: string): boolean => {
+  const isValidURL = useCallback((string: string): boolean => {
     try {
       const searchIndicators =
         /\s|^(what|when|where|why|how|who|is|are|do|does|can|will|should)/i;
@@ -694,10 +694,24 @@ const NavigationBar: React.FC = () => {
     } catch {
       return false;
     }
-  };
+  }, []);
 
-  // Generate non-history suggestions (URL, search, tabs)
-  const generateNonHistorySuggestions = useCallback(
+  const isDomain = useCallback((string: string): boolean => {
+    const domainRegex = /^[a-zA-Z0-9][a-zA-Z0-9-_.]*[a-zA-Z0-9]\.[a-zA-Z]{2,}$/;
+    return domainRegex.test(string);
+  }, []);
+
+  const detectInputType = useCallback(
+    (input: string): "url" | "domain" | "search" => {
+      if (isValidURL(input)) return "url";
+      if (isDomain(input)) return "domain";
+      return "search";
+    },
+    [isValidURL, isDomain],
+  );
+
+  // Generate intelligent suggestions using vibe APIs
+  const generateRealSuggestions = useCallback(
     async (input: string): Promise<Suggestion[]> => {
       const suggestions: Suggestion[] = [];
 

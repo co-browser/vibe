@@ -115,6 +115,75 @@ body {
   --glass-background-end: rgba(255, 255, 255, 0.15);
 }
 
+/* Glassmorphism styles for dialogs and modals */
+.glass-morphism {
+  background: rgba(255, 255, 255, 0.85) !important;
+  backdrop-filter: blur(10px) !important;
+  -webkit-backdrop-filter: blur(10px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+  box-shadow:
+    0 8px 32px 0 rgba(31, 38, 135, 0.15),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.3) !important;
+}
+
+/* Dark mode glassmorphism (if needed in future) */
+.dark .glass-morphism {
+  background: rgba(0, 0, 0, 0.75) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  box-shadow:
+    0 8px 32px 0 rgba(0, 0, 0, 0.37),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.1) !important;
+}
+
+/* Override Dialog border radius to match system */
+[role="dialog"] {
+  border-radius: 8px !important; /* Match GLASSMORPHISM_CONFIG.BORDER_RADIUS */
+}
+
+/* Override Dialog font to match system */
+[role="dialog"] * {
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu,
+    Cantarell, sans-serif !important;
+}
+
+/* Ensure monospace fonts for code/key inputs */
+[role="dialog"] .font-mono {
+  font-family: "SF Mono", "Monaco", "Consolas", monospace !important;
+}
+
+/* OpenAI Key Popup Container - Positioned relative to button */
+.openai-key-popup-container {
+  position: absolute;
+  bottom: 100%;
+  right: 0;
+  margin-bottom: 8px;
+  z-index: 50;
+}
+
+/* Responsive adjustments */
+@media (max-width: 480px) {
+  .openai-key-popup-container {
+    right: 10px;
+    bottom: 10px;
+  }
+
+  .openai-key-popup {
+    width: calc(100vw - 20px);
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /* Global utility classes */
 .sr-only {
   position: absolute;

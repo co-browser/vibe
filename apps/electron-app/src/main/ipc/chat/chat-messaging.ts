@@ -3,7 +3,6 @@ import type { ChatMessage, IAgentProvider } from "@vibe/shared-types";
 import { createLogger } from "@vibe/shared-types";
 import { mainStore } from "@/store/store";
 import { getTabContextOrchestrator } from "./tab-context";
-import { userAnalytics } from "@/services/user-analytics";
 
 const logger = createLogger("chat-messaging");
 
@@ -54,9 +53,7 @@ ipcMain.on("chat:send-message", async (event, message: string) => {
   // Check if agent service is ready
   const serviceStatus = agentService.getStatus();
   if (!serviceStatus.ready) {
-    logger.error("Agent service not ready", {
-      serviceStatus: serviceStatus.serviceStatus,
-    });
+    logger.error("Agent service not ready:", serviceStatus.serviceStatus);
     event.sender.send("chat:message", {
       type: "error",
       error: `AgentService not ready: ${serviceStatus.serviceStatus}`,
@@ -69,13 +66,6 @@ ipcMain.on("chat:send-message", async (event, message: string) => {
   const chatHistory = currentState.messages;
 
   logger.debug("Processing user message with chat history:", {
-    messageLength: message.trim().length,
-    historyCount: chatHistory.length,
-  });
-
-  // Track chat engagement
-  userAnalytics.trackChatEngagement("message_sent");
-  userAnalytics.trackNavigation("chat-message-sent", {
     messageLength: message.trim().length,
     historyCount: chatHistory.length,
   });

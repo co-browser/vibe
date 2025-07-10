@@ -7,6 +7,8 @@
   "scripts": {
     "dev:standalone": "tsx watch src/index.ts",
     "build": "tsc",
+    "bundle": "esbuild src/index.ts --bundle --platform=node --target=node18 --format=cjs --outfile=dist/bundle.cjs --external:electron && echo 'import { createRequire } from \"module\"; const require = createRequire(import.meta.url); require(\"./bundle.cjs\");' > dist/bundle-wrapper.mjs",
+    "postbuild": "npm run bundle",
     "start": "node dist/index.js"
   },
   "keywords": [
@@ -17,6 +19,7 @@
   "author": "",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.13.0",
+    "@vibe/shared-types": "workspace:*",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "google-auth-library": "^9.15.1",
@@ -27,6 +30,7 @@
   "devDependencies": {
     "@types/express": "^5.0.0",
     "@types/node": "^22.10.5",
+    "esbuild": "^0.25.5",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2"
   },

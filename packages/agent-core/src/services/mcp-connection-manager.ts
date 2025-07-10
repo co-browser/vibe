@@ -22,6 +22,15 @@ import {
 const logger = createLogger("McpConnectionManager");
 
 export class MCPConnectionManager implements IMCPConnectionManager {
+  private authToken: string | null = null;
+
+  /**
+   * Set the auth token for cloud connections
+   */
+  setAuthToken(token: string | null): void {
+    this.authToken = token;
+  }
+
   /**
    * Creates a new MCP connection with proper error handling and timeouts
    */
@@ -34,7 +43,22 @@ export class MCPConnectionManager implements IMCPConnectionManager {
     // Create transport with proper URL validation
     let transport: StreamableHTTPClientTransport;
     try {
-      transport = new StreamableHTTPClientTransport(new URL(serverUrl));
+      const transportOptions: any = {};
+
+      // Add auth header for RAG server (both cloud and local)
+      if (config.name === "rag" && this.authToken) {
+        transportOptions.requestInit = {
+          headers: {
+            Authorization: `Bearer ${this.authToken}`,
+          },
+        };
+        logger.debug(`Adding auth header for RAG server connection`);
+      }
+
+      transport = new StreamableHTTPClientTransport(
+        new URL(serverUrl),
+        transportOptions,
+      );
     } catch (error) {
       throw new MCPConnectionError(
         `Invalid server URL: ${serverUrl}`,
@@ -75,8 +99,16 @@ export class MCPConnectionManager implements IMCPConnectionManager {
       // Clean up transport on failure
       await this.safeCloseTransport(transport);
 
-      const errorMessage = `Failed to connect to ${config.name} MCP server`;
-      logger.error(errorMessage, error);
+      let errorMessage = `Failed to connect to ${config.name} MCP server at ${serverUrl}`;
+
+      // Check if error message contains HTML (404 response)
+      if (error instanceof Error && error.message.includes("<!DOCTYPE html>")) {
+        errorMessage +=
+          " - Server returned 404. The server may still be initializing.";
+        logger.warn(errorMessage);
+      } else {
+        logger.error(errorMessage, error);
+      }
 
       throw new MCPConnectionError(
         errorMessage,
@@ -178,7 +210,7 @@ export class MCPConnectionManager implements IMCPConnectionManager {
    * Builds the complete server URL with endpoint
    */
   private buildServerUrl(config: MCPServerConfig): string {
-    const endpoint = config.mcpEndpoint || MCP_ENDPOINTS.DEFAULT;
+    const endpoint = config.mcpEndpoint || config.path || MCP_ENDPOINTS.DEFAULT;
     return `${config.url}${endpoint}`;
   }
 

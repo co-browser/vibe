@@ -5,11 +5,13 @@
 
 import { EventEmitter } from "events";
 import { utilityProcess, type UtilityProcess } from "electron";
+import { setupProcessStorageHandler } from "../ipc/user/settings/process-storage-handler";
 import path from "path";
 import fs from "fs";
-import { createLogger } from "@vibe/shared-types";
+import { createElectronLogger } from "../utils/electron-logger";
+import { getStorageService } from "../store/storage-service";
 
-const logger = createLogger("MCPWorker");
+const logger = createElectronLogger("MCPWorker");
 
 export class MCPWorker extends EventEmitter {
   private workerProcess: UtilityProcess | null = null;
@@ -17,7 +19,6 @@ export class MCPWorker extends EventEmitter {
   private restartCount = 0;
   private readonly maxRestarts = 3;
   private isRestarting = false;
-  private activeTimeouts: Set<NodeJS.Timeout> = new Set();
 
   constructor() {
     super();
@@ -44,14 +45,33 @@ export class MCPWorker extends EventEmitter {
       this.isConnected = false;
       this.isRestarting = false;
 
-      // Clear all active timeouts
-      this.activeTimeouts.forEach(timeout => {
-        clearTimeout(timeout);
-      });
-      this.activeTimeouts.clear();
+      try {
+        // Send stop message to allow graceful shutdown of child processes
+        this.workerProcess.postMessage({ type: "stop" });
 
-      this.workerProcess.kill();
-      this.workerProcess = null;
+        // Wait for the manager to clean up child processes
+        await new Promise<void>(resolve => {
+          const timeout = setTimeout(() => {
+            logger.warn(
+              "Worker process did not exit gracefully, force killing",
+            );
+            resolve();
+          }, 6000); // 6 seconds total (5s for child processes + 1s buffer)
+
+          this.workerProcess!.once("exit", () => {
+            clearTimeout(timeout);
+            resolve();
+          });
+        });
+      } catch (error) {
+        logger.error("Error during graceful shutdown:", error);
+      } finally {
+        // Ensure the process is killed
+        if (this.workerProcess) {
+          this.workerProcess.kill();
+        }
+        this.workerProcess = null;
+      }
     }
   }
 
@@ -89,9 +109,7 @@ export class MCPWorker extends EventEmitter {
       );
     }
 
-    if (process.env.LOG_LEVEL === "debug") {
-      logger.debug("Creating utility process:", workerPath);
-    }
+    logger.debug("Creating utility process:", workerPath);
 
     // Create utility process using Electron's utilityProcess.fork()
     // Filter out undefined environment variables to avoid "Invalid value for env" error
@@ -102,7 +120,24 @@ export class MCPWorker extends EventEmitter {
       PATH: process.env.PATH, // Pass through PATH for finding executables
       GMAIL_CLIENT_ID: process.env.GMAIL_CLIENT_ID,
       GMAIL_CLIENT_SECRET: process.env.GMAIL_CLIENT_SECRET,
-      // RAG server environment variables
+      // OAuth server environment variables
+      OAUTH_SERVER_URL: (() => {
+        const url =
+          process.env.OAUTH_SERVER_URL || "https://oauth.cobrowser.xyz";
+        try {
+          const parsed = new URL(url);
+          if (parsed.protocol !== "https:") {
+            throw new Error("OAuth server must use HTTPS");
+          }
+          return url;
+        } catch {
+          throw new Error(`Invalid OAuth server URL: ${url}`);
+        }
+      })(),
+      USE_LOCAL_GMAIL_AUTH: process.env.USE_LOCAL_GMAIL_AUTH || "false",
+      // RAG server environment variables (default to "false" if not set)
+      USE_LOCAL_RAG_SERVER: process.env.USE_LOCAL_RAG_SERVER || "false",
+      RAG_SERVER_URL: process.env.RAG_SERVER_URL || "https://rag.cobrowser.xyz",
       OPENAI_API_KEY: process.env.OPENAI_API_KEY,
       TURBOPUFFER_API_KEY: process.env.TURBOPUFFER_API_KEY,
       ENABLE_PPL_CHUNKING: process.env.ENABLE_PPL_CHUNKING,
@@ -122,6 +157,9 @@ export class MCPWorker extends EventEmitter {
       serviceName: "mcp-manager",
       env: cleanEnv,
     });
+
+    // Set up settings access for the utility process
+    setupProcessStorageHandler(this.workerProcess);
 
     // Capture stdout and stderr
     if (this.workerProcess.stdout) {
@@ -165,29 +203,126 @@ export class MCPWorker extends EventEmitter {
       this.workerProcess!.on("message", readyHandler);
     });
 
-    if (process.env.LOG_LEVEL === "debug") {
-      logger.debug("Worker process connected and ready");
-    }
+    logger.debug("Worker process connected and ready");
   }
 
   /**
    * Handle messages from worker process
    */
   private handleWorkerMessage(message: any): void {
-    if (process.env.LOG_LEVEL === "debug") {
-      logger.debug("Received message from worker:", message.type);
-    }
+    logger.debug("Received message from worker:", message);
 
-    if (message.type === "ready") {
-      // Additional ready handling if needed
-      if (process.env.LOG_LEVEL === "debug") {
+    // Handle different message types
+    switch (message?.type) {
+      case "ready":
         logger.debug("Worker ready signal received");
+        break;
+
+      case "gmail-tokens-request":
+        this.handleGmailTokenRequest();
+        break;
+
+      case "gmail-tokens-update":
+        this.handleGmailTokensUpdate(message);
+        break;
+
+      case "mcp-server-status":
+        this.emit("mcp-server-status", message.data);
+        break;
+
+      default:
+        logger.warn("Unknown message type from worker:", message?.type);
+    }
+  }
+
+  /**
+   * Handle Gmail token request from MCP server
+   */
+  private async handleGmailTokenRequest(): Promise<void> {
+    try {
+      logger.debug("Handling Gmail token request from MCP server");
+
+      // Get storage service instance
+      const storageService = getStorageService();
+
+      // Get tokens from secure storage
+      const tokens = await storageService.get("secure.oauth.gmail.tokens");
+
+      logger.debug(
+        "Retrieved tokens from storage:",
+        tokens ? "found" : "not found",
+      );
+
+      // Create response message with explicit type
+      const response = {
+        type: "gmail-tokens-response",
+        tokens: tokens || undefined,
+        error: tokens ? undefined : "No Gmail tokens found in storage",
+      };
+
+      logger.debug("Sending response to worker:", {
+        hasTokens: !!tokens,
+        type: response.type,
+      });
+
+      if (this.workerProcess) {
+        this.workerProcess.postMessage(response);
+        logger.debug("Gmail tokens response sent to worker process");
+      } else {
+        logger.error("Worker process not available");
       }
-    } else if (message.type === "mcp-server-status") {
-      // Forward MCP server status updates
-      this.emit("mcp-server-status", message.data);
-    } else {
-      logger.warn("Unknown message type from worker:", message.type);
+    } catch (error) {
+      logger.error("Error retrieving Gmail tokens:", error);
+      const errorResponse = {
+        type: "gmail-tokens-response",
+        tokens: undefined,
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
+
+      if (this.workerProcess) {
+        this.workerProcess.postMessage(errorResponse);
+      }
+    }
+  }
+
+  /**
+   * Handle Gmail tokens update from MCP server
+   */
+  private async handleGmailTokensUpdate(message: any): Promise<void> {
+    try {
+      logger.debug("Handling Gmail tokens update from MCP server");
+
+      // Get storage service instance
+      const storageService = getStorageService();
+
+      // Update tokens in secure storage
+      await storageService.set("secure.oauth.gmail.tokens", message.tokens);
+
+      logger.debug("Gmail tokens updated successfully");
+
+      // Create response message
+      const response = {
+        type: "gmail-tokens-update-response",
+        success: true,
+      };
+
+      if (this.workerProcess) {
+        this.workerProcess.postMessage(response);
+        logger.debug("Gmail tokens update response sent to worker process");
+      } else {
+        logger.error("Worker process not available");
+      }
+    } catch (error) {
+      logger.error("Error updating Gmail tokens:", error);
+      const errorResponse = {
+        type: "gmail-tokens-update-response",
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
+
+      if (this.workerProcess) {
+        this.workerProcess.postMessage(errorResponse);
+      }
     }
   }
 
@@ -248,26 +383,10 @@ export class MCPWorker extends EventEmitter {
 
       // Try again if we haven't hit the limit
       if (this.restartCount < this.maxRestarts) {
-        this.createTimeout(() => this.attemptRestart(), 2000);
+        setTimeout(() => this.attemptRestart(), 2000);
       } else {
         this.emit("error", new Error("All restart attempts failed"));
       }
     }
-  }
-
-  /**
-   * Create a tracked timeout that will be automatically cleaned up
-   */
-  private createTimeout(callback: () => void, delay: number): NodeJS.Timeout {
-    const timeout = setTimeout(() => {
-      this.activeTimeouts.delete(timeout);
-      try {
-        callback();
-      } catch (error) {
-        logger.error("Timer callback error:", error);
-      }
-    }, delay);
-    this.activeTimeouts.add(timeout);
-    return timeout;
   }
 }

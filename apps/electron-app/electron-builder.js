@@ -10,22 +10,25 @@ module.exports = {
     "!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}",
     "!{.env,.env.*,.npmrc,pnpm-lock.yaml}",
     "!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}",
-    "!node_modules/framer-motion/**",
-    "!node_modules/@swc/**",
-    "node_modules/fs-xattr/build/Release/*.node",
-    "!node_modules/.cache",
     "out/**/*",
   ],
   afterSign: process.env.NOTARIZE === 'true' ? "scripts/notarize.js" : undefined,
   afterAllArtifactBuild: process.env.NOTARIZE === 'true' ? "scripts/notarizedmg.js" : undefined,
   asarUnpack: [
-    "**/*.node"
+    "dist/mac-arm64/vibe.app/Contents/Resources/app.asar.unpacked/node_modules/sqlite3/build/Release/node_sqlite3.node",
+    "**/out/main/processes/mcp-manager-process.js",
+    "**/out/main/processes/agent-process.js"
   ],
   extraResources: [
     {
-      from: "../../packages/mcp-*/dist",
-      to: "mcp-servers",
-      filter: ["**/*"],
+      from: "../../packages/mcp-gmail",
+      to: "mcp-servers/mcp-gmail",
+      filter: ["**/*", "!.git/**/*"],
+    },
+    {
+      from: "../../packages/mcp-rag",
+      to: "mcp-servers/mcp-rag",
+      filter: ["**/*", "!.git/**/*"],
     },
   ],
   win: {
@@ -62,15 +65,12 @@ module.exports = {
       NSBluetoothPeripheralUsageDescription: "passkey access",
       NSCameraUsageDescription: "webrtc access",
       NSMicrophoneUsageDescription: "webrtc access",
-      NSServices: [
-                {
-                    NSSendTypes: ["NSStringPboardType"],
-                    NSMessage: "handleTextDropOnDock",
-                    NSMenuItem: {
-                        default: "vibe...",
-                    },
-                },
-            ],
+      LSEnvironment: {
+        USE_LOCAL_RAG_SERVER: "false",
+        USE_LOCAL_GMAIL_AUTH: "false",
+        NODE_ENV: "production",
+        RAG_SERVER_URL: "https://rag.cobrowser.xyz",
+      },
     },
     category: "public.app-category.developer-tools",
     entitlements: "resources/entitlements.mac.plist", 
@@ -133,7 +133,21 @@ module.exports = {
     version: process.env.VIBE_VERSION || require("./package.json").version,
     env: "production",
   },
+  // Ensure NODE_ENV is set for packaged app
+  asar: {
+    smartUnpack: true
+  },
   npmRebuild: false,
+  // Only include publish config when explicitly publishing (e.g., in CI)
+  ...(process.env.PUBLISH_RELEASE === "true" ? {
+    publish: {
+      provider: "github",
+      owner: "co-browser",
+      repo: "vibe",
+      releaseType: "draft",
+      publishAutoUpdate: true
+    }
+  } : {}),
   electronDownload: {
     mirror: "https://npmmirror.com/mirrors/electron/",
   },

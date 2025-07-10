@@ -23,6 +23,11 @@
       "import": "./dist/index.js",
       "require": "./dist/index.js",
       "types": "./dist/index.d.ts"
+    },
+    "./utils/path": {
+      "import": "./dist/utils/path.js",
+      "require": "./dist/utils/path.js",
+      "types": "./dist/utils/path.d.ts"
     }
   },
   "files": [

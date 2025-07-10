@@ -300,12 +300,18 @@
   max-height: 120px;
 }
 
-.user-message-content {
+.user-message-content-wrapper {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   padding: 8px 12px;
   gap: 8px;
   min-height: 40px;
+}
+
+.user-message-content {
+  flex: 1;
+  display: flex;
+  align-items: center;
 }
 
 .user-message-text {
@@ -336,6 +342,7 @@
 }
 
 .assistant-message-content {
+  position: relative;
   background: none;
   border: none;
   border-radius: 0;
@@ -351,6 +358,50 @@
 .assistant-message-content:hover {
   box-shadow: none;
   border-color: transparent;
+}
+
+/* Copy button for assistant messages */
+.assistant-message-copy-button {
+  margin-top: 8px;
+  margin-left: 0;
+  padding: 4px 8px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--chat-text-tertiary);
+  opacity: 0.6;
+  transition: all 0.2s ease;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.assistant-message-copy-button:hover {
+  opacity: 1;
+  background-color: var(--chat-background-secondary);
+  color: var(--chat-text-secondary);
+}
+
+.assistant-message-copy-button:active {
+  transform: scale(0.95);
+}
+
+.assistant-message-copy-button:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.assistant-message-copy-button.error {
+  color: var(--error-color);
+  border-color: var(--error-color);
+}
+
+.assistant-message-copy-button.error:hover {
+  background-color: rgba(239, 68, 68, 0.1);
+  color: var(--error-color);
 }
 
 /* Reset the parent container to normal only for thinking indicator */
@@ -430,6 +481,15 @@
 
 .chat-input-container .chat-input-field::placeholder {
   color: #999;
+}
+
+.chat-input-container .chat-input-field:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.chat-input-container .chat-input-field:disabled::placeholder {
+  color: var(--text-disabled);
 }
 
 .chat-input-container .chat-action-button {
@@ -534,6 +594,67 @@
   gap: 4px;
 }
 
+/* Auth pills - modern stamped design */
+.auth-pill {
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  background: #f3f4f6;
+  box-shadow:
+    inset 1px 1px 2px rgba(0, 0, 0, 0.1),
+    inset -1px -1px 2px rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  position: relative;
+  z-index: 0;
+}
+
+.auth-pill:hover {
+  transform: translateY(-0.5px);
+}
+
+.auth-pill:active {
+  transform: translateY(0);
+  box-shadow:
+    inset 2px 2px 3px rgba(0, 0, 0, 0.12),
+    inset -1px -1px 2px rgba(255, 255, 255, 0.5);
+}
+
+/* Disconnected state */
+.auth-pill.disconnected {
+  color: #9ca3af;
+  background: #e5e7eb;
+}
+
+/* Connected state */
+.auth-pill:not(.disconnected) {
+  color: #374151;
+  background: #f3f4f6;
+  box-shadow:
+    inset 1px 1px 2px rgba(0, 0, 0, 0.1),
+    inset -1px -1px 2px rgba(255, 255, 255, 0.7);
+}
+
+/* Pill label text */
+.pill-label {
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  position: relative;
+  z-index: 1;
+}
+
+/* Icon styling within pills */
+.auth-pill svg {
+  width: 12px;
+  height: 12px;
+  position: relative;
+  z-index: 1;
+}
+
 /* Status indicator pill */
 .status-indicator-pill {
   width: 18px;
@@ -577,37 +698,83 @@
   animation: pulse-loading 1s infinite;
 }
 
-/* Gmail icon pill */
-.gmail-icon-pill {
-  width: 24px;
-  height: 24px;
-  border-radius: 12px;
-  background-color: var(--chat-background-primary);
-  box-shadow:
-    var(--shadow-sm),
-    inset 0 1px 2px rgba(0, 0, 0, 0.03);
-  border: 1px solid var(--chat-border-subtle);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.15s ease;
-  cursor: pointer;
-}
-
-.gmail-icon-pill:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-  background-color: var(--chat-background-input);
-}
-
+/* Icon size for auth pills */
 .gmail-icon {
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
 }
 
-/* Gmail SVG colors - apply brand colors to the icon */
-.gmail-icon-pill svg {
-  color: #ea4335;
+/* Rainbow gradient for connected state - both pills */
+.auth-pill:not(.disconnected)::before {
+  content: "";
+  position: absolute;
+  inset: -0.5px;
+  border-radius: 12.5px;
+  background: linear-gradient(
+    90deg,
+    #ff0000,
+    #ff7f00,
+    #ffff00,
+    #00ff00,
+    #0000ff,
+    #4b0082,
+    #8f00ff,
+    #ff0000
+  );
+  background-size: 200% 200%;
+  animation: rainbow 3s linear infinite;
+  z-index: -2;
+  opacity: 0.6;
+}
+
+/* Inner background for rainbow border effect */
+.auth-pill:not(.disconnected)::after {
+  content: "";
+  position: absolute;
+  inset: 0.25px;
+  border-radius: 11.75px;
+  background: #f3f4f6;
+  box-shadow:
+    inset 1px 1px 2px rgba(0, 0, 0, 0.1),
+    inset -1px -1px 2px rgba(255, 255, 255, 0.7);
+  z-index: -1;
+}
+
+/* Privy icon styling */
+.privy-icon {
+  width: 12px;
+  height: 12px;
+  z-index: 1;
+}
+
+/* Rainbow animation */
+@keyframes rainbow {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 200% 50%;
+  }
+}
+
+/* Spin animation for loading icons */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+/* OpenAI icon style - kept for IconWithStatus component */
+.openai-icon {
+  width: 12px;
+  height: 12px;
 }
 
 /* Pulsating animations */

@@ -12,8 +12,6 @@ export interface LayoutContextType {
   setChatPanelWidth: (width: number) => void;
   chatPanelKey: number;
   isRecovering: boolean;
-  isChatMinimizedFromResize: boolean; // New field to track if chat was closed due to resize
-  setIsChatMinimizedFromResize: (minimized: boolean) => void; // Setter for the minimized state
 }
 
 export interface ChatPanelState {
@@ -27,19 +25,6 @@ export interface ChatPanelRecoveryOptions {
   recoveryOverlayMs?: number;
   powerSaveBlocker?: boolean;
 }
-
-export type DownloadItem = {
-  id: string;
-  createdAt: number;
-  fileName: string;
-  filePath: string;
-  exists: boolean;
-  status?: "downloading" | "completed" | "cancelled" | "error";
-  progress?: number; // 0-100
-  totalBytes?: number;
-  receivedBytes?: number;
-  startTime?: number;
-};
 
 /**
  * IPC Event Payload Types

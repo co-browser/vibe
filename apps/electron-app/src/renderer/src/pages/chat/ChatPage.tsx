@@ -41,7 +41,7 @@ export function ChatPage(): React.JSX.Element {
 
   // Pass streaming content setter to chat events
   useChatEvents(setMessages, setIsAiGenerating, setStreamingContent);
-  const { isAgentInitializing } = useAgentStatus();
+  const { isAgentInitializing, isDisabled } = useAgentStatus();
 
   const handleInputValueChange = useCallback(
     (value: string): void => {
@@ -79,8 +79,18 @@ export function ChatPage(): React.JSX.Element {
     sendMessageInput(trimmedInput);
   };
 
-  const handleActionChipClick = (prompt: string): void => {
-    sendMessageInput(prompt);
+  const handleInputValueChange = (value: string): void => {
+    handleInputChange({
+      target: { value },
+    } as React.ChangeEvent<HTMLInputElement>);
+  };
+
+  const handleActionChipClick = (action: string): void => {
+    handleInputValueChange(action);
+    // Slightly delay sending to allow UI to update
+    setTimeout(() => {
+      sendMessageInput(action);
+    }, 50);
   };
 
   const handleFileDrop = useCallback(
@@ -110,18 +120,11 @@ export function ChatPage(): React.JSX.Element {
   }, []);
 
   const handleEditMessage = (messageId: string, newContent: string): void => {
+    if (!newContent.trim()) return;
+
+    // Find the original message
     const originalMessage = messages.find(msg => msg.id === messageId);
     if (!originalMessage) return;
-
-    const originalContent =
-      typeof originalMessage.content === "string"
-        ? originalMessage.content
-        : JSON.stringify(originalMessage.content);
-
-    // Check if content actually changed
-    if (originalContent.trim() === newContent.trim()) {
-      return; // No changes, don't do anything
-    }
 
     // Find the index of the edited message
     const messageIndex = messages.findIndex(msg => msg.id === messageId);
@@ -175,7 +178,10 @@ export function ChatPage(): React.JSX.Element {
     >
       <AgentStatusIndicator isInitializing={isAgentInitializing} />
 
-      <div className="chat-messages-container" style={{ flex: 1 }}>
+      <div
+        className="chat-messages-container"
+        style={{ flex: 1, position: "relative" }}
+      >
         {showWelcome ? (
           <ChatWelcome onActionClick={handleActionChipClick} />
         ) : (
@@ -183,102 +189,28 @@ export function ChatPage(): React.JSX.Element {
             groupedMessages={groupedMessages}
             isAiGenerating={isAiGenerating}
             streamingContent={{ currentReasoningText, hasLiveReasoning }}
-            tabContext={tabContext}
             onEditMessage={handleEditMessage}
           />
         )}
       </div>
 
       <div className="chat-input-section">
-        <FileDropZone
-          accept={[
-            ".txt",
-            ".md",
-            ".json",
-            ".js",
-            ".ts",
-            ".html",
-            ".css",
-            ".pdf",
-            ".doc",
-            ".docx",
-            "image/*",
-          ]}
-          maxFiles={10}
-          maxSize={50 * 1024 * 1024} // 50MB
-          onDrop={handleFileDrop}
-          className="chat-file-drop-zone"
-          showUploadButton={false}
-          style={{
-            border: droppedFiles.length > 0 ? "2px solid #3b82f6" : "none",
-            borderRadius: droppedFiles.length > 0 ? "8px" : "0",
-            padding: droppedFiles.length > 0 ? "8px" : "0",
-            backgroundColor: "transparent",
-          }}
-        >
-          {droppedFiles.length > 0 && (
-            <div
-              className="dropped-files-preview"
-              style={{ marginBottom: "12px" }}
-            >
-              <div
-                style={{
-                  fontSize: "14px",
-                  fontWeight: "600",
-                  marginBottom: "8px",
-                  color: "#374151",
-                }}
-              >
-                Attached Files ({droppedFiles.length}):
-              </div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-                {droppedFiles.map((file, index) => (
-                  <div
-                    key={index}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "8px",
-                      padding: "6px 12px",
-                      backgroundColor: "#f3f4f6",
-                      borderRadius: "6px",
-                      fontSize: "13px",
-                      border: "1px solid #e5e7eb",
-                    }}
-                  >
-                    <span style={{ color: "#374151" }}>
-                      {file.name} ({(file.size / 1024).toFixed(1)}KB)
-                    </span>
-                    <button
-                      onClick={() => handleRemoveFile(index)}
-                      style={{
-                        background: "none",
-                        border: "none",
-                        color: "#ef4444",
-                        cursor: "pointer",
-                        padding: "0",
-                        fontSize: "14px",
-                      }}
-                      title="Remove file"
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <ChatInput
-            value={input}
-            onChange={handleInputValueChange}
-            onSend={handleSend}
-            onStop={stopGeneration}
-            isSending={isSending}
-            tabContext={tabContext}
-          />
-        </FileDropZone>
-        <OnlineStatusStrip />
+        <ChatInput
+          value={input}
+          onChange={handleInputValueChange}
+          onSend={handleSend}
+          onStop={stopGeneration}
+          isSending={isSending}
+          disabled={(() => {
+            const disabled = isRestoreModeRef.current || isDisabled;
+            console.log("[ChatPage] Passing disabled to ChatInput:", disabled, {
+              isRestoreMode: isRestoreModeRef.current,
+              isDisabled,
+            });
+            return disabled;
+          })()}
+          tabContext={tabContext}
+        />
       </div>
     </div>
   );

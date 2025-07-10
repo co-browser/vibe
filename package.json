@@ -1,6 +1,6 @@
 {
   "name": "vibe",
-  "version": "0.1.0",
+  "version": "0.1.6",
   "private": false,
   "description": "Secure agentic browser with intelligent, memory-enhanced web browsing by CoBrowser",
   "repository": {
@@ -24,10 +24,10 @@
     "postinstall": "husky && turbo run build",
     "prepare": "husky",
     "dev": "node scripts/dev.js",
-    "build": "turbo run build",
-    "build:mac": "pnpm --filter vibe build:mac",
-    "build:win": "pnpm --filter @vibe/electron-app build:win",
-    "build:linux": "pnpm --filter @vibe/electron-app build:linux",
+    "build": "turbo run build --filter=@vibe/shared-types && turbo run build",
+    "build:mac": "turbo run build --filter=@vibe/mcp-* && pnpm --filter vibe build:mac",
+    "build:win": "turbo run build --filter=@vibe/mcp-* && pnpm --filter @vibe/electron-app build:win",
+    "build:linux": "turbo run build --filter=@vibe/mcp-* && pnpm --filter @vibe/electron-app build:linux",
     "format": "turbo run format",
     "format:check": "turbo run format:check",
     "lint": "eslint .",
@@ -37,7 +37,8 @@
     "typecheck": "turbo run typecheck",
     "clean": "turbo run clean && rm -rf node_modules",
     "test": "turbo run test",
-    "setup": "pnpm install && git submodule update --init --recursive"
+    "setup": "pnpm install && git submodule update --init --recursive",
+    "kill-port": "node scripts/kill-port.js"
   },
   "workspaces": [
     "packages/*",

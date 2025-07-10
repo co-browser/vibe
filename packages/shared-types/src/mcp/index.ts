@@ -9,9 +9,13 @@
 export * from "./types.js";
 export * from "./errors.js";
 export * from "./constants.js";
+export * from "./gmail-ipc";
 
 // Import for use in this file
 import type { MCPServerConfig } from "./types.js";
+import { createLogger } from "../logger/index.js";
+
+const logger = createLogger("MCP");
 
 /**
  * Process-level status interface for MCP server monitoring.
@@ -61,6 +65,7 @@ export const MCP_SERVERS_BASE: Record<string, Omit<MCPServerConfig, "env">> = {
     url: "http://localhost:3000",
     healthEndpoint: "/health",
     mcpEndpoint: "/mcp",
+    // RAG server can run locally or connect to cloud
   },
   // Future MCP servers can be added here:
   // github: {
@@ -125,26 +130,48 @@ export function createMCPServerConfig(
   name: string,
   envVars?: Record<string, string>,
 ): MCPServerConfig | undefined {
+  // Special handling for RAG server (local and remote)
+  if (name === "rag") {
+    const useLocalRag = envVars?.USE_LOCAL_RAG_SERVER === "true";
+    const baseConfig = getMCPServerBaseConfig(name);
+    if (!baseConfig) return undefined;
+
+    if (useLocalRag) {
+      // Use local RAG server configuration
+      return {
+        ...baseConfig,
+        env: {
+          // Pass required environment variables to local RAG server
+          PORT: baseConfig.port.toString(),
+          USE_LOCAL_RAG_SERVER: "true", // Ensure RAG server knows it's in local mode
+          OPENAI_API_KEY: envVars?.OPENAI_API_KEY || "",
+          TURBOPUFFER_API_KEY: envVars?.TURBOPUFFER_API_KEY || "",
+          ENABLE_PPL_CHUNKING: envVars?.ENABLE_PPL_CHUNKING || "false",
+          FAST_MODE: envVars?.FAST_MODE || "true",
+          VERBOSE_LOGS: envVars?.VERBOSE_LOGS || "false",
+        },
+      };
+    } else {
+      // Remote RAG server configuration
+      const remoteUrl = envVars?.RAG_SERVER_URL || "https://rag.cobrowser.xyz";
+      return {
+        ...baseConfig,
+        url: remoteUrl,
+        port: 443, // HTTPS port
+        env: {}, // No env needed for remote connection
+      };
+    }
+  }
+
   const baseConfig = getMCPServerBaseConfig(name);
   if (!baseConfig) return undefined;
 
   // Build environment-specific configuration
   const env: Record<string, string> = {};
+  const url = baseConfig.url;
+  const port = baseConfig.port;
 
   switch (name) {
-    case "rag":
-      if (envVars) {
-        Object.assign(env, {
-          ...(envVars.TURBOPUFFER_API_KEY && {
-            TURBOPUFFER_API_KEY: envVars.TURBOPUFFER_API_KEY,
-          }),
-          ENABLE_PPL_CHUNKING: envVars.ENABLE_PPL_CHUNKING || "false",
-          FAST_MODE: envVars.FAST_MODE || "true",
-          VERBOSE_LOGS: envVars.VERBOSE_LOGS || "false",
-        });
-      }
-      break;
-
     case "gmail":
       // Gmail MCP server manages its own configuration
       // No environment variables needed from agent
@@ -157,6 +184,8 @@ export function createMCPServerConfig(
 
   return {
     ...baseConfig,
+    url,
+    port,
     env,
   };
 }
@@ -170,7 +199,30 @@ export function createMCPServerConfig(
 export function getAllMCPServerConfigs(
   envVars?: Record<string, string>,
 ): MCPServerConfig[] {
-  return Object.keys(MCP_SERVERS_BASE)
-    .map(name => createMCPServerConfig(name, envVars))
-    .filter((config): config is MCPServerConfig => config !== undefined);
+  const configs: MCPServerConfig[] = [];
+
+  // Always add Gmail server
+  const gmailConfig = createMCPServerConfig("gmail", envVars);
+  if (gmailConfig) configs.push(gmailConfig);
+
+  // Only add RAG server if explicitly set to "true"
+  // Default to false for undefined, null, empty string, or any other value
+  const useLocalRagServer = envVars?.USE_LOCAL_RAG_SERVER;
+  const shouldUseLocalRag = useLocalRagServer === "true";
+
+  // Debug logging for environment variable handling
+  logger.debug("MCP Server Configuration:", {
+    USE_LOCAL_RAG_SERVER: useLocalRagServer || "undefined",
+    shouldUseLocalRag,
+    PATH: envVars?.PATH ? `${envVars.PATH.substring(0, 50)}...` : "undefined",
+    NODE_ENV: envVars?.NODE_ENV || "undefined",
+  });
+
+  if (shouldUseLocalRag) {
+    const ragConfig = createMCPServerConfig("rag", envVars);
+    if (ragConfig) configs.push(ragConfig);
+  }
+
+  logger.info(`Configured MCP servers: ${configs.map(c => c.name).join(", ")}`);
+  return configs;
 }

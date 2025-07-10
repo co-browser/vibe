@@ -25,9 +25,7 @@ export class ApplicationWindow extends EventEmitter {
   public readonly window: BrowserWindow;
   public readonly tabManager: TabManager;
   public readonly viewManager: ViewManager;
-  public readonly dialogManager: DialogManager;
-  private bluetoothPinCallback?: (response: any) => void;
-  private selectBluetoothCallback?: (deviceId: string) => void;
+  private isDestroying = false;
 
   constructor(
     browser: any,
@@ -140,9 +138,8 @@ export class ApplicationWindow extends EventEmitter {
       ...(process.platform === "darwin" && {
         trafficLightPosition: WINDOW_CONFIG.TRAFFIC_LIGHT_POSITION,
       }),
-      backgroundColor: nativeTheme.shouldUseDarkColors ? "#1a1a1a" : "#ffffff",
-      frame: false,
-      transparent: false,
+      backgroundColor: process.platform === "darwin" ? "#00000000" : "#000000",
+      transparent: true,
       resizable: true,
       visualEffectState: "active",
       backgroundMaterial: "acrylic",
@@ -395,14 +392,32 @@ export class ApplicationWindow extends EventEmitter {
         }
       }
     } else {
-      const htmlPath = join(__dirname, "../renderer/index.html");
-      logger.debug("🔧 ApplicationWindow: Loading HTML file:", htmlPath);
-      this.window.loadFile(htmlPath);
+      // Use custom protocol for production to enable secure context
+      logger.debug("🔧 ApplicationWindow: Loading with vibe:// protocol");
+      try {
+        await this.window.loadURL("vibe://localhost/index.html");
+        logger.debug(
+          "🔧 ApplicationWindow: Successfully loaded with vibe:// protocol",
+        );
+      } catch (error) {
+        logger.error(
+          "🔧 ApplicationWindow: Failed to load with vibe:// protocol:",
+          error,
+        );
+        // Fallback to file loading if protocol fails
+        const htmlPath = join(__dirname, "../renderer/index.html");
+        logger.debug(
+          "🔧 ApplicationWindow: Falling back to HTML file:",
+          htmlPath,
+        );
+        await this.window.loadFile(htmlPath);
+      }
     }
   }
 
   public destroy(): void {
-    if (this.window.isDestroyed()) return;
+    if (this.window.isDestroyed() || this.isDestroying) return;
+    this.isDestroying = true;
 
     try {
       // Clean up TabManager (includes EventEmitter cleanup and intervals)

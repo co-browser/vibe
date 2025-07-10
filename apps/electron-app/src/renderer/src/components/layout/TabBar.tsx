@@ -6,11 +6,7 @@ import React, { useMemo, useEffect, useCallback } from "react";
 import { Tabs } from "@sinm/react-chrome-tabs";
 import "@sinm/react-chrome-tabs/css/chrome-tabs.css";
 import type { TabState } from "@vibe/shared-types";
-import { GMAIL_CONFIG, createLogger } from "@vibe/shared-types";
-import {
-  useContextMenu,
-  TabContextMenuItems,
-} from "../../hooks/useContextMenu";
+import { GMAIL_CONFIG } from "@vibe/shared-types";
 import "../styles/TabBar.css";
 
 const logger = createLogger("TabBar");
@@ -201,12 +197,7 @@ export const ChromeTabBar: React.FC = () => {
             setActiveTabKey(firstRegularTab.key);
             window.vibe.tabs
               .switchToTab(firstRegularTab.key)
-              .catch(error =>
-                logger.error(
-                  "Failed to switch to tab after OAuth completed:",
-                  error,
-                ),
-              );
+              .catch(console.error);
           }
 
           return remainingTabs;
@@ -251,7 +242,20 @@ export const ChromeTabBar: React.FC = () => {
     try {
       await window.vibe.tabs.switchToTab(tabId);
     } catch (error) {
-      logger.error("Failed to switch tab:", error);
+      console.error("Failed to switch tab:", error);
+    }
+  };
+
+  const handleTabClose = async (tabId: string): Promise<void> => {
+    // Prevent closing OAuth tabs - they close automatically
+    if (tabId === GMAIL_CONFIG.OAUTH_TAB_KEY) {
+      return;
+    }
+
+    try {
+      await window.vibe.tabs.closeTab(tabId);
+    } catch (error) {
+      console.error("Failed to close tab:", error);
     }
   };
 

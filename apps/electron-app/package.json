@@ -1,6 +1,6 @@
 {
   "name": "vibe",
-  "version": "0.1.0",
+  "version": "0.1.6",
   "description": "vibe - AI-powered browser automation and management tool",
   "main": "./out/main/index.js",
   "author": "CoBrowser Team",
@@ -17,7 +17,7 @@
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json --composite false",
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
     "start": "electron-vite preview",
-    "dev": "electron-vite dev",
+    "dev": "VITE_DEBUG_MODE=true electron-vite dev",
     "build": "npm run typecheck && electron-vite build",
     "build:unpack": "npm run build && electron-builder --dir",
     "build:win": "npm run build && electron-builder --win",
@@ -25,17 +25,22 @@
     "build:linux": "electron-vite build && electron-builder --linux",
     "clean": "rm -rf dist out .eslintcache",
     "dist": "electron-vite build && electron-builder --publish never",
-    "postinstall": "electron-builder install-app-deps && electron-rebuild"
+    "postinstall": "electron-builder install-app-deps && electron-rebuild",
+    "storage:inspect": "node scripts/inspect-storage.js",
+    "storage:inspect:raw": "node scripts/inspect-storage.js --raw",
+    "storage:delete": "node scripts/delete-storage.js",
+    "storage:delete:all": "node scripts/delete-storage.js --all"
   },
   "dependencies": {
     "@ai-sdk/react": "^1.2.12",
     "@ant-design/icons": "^6.0.0",
     "@electron-toolkit/preload": "^3.0.1",
     "@electron-toolkit/utils": "^4.0.0",
-    "@getstation/electron-google-oauth2": "^14.0.0",
     "@modelcontextprotocol/sdk": "1.11.0",
     "@napi-rs/keyring": "^1.1.8",
+    "@privy-io/react-auth": "^2.16.0",
     "@radix-ui/react-collapsible": "^1.1.11",
+    "@radix-ui/react-dialog": "^1.1.14",
     "@radix-ui/react-scroll-area": "^1.2.8",
     "@radix-ui/react-separator": "^1.1.7",
     "@radix-ui/react-slot": "^1.2.2",
@@ -84,7 +89,7 @@
     "@types/react-dom": "^19.1.2",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.21",
-    "electron": "37.2.0",
+    "electron": "35.1.5",
     "electron-builder": "^26.0.17",
     "electron-vite": "^3.1.0",
     "eslint": "^9.24.0",
@@ -97,6 +102,7 @@
     "react-dom": "^19.1.0",
     "tailwindcss": "^3.0.0",
     "tailwindcss-animate": "^1.0.7",
+    "tsx": "^4.20.3",
     "typescript": "^5.8.3",
     "vite": "^6.2.6"
   }

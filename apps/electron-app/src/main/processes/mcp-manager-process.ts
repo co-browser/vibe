@@ -10,12 +10,15 @@ import http from "http";
 import {
   getAllMCPServerConfigs,
   type MCPServerConfig,
+} from "@vibe/shared-types";
+// (Type cleanup skipped to avoid circular deps)
+import {
   findWorkspaceRoot,
   getMonorepoPackagePath,
-  createLogger,
-} from "@vibe/shared-types";
+} from "@vibe/shared-types/utils/path";
+import { createElectronLogger } from "../utils/electron-logger";
 
-const logger = createLogger("MCPManagerProcess");
+const logger = createElectronLogger("MCPManager");
 
 interface MCPServer {
   name: string;
@@ -29,6 +32,7 @@ class MCPManager {
   private servers: Map<string, MCPServer> = new Map();
   private restartAttempts: Map<string, number> = new Map();
   private readonly maxRestartAttempts = 3;
+  private isShuttingDown = false;
 
   constructor() {
     this.initialize();
@@ -36,7 +40,7 @@ class MCPManager {
 
   private async initialize() {
     try {
-      logger.info("[MCPManager] Initializing MCP manager");
+      logger.info("Initializing MCP manager");
 
       // Always start MCP servers as child processes (consistent dev/prod behavior)
       const envVars: Record<string, string> = {};
@@ -45,37 +49,82 @@ class MCPManager {
           envVars[key] = value;
         }
       }
+
+      // Debug: Log the environment state
+      logger.debug("MCP Manager Environment:", {
+        USE_LOCAL_RAG_SERVER: envVars.USE_LOCAL_RAG_SERVER || "undefined",
+        NODE_ENV: envVars.NODE_ENV || "undefined",
+        PATH: envVars.PATH
+          ? `${envVars.PATH.substring(0, 100)}...`
+          : "undefined",
+        OPENAI_API_KEY: envVars.OPENAI_API_KEY ? "present" : "not set",
+        LaunchMethod: envVars.PATH?.includes("/usr/local/bin")
+          ? "terminal"
+          : "finder/dock",
+      });
+
       const serverConfigs = getAllMCPServerConfigs(envVars);
+      logger.info(`Found ${serverConfigs.length} server configurations`);
       logger.info(
-        `[MCPManager] Found ${serverConfigs.length} server configurations`,
+        `Server configurations: ${serverConfigs.map(c => c.name).join(", ")}`,
       );
 
-      for (const config of serverConfigs) {
-        await this.startMCPServer(config);
-      }
+      // Start all servers and wait for them to be ready
+      const startPromises = serverConfigs.map(config =>
+        this.startMCPServer(config),
+      );
+      await Promise.all(startPromises);
+
+      // Verify all servers are ready
+      const readyServers = Array.from(this.servers.values()).filter(
+        server => server.status === "ready",
+      ).length;
+
+      logger.info(`${readyServers}/${serverConfigs.length} servers are ready`);
 
       // Signal ready to parent process
       if (process.parentPort) {
         process.parentPort.postMessage({ type: "ready" });
-        logger.info("[MCPManager] Ready signal sent to parent");
+        logger.info("Ready signal sent to parent");
       }
     } catch (error) {
-      logger.error("[MCPManager] Initialization failed:", error);
+      logger.error("Initialization failed:", error);
       process.exit(1);
     }
   }
 
   private async startMCPServer(config: MCPServerConfig): Promise<void> {
-    logger.info(
-      `[MCPManager] Starting ${config.name} MCP server on port ${config.port}`,
-    );
-    if (process.env.LOG_LEVEL === "debug") {
-      logger.debug(`[MCPManager] Current working directory: ${process.cwd()}`);
-      logger.debug(`[MCPManager] __dirname: ${__dirname}`);
-    }
+    logger.info(`Starting ${config.name} MCP server on port ${config.port}`);
+    logger.debug(`Current working directory: ${process.cwd()}`);
+    logger.debug(`__dirname: ${__dirname}`);
+    logger.debug(`process.resourcesPath: ${process.resourcesPath}`);
+    logger.debug(`NODE_ENV: ${process.env.NODE_ENV}`);
+
+    // Log environment details for debugging
+    logger.debug(`Environment details for ${config.name}:`, {
+      PATH: process.env.PATH,
+      NODE_BINARY: process.env.NODE_BINARY,
+      ELECTRON_RUN_AS_NODE: process.env.ELECTRON_RUN_AS_NODE,
+      configEnv: config.env,
+    });
 
     // Determine paths based on environment
-    const isDev = process.env.NODE_ENV === "development";
+    // In production, app.isPackaged is true, but we're in a child process
+    // Check if we're in dev mode by looking at the actual path structure
+    const isDevPath =
+      __dirname.includes("/apps/electron-app/out/") ||
+      __dirname.includes("/apps/electron-app/src/");
+    const isDev = process.env.NODE_ENV === "development" || isDevPath;
+
+    // Enhanced logging for production debugging
+    logger.info(`MCP Server path resolution for ${config.name}:`, {
+      __dirname,
+      isDevPath,
+      isDev,
+      NODE_ENV: process.env.NODE_ENV,
+      resourcesPath: process.resourcesPath,
+      cwd: process.cwd(),
+    });
 
     // Try multiple possible locations
     let possiblePaths: string[] = [];
@@ -116,90 +165,209 @@ class MCPManager {
             ),
           ];
         } else {
-          // Last resort: try process.cwd()
+          // If we can't find workspace root in what appears to be dev mode,
+          // it's likely we're actually in production. Use production paths.
           logger.warn(
-            "[MCPManager] Package and workspace root not found, falling back to process.cwd()",
+            "Package and workspace root not found, assuming production environment",
           );
           possiblePaths = [
             path.join(
-              process.cwd(),
-              "packages",
+              __dirname,
+              "..",
+              "..",
+              "mcp-servers",
               `mcp-${config.name}`,
               "dist",
               "index.js",
             ),
-            path.join(
-              process.cwd(),
-              "packages",
-              `mcp-${config.name}`,
-              "src",
-              "index.ts",
-            ),
+            ...(process.resourcesPath
+              ? [
+                  path.join(
+                    process.resourcesPath,
+                    "mcp-servers",
+                    `mcp-${config.name}`,
+                    "dist",
+                    "index.js",
+                  ),
+                ]
+              : []),
           ];
         }
       }
     } else {
-      // Production paths
+      // Production paths – ONLY use bundled versions that include all dependencies
+      // Do NOT include index.js which requires node_modules
       possiblePaths = [
+        // Prefer ES-module wrapper (executes CJS bundle)
         path.join(
           __dirname,
           "..",
           "..",
           "mcp-servers",
           `mcp-${config.name}`,
-          "index.js",
+          "dist",
+          "bundle-wrapper.mjs",
         ),
+        // Fallback to raw bundle (CJS). Node can run this directly.
+        path.join(
+          __dirname,
+          "..",
+          "..",
+          "mcp-servers",
+          `mcp-${config.name}`,
+          "dist",
+          "bundle.cjs",
+        ),
+        // Try resourcesPath as well
         ...(process.resourcesPath
           ? [
               path.join(
                 process.resourcesPath,
                 "mcp-servers",
                 `mcp-${config.name}`,
-                "index.js",
+                "dist",
+                "bundle-wrapper.mjs",
+              ),
+              path.join(
+                process.resourcesPath,
+                "mcp-servers",
+                `mcp-${config.name}`,
+                "dist",
+                "bundle.cjs",
               ),
             ]
           : []),
       ];
+
+      // Log warning about production bundle requirement
+      logger.info(
+        `Production mode: Only checking for bundled MCP server files`,
+      );
     }
+
+    // Log path resolution at debug level to avoid log spam in production
+    logger.debug(`Path resolution for ${config.name}:`, {
+      isDev,
+      __dirname,
+      resourcesPath: process.resourcesPath,
+    });
+    logger.debug(`Checking paths for ${config.name}:`, possiblePaths);
 
     let mcpPath: string | null = null;
     for (const testPath of possiblePaths) {
+      logger.debug(`Checking path: ${testPath}`);
       if (fs.existsSync(testPath)) {
+        logger.info(`Found MCP server at: ${testPath}`);
         mcpPath = testPath;
         break;
       }
     }
 
     if (!mcpPath) {
-      logger.error(
-        `[MCPManager] MCP server not found. Tried paths:`,
-        possiblePaths,
-      );
+      logger.error(`MCP server not found. Tried paths:`, possiblePaths);
+
+      // Log additional debugging info for production
+      logger.error(`Additional debug info for ${config.name}:`, {
+        isDev,
+        NODE_ENV: process.env.NODE_ENV,
+        __dirname,
+        resourcesPath: process.resourcesPath,
+        possiblePathsDetailed: possiblePaths.map(p => ({
+          path: p,
+          exists: fs.existsSync(p),
+          parentExists: fs.existsSync(path.dirname(p)),
+        })),
+      });
+
       // For development, we'll continue without the server
       if (isDev) {
         logger.warn(
-          `[MCPManager] Continuing in development mode without ${config.name} server`,
+          `Continuing in development mode without ${config.name} server`,
         );
         return;
       }
       throw new Error(`MCP server not found: ${config.name}`);
     }
 
-    if (process.env.LOG_LEVEL === "debug") {
-      logger.debug(`[MCPManager] Found MCP server at: ${mcpPath}`);
+    // Special check for Gmail server dependencies
+    if (config.name === "gmail") {
+      const useLocalAuth = process.env.USE_LOCAL_GMAIL_AUTH === "true";
+      logger.debug(`Gmail auth mode:`, {
+        USE_LOCAL_GMAIL_AUTH: process.env.USE_LOCAL_GMAIL_AUTH,
+        useLocalAuth,
+      });
+
+      // Only check for local OAuth files if using local authentication
+      if (useLocalAuth) {
+        const oauthPath = path.join(
+          process.env.HOME || "",
+          ".gmail-mcp",
+          "gcp-oauth.keys.json",
+        );
+        const credentialsPath = path.join(
+          process.env.HOME || "",
+          ".gmail-mcp",
+          "credentials.json",
+        );
+
+        logger.debug(`Checking Gmail OAuth files:`, {
+          oauthPath,
+          oauthExists: fs.existsSync(oauthPath),
+          credentialsPath,
+          credentialsExists: fs.existsSync(credentialsPath),
+        });
+
+        if (!fs.existsSync(oauthPath)) {
+          logger.error(`Gmail OAuth keys not found at: ${oauthPath}`);
+          logger.error(`Please ensure Gmail is properly configured in the app`);
+        }
+
+        if (!fs.existsSync(credentialsPath)) {
+          logger.error(`Gmail credentials not found at: ${credentialsPath}`);
+          logger.error(`Please authenticate with Gmail through the app first`);
+        }
+      } else {
+        logger.info(`Gmail using cloud OAuth - skipping local file checks`);
+      }
     }
+
+    logger.debug(`Found MCP server at: ${mcpPath}`);
 
     // Use node for JavaScript files, tsx for TypeScript (with proper path resolution)
     let command: string = "";
     let args: string[] = [];
 
-    if (mcpPath.endsWith(".js")) {
-      // For JavaScript files, use node (PATH should be available now)
-      command = "node";
-      args = [mcpPath];
-      if (process.env.LOG_LEVEL === "debug") {
-        logger.debug(`[MCPManager] Using Node.js: node (from PATH)`);
+    if (mcpPath.endsWith(".js") || mcpPath.endsWith(".mjs")) {
+      // For JavaScript files, locate a reliable Node executable
+      const candidateNodes: string[] = [];
+
+      // 1️⃣ User-supplied override via NODE_BINARY env
+      if (process.env.NODE_BINARY) {
+        candidateNodes.push(process.env.NODE_BINARY);
       }
+
+      // 2️⃣ Common brew / system locations
+      candidateNodes.push(
+        "/opt/homebrew/bin/node",
+        "/usr/local/bin/node",
+        "/usr/bin/node",
+      );
+
+      // 3️⃣ Fallback to PATH lookup
+      candidateNodes.push("node");
+
+      const foundNode =
+        candidateNodes.find(p => {
+          try {
+            return fs.existsSync(p) || p === "node";
+          } catch {
+            return false;
+          }
+        }) || "node";
+
+      command = foundNode;
+      args = [mcpPath];
+      logger.debug(`Using Node.js executable: ${foundNode}`);
     } else if (mcpPath.endsWith(".ts")) {
       // Try to find tsx in node_modules
       const tsxPath = path.resolve(process.cwd(), "node_modules/.bin/tsx");
@@ -207,7 +375,7 @@ class MCPManager {
         command = tsxPath;
         args = [mcpPath];
       } else {
-        logger.warn(`[MCPManager] tsx not found, trying global tsx`);
+        logger.warn(`tsx not found, trying global tsx`);
         command = "tsx";
         args = [mcpPath];
       }
@@ -215,23 +383,44 @@ class MCPManager {
       throw new Error(`Unsupported file type: ${mcpPath}`);
     }
 
-    if (process.env.LOG_LEVEL === "debug") {
-      logger.debug(`[MCPManager] Spawning command: ${command}`);
-      logger.debug(`[MCPManager] With args:`, args);
-    }
+    logger.debug(`Spawning command: ${command}`);
+    logger.debug(`With args:`, args);
+    logger.debug(`Working directory: ${path.dirname(mcpPath)}`);
 
     const serverProcess = spawn(command, args, {
-      stdio: ["pipe", "pipe", "pipe"],
+      stdio: ["pipe", "pipe", "pipe", "ipc"],
       env: {
         ...process.env,
         PORT: config.port.toString(),
         ...(config.env || {}),
-        // Ensure PATH is available for finding executables
-        PATH:
-          process.env.PATH ||
-          (process.platform === "win32"
-            ? "C:\\Windows\\System32;C:\\Windows"
-            : "/usr/local/bin:/usr/bin:/bin"),
+        // Mark as electron subprocess to prevent loading .env files
+        ELECTRON_RUN_AS_NODE: "1",
+        // Ensure PATH is available for finding executables – append common Node install locations
+        PATH: (() => {
+          const defaultUnix = "/usr/local/bin:/usr/bin:/bin";
+          const darwinExtras = "/opt/homebrew/bin:/usr/local/bin"; // Homebrew locations (Apple Silicon & Intel)
+          const winDefault = "C:\\Windows\\System32;C:\\Windows";
+
+          // Start with existing PATH if present
+          let base = process.env.PATH ?? "";
+
+          // Append platform-specific default paths if they are not already included
+          if (process.platform === "darwin") {
+            for (const p of darwinExtras.split(":")) {
+              if (!base.includes(p)) {
+                base += `${path.delimiter}${p}`;
+              }
+            }
+            // Fallback to standard unix defaults if PATH was originally empty
+            if (!base) base = defaultUnix;
+          } else if (process.platform === "win32") {
+            if (!base) base = winDefault;
+          } else {
+            if (!base) base = defaultUnix;
+          }
+
+          return base;
+        })(),
       },
       cwd: path.dirname(mcpPath),
     });
@@ -248,20 +437,68 @@ class MCPManager {
 
     // Handle process output
     serverProcess.stdout?.on("data", data => {
-      const output = data.toString();
+      const output = data.toString().trim();
 
-      // Log output if debug level or contains errors
-      if (output.includes("ERROR") || process.env.LOG_LEVEL === "debug") {
-        logger.debug(`[MCP-${config.name}]:`, output);
+      // Always log output from Gmail server for debugging
+      if (
+        config.name === "gmail" ||
+        output.includes("ERROR") ||
+        output.includes("WARN")
+      ) {
+        logger.info(`[MCP-${config.name} stdout]:`, output);
+      } else {
+        logger.debug(`[MCP-${config.name} stdout]:`, output);
+      }
+    });
+
+    // Handle messages from the server process (including token requests and updates)
+    serverProcess.on("message", async (message: any) => {
+      logger.debug(`Message from ${config.name} server process:`, message);
+
+      if (message.type === "gmail-tokens-request") {
+        logger.debug(
+          "[Gmail] Received tokens request from child process, forwarding to parent",
+        );
+        // Forward the request to parent
+        process.parentPort?.postMessage({
+          type: "gmail-tokens-request",
+          source: "mcp-manager",
+        });
+      } else if (message.type === "gmail-tokens-update") {
+        logger.debug(
+          "[Gmail] Received tokens update from child process, forwarding to parent",
+        );
+        // Forward the token update to parent
+        process.parentPort?.postMessage({
+          type: "gmail-tokens-update",
+          source: "mcp-manager",
+          tokens: message.tokens,
+        });
       }
     });
 
     serverProcess.stderr?.on("data", data => {
-      logger.error(`[MCP-${config.name} error]:`, data.toString());
+      const error = data.toString().trim();
+      logger.error(`[MCP-${config.name} stderr]:`, error);
+
+      // Check for specific Gmail OAuth errors
+      if (config.name === "gmail" && error.includes("No credentials found")) {
+        logger.error(
+          `Gmail OAuth credentials missing. Please authenticate through the Electron app first.`,
+        );
+      }
     });
 
     serverProcess.on("error", error => {
       logger.error(`[MCP-${config.name}] Failed to start:`, error);
+      logger.error(`[MCP-${config.name}] Spawn details:`, {
+        command,
+        args,
+        cwd: path.dirname(mcpPath),
+        PATH: process.env.PATH,
+        errorCode: (error as any).code,
+        errorMessage: (error as any).message,
+      });
       server.status = "error";
       this.notifyServerStatus(config.name, "error");
     });
@@ -272,8 +509,8 @@ class MCPManager {
       this.servers.delete(config.name);
       this.notifyServerStatus(config.name, "stopped");
 
-      // Attempt restart if not a clean exit
-      if (code !== 0 && code !== null) {
+      // Attempt restart if not a clean exit and not shutting down
+      if (code !== 0 && code !== null && !this.isShuttingDown) {
         const attempts = this.restartAttempts.get(config.name) || 0;
         if (attempts >= this.maxRestartAttempts) {
           logger.error(
@@ -332,6 +569,10 @@ class MCPManager {
     const checkInterval = 500; // Check every 500ms
     let lastHealthCheck = 0;
 
+    // Give the server a moment to fully start before checking
+    // This helps avoid 404 errors when the server is still initializing routes
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
     while (server.status === "starting" && Date.now() - startTime < timeout) {
       const now = Date.now();
 
@@ -341,9 +582,7 @@ class MCPManager {
         lastHealthCheck = now;
 
         if (isHealthy) {
-          logger.info(
-            `[MCPManager] Server ${name} health check passed - marking as ready`,
-          );
+          logger.info(`Server ${name} health check passed - marking as ready`);
           server.status = "ready";
           // Reset restart attempts on successful startup
           this.restartAttempts.delete(name);
@@ -357,7 +596,7 @@ class MCPManager {
 
     if (server.status !== "ready") {
       logger.warn(
-        `[MCPManager] Server ${name} did not become ready within timeout - health checks failed`,
+        `Server ${name} did not become ready within timeout - health checks failed`,
       );
       server.status = "error";
       this.notifyServerStatus(name, "error");
@@ -374,15 +613,42 @@ class MCPManager {
   }
 
   async stopAllServers(): Promise<void> {
-    logger.info("[MCPManager] Stopping all MCP servers");
+    logger.info("Stopping all MCP servers");
+    this.isShuttingDown = true;
+
+    const stopPromises: Promise<void>[] = [];
 
     for (const [name, server] of this.servers) {
-      logger.info(`[MCPManager] Stopping ${name} server`);
-      server.process.kill("SIGTERM");
+      logger.info(`Stopping ${name} server`);
+
+      // Create a promise that resolves when the process exits
+      const stopPromise = new Promise<void>(resolve => {
+        const timeout = setTimeout(() => {
+          logger.warn(`${name} server did not exit gracefully, force killing`);
+          server.process.kill("SIGKILL");
+          resolve();
+        }, 5000); // 5 second timeout for graceful shutdown
+
+        server.process.once("exit", () => {
+          clearTimeout(timeout);
+          logger.info(`${name} server exited`);
+          resolve();
+        });
+
+        // Send SIGTERM to initiate graceful shutdown
+        server.process.kill("SIGTERM");
+      });
+
+      stopPromises.push(stopPromise);
     }
 
     // Wait for all servers to stop
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await Promise.all(stopPromises);
+    logger.info("All MCP servers stopped");
+  }
+
+  getServer(name: string): MCPServer | undefined {
+    return this.servers.get(name);
   }
 }
 
@@ -390,35 +656,82 @@ class MCPManager {
 const manager = new MCPManager();
 
 // Handle IPC messages from parent
-process.parentPort?.on("message", async (message: any) => {
-  logger.debug("[MCPManager] Received message:", message.type);
+process.parentPort?.on("message", async (event: any) => {
+  logger.debug("Received message event:", JSON.stringify(event));
+
+  // Extract the actual message from the event data
+  const message = event?.data || event;
+
+  // Ensure message has type property
+  if (!message || typeof message !== "object") {
+    logger.error("Invalid message received:", message);
+    return;
+  }
+
+  logger.debug("Extracted message:", {
+    type: message.type,
+    hasTokens: !!message.tokens,
+  });
 
   switch (message.type) {
-    case "stop":
+    case "stop": {
       await manager.stopAllServers();
       process.exit(0);
+    }
+    // eslint-disable-next-line no-fallthrough
+    case "gmail-tokens-response": {
+      logger.info(
+        "[Gmail] Received tokens response from parent, forwarding to Gmail server",
+      );
+      logger.debug("[Gmail] Tokens response details:", {
+        hasTokens: !!message.tokens,
+        hasError: !!message.error,
+      });
+
+      // Forward tokens to Gmail server
+      const gmailServer = manager.getServer("gmail");
+      if (gmailServer && gmailServer.process.send) {
+        logger.debug("[Gmail] Sending tokens response to Gmail server process");
+        gmailServer.process.send({
+          type: "gmail-tokens-response",
+          tokens: message.tokens,
+          error: message.error,
+        });
+        logger.debug("[Gmail] Tokens response sent to Gmail server");
+      } else {
+        logger.error("[Gmail] Gmail server not found or cannot send messages");
+      }
       break;
+    }
+    case "gmail-tokens-update-response": {
+      logger.debug(
+        "[Gmail] Token update acknowledged by parent:",
+        message.success,
+      );
+      // Optionally notify the Gmail server of successful update
+      break;
+    }
     default:
-      logger.warn("[MCPManager] Unknown message type:", message.type);
+      logger.warn("Unknown message type:", message.type);
   }
 });
 
 // Handle process lifecycle
 process.on("SIGTERM", async () => {
-  logger.info("[MCPManager] Received SIGTERM, shutting down");
+  logger.info("Received SIGTERM, shutting down");
   await manager.stopAllServers();
   process.exit(0);
 });
 
 process.on("uncaughtException", error => {
-  logger.error("[MCPManager] Uncaught exception:", error);
+  logger.error("Uncaught exception:", error);
   process.exit(1);
 });
 
 process.on("unhandledRejection", reason => {
-  logger.error("[MCPManager] Unhandled promise rejection:", reason);
+  logger.error("Unhandled promise rejection:", reason);
   process.exit(1);
 });
 
-logger.info("[MCPManager] MCP manager process started");
-logger.info("[MCPManager] Parent port available:", !!process.parentPort);
+logger.info("MCP manager process started");
+logger.debug("Parent port available:", !!process.parentPort);

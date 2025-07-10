@@ -5,9 +5,12 @@
 
 import { EventEmitter } from "events";
 import { utilityProcess, type UtilityProcess } from "electron";
+import { setupProcessStorageHandler } from "../ipc/user/settings/process-storage-handler";
 import path from "path";
 import fs from "fs";
 import { createLogger } from "@vibe/shared-types";
+
+const logger = createLogger("AgentWorker");
 
 interface PendingMessage {
   resolve: (value: any) => void;
@@ -116,8 +119,17 @@ export class AgentWorker extends EventEmitter {
       }
 
       // Add debugging for message structure (only for non-ping messages)
-      if (type !== "ping" || process.env.LOG_LEVEL === "debug") {
+      if (type !== "ping") {
         logger.debug("Sending message to worker:", type, "ID:", messageId);
+        if (type === "update-openai-api-key") {
+          logger.debug("🔑 Detailed message structure for API key update:", {
+            id: messageId,
+            type: type,
+            hasData: !!data,
+            dataKeys: data ? Object.keys(data) : [],
+            hasApiKey: data && !!data.apiKey,
+          });
+        }
       }
 
       this.workerProcess!.postMessage(message);
@@ -192,9 +204,7 @@ export class AgentWorker extends EventEmitter {
       }
     }, this.healthCheckIntervalMs);
 
-    if (process.env.LOG_LEVEL === "debug") {
-      logger.debug("Health monitoring started");
-    }
+    logger.debug("Health monitoring started");
   }
 
   /**
@@ -220,34 +230,47 @@ export class AgentWorker extends EventEmitter {
       throw new Error(`Worker process file not found: ${workerPath}`);
     }
 
-    if (process.env.LOG_LEVEL === "debug") {
-      logger.debug("Creating utility process:", workerPath);
-      logger.debug("Current __dirname:", __dirname);
-      logger.debug("Resolved worker path:", workerPath);
-    }
+    logger.debug("Creating utility process:", workerPath);
+    logger.debug("Current __dirname:", __dirname);
+    logger.debug("Resolved worker path:", workerPath);
 
     // Create utility process using Electron's utilityProcess.fork()
+    // Filter out undefined environment variables to avoid "Invalid value for env" error
+    const cleanEnv: Record<string, string> = {};
+    const envVars = {
+      NODE_ENV: process.env.NODE_ENV || "development",
+      LOG_LEVEL: process.env.LOG_LEVEL,
+      OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+      RAG_SERVER_URL: process.env.RAG_SERVER_URL || "https://rag.cobrowser.xyz",
+      TURBOPUFFER_API_KEY: process.env.TURBOPUFFER_API_KEY,
+      USE_LOCAL_RAG_SERVER: process.env.USE_LOCAL_RAG_SERVER || "false",
+    };
+
+    // Only include defined environment variables
+    for (const [key, value] of Object.entries(envVars)) {
+      if (value !== undefined) {
+        cleanEnv[key] = value;
+      }
+    }
+
     this.workerProcess = utilityProcess.fork(workerPath, [], {
       stdio: "pipe",
       serviceName: "agent-worker",
-      env: {
-        NODE_ENV: process.env.NODE_ENV || "development",
-        LOG_LEVEL: process.env.LOG_LEVEL,
-        OPENAI_API_KEY: process.env.OPENAI_API_KEY,
-      },
+      env: cleanEnv,
     });
+
+    // Set up settings access for the utility process
+    setupProcessStorageHandler(this.workerProcess);
 
     // Capture stdout and stderr to see actual errors from utility process
     if (this.workerProcess.stdout) {
       this.workerProcess.stdout.on("data", data => {
         const output = data.toString();
-        // Only log important messages or in debug mode
-        if (
-          output.includes("ERROR") ||
-          output.includes("WARN") ||
-          process.env.LOG_LEVEL === "debug"
-        ) {
+        // Only log important messages
+        if (output.includes("ERROR") || output.includes("WARN")) {
           logger.info("Worker stdout:", output);
+        } else {
+          logger.debug("Worker stdout:", output);
         }
       });
     }
@@ -295,8 +318,8 @@ export class AgentWorker extends EventEmitter {
    * Handle messages from worker process
    */
   private handleWorkerMessage(message: any): void {
-    // Only log non-ping messages unless debug mode
-    if (message.type !== "response" || process.env.LOG_LEVEL === "debug") {
+    // Only log non-ping messages
+    if (message.type !== "response") {
       logger.debug("Received message from worker:", message.type);
     }
 
@@ -319,9 +342,7 @@ export class AgentWorker extends EventEmitter {
       this.emit("stream", message.id, message.data);
     } else if (message.type === "ready") {
       // Ready signal - enhanced detection for health monitoring
-      if (process.env.LOG_LEVEL === "debug") {
-        logger.debug("Worker ready signal received");
-      }
+      logger.debug("Worker ready signal received");
       this.lastHealthCheck = Date.now();
 
       if (!this.isConnected) {
@@ -332,10 +353,8 @@ export class AgentWorker extends EventEmitter {
         });
       }
     } else if (message.type === "pong") {
-      // Health check response - no logging needed unless debug
-      if (process.env.LOG_LEVEL === "debug") {
-        logger.debug("Health check pong received");
-      }
+      // Health check response
+      logger.debug("Health check pong received");
     } else {
       logger.warn("Unknown message type from worker:", message.type);
     }

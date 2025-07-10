@@ -42,7 +42,8 @@
       "Bash(git ls-tree:*)",
       "Bash(mkdir:*)",
       "Bash(mv:*)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(git rm:*)"
     ],
     "deny": []
   }

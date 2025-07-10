@@ -1,4 +1,4 @@
-import { BrowserWindow, WebContents, app } from "electron";
+import { BrowserWindow, WebContents, app, session } from "electron";
 import { EventEmitter } from "events";
 
 import { WindowManager } from "@/browser/window-manager";
@@ -46,6 +46,29 @@ export class Browser extends EventEmitter {
   private setupMenu(): void {
     setupApplicationMenu(this);
     logger.debug("[Browser] Application menu initialized (static structure)");
+    
+    this.setupContentSecurityPolicy();
+    logger.debug("[Browser] Content Security Policy configured");
+  }
+
+  /**
+   * Sets up Content Security Policy for the application
+   */
+  private setupContentSecurityPolicy(): void {
+    session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+      // Allow Vite dev server in development
+      const isDev = process.env.NODE_ENV === "development";
+      const cspPolicy = isDev
+        ? "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: blob:; connect-src 'self' http://localhost:* ws://localhost:* http://127.0.0.1:8000 ws://127.0.0.1:8000 https://analytics.cobrowser.xyz https://auth.privy.io wss://relay.walletconnect.com wss://relay.walletconnect.org wss://www.walletlink.org https://*.rpc.privy.systems https://explorer-api.walletconnect.com https:; object-src 'none'; frame-src https://auth.privy.io https://verify.walletconnect.com https://verify.walletconnect.org https://challenges.cloudflare.com; worker-src 'self';"
+        : "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: blob:; connect-src 'self' http://127.0.0.1:8000 ws://127.0.0.1:8000 https://analytics.cobrowser.xyz https://auth.privy.io wss://relay.walletconnect.com wss://relay.walletconnect.org wss://www.walletlink.org https://*.rpc.privy.systems https://explorer-api.walletconnect.com https:; object-src 'none'; frame-src https://auth.privy.io https://verify.walletconnect.com https://verify.walletconnect.org https://challenges.cloudflare.com; worker-src 'self';";
+
+      callback({
+        responseHeaders: {
+          ...details.responseHeaders,
+          "Content-Security-Policy": [cspPolicy],
+        },
+      });
+    });
   }
 
   /**
@@ -175,7 +198,7 @@ export class Browser extends EventEmitter {
   /**
    * Destroys the browser and cleans up resources
    */
-  public destroy(): void {
+  public async destroy(): Promise<void> {
     if (this._isDestroyed) return;
 
     logger.debug("🧹 Browser: Starting cleanup process...");
@@ -190,7 +213,7 @@ export class Browser extends EventEmitter {
     for (const [webContentsId, appWindow] of this.applicationWindows) {
       try {
         logger.debug("🧹 Browser: Destroying ApplicationWindow", webContentsId);
-        appWindow.destroy();
+        await appWindow.destroy();
       } catch (error) {
         logger.warn("Error destroying ApplicationWindow:", error);
       }

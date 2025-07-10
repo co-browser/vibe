@@ -17,7 +17,6 @@ import { WindowBroadcast } from "@/utils/window-broadcast";
 import { NavigationErrorHandler } from "./navigation-error-handler";
 import { userAnalytics } from "@/services/user-analytics";
 import { DEFAULT_USER_AGENT } from "../constants/user-agent";
-// File system imports removed - now handled in protocol-handler
 
 const logger = createLogger("TabManager");
 
@@ -170,7 +169,7 @@ export class TabManager extends EventEmitter {
         // Let other console messages through normally
       },
     );
-    // Protocol handler is now registered globally in main process
+
     // Optional CDP integration
     if (this.cdpManager) {
       this.cdpManager
@@ -538,39 +537,44 @@ export class TabManager extends EventEmitter {
     userAnalytics.updateUsageStats({ tabCreated: true });
 
     // Track tab creation - only in main window (renderer)
-    const mainWindows = this._browser.getAllWindows().filter((w: any) => {
-      try {
-        return (
-          w &&
-          !w.isDestroyed() &&
-          w.webContents &&
-          !w.webContents.isDestroyed() &&
-          (w.webContents.getURL().includes("localhost:5173") ||
-            w.webContents.getURL().startsWith("file://"))
+    try {
+      const mainWindows = this._browser
+        .getAllWindows()
+        .filter(
+          (w: any) =>
+            w &&
+            w.webContents &&
+            !w.webContents.isDestroyed() &&
+            (w.webContents.getURL().includes("localhost:5173") ||
+              w.webContents.getURL().startsWith("file://")),
         );
-      } catch {
-        // Window or webContents was destroyed between checks
-        return false;
-      }
-    });
 
-    mainWindows.forEach((window: any) => {
-      window.webContents
-        .executeJavaScript(
-          `
-        if (window.umami && typeof window.umami.track === 'function') {
-          window.umami.track('tab-created', {
-            url: '${targetUrl}',
-            timestamp: ${Date.now()},
-            totalTabs: ${this.tabs.size}
+      mainWindows.forEach((window: any) => {
+        window.webContents
+          .executeJavaScript(
+            `
+          if (window.umami && typeof window.umami.track === 'function') {
+            window.umami.track('tab-created', {
+              url: '${targetUrl}',
+              timestamp: ${Date.now()},
+              totalTabs: ${this.tabs.size}
+            });
+          }
+        `,
+          )
+          .catch(err => {
+            logger.error("Failed to track tab creation", {
+              error: err.message,
+            });
           });
-        }
-      `,
-        )
-        .catch(err => {
-          logger.error("Failed to track tab creation", { error: err.message });
-        });
-    });
+      });
+    } catch (error) {
+      // Analytics tracking failed - don't break tab creation
+      logger.debug(
+        "Tab creation analytics skipped due to window state:",
+        error,
+      );
+    }
 
     return key;
   }
@@ -578,7 +582,7 @@ export class TabManager extends EventEmitter {
   /**
    * Closes a tab and manages focus
    */
-  public closeTab(tabKey: string): boolean {
+  public async closeTab(tabKey: string): Promise<boolean> {
     if (!this.tabs.has(tabKey)) {
       logger.warn(`Cannot close tab ${tabKey} - not found`);
       return false;
@@ -606,7 +610,7 @@ export class TabManager extends EventEmitter {
       }
     }
 
-    this.removeBrowserView(tabKey);
+    await this.removeBrowserView(tabKey);
     this.tabs.delete(tabKey);
 
     if (wasActive) {
@@ -621,38 +625,38 @@ export class TabManager extends EventEmitter {
     this.emit("tab-closed", tabKey);
 
     // Track tab closure - only in main window (renderer)
-    const mainWindows = this._browser.getAllWindows().filter((w: any) => {
-      try {
-        return (
-          w &&
-          !w.isDestroyed() &&
-          w.webContents &&
-          !w.webContents.isDestroyed() &&
-          (w.webContents.getURL().includes("localhost:5173") ||
-            w.webContents.getURL().startsWith("file://"))
+    try {
+      const mainWindows = this._browser
+        .getAllWindows()
+        .filter(
+          (w: any) =>
+            w &&
+            w.webContents &&
+            !w.webContents.isDestroyed() &&
+            (w.webContents.getURL().includes("localhost:5173") ||
+              w.webContents.getURL().startsWith("file://")),
         );
-      } catch {
-        // Window or webContents was destroyed between checks
-        return false;
-      }
-    });
 
-    mainWindows.forEach((window: any) => {
-      window.webContents
-        .executeJavaScript(
-          `
-        if (window.umami && typeof window.umami.track === 'function') {
-          window.umami.track('tab-closed', {
-            timestamp: ${Date.now()},
-            remainingTabs: ${this.tabs.size}
+      mainWindows.forEach((window: any) => {
+        window.webContents
+          .executeJavaScript(
+            `
+          if (window.umami && typeof window.umami.track === 'function') {
+            window.umami.track('tab-closed', {
+              timestamp: ${Date.now()},
+              remainingTabs: ${this.tabs.size}
+            });
+          }
+        `,
+          )
+          .catch(err => {
+            logger.error("Failed to track tab closure", { error: err.message });
           });
-        }
-      `,
-        )
-        .catch(err => {
-          logger.error("Failed to track tab closure", { error: err.message });
-        });
-    });
+      });
+    } catch (error) {
+      // Analytics tracking failed - don't break tab closure
+      logger.debug("Tab closure analytics skipped due to window state:", error);
+    }
 
     return true;
   }
@@ -915,7 +919,7 @@ export class TabManager extends EventEmitter {
 
     try {
       const view = this.getBrowserView(tabKey);
-      if (this.isViewDestroyed(view)) {
+      if (!view || view.webContents.isDestroyed()) {
         return false;
       }
 
@@ -972,41 +976,21 @@ export class TabManager extends EventEmitter {
 
     try {
       const view = this.getBrowserView(tabKey);
-      if (this.isViewDestroyed(view)) return false;
+      if (!view || view.webContents.isDestroyed()) return false;
 
       const webContents = view.webContents;
+      const navigationHistory = webContents.navigationHistory;
 
-      // Safely access navigationHistory with error handling
-      let navigationHistory: Electron.NavigationHistory | null = null;
-      let currentUrl: string;
-      let activeIndex: number = -1;
-      let currentEntry: Electron.NavigationEntry | null = null;
-      let canGoBack = false;
-
-      try {
-        navigationHistory = webContents.navigationHistory;
-        currentUrl = webContents.getURL();
-        activeIndex = navigationHistory?.getActiveIndex() || -1;
-        currentEntry =
-          activeIndex >= 0
-            ? navigationHistory?.getEntryAtIndex(activeIndex) || null
-            : null;
-        canGoBack = navigationHistory?.canGoBack() || false;
-      } catch (error) {
-        logger.warn(
-          `Failed to access navigation history for tab ${tabKey}, using fallback values:`,
-          error,
-        );
-        currentUrl = webContents.getURL();
-        // Fall back to basic URL check without navigation history
-      }
+      // Check current URL and navigation state
+      const currentUrl = webContents.getURL();
+      const activeIndex = navigationHistory.getActiveIndex();
+      const currentEntry = navigationHistory.getEntryAtIndex(activeIndex);
 
       // Case 1: Ideal scenario - tab is at sleep URL and has history to go back to
       if (
         currentEntry &&
         currentEntry.url === TAB_CONFIG.SLEEP_MODE_URL &&
-        canGoBack &&
-        navigationHistory
+        navigationHistory.canGoBack()
       ) {
         this.wakeUpFromHistory(
           webContents,
@@ -1071,21 +1055,8 @@ export class TabManager extends EventEmitter {
     webContents.once("did-finish-load", onNavigationComplete);
     webContents.once("did-fail-load", onNavigationComplete);
 
-    // Initiate navigation with error handling
-    try {
-      navigationHistory.goBack();
-    } catch (error) {
-      logger.error(
-        `Failed to navigate back from history for tab ${tabKey}:`,
-        error,
-      );
-      // Remove the listeners since navigation failed
-      webContents.removeListener("did-finish-load", onNavigationComplete);
-      webContents.removeListener("did-fail-load", onNavigationComplete);
-
-      // Fallback to wakeUpWithFallback
-      this.wakeUpWithFallback(webContents, navigationHistory, tabKey);
-    }
+    // Initiate navigation
+    navigationHistory.goBack();
   }
 
   /**
@@ -1135,7 +1106,7 @@ export class TabManager extends EventEmitter {
    */
   private emergencyWakeUp(tabKey: string): void {
     const view = this.getBrowserView(tabKey);
-    if (view && !this.isViewDestroyed(view)) {
+    if (view && !view.webContents.isDestroyed()) {
       logger.warn(`Emergency wake up for tab ${tabKey}, loading default page`);
       view.webContents.loadURL("https://www.google.com").catch(() => {
         view.webContents.loadURL("about:blank");
@@ -1247,7 +1218,7 @@ export class TabManager extends EventEmitter {
     }, TAB_CONFIG.CLEANUP_INTERVAL_MS);
   }
 
-  private performTabMaintenance(): void {
+  private async performTabMaintenance(): Promise<void> {
     this.maintenanceCounter++;
     const now = Date.now();
     const totalTabs = this.tabs.size;
@@ -1285,7 +1256,7 @@ export class TabManager extends EventEmitter {
         tab.asleep &&
         timeSinceActive > TAB_CONFIG.ARCHIVE_THRESHOLD_MS
       ) {
-        this.closeTab(tabKey);
+        await this.closeTab(tabKey);
       }
     }
   }
@@ -1321,10 +1292,10 @@ export class TabManager extends EventEmitter {
     viewManager.setViewVisible(tabKey, false);
   }
 
-  private removeBrowserView(tabKey: string): void {
+  private async removeBrowserView(tabKey: string): Promise<void> {
     const viewManager = this.viewManager;
     if (viewManager) {
-      viewManager.removeView(tabKey);
+      await viewManager.removeBrowserView(tabKey);
     }
   }
 

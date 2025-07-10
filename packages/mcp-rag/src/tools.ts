@@ -1,5 +1,8 @@
 import dotenv from 'dotenv';
-dotenv.config();
+// Load environment variables only in development or when not running as subprocess
+if (process.env.NODE_ENV === 'development' || !process.env.ELECTRON_RUN_AS_NODE) {
+  dotenv.config();
+}
 
 /**
  * RAG Tools for Web Content Ingestion and Search
@@ -27,7 +30,7 @@ import type { ExtractedPage } from "@vibe/tab-extraction-core";
 import { createLogger } from "@vibe/shared-types";
 
 const REGION = "gcp-europe-west3";
-const NAMESPACE = "kb-main";
+const DEFAULT_NAMESPACE = "kb-main";
 const TOKEN_CAP = 300;
 const OVERLAP_TOKENS = 25;
 const MAX_EMBEDDING_TOKENS = 8000;
@@ -102,7 +105,25 @@ const tpuf = new Turbopuffer({
   apiKey: process.env.TURBOPUFFER_API_KEY!,
   region: REGION,
 });
-const ns = tpuf.namespace(NAMESPACE);
+
+/**
+ * Get namespace for user-specific data isolation
+ * @param userId - Optional user ID for namespace isolation
+ * @returns Turbopuffer namespace
+ */
+function getNamespace(userId?: string) {
+  // Sanitize userId to comply with Turbopuffer namespace requirements [A-Za-z0-9-_.]
+  const sanitizedUserId = userId ? userId.replace(/[^A-Za-z0-9-_.]/g, '_') : null;
+  const namespace = sanitizedUserId ? `user-${sanitizedUserId}` : DEFAULT_NAMESPACE;
+  
+  if (sanitizedUserId) {
+    log('info', `Using user-specific namespace: ${namespace} (userId: ${userId})`);
+  } else {
+    log('info', `Using default namespace: ${namespace} (no userId provided)`);
+  }
+  
+  return tpuf.namespace(namespace);
+}
 
 interface ParsedDoc {
   docId: string;
@@ -950,7 +971,7 @@ async function embed(text: string): Promise<number[]> {
  * @param chunks - Array of basic chunks to store
  * @returns Promise that resolves when all chunks are successfully stored
  */
-async function upsertChunks(chunks: Chunk[]): Promise<void> {
+async function upsertChunks(chunks: Chunk[], userId?: string): Promise<void> {
   const ids: (string | number)[] = [];
   const vecs: number[][] = [];
   const texts: string[] = [];
@@ -965,6 +986,7 @@ async function upsertChunks(chunks: Chunk[]): Promise<void> {
     urls.push(`doc://${c.docId}`);
   }
 
+  const ns = getNamespace(userId);
   await ns.write({
     upsert_columns: {
       id: ids,
@@ -988,7 +1010,7 @@ async function upsertChunks(chunks: Chunk[]): Promise<void> {
  * @param chunks - Array of enhanced chunks with metadata to store
  * @returns Promise that resolves when all chunks are successfully stored
  */
-async function upsertEnhancedChunks(chunks: EnhancedChunk[]): Promise<void> {
+async function upsertEnhancedChunks(chunks: EnhancedChunk[], userId?: string): Promise<void> {
   if (chunks.length === 0) return;
 
   log('info', `Creating embeddings for ${chunks.length} chunks...`);
@@ -1032,6 +1054,7 @@ async function upsertEnhancedChunks(chunks: EnhancedChunk[]): Promise<void> {
   log('info', `Created ${chunks.length} embeddings in ${embeddingTime}ms`);
 
   const writeStartTime = Date.now();
+  const ns = getNamespace(userId);
   await ns.write({
     upsert_columns: {
       id: ids,
@@ -1071,11 +1094,11 @@ async function upsertEnhancedChunks(chunks: EnhancedChunk[]): Promise<void> {
  * @param url - The URL to ingest
  * @returns Promise resolving to ingestion results with document ID and chunk count
  */
-export async function ingestUrl(url: string) {
+export async function ingestUrl(url: string, userId?: string) {
   log('info', `Ingesting URL: ${url}`);
   const doc = await fetchAndParse(url);
   const chunks = [...chunkDocument(doc)];
-  await upsertChunks(chunks);
+  await upsertChunks(chunks, userId);
   log('info', `Successfully ingested ${chunks.length} chunks from ${url}`);
   return { doc_id: doc.docId, n_chunks: chunks.length };
 }
@@ -1087,9 +1110,10 @@ export async function ingestUrl(url: string) {
  * @param top_k - Number of top results to return (default: 5)
  * @returns Promise resolving to array of matching chunks with similarity scores
  */
-export async function queryKnowledgeBase(query: string, top_k: number = 5) {
+export async function queryKnowledgeBase(query: string, top_k: number = 5, userId?: string) {
   log('info', `Querying knowledge base: ${query} (top_k=${top_k})`);
   const vec = await embed(query);
+  const ns = getNamespace(userId);
   const res = await ns.query({
     top_k,
     rank_by: ["vector", "ANN", vec],
@@ -1106,7 +1130,7 @@ export async function queryKnowledgeBase(query: string, top_k: number = 5) {
  * @param extractedPage - Pre-extracted page data with structured information
  * @returns Promise resolving to ingestion results with detailed chunk type breakdown
  */
-export async function ingestExtractedPage(extractedPage: ExtractedPage) {
+export async function ingestExtractedPage(extractedPage: ExtractedPage, userId?: string) {
   const startTime = Date.now();
   log('info', `Ingesting ExtractedPage: ${extractedPage.title} (${extractedPage.contentLength || 'unknown size'} chars)`);
 
@@ -1122,7 +1146,7 @@ export async function ingestExtractedPage(extractedPage: ExtractedPage) {
   log('info', `Generated ${chunks.length} chunks in ${chunkTime}ms`);
 
   // Store chunks in database
-  await upsertEnhancedChunks(chunks);
+  await upsertEnhancedChunks(chunks, userId);
 
   const totalTime = Date.now() - startTime;
   log('info', `Successfully ingested ${chunks.length} enhanced chunks from ${extractedPage.title} in ${totalTime}ms`);
@@ -1150,8 +1174,8 @@ export const RAGTools = [
       },
       required: ["url"],
     },
-    execute: async ({ url }: { url: string }) => {
-      return await ingestUrl(url);
+    execute: async ({ url, userId }: { url: string; userId?: string }) => {
+      return await ingestUrl(url, userId);
     },
   },
   {
@@ -1201,8 +1225,8 @@ export const RAGTools = [
       },
       required: ["extractedPage"],
     },
-    execute: async ({ extractedPage }: { extractedPage: ExtractedPage }) => {
-      return await ingestExtractedPage(extractedPage);
+    execute: async ({ extractedPage, userId }: { extractedPage: ExtractedPage; userId?: string }) => {
+      return await ingestExtractedPage(extractedPage, userId);
     },
   },
   {
@@ -1216,8 +1240,8 @@ export const RAGTools = [
       },
       required: ["query"],
     },
-    execute: async ({ query, top_k = 5 }: { query: string; top_k?: number }) => {
-      return await queryKnowledgeBase(query, top_k);
+    execute: async ({ query, top_k = 5, userId }: { query: string; top_k?: number; userId?: string }) => {
+      return await queryKnowledgeBase(query, top_k, userId);
     },
   },
 ];
