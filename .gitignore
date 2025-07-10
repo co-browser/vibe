@@ -158,3 +158,5 @@ tmp/
 temp/
 tmp-build/
 *.tsbuildinfo
+
+repo.xml

@@ -3,28 +3,37 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
-
-env:
-  VIBE_VERSION: ${{ github.ref_name }}
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g., v0.1.4)'
+        required: true
+        type: string
 
 jobs:
-  # Use electron-builder's built-in publishing for proper autoupdate integration
-  publish:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      packages: write
-    strategy:
-      matrix:
-        platform: [mac, win, linux]
+  build:
+    runs-on: macos-latest
+
     steps:
+      - name: Determine tag
+        id: get_tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          fi
+          
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          token: ${{ secrets.RELEASE_PAT || github.token }}
+          persist-credentials: false
+          ref: ${{ steps.get_tag.outputs.tag }}
 
-      - name: Install pnpm
+      - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
           version: 10.12.1
@@ -32,92 +41,82 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: 20
           cache: "pnpm"
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build packages
-        run: pnpm build
-
-      - name: Lint and typecheck
-        run: |
-          pnpm lint
-          pnpm typecheck
-          pnpm format:check
-
-      - name: Build and publish for ${{ matrix.platform }}
-        run: |
-          cd apps/electron-app
-          pnpm build:${{ matrix.platform }} && electron-builder --${{ matrix.platform }} --publish always
+      - name: Build macOS app
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_ID_PASS: ${{ secrets.APPLE_ID_PASS }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          VIBE_VERSION: ${{ github.ref_name }}
+          NODE_ENV: production
+          GH_TOKEN: ${{ secrets.RELEASE_PAT || secrets.GITHUB_TOKEN }}
+          PUBLISH_RELEASE: true
+        run: pnpm --filter vibe build:mac
 
-  # Fallback job for manual release creation (if needed)
-  manual-release:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      packages: write
-    needs: publish
-    if: always() && needs.publish.result == 'failure'
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+      - name: List artifacts
+        run: ls -la apps/electron-app/dist/
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10.12.1
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: "pnpm"
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build packages
-        run: pnpm build
-
-      - name: Build for all platforms
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PAT || secrets.GITHUB_TOKEN }}
         run: |
-          cd apps/electron-app
-          pnpm build:mac &
-          pnpm build:win &
-          pnpm build:linux &
-          wait
-        env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
-          CSC_LINK: ${{ secrets.CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_ID_PASS: ${{ secrets.APPLE_ID_PASS }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          sleep 10
 
-      - name: Create Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            apps/electron-app/dist/*.dmg
-            apps/electron-app/dist/*.zip
-            apps/electron-app/dist/*.exe
-            apps/electron-app/dist/*.AppImage
-            apps/electron-app/dist/*.snap
-            apps/electron-app/dist/*.deb
-          draft: false
-          prerelease: false
-          generate_release_notes: true
+          # Get the release ID
+          RELEASE_ID=$(gh api repos/${{ github.repository }}/releases --jq '.[] | select(.tag_name == "${{ steps.get_tag.outputs.tag }}" and .draft == true) | .id' | head -1)
+
+          if [ -z "$RELEASE_ID" ]; then
+            echo "No draft release found for ${{ steps.get_tag.outputs.tag }}"
+            exit 1
+          fi
+
+          echo "Found draft release ID: $RELEASE_ID"
+
+          PREVIOUS_TAG=$(git describe --tags --abbrev=0 ${{ steps.get_tag.outputs.tag }}^ 2>/dev/null || echo "")
+
+          if [ -z "$PREVIOUS_TAG" ]; then
+            PREVIOUS_TAG=$(git rev-list --max-parents=0 HEAD)
+          fi
+
+          # Generate release notes
+          BODY=$(gh api \
+            --method POST \
+            -H "Accept: application/vnd.github+json" \
+            /repos/${{ github.repository }}/releases/generate-notes \
+            -f tag_name="${{ steps.get_tag.outputs.tag }}" \
+            -f target_commitish="main" \
+            -f previous_tag_name="$PREVIOUS_TAG" \
+            --jq '.body')
+
+          # Update the release
+          gh api \
+            --method PATCH \
+            -H "Accept: application/vnd.github+json" \
+            /repos/${{ github.repository }}/releases/$RELEASE_ID \
+            -f body="$BODY" \
+            -F draft=false
+
+      - name: Send Discord notification
+        if: always() && env.DISCORD_WEBHOOK != ''
         env:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }} 
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          COLOR=$([[ "${{ job.status }}" == "success" ]] && echo "3066993" || echo "15158332")
+          STATUS=$([[ "${{ job.status }}" == "success" ]] && echo "Success" || echo "Failed")
+
+          curl -X POST "$DISCORD_WEBHOOK" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"embeds\": [{
+                \"title\": \"Release ${{ steps.get_tag.outputs.tag }}\",
+                \"description\": \"Build status: $STATUS\",
+                \"color\": $COLOR,
+                \"url\": \"https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\"
+              }]
+            }"
