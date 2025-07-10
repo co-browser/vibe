@@ -29,7 +29,7 @@ export interface IStreamProcessor {
 export interface IAgentConfig {
   // LLM provider configuration (required)
   llmProvider: LLMProviderConfig;
-  
+
   // Optional configuration
   temperature?: number;
   maxTokens?: number;

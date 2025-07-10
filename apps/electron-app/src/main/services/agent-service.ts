@@ -363,7 +363,6 @@ export class AgentService extends EventEmitter implements IAgentService {
       throw new Error("Invalid config: llmProvider is required");
     }
 
-
     if (
       config.temperature !== undefined &&
       (typeof config.temperature !== "number" ||
@@ -438,11 +437,13 @@ export class AgentService extends EventEmitter implements IAgentService {
     return {
       temperature: config.temperature,
       processorType: config.processorType,
-      llmProvider: config.llmProvider ? {
-        type: config.llmProvider.type,
-        model: config.llmProvider.model,
-        // Exclude apiKey for security
-      } : undefined,
+      llmProvider: config.llmProvider
+        ? {
+            type: config.llmProvider.type,
+            model: config.llmProvider.model,
+            // Exclude apiKey for security
+          }
+        : undefined,
     };
   }
 

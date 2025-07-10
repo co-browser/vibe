@@ -63,7 +63,9 @@ let isCreatingAgent = false;
 
 const createAgent = async () => {
   if (!agentConfig?.llmProvider) {
-    logger.warn("Agent creation skipped: LLM provider configuration not available.");
+    logger.warn(
+      "Agent creation skipped: LLM provider configuration not available.",
+    );
     return;
   }
 

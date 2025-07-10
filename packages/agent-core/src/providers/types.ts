@@ -14,15 +14,15 @@ export interface LLMProviderConfig {
 
 export interface ILLMProvider {
   readonly type: SupportedProvider;
-  
+
   createModel(config: LLMProviderConfig): LanguageModelV1;
-  
+
   validateConfig(config: LLMProviderConfig): void;
-  
+
   getDefaultModel(): string;
-  
+
   getSupportedModels(): string[];
-  
+
   isModelSupported(modelId: string): boolean;
 }
 

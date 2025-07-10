@@ -143,9 +143,9 @@ ipcMain.handle("chat:create-agent-service", async () => {
     }
 
     // Get LLM provider configuration from settings
-    const llmProviderType = await getSetting("llmProviderType") || "openai";
+    const llmProviderType = (await getSetting("llmProviderType")) || "openai";
     const apiKey = await getSetting(llmProviderType);
-    
+
     if (!apiKey) {
       throw new Error("No API key found for LLM provider");
     }

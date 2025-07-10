@@ -5,7 +5,10 @@ import {
 } from "./index.js";
 import type { IToolManager, IAgentConfig } from "../interfaces/index.js";
 import { createLogger } from "@vibe/shared-types";
-import { LLMProviderFactory, type LLMProviderConfig } from "../providers/index.js";
+import {
+  LLMProviderFactory,
+  type LLMProviderConfig,
+} from "../providers/index.js";
 
 const logger = createLogger("ProcessorFactory");
 

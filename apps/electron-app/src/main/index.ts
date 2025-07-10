@@ -640,7 +640,7 @@ async function initializeServices(): Promise<void> {
         llmProvider: {
           type: "openai",
           apiKey: process.env.OPENAI_API_KEY,
-          model: "gpt-4o-mini"
+          model: "gpt-4o-mini",
         },
         processorType: "react",
         authToken: authToken ?? undefined,

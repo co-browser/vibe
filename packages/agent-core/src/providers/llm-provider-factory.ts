@@ -1,5 +1,10 @@
 import type { LanguageModelV1 } from "ai";
-import { ILLMProvider, LLMProviderConfig, LLMProviderError, SupportedProvider } from "./types.js";
+import {
+  ILLMProvider,
+  LLMProviderConfig,
+  LLMProviderError,
+  SupportedProvider,
+} from "./types.js";
 import { OpenAIProvider } from "./openai-provider.js";
 import { AnthropicProvider } from "./anthropic-provider.js";
 
@@ -8,7 +13,7 @@ export class LLMProviderFactory {
 
   static {
     this.registerProvider(new OpenAIProvider());
-    this.registerProvider(new AnthropicProvider()); 
+    this.registerProvider(new AnthropicProvider());
   }
 
   static registerProvider(provider: ILLMProvider): void {
