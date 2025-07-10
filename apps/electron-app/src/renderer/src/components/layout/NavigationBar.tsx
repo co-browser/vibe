@@ -451,6 +451,7 @@ const NavigationBar: React.FC = () => {
       loadAllHistoryForWorker,
       updateWorkerResults,
       workerSuggestions,
+      nonHistorySuggestions,
     ],
   );
 
@@ -647,7 +648,7 @@ const NavigationBar: React.FC = () => {
     });
 
     return cleanup;
-  }, [currentTabKey]);
+  }, [currentTabKey, isUserTyping]);
 
   // Monitor agent status
   useEffect(() => {
@@ -772,7 +773,7 @@ const NavigationBar: React.FC = () => {
 
       return suggestions;
     },
-    [currentTabKey],
+    [currentTabKey, isValidURL],
   );
 
   // Navigation handlers

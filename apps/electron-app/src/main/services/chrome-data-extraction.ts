@@ -527,11 +527,14 @@ export class ChromeDataExtractionService {
         return null;
       }
     } else if (platform === "linux") {
-      // Linux: Use hardcoded key or from gnome-keyring
+      // Linux: Chrome uses a well-known default password for local encryption
+      // This is not a security vulnerability - it's Chrome's documented behavior
+      // See: https://chromium.googlesource.com/chromium/src/+/master/docs/linux/password_storage.md
+      // The actual security comes from OS-level file permissions, not the encryption key
       const salt = Buffer.from("saltysalt");
       const iterations = 1;
       const keyLength = 16;
-      const password = "peanuts"; // Default Chrome password on Linux
+      const password = "peanuts"; // Chrome's default password on Linux (not a secret)
 
       return await pbkdf2Async(password, salt, iterations, keyLength, "sha1");
     }

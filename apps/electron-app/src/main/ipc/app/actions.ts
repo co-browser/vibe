@@ -64,26 +64,11 @@ ipcMain.handle(
       const menu = Menu.buildFromTemplate(template);
 
       // Use provided coordinates or try to get cursor position
-      let cursorPosition = coordinates || { x: 0, y: 0 };
+      const cursorPosition = coordinates || { x: 0, y: 0 };
 
-      // If no coordinates provided, try to get selection position as fallback
-      if (!coordinates) {
-        try {
-          cursorPosition = await event.sender.executeJavaScript(`
-          (() => {
-            const selection = window.getSelection();
-            if (selection && selection.rangeCount > 0) {
-              const range = selection.getRangeAt(0);
-              const rect = range.getBoundingClientRect();
-              return { x: rect.left + rect.width / 2, y: rect.bottom };
-            }
-            return { x: 0, y: 0 };
-          })()
-        `);
-        } catch (error) {
-          logger.warn("Failed to get cursor position from selection:", error);
-        }
-      }
+      // If no coordinates provided, use default position
+      // Note: Getting selection position via executeJavaScript was removed for security reasons
+      // Callers should provide explicit coordinates when needed
 
       // Import the constants we need
       const GLASSMORPHISM_PADDING = 8;
