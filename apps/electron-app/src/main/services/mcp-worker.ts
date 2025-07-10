@@ -19,6 +19,7 @@ export class MCPWorker extends EventEmitter {
   private restartCount = 0;
   private readonly maxRestarts = 3;
   private isRestarting = false;
+  private isShuttingDown = false;
 
   constructor() {
     super();
@@ -44,6 +45,7 @@ export class MCPWorker extends EventEmitter {
     if (this.workerProcess) {
       this.isConnected = false;
       this.isRestarting = false;
+      this.isShuttingDown = true;
 
       try {
         // Send stop message to allow graceful shutdown of child processes
@@ -63,6 +65,13 @@ export class MCPWorker extends EventEmitter {
             resolve();
           });
         });
+
+        // Log PID for debugging
+        if (this.workerProcess && this.workerProcess.pid) {
+          logger.info(
+            `Worker process PID ${this.workerProcess.pid} has exited`,
+          );
+        }
       } catch (error) {
         logger.error("Error during graceful shutdown:", error);
       } finally {
@@ -336,16 +345,19 @@ export class MCPWorker extends EventEmitter {
     // Emit disconnected event
     this.emit("disconnected", { code, restartCount: this.restartCount });
 
-    // Auto-restart if not too many failures
+    // Auto-restart if not too many failures and not shutting down
     if (
       this.restartCount < this.maxRestarts &&
       !this.isRestarting &&
+      !this.isShuttingDown &&
       this.workerProcess !== null
     ) {
       this.attemptRestart();
     } else if (this.restartCount >= this.maxRestarts) {
       logger.error("Max restart attempts reached");
       this.emit("error", new Error("Worker process repeatedly crashed"));
+    } else if (this.isShuttingDown) {
+      logger.info("Worker process exited during shutdown - not restarting");
     }
   }
 

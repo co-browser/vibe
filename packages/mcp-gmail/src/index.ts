@@ -124,11 +124,11 @@ async function gracefulShutdown(signal: string) {
 
     log.info('HTTP server closed to new connections');
 
-    // Give active connections time to complete (max 30 seconds)
+    // Give active connections time to complete (max 3 seconds for faster shutdown)
     const shutdownTimeout = setTimeout(() => {
       log.warn('Forcefully closing remaining connections after timeout');
       activeSockets.forEach(socket => socket.destroy());
-    }, 30000);
+    }, 3000);
 
     // Wait for all connections to close
     while (activeSockets.size > 0) {
@@ -138,10 +138,29 @@ async function gracefulShutdown(signal: string) {
 
     clearTimeout(shutdownTimeout);
 
-    // Close MCP server
-    await server.close();
-    log.info('Server closed gracefully');
+    // Force close any remaining sockets
+    activeSockets.forEach(socket => {
+      try {
+        socket.destroy();
+      } catch {
+        // Ignore errors during force close
+      }
+    });
 
+    // Close MCP server
+    try {
+      await server.close();
+      log.info('Server closed gracefully');
+    } catch (error) {
+      log.warn('Error closing server, forcing exit:', error);
+    }
+
+    // Force exit after a short delay to ensure cleanup
+    setTimeout(() => {
+      log.info('Forcing process exit');
+      process.exit(0);
+    }, 100);
+    
     process.exit(0);
   } catch (error) {
     log.error('Error during shutdown:', error);
