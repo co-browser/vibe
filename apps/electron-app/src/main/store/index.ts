@@ -13,7 +13,16 @@ export type Subscribe = (
 ) => () => void;
 
 /**
- * Store interface defining the core operations
+ * Store initialization status interface
+ */
+export interface StoreInitializationStatus {
+  isInitialized: boolean;
+  isInitializing: boolean;
+  lastError: Error | null;
+}
+
+/**
+ * Store interface defining the core operations with type safety
  */
 export type Store = {
   getState: () => AppState;
@@ -26,6 +35,13 @@ export type Store = {
     replace?: boolean,
   ) => void;
   subscribe: Subscribe;
+
+  // Initialization methods
+  initialize?: () => Promise<void>;
+  ensureInitialized?: () => Promise<void>;
+  isStoreReady?: () => boolean;
+  getInitializationStatus?: () => StoreInitializationStatus;
+  cleanup?: () => void;
 };
 
 export type { AppState } from "./types";
