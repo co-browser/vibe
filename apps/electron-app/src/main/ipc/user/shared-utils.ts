@@ -61,7 +61,8 @@ export function isProfilePreference(key: string): boolean {
  * Check if a key is an API key type
  */
 export function isApiKeyType(key: string): boolean {
-  // Handle various formats: "openaiApiKey", "openai", "llmApiKey", etc.
+  // Handle various formats: "openai", "anthropic", "llmApiKey", etc.
+  // Note: The frontend still uses "openaiApiKey" for backward compatibility
   const normalizedKey = key.replace(/ApiKey$/i, "").toLowerCase();
   return API_KEY_TYPES.includes(normalizedKey);
 }

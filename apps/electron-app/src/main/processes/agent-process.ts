@@ -21,9 +21,9 @@ interface BaseMessage {
 
 interface InitializeData {
   config: {
-    openaiApiKey?: string; // Made optional
     model?: string;
     processorType?: ProcessorType;
+    llmProvider?: any; // LLM provider configuration
   };
 }
 
@@ -43,9 +43,7 @@ interface UpdateAuthTokenData {
   token: string | null;
 }
 
-interface UpdateOpenAIApiKeyData {
-  apiKey: string;
-}
+// Removed UpdateOpenAIApiKeyData - API key updates no longer supported
 
 // ============================================================================
 // PROCESS STATE
@@ -56,19 +54,16 @@ let agentConfig: InitializeData["config"] | null = null;
 let isProcessing = false;
 let authToken: string | null = null;
 let isCreatingAgent = false;
-let isDestroyingAgent = false;
 
-// Retry mechanism constants
-const MAX_UPDATE_RETRIES = 3;
-const MAX_CLEAR_RETRIES = 3;
+// Removed retry constants - no longer needed
 
 // ============================================================================
 // INFRASTRUCTURE UTILITIES
 // ============================================================================
 
 const createAgent = async () => {
-  if (!agentConfig?.openaiApiKey) {
-    logger.warn("Agent creation skipped: OpenAI API key not available.");
+  if (!agentConfig?.llmProvider) {
+    logger.warn("Agent creation skipped: LLM provider configuration not available.");
     return;
   }
 
@@ -83,7 +78,7 @@ const createAgent = async () => {
   try {
     agent = await AgentFactory.create({
       ...agentConfig,
-      model: agentConfig?.model || "gpt-4o-mini",
+      llmProvider: agentConfig.llmProvider, // We already checked it exists above
       processorType: agentConfig?.processorType || "react",
       authToken: authToken ?? undefined,
     });
@@ -155,12 +150,9 @@ class MessageValidator {
     if (!config || typeof config !== "object") {
       throw new Error("Invalid config provided");
     }
-    // openaiApiKey is now optional for initialization
-    if (
-      config.openaiApiKey !== undefined &&
-      typeof config.openaiApiKey !== "string"
-    ) {
-      throw new Error("OpenAI API key must be a string if provided");
+    // llmProvider is now required for agent creation
+    if (config.llmProvider && typeof config.llmProvider !== "object") {
+      throw new Error("LLM provider must be an object if provided");
     }
   }
 
@@ -204,29 +196,29 @@ class MessageHandlers {
 
     MessageValidator.validateConfig(config);
 
-    // Merge new config with existing config (from env vars)
+    // Merge new config with existing config
     agentConfig = {
       ...agentConfig,
       ...config,
-      openaiApiKey: config.openaiApiKey?.trim() || agentConfig?.openaiApiKey,
       model: config.model || agentConfig?.model || "gpt-4o-mini",
       processorType: MessageValidator.validateProcessorType(
         config.processorType || agentConfig?.processorType,
       ),
+      llmProvider: config.llmProvider || agentConfig?.llmProvider,
     };
 
-    // Attempt to create the agent if not already created and we have an API key
-    if (!agent && agentConfig?.openaiApiKey) {
+    // Attempt to create the agent if not already created and we have LLM provider config
+    if (!agent && agentConfig?.llmProvider) {
       await createAgent();
     }
 
-    if (agentConfig?.openaiApiKey) {
+    if (agentConfig?.llmProvider) {
       logger.info(
-        "Agent initialized successfully in utility process with API key",
+        "Agent initialized successfully in utility process with LLM provider",
       );
     } else {
       logger.info(
-        "Agent worker initialized successfully, waiting for API key to create agent",
+        "Agent worker initialized successfully, waiting for LLM provider config to create agent",
       );
     }
 
@@ -285,9 +277,9 @@ class MessageHandlers {
     let ready: boolean = false;
 
     if (!agent) {
-      status = agentConfig?.openaiApiKey
+      status = agentConfig?.llmProvider
         ? "not_initialized"
-        : "waiting_for_api_key";
+        : "waiting_for_llm_provider";
     } else if (isProcessing) {
       status = "processing";
       ready = true;
@@ -376,161 +368,7 @@ class MessageHandlers {
       hasToken: !!authToken,
     });
   }
-  //function that asks for the api key and watches for changes
-  // RPM
-  static async handleUpdateOpenAIApiKey(
-    message: BaseMessage,
-    retryCount = 0,
-  ): Promise<void> {
-    logger.info(
-      "🔑 handleUpdateOpenAIApiKey called - processing API key update...",
-    );
-    const data = message.data as UpdateOpenAIApiKeyData;
-    const apiKey = data.apiKey;
-
-    logger.debug(
-      "API key data received:",
-      apiKey ? "present" : "null/undefined",
-    );
-
-    if (!apiKey || typeof apiKey !== "string" || apiKey.trim().length === 0) {
-      logger.error("Invalid API key received for update");
-      throw new Error("Valid OpenAI API key is required for update");
-    }
-
-    const trimmedKey = apiKey.trim();
-
-    // Check if key actually changed
-    if (agentConfig?.openaiApiKey === trimmedKey) {
-      logger.info("API key unchanged, skipping update");
-      IPCMessenger.sendResponse(message.id, { success: true });
-      return;
-    }
-
-    // Wait if agent is being created or destroyed
-    if (isCreatingAgent || isDestroyingAgent) {
-      logger.warn("Agent operation in progress, deferring API key update");
-      if (retryCount >= MAX_UPDATE_RETRIES) {
-        logger.error("Max retries exceeded for API key update");
-        IPCMessenger.sendError(message.id, "Max retries exceeded");
-        return;
-      }
-      // Use async delay instead of setTimeout
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      return MessageHandlers.handleUpdateOpenAIApiKey(message, retryCount + 1);
-    }
-
-    // Wait if agent is processing
-    if (isProcessing) {
-      logger.warn("Agent is processing, waiting before API key update...");
-      // Wait up to 5 seconds for processing to complete
-      await Promise.race([
-        new Promise<void>(resolve => {
-          const checkInterval = setInterval(() => {
-            if (!isProcessing) {
-              clearInterval(checkInterval);
-              resolve();
-            }
-          }, 100);
-        }),
-        new Promise<void>(resolve => setTimeout(resolve, 5000)),
-      ]);
-
-      if (isProcessing) {
-        logger.warn("Agent still processing after 5s, proceeding with update");
-      }
-    }
-
-    isDestroyingAgent = true;
-    try {
-      // Always restart the agent to ensure clean MCP connections
-      if (agent) {
-        // Destroy existing agent
-        agent = null;
-        logger.info("Destroying existing agent for clean restart");
-      }
-
-      // Update config with new key
-      agentConfig = { ...agentConfig, openaiApiKey: trimmedKey };
-
-      isDestroyingAgent = false;
-
-      // Create fresh agent instance - this will reinitialize all MCP connections
-      await createAgent();
-
-      if (agent) {
-        logger.info("Agent restarted successfully with new OpenAI API key");
-      } else {
-        logger.warn("Failed to create agent with new API key");
-      }
-
-      IPCMessenger.sendResponse(message.id, { success: true });
-    } catch (error) {
-      isDestroyingAgent = false;
-      throw error;
-    }
-  }
-
-  static async handleClearAgent(
-    message: BaseMessage,
-    retryCount = 0,
-  ): Promise<void> {
-    logger.info("🔑 Clearing agent due to API key removal");
-
-    // Wait if agent is being created
-    if (isCreatingAgent) {
-      logger.warn("Agent creation in progress, deferring clear operation");
-      if (retryCount >= MAX_CLEAR_RETRIES) {
-        logger.error("Max retries exceeded for clear agent");
-        IPCMessenger.sendError(message.id, "Max retries exceeded");
-        return;
-      }
-      // Use async delay instead of setTimeout
-      await new Promise(resolve => setTimeout(resolve, 500));
-      return MessageHandlers.handleClearAgent(message, retryCount + 1);
-    }
-
-    // Wait if agent is processing
-    if (isProcessing) {
-      logger.warn("Agent is processing, waiting before clearing...");
-      // Wait up to 5 seconds for processing to complete
-      await Promise.race([
-        new Promise<void>(resolve => {
-          const checkInterval = setInterval(() => {
-            if (!isProcessing) {
-              clearInterval(checkInterval);
-              resolve();
-            }
-          }, 100);
-        }),
-        new Promise<void>(resolve => setTimeout(resolve, 5000)),
-      ]);
-
-      if (isProcessing) {
-        logger.warn("Agent still processing after 5s, forcing clear");
-      }
-    }
-
-    isDestroyingAgent = true;
-    try {
-      if (agent) {
-        agent = null;
-        logger.info("Agent cleared successfully");
-      }
-
-      // Clear the API key from config
-      if (agentConfig) {
-        delete agentConfig.openaiApiKey;
-        logger.info("Removed API key from agent config");
-      }
-
-      IPCMessenger.sendResponse(message.id, {
-        success: true,
-      });
-    } finally {
-      isDestroyingAgent = false;
-    }
-  }
+  // Removed API key update handlers - no longer supported
 }
 
 // ============================================================================
@@ -584,14 +422,6 @@ async function handleMessageWithErrorHandling(
         await MessageHandlers.handleUpdateAuthToken(message);
         break;
 
-      case "update-openai-api-key":
-        await MessageHandlers.handleUpdateOpenAIApiKey(message);
-        break;
-
-      case "clear-agent":
-        await MessageHandlers.handleClearAgent(message);
-        break;
-
       default:
         logger.warn("Unknown message type:", message.type);
         IPCMessenger.sendError(
@@ -643,24 +473,7 @@ const bootstrap = () => {
       messageId: messageWrapper.id,
     });
 
-    if (
-      messageWrapper.type === "settings:changed" &&
-      messageWrapper.data?.key === "openaiApiKey"
-    ) {
-      logger.info("📨 Processing settings:changed message for OpenAI API key");
-      MessageHandlers.handleUpdateOpenAIApiKey({
-        id: "settings-update",
-        type: "update-openai-api-key",
-        data: { apiKey: messageWrapper.data.newValue },
-      });
-    } else {
-      if (messageWrapper.type === "update-openai-api-key") {
-        logger.info(
-          "📨 Received direct update-openai-api-key message, routing to handler",
-        );
-      }
-      handleMessageWithErrorHandling(messageWrapper);
-    }
+    handleMessageWithErrorHandling(messageWrapper);
   });
 
   // Process error handlers

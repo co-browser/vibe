@@ -141,7 +141,6 @@ logger.debug("Main Process Environment:", {
   PATH: process.env.PATH
     ? `${process.env.PATH.substring(0, 100)}...`
     : "undefined",
-  OPENAI_API_KEY: process.env.OPENAI_API_KEY ? "present" : "not set",
   envFileFound: !!envPath,
   isPackaged: app.isPackaged,
   LaunchMethod: process.env.PATH?.includes("/usr/local/bin")
@@ -194,9 +193,6 @@ app.commandLine.appendSwitch(
 app.commandLine.appendSwitch("enable-blink-features", "MojoJS,MojoJSTest");
 
 // Check for OpenAI API key availability
-if (!process.env.OPENAI_API_KEY) {
-  logger.warn("OPENAI_API_KEY not found in environment");
-}
 
 // Error handling with telemetry integration
 process.on("uncaughtException", error => {
@@ -504,7 +500,7 @@ function initializeApp(): boolean {
 /**
  * Initializes application services, including analytics and the AgentService if an OpenAI API key is present.
  *
- * If the `OPENAI_API_KEY` environment variable is set, this function creates and configures the AgentService, sets up event listeners, and injects the service into relevant IPC handlers. If the key is missing, service initialization is skipped and a warning is logged.
+ * Creates and configures the AgentService with LLM provider configuration from app settings. Sets up event listeners and injects the service into relevant IPC handlers.
  *
  * @throws If service initialization fails unexpectedly.
  */
@@ -518,7 +514,7 @@ async function initializeServices(): Promise<void> {
       version: app.getVersion(),
       platform: process.platform,
       environment: process.env.NODE_ENV || "development",
-      has_openai_key: !!process.env.OPENAI_API_KEY,
+      has_llm_config: false,
     });
 
     // Initialize MCP service first (before agent)
@@ -639,10 +635,13 @@ async function initializeServices(): Promise<void> {
       const { getAuthToken } = await import("./ipc/app/app-info.js");
       const authToken = getAuthToken();
 
-      // Initialize with configuration
+      // Default configuration
       await agentService.initialize({
-        openaiApiKey: process.env.OPENAI_API_KEY, // Allow undefined - agent service will check storage
-        model: "gpt-4o-mini",
+        llmProvider: {
+          type: "openai",
+          apiKey: process.env.OPENAI_API_KEY,
+          model: "gpt-4o-mini"
+        },
         processorType: "react",
         authToken: authToken ?? undefined,
       });

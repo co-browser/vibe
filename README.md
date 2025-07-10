@@ -27,7 +27,7 @@ In the chat window’s bottom bar:
 |---------|------------------|
 | **Sign in with Gmail** | Email tooling |
 | **Sign in with Co-Browser** | Persistent memory |
-| **Enter OpenAI API key** | AI features |
+| **Configure LLM Provider** | AI features |
 
 That’s all, start browsing and Vibe adapts as you go.
 
@@ -36,15 +36,11 @@ That’s all, start browsing and Vibe adapts as you go.
 ## Local Development
 
 ```bash
-# Copy the environment template
-cp .env.example .env
-
-# Add your OpenAI key inside .env
-# OPENAI_API_KEY=sk-xxxxxxxxxxxxx
-
 # Install dependencies and start the app
 pnpm install
 pnpm dev
+
+# Configure your LLM provider in the app settings
 ```
 
 The desktop application will reload automatically as you edit the source code.

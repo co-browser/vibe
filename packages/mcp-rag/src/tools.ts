@@ -8,7 +8,7 @@ if (process.env.NODE_ENV === 'development' || !process.env.ELECTRON_RUN_AS_NODE)
  * RAG Tools for Web Content Ingestion and Search
  * 
  * Environment Variables:
- * - OPENAI_API_KEY: Required for embeddings and optional perplexity chunking
+ * - OPENAI_API_KEY: Required for embeddings in this standalone MCP server
  * - TURBOPUFFER_API_KEY: Required for vector database storage
  * - ENABLE_PPL_CHUNKING: Set to 'true' to enable expensive perplexity-based chunking (default: false)
  * - FAST_MODE: Set to 'false' to disable fast optimizations (default: true)
@@ -93,8 +93,10 @@ function log(level: 'info' | 'warn' | 'error' | 'debug', message: string, ...arg
   }
 }
 
+// Note: This MCP server requires its own OpenAI API key for embeddings
+// This is separate from the main agent's LLM provider configuration
 if (!process.env.OPENAI_API_KEY) {
-  throw new Error("OPENAI_API_KEY environment variable is required");
+  throw new Error("OPENAI_API_KEY environment variable is required for MCP RAG server");
 }
 if (!process.env.TURBOPUFFER_API_KEY) {
   throw new Error("TURBOPUFFER_API_KEY environment variable is required");

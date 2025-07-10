@@ -42,7 +42,7 @@ All data is stored as key-value pairs by the `StorageService`. Keys are typicall
 - `settings.language` - Application language
 - `settings.devTools` - Developer tools enabled
 - `settings.windowBounds` - Window position/size
-- `settings.openaiApiKey` - The user's OpenAI API key (encrypted)
+- `settings.<provider>ApiKey` - The user's LLM provider API keys (encrypted)
 
 ### Profile Data (Managed by `ProfileService` via `StorageService`)
 - `profiles` - A map of all user profiles (metadata)
@@ -54,7 +54,7 @@ All data is stored as key-value pairs by the `StorageService`. Keys are typicall
 The agent's lifecycle is designed to be robust and secure, allowing it to start without an API key and wait until one is provided.
 
 1.  **Process Start**: The `agent-process` is launched by the main process.
-2.  **Environment Check**: It immediately checks for an `OPENAI_API_KEY` environment variable. If present, the agent initializes with it.
+2.  **Configuration Check**: The agent checks for LLM provider configuration in settings.
 3.  **Waiting State**: If the key is not found in the environment, the process enters a `waiting_for_api_key` state. It is running but the core `Agent` class is not yet instantiated.
 4.  **IPC Initialization**: The main process sends an `initialize` IPC message with the rest of the configuration (e.g., model, processor type).
 5.  **API Key Update**: The API key can be provided in two ways:
@@ -70,9 +70,9 @@ Here is the step-by-step data flow for updating the agent with a new API key fro
 
 1.  **User Action**: The user enters their OpenAI API key in the settings page (Renderer Process).
 2.  **IPC to Main**: The UI sends an IPC message (`settings:set`) to the Main Process with the new key.
-3.  **Storage Update**: The `settings-handlers` in the Main Process receives the message and tells the `StorageService` to save the key to `settings.openaiApiKey`.
+3.  **Storage Update**: The `settings-handlers` in the Main Process receives the message and tells the `StorageService` to save the provider configuration.
 4.  **Storage Event**: The `StorageService` successfully saves the key and emits a `change` event.
-5.  **IPC to Agent Process**: The `process-storage-handler` (which was set up when the agent process was created) is listening for these storage events. It catches the change to `settings.openaiApiKey` and forwards it to the `agent-process` via a `settings:changed` IPC message.
+5.  **Agent Configuration**: The agent service uses the new llmProvider configuration format which supports multiple LLM providers.
 6.  **Agent Update**: The `agent-process` receives the `settings:changed` message. Its IPC listener identifies the key update and calls its internal `handleUpdateOpenAIApiKey` function.
 7.  **Agent Ready**: The agent is created or updated with the new key and is now fully operational.
 
@@ -97,7 +97,7 @@ The current architecture supports multiple user profiles but operates with a sin
 
 - **How it Works**: The `ProfileService` maintains a `currentProfileId`. All operations related to profile-specific data (e.g., browsing history, preferences) use this ID to read from and write to the correct storage keys (e.g., `profile.{id}.history`). When a user switches profiles via the `setActiveProfile` method, the `currentProfileId` is updated, and all subsequent operations target the new profile's data.
 
-- **Global API Key**: A key aspect of this simplified model is the use of a single, global OpenAI API key stored in `settings.openaiApiKey`. This key is used by the agent regardless of which profile is active.
+- **LLM Provider Configuration**: The system now supports multiple LLM providers through a flexible llmProvider configuration. API keys are stored per provider type in settings.
 
 ### Future Enhancement: Multi-Profile API Keys
 

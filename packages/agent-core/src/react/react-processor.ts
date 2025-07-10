@@ -12,8 +12,8 @@ import {
   type CoreMessage,
   type TextStreamPart,
   type LanguageModelV1StreamPart,
+  type LanguageModelV1,
 } from "ai";
-import { openai } from "@ai-sdk/openai";
 import {
   REACT_XML_TAGS,
   REACT_SYSTEM_PROMPT_TEMPLATE,
@@ -54,7 +54,7 @@ export class ReActProcessor {
    * @param activeCdpTargetId Optional CDP target ID for context in tool execution.
    */
   constructor(
-    private model: ReturnType<typeof openai>,
+    private model: LanguageModelV1,
     private formattedToolsSignature: string,
     private maxIterations: number = MAX_REACT_ITERATIONS, // Default to imported constant
     private toolExecutor: ToolExecutor,

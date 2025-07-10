@@ -15,7 +15,7 @@ MCP server providing RAG (Retrieval-Augmented Generation) capabilities for web c
 ```bash
 # Environment setup
 cp .env.example .env
-# Add your OPENAI_API_KEY and TURBOPUFFER_API_KEY
+# Add your TURBOPUFFER_API_KEY
 
 # Start the server
 npm run dev
@@ -96,7 +96,7 @@ This server has been optimized for speed and includes several performance modes:
 
 ```bash
 # Required
-OPENAI_API_KEY=your_openai_api_key
+# LLM configuration is handled by the application
 TURBOPUFFER_API_KEY=your_turbopuffer_api_key
 
 # Performance Configuration (Optional)

@@ -12,12 +12,6 @@ import type {
   ExtractedPage,
 } from "@vibe/shared-types";
 import { createLogger } from "@vibe/shared-types";
-import { getProfileService } from "./profile-service";
-import { getSetting } from "../ipc/user/shared-utils";
-import {
-  isValidOpenAIApiKey,
-  sanitizeApiKeyForLogging,
-} from "../utils/api-key-validation";
 
 const logger = createLogger("AgentService");
 
@@ -32,12 +26,7 @@ export class AgentService extends EventEmitter implements IAgentService {
     | "error" = "disconnected";
   private lastActivityTime: number = 0;
   private isInitializing: boolean = false;
-  private apiKeyUpdateDebounceTimer: NodeJS.Timeout | null = null;
-
-  // Event listener handlers for proper cleanup
-  private profileSwitchedHandler?: () => void;
-  private apiKeySetHandler?: (data: any) => void;
-  private apiKeyRemovedHandler?: (data: any) => void;
+  // Removed API key related handlers - no longer needed
 
   constructor() {
     super();
@@ -68,34 +57,9 @@ export class AgentService extends EventEmitter implements IAgentService {
 
       logger.info("Initializing agent service");
 
-      // Get API key using centralized logic from shared-utils
-      const finalConfig = { ...config };
-      let apiKeySource = "none";
-
-      try {
-        const profileApiKey = await getSetting("openai");
-
-        if (profileApiKey) {
-          logger.info("Using OpenAI API key from settings");
-          finalConfig.openaiApiKey = profileApiKey;
-          apiKeySource = "settings";
-        } else {
-          logger.warn("No OpenAI API key found");
-          apiKeySource = "none";
-        }
-      } catch (error) {
-        logger.warn("Failed to get API key from settings:", error);
-        // Fallback to config as-is
-        if (config.openaiApiKey) {
-          apiKeySource = "config-fallback";
-        }
-      }
-
-      logger.info(`🔑 API key source: ${apiKeySource}`);
-
-      // Validate final config using existing shared types (allow empty API key during init)
-      this.validateConfig(finalConfig, true); // true = allowEmptyApiKey
-      this.config = finalConfig;
+      // Validate and store config
+      this.validateConfig(config);
+      this.config = config;
 
       // Create and start AgentWorker instance
       this.worker = new AgentWorker();
@@ -107,23 +71,10 @@ export class AgentService extends EventEmitter implements IAgentService {
       await this.worker.start();
 
       // Send initialization to worker process
-      const workerConfig: any = {
-        model: finalConfig.model,
-        processorType: finalConfig.processorType,
+      const workerConfig = {
+        processorType: config.processorType,
+        llmProvider: config.llmProvider,
       };
-
-      // Only include API key if it's actually present and non-empty
-      if (
-        finalConfig.openaiApiKey &&
-        finalConfig.openaiApiKey.trim().length > 0
-      ) {
-        workerConfig.openaiApiKey = finalConfig.openaiApiKey;
-        logger.info("Initializing agent worker with API key");
-      } else {
-        logger.warn(
-          "Initializing agent worker without API key - will be set when available",
-        );
-      }
 
       await this.worker.sendMessage("initialize", { config: workerConfig });
 
@@ -131,11 +82,6 @@ export class AgentService extends EventEmitter implements IAgentService {
       this.lastActivityTime = Date.now();
       this.isInitializing = false;
       logger.info("Agent service initialized successfully");
-
-      // Start monitoring profile changes AFTER worker is ready (fire and forget)
-      this.monitorProfileChanges().catch(error => {
-        logger.warn("Failed to start profile monitoring:", error);
-      });
     } catch (error) {
       this.status = "error";
       this.lastActivityTime = Date.now();
@@ -256,7 +202,7 @@ export class AgentService extends EventEmitter implements IAgentService {
       config: this.config ? this.sanitizeConfig(this.config) : undefined,
       lastActivity: this.lastActivityTime,
       isHealthy,
-      hasApiKey: !!this.config?.openaiApiKey, // Add flag without exposing the key
+      hasLLMProvider: !!this.config?.llmProvider, // Add flag without exposing sensitive data
     };
 
     return status;
@@ -312,12 +258,6 @@ export class AgentService extends EventEmitter implements IAgentService {
     try {
       logger.info("Terminating agent service");
 
-      // Cancel any pending API key updates
-      if (this.apiKeyUpdateDebounceTimer) {
-        clearTimeout(this.apiKeyUpdateDebounceTimer);
-        this.apiKeyUpdateDebounceTimer = null;
-      }
-
       // Prevent new operations during shutdown
       const originalStatus = this.status;
       this.status = "disconnected";
@@ -325,31 +265,6 @@ export class AgentService extends EventEmitter implements IAgentService {
 
       // Remove all event listeners to prevent memory leaks
       this.removeAllListeners();
-
-      // Also remove profile service listeners
-      try {
-        const profileService = await getProfileService();
-        if (this.profileSwitchedHandler) {
-          profileService.removeListener(
-            "profile-switched",
-            this.profileSwitchedHandler,
-          );
-          this.profileSwitchedHandler = undefined;
-        }
-        if (this.apiKeySetHandler) {
-          profileService.removeListener("api-key-set", this.apiKeySetHandler);
-          this.apiKeySetHandler = undefined;
-        }
-        if (this.apiKeyRemovedHandler) {
-          profileService.removeListener(
-            "api-key-removed",
-            this.apiKeyRemovedHandler,
-          );
-          this.apiKeyRemovedHandler = undefined;
-        }
-      } catch (error) {
-        logger.debug("Failed to remove profile service listeners:", error);
-      }
 
       // Stop AgentWorker cleanly with timeout
       if (this.worker) {
@@ -439,42 +354,15 @@ export class AgentService extends EventEmitter implements IAgentService {
   /**
    * Validate agent configuration
    */
-  private validateConfig(
-    config: AgentConfig,
-    allowEmptyApiKey: boolean = false,
-  ): void {
+  private validateConfig(config: AgentConfig): void {
     if (!config || typeof config !== "object") {
       throw new Error("Invalid config: must be an object");
     }
 
-    if (!allowEmptyApiKey) {
-      if (!config.openaiApiKey) {
-        throw new Error("Invalid config: openaiApiKey is required");
-      }
-      if (!isValidOpenAIApiKey(config.openaiApiKey)) {
-        throw new Error("Invalid config: openaiApiKey format is invalid");
-      }
-    } else {
-      // During initialization, API key can be empty (will be set later via profile)
-      if (config.openaiApiKey !== undefined) {
-        if (typeof config.openaiApiKey !== "string") {
-          throw new Error(
-            "Invalid config: openaiApiKey must be a string when provided",
-          );
-        }
-        // If API key is provided during init, validate it
-        if (
-          config.openaiApiKey.trim().length > 0 &&
-          !isValidOpenAIApiKey(config.openaiApiKey)
-        ) {
-          throw new Error("Invalid config: openaiApiKey format is invalid");
-        }
-      }
+    if (!config.llmProvider) {
+      throw new Error("Invalid config: llmProvider is required");
     }
 
-    if (config.model && typeof config.model !== "string") {
-      throw new Error("Invalid config: model must be a string");
-    }
 
     if (
       config.temperature !== undefined &&
@@ -548,172 +436,17 @@ export class AgentService extends EventEmitter implements IAgentService {
    */
   private sanitizeConfig(config: AgentConfig): Partial<AgentConfig> {
     return {
-      model: config.model,
       temperature: config.temperature,
       processorType: config.processorType,
-      // Exclude openaiApiKey for security
+      llmProvider: config.llmProvider ? {
+        type: config.llmProvider.type,
+        model: config.llmProvider.model,
+        // Exclude apiKey for security
+      } : undefined,
     };
   }
 
-  /**
-   * Monitor profile changes for API key updates
-   */
-  private async monitorProfileChanges(): Promise<void> {
-    logger.info("Monitoring profile changes for API key updates");
-    const profileService = await getProfileService();
-    const updateApiKey = async (retryCount = 0) => {
-      if (!this.worker || this.status === "disconnected") {
-        logger.debug("Worker not ready for API key update");
-        return;
-      }
-
-      const apiKey = await getSetting("openaiApiKey");
-
-      // Check if key actually changed
-      if (apiKey === this.config?.openaiApiKey) {
-        logger.debug("API key unchanged, skipping update");
-        return;
-      }
-
-      if (apiKey && apiKey.trim().length > 0) {
-        // Use centralized API key validation
-        if (!isValidOpenAIApiKey(apiKey)) {
-          logger.warn("Invalid OpenAI API key format detected", {
-            keyPreview: sanitizeApiKeyForLogging(apiKey),
-          });
-          return;
-        }
-
-        logger.info("Valid OpenAI API key detected, updating agent...", {
-          keyPreview: sanitizeApiKeyForLogging(apiKey),
-        });
-        try {
-          // Check if agent is currently processing
-          if (this.status === "processing") {
-            if (retryCount >= 5) {
-              logger.error("Max retries exceeded for API key update");
-              return;
-            }
-            logger.warn(
-              "Agent is currently processing, deferring API key update",
-            );
-            // Retry after a delay
-            setTimeout(() => updateApiKey(retryCount + 1), 2000);
-            return;
-          }
-
-          await this.worker.sendMessage("update-openai-api-key", { apiKey });
-          logger.info("✅ OpenAI API key updated successfully");
-
-          // Update our stored config to reflect the new key
-          if (this.config) {
-            this.config.openaiApiKey = apiKey;
-
-            // Emit status change to notify renderer
-            logger.info("Emitting agent status change after API key update");
-            this.emit("status-changed", this.getStatus());
-          }
-        } catch (error) {
-          logger.warn(
-            "❌ Failed to update OpenAI API key in agent worker:",
-            error,
-          );
-          // Don't throw - this is a non-critical operation that shouldn't break the service
-        }
-      }
-    };
-
-    // Debounced version of updateApiKey
-    const debouncedUpdateApiKey = () => {
-      if (this.apiKeyUpdateDebounceTimer) {
-        clearTimeout(this.apiKeyUpdateDebounceTimer);
-      }
-
-      this.apiKeyUpdateDebounceTimer = setTimeout(() => {
-        updateApiKey().catch(error => {
-          logger.warn("Debounced API key update failed:", error);
-        });
-      }, 500); // 500ms debounce
-    };
-
-    // Listen for changes
-    // Initial key check removed - agent already receives key during initialization
-    this.profileSwitchedHandler = () => {
-      debouncedUpdateApiKey();
-    };
-    profileService.on("profile-switched", this.profileSwitchedHandler);
-
-    this.apiKeySetHandler = data => {
-      if (data.keyType === "openai") {
-        logger.info("🔑 OpenAI API key was set in profile, updating agent...");
-        debouncedUpdateApiKey();
-      }
-    };
-    profileService.on("api-key-set", this.apiKeySetHandler);
-
-    this.apiKeyRemovedHandler = data => {
-      if (data.keyType === "openai") {
-        logger.info(
-          "🔑 OpenAI API key was removed from profile, clearing agent...",
-        );
-        // Don't debounce removal - should be immediate
-        this.handleApiKeyRemoval().catch(error => {
-          logger.warn("API key removal handling failed:", error);
-        });
-      }
-    };
-    profileService.on("api-key-removed", this.apiKeyRemovedHandler);
-  }
-
-  /**
-   * Handle API key removal
-   */
-  private async handleApiKeyRemoval(): Promise<void> {
-    if (!this.worker) {
-      return;
-    }
-
-    // Cancel any pending API key updates
-    if (this.apiKeyUpdateDebounceTimer) {
-      clearTimeout(this.apiKeyUpdateDebounceTimer);
-      this.apiKeyUpdateDebounceTimer = null;
-    }
-
-    try {
-      logger.info("Handling OpenAI API key removal");
-
-      // Wait if agent is currently processing
-      if (this.status === "processing") {
-        logger.warn("Agent is processing, waiting before key removal...");
-        // Wait up to 5 seconds for processing to complete
-        const waitStart = Date.now();
-        while (this.status === "processing" && Date.now() - waitStart < 5000) {
-          await new Promise(resolve => setTimeout(resolve, 100));
-        }
-
-        if (this.status === "processing") {
-          logger.warn("Agent still processing after 5s, forcing key removal");
-        }
-      }
-
-      // Clear the API key from our config
-      if (this.config) {
-        delete this.config.openaiApiKey;
-      }
-
-      // Send message to worker to clear the agent
-      await this.worker.sendMessage("clear-agent", {});
-
-      // Update status to reflect no API key
-      this.status = "ready";
-      logger.info("Agent cleared due to API key removal");
-
-      // Emit status change
-      this.emit("status-changed", this.getStatus());
-    } catch (error) {
-      logger.error("Failed to handle API key removal:", error);
-    }
-  }
+  // Removed profile monitoring and API key update methods - no longer needed
 
   /**
    * Check if the service can be safely terminated

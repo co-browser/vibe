@@ -57,6 +57,7 @@ class MCPManager {
         PATH: envVars.PATH
           ? `${envVars.PATH.substring(0, 100)}...`
           : "undefined",
+        // MCP servers may need their own API keys
         OPENAI_API_KEY: envVars.OPENAI_API_KEY ? "present" : "not set",
         LaunchMethod: envVars.PATH?.includes("/usr/local/bin")
           ? "terminal"

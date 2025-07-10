@@ -36,28 +36,26 @@ ipcMain.handle("chat:get-agent-status", async () => {
     const agentService = getAgentService();
 
     if (!agentService) {
-      // Check if we have an API key available
-      const hasApiKey = !!(await getSetting("openaiApiKey"));
-
+      // Agent service not yet initialized
       return {
-        status: hasApiKey ? "not_initialized" : "no_api_key",
+        status: "not_initialized",
         ready: false,
         initialized: false,
-        serviceStatus: hasApiKey ? "disconnected" : "no_api_key",
+        serviceStatus: "disconnected",
       };
     }
 
     const serviceStatus = agentService.getStatus();
 
-    // Check if we have an API key using the flag from service
-    const hasApiKey = serviceStatus.hasApiKey || false;
+    // Check if we have an LLM provider configured
+    const hasLLMProvider = serviceStatus.hasLLMProvider || false;
 
-    // Agent service might be "ready" but without an actual agent if no API key
-    const actuallyReady = serviceStatus.ready && hasApiKey;
+    // Agent service might be "ready" but without an actual agent if no LLM provider
+    const actuallyReady = serviceStatus.ready && hasLLMProvider;
 
     return {
-      status: !hasApiKey
-        ? "no_api_key"
+      status: !hasLLMProvider
+        ? "no_llm_provider"
         : actuallyReady
           ? "ready"
           : serviceStatus.serviceStatus,
@@ -65,7 +63,7 @@ ipcMain.handle("chat:get-agent-status", async () => {
       initialized: serviceStatus.initialized,
       serviceStatus: serviceStatus.serviceStatus,
       workerConnected: serviceStatus.workerStatus?.connected || false,
-      isHealthy: serviceStatus.isHealthy && hasApiKey,
+      isHealthy: serviceStatus.isHealthy && hasLLMProvider,
       lastActivity: serviceStatus.lastActivity,
     };
   } catch (error) {
@@ -144,10 +142,12 @@ ipcMain.handle("chat:create-agent-service", async () => {
       };
     }
 
-    // Check for API key in storage or environment
-    const apiKey = await getSetting("openaiApiKey");
+    // Get LLM provider configuration from settings
+    const llmProviderType = await getSetting("llmProviderType") || "openai";
+    const apiKey = await getSetting(llmProviderType);
+    
     if (!apiKey) {
-      throw new Error("No API key found in storage or environment");
+      throw new Error("No API key found for LLM provider");
     }
 
     logger.info("Creating agent service after app startup");
@@ -172,9 +172,12 @@ ipcMain.handle("chat:create-agent-service", async () => {
 
     // Initialize with configuration
     await agentService.initialize({
-      openaiApiKey: apiKey,
-      model: "gpt-4o-mini",
       processorType: "react",
+      llmProvider: {
+        type: llmProviderType,
+        apiKey: apiKey,
+        model: "gpt-4o-mini",
+      },
       authToken: authToken ?? undefined,
     });
 

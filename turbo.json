@@ -12,7 +12,6 @@
       "persistent": true,
       "env": [
         "GITHUB_TOKEN",
-        "OPENAI_API_KEY",
         "PORT",
         "LOG_LEVEL",
         "MCP_SERVER_PORT"

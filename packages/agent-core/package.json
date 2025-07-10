@@ -13,9 +13,10 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@vibe/shared-types": "workspace:*",
+    "@ai-sdk/anthropic": "^1.2.12",
     "@ai-sdk/openai": "^1.3.22",
     "@modelcontextprotocol/sdk": "^1.13.0",
+    "@vibe/shared-types": "workspace:*",
     "ai": "^4.3.16"
   },
   "devDependencies": {

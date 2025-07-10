@@ -4,6 +4,7 @@ import type { ReActStreamPart } from "../react/react-processor.js";
 import type { CoActStreamPart } from "../react/coact-processor.js";
 import type { ReactObservation } from "../react/types.js";
 import type { ExtractedPage } from "@vibe/shared-types";
+import type { LLMProviderConfig } from "../providers/types.js";
 
 export type CombinedStreamPart = ReActStreamPart | CoActStreamPart;
 
@@ -26,11 +27,15 @@ export interface IStreamProcessor {
 }
 
 export interface IAgentConfig {
-  openaiApiKey?: string;
-  model: string;
+  // LLM provider configuration (required)
+  llmProvider: LLMProviderConfig;
+  
+  // Optional configuration
   temperature?: number;
-  maxTokensPerTab?: number;
+  maxTokens?: number;
   processorType?: ProcessorType;
+  keepAlive?: string;
+  tools?: string[];
   systemPrompt?: string;
   conversationHistory?: [string, string][];
   authToken?: string;

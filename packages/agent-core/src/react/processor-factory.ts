@@ -1,4 +1,3 @@
-import { createOpenAI } from "@ai-sdk/openai";
 import {
   ReActProcessor,
   CoActProcessor,
@@ -6,6 +5,7 @@ import {
 } from "./index.js";
 import type { IToolManager, IAgentConfig } from "../interfaces/index.js";
 import { createLogger } from "@vibe/shared-types";
+import { LLMProviderFactory, type LLMProviderConfig } from "../providers/index.js";
 
 const logger = createLogger("ProcessorFactory");
 
@@ -23,20 +23,14 @@ export class ProcessorFactory {
     const toolExecutor = toolManager.executeTools.bind(toolManager);
     const systemPrompt = formattedTools;
 
-    // Validate API key presence
-    const apiKey = config.openaiApiKey || process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      throw new Error(
-        "OpenAI API key is required but not provided in config or environment variables",
-      );
-    }
+    // Create LLM provider configuration
+    const providerConfig: LLMProviderConfig = {
+      ...config.llmProvider,
+      temperature: config.llmProvider.temperature ?? config.temperature,
+    };
 
-    // Create OpenAI instance with validated API key
-    const openai = createOpenAI({
-      apiKey: apiKey,
-    });
-
-    const model = openai.chat(config.model || "gpt-4o-mini");
+    // Create model using the provider factory
+    const model = LLMProviderFactory.createModel(providerConfig);
 
     const processor =
       processorType === "coact"
@@ -54,7 +48,7 @@ export class ProcessorFactory {
           );
 
     logger.debug(
-      `[Agent] ${processorType.toUpperCase()} processor initialized and ready`,
+      `[Agent] ${processorType.toUpperCase()} processor initialized with ${providerConfig.type} provider`,
     );
     return processor;
   }

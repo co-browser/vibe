@@ -6,9 +6,8 @@ import { RAGAgent } from './rag-agent.js';
 async function runAgentTest() {
   console.log('🚀 Starting RAG Agent Conversation Test\n');
 
-  if (!process.env.OPENAI_API_KEY) {
-    throw new Error('OPENAI_API_KEY environment variable is required');
-  }
+  // Note: This test file requires OpenAI API key to be configured
+  // Update rag-agent.ts to use the new llmProvider configuration
 
   const serverUrl = process.env.RAG_SERVER_URL || 'http://localhost:3000/mcp';
   const agent = new RAGAgent(serverUrl);
@@ -64,7 +63,7 @@ async function runAgentTest() {
     console.log('\nThe RAG agent successfully:');
     console.log('✅ Connected to the MCP server');
     console.log('✅ Loaded available tools (ingest_url, query_kb)');
-    console.log('✅ Used OpenAI to process natural language queries');
+    console.log('✅ Used LLM provider to process natural language queries');
     console.log('✅ Called MCP tools when needed');
     console.log('✅ Provided intelligent responses based on retrieved information');
     console.log('\n🚀 Your RAG system is working perfectly!\n');

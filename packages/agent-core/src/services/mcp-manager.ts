@@ -388,6 +388,7 @@ export class MCPManager implements IMCPManager {
       const envVars: Record<string, string> = {
         USE_LOCAL_RAG_SERVER: process.env.USE_LOCAL_RAG_SERVER || "",
         RAG_SERVER_URL: process.env.RAG_SERVER_URL || "",
+        // Note: MCP RAG server may require its own OPENAI_API_KEY for embeddings
         OPENAI_API_KEY: process.env.OPENAI_API_KEY || "",
         TURBOPUFFER_API_KEY: process.env.TURBOPUFFER_API_KEY || "",
         ENABLE_PPL_CHUNKING: process.env.ENABLE_PPL_CHUNKING || "",

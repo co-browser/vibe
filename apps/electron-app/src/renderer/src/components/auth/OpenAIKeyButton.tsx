@@ -1,3 +1,7 @@
+// TODO: This component needs to be refactored to support multiple LLM providers
+// Currently it only supports OpenAI, but the backend now uses a generic llmProvider configuration
+// Consider renaming to LLMProviderButton and supporting provider selection
+
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Key, Eye, EyeOff, Check, X } from "lucide-react";
 import { IconWithStatus } from "@/components/ui/icon-with-status";
@@ -62,7 +66,8 @@ export const OpenAIKeyButton: React.FC<OpenAIKeyButtonProps> = ({
     setIsLoading(true);
     setError(null);
     try {
-      // Save the key to settings - the agent service will automatically pick up the change
+      // Save the key to settings - this is still using the legacy openaiApiKey
+      // TODO: Update to use the new llmProvider configuration format
       await window.vibe.settings.set("openaiApiKey", apiKey);
 
       // Try to create agent service if it doesn't exist
@@ -99,7 +104,8 @@ export const OpenAIKeyButton: React.FC<OpenAIKeyButtonProps> = ({
     setIsLoading(true);
     setError(null);
     try {
-      // Clear the key from settings - the agent service will automatically pick up the change
+      // Clear the key from settings - this is still using the legacy openaiApiKey
+      // TODO: Update to use the new llmProvider configuration format
       await window.vibe.settings.set("openaiApiKey", null);
       setHasStoredKey(false);
       setApiKey("");

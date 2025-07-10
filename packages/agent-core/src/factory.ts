@@ -125,13 +125,7 @@ export class AgentFactory {
     const toolManager = new ToolManager(mcpManager);
     const streamProcessor = new StreamProcessor();
 
-    // Ensure model is always provided
-    const agentConfig = {
-      ...config,
-      model: config.model || "gpt-4o-mini",
-    };
-
     // Create and return configured Agent with multi-MCP implementation
-    return new Agent(toolManager, streamProcessor, agentConfig, mcpManager);
+    return new Agent(toolManager, streamProcessor, config, mcpManager);
   }
 }

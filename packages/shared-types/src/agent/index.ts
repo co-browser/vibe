@@ -7,12 +7,18 @@ import type { ExtractedPage } from "../browser/index.js";
 export type ProcessorType = "react" | "coact";
 
 export interface AgentConfig {
-  openaiApiKey?: string;
-  model: string;
   temperature?: number;
   maxTokens?: number;
   processorType?: ProcessorType;
   keepAlive?: string;
+  llmProvider: {
+    type: "openai" | "anthropic" | "cohere" | "custom";
+    apiKey?: string;
+    model: string;
+    temperature?: number;
+    baseUrl?: string;
+    options?: Record<string, any>;
+  };
   mcp?: {
     enabled: boolean;
     url: string;
@@ -27,7 +33,7 @@ export interface AgentStatus {
   ready: boolean;
   initialized: boolean;
   serviceStatus:
-    | "no_api_key"
+    | "no_llm_provider"
     | "disconnected"
     | "initializing"
     | "ready"
@@ -42,7 +48,7 @@ export interface AgentStatus {
   config?: Partial<AgentConfig>;
   lastActivity?: number;
   isHealthy?: boolean;
-  hasApiKey?: boolean;
+  hasLLMProvider?: boolean;
 }
 
 // Interface for what IPC handlers and external components need

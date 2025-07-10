@@ -18,12 +18,15 @@ export class RAGAgent {
   private toolHandlers: Record<string, (args: any) => Promise<any>> = {};
 
   constructor(mcpServerUrl: string = 'http://localhost:3000/mcp') {
-    if (!process.env.OPENAI_API_KEY) {
-      throw new Error('OPENAI_API_KEY environment variable is required');
+    // Note: This test file uses OpenAI directly for testing purposes.
+    // In production, use the agent-core package with llmProvider configuration.
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      throw new Error('OPENAI_API_KEY environment variable is required for this test');
     }
     
     this.llm = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
+      apiKey: apiKey,
     });
     
     this.mcpClient = new RAGTestClient(mcpServerUrl);

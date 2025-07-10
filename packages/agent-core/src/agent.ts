@@ -121,7 +121,8 @@ export class Agent {
     }
   }
 
-  // Note: updateOpenAIApiKey method has been removed.
-  // When the OpenAI API key changes, the entire agent is restarted
-  // to ensure clean MCP connections. See agent-process.ts handleUpdateOpenAIApiKey.
+  // Note: API key updates are currently not supported at the agent level
+  // TODO: Add support for API key updates at the agent level
+  // The agent must be recreated with a new llmProvider configuration
+  // when changing API keys or providers.
 }

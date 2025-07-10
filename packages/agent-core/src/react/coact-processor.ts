@@ -12,8 +12,8 @@ import {
   type CoreMessage,
   type TextStreamPart,
   type LanguageModelV1StreamPart,
+  type LanguageModelV1,
 } from "ai";
-import { openai } from "@ai-sdk/openai";
 import { REACT_XML_TAGS, MAX_REACT_ITERATIONS } from "./config.js";
 import { extractXmlTagContent, parseReactToolCall } from "./xml-parser.js";
 import { createLogger } from "@vibe/shared-types";
@@ -112,7 +112,7 @@ Execute the task efficiently and report clear results or errors.
 `;
 
   constructor(
-    private model: ReturnType<typeof openai>,
+    private model: LanguageModelV1,
     private formattedToolsSignature: string,
     private maxIterations: number = MAX_REACT_ITERATIONS,
     private toolExecutor: ToolExecutor,

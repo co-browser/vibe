@@ -17,8 +17,11 @@ import { AgentFactory } from '@vibe/agent-core';
 
 // Create agent with dependencies
 const agent = AgentFactory.create({
-  openaiApiKey: process.env.OPENAI_API_KEY,
-  model: "gpt-4o-mini",
+  llmProvider: {
+    type: "openai",
+    apiKey: process.env.OPENAI_API_KEY,
+    model: "gpt-4o-mini"
+  },
   mcpServerUrl: "ws://localhost:3001"
 });
 

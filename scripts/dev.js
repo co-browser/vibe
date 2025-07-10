@@ -138,10 +138,6 @@ async function main() {
 
     console.log("✅ Dependencies built successfully\n");
 
-    // Check if OPENAI_API_KEY is available
-    if (!process.env.OPENAI_API_KEY)
-      console.log("⚠️  OPENAI_API_KEY not foun in env\n");
-
     turboProcess = spawn("turbo", ["run", "dev"], {
       stdio: "inherit",
       detached: true,
