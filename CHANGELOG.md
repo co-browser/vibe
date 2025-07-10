@@ -1,4 +1,13 @@
 
+<a name="v0.1.7"></a>
+## [v0.1.7] - 2025-07-10
+### Fix
+- prevent Gmail MCP server orphaned processes on app quit
+
+### Pull Requests
+- Merge pull request [#73](https://github.com/co-browser/vibe/issues/73) from co-browser/fix/gmail-mcp-process-cleanup
+
+
 <a name="v0.1.6"></a>
 ## [v0.1.6] - 2025-07-10
 ### Chore
@@ -6,6 +15,7 @@
 - update README.md title for clarity
 - update README.md to enhance project description and clarify setup instructions
 - **oauth-proxy:** prepare v1.1.4 release
+- **release:** v0.1.6
 
 ### Feat
 - add cloud-based OAuth proxy server for Gmail authentication
@@ -293,6 +303,7 @@ Gmail authentication now uses cloud OAuth by default. Users can opt-in to local 
 <a name="v0.0.0"></a>
 ## v0.0.0 - 2025-06-13
 
+[v0.1.7]: https://github.com/co-browser/vibe/compare/v0.1.6...v0.1.7
 [v0.1.6]: https://github.com/co-browser/vibe/compare/v0.1.5...v0.1.6
 [v0.1.5]: https://github.com/co-browser/vibe/compare/v0.1.4...v0.1.5
 [v0.1.4]: https://github.com/co-browser/vibe/compare/v0.1.3...v0.1.4

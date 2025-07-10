@@ -105,7 +105,15 @@ Placing this file switches Vibe to self-hosted OAuth mode automatically.
 
 ## Release Notes
 
-See [CHANGELOG.md](CHANGELOG.md).
+> **Note**
+>
+> [v0.1.7](https://github.com/co-browser/vibe/releases/tag/v0.1.7) - July 10, 2025
+>
+> • **Gmail Fix:** Fixed an issue where Gmail integration would break after restarting the app  
+> • **Process Management:** Email server now properly shuts down when you quit the app  
+> • **Stability:** No more "port already in use" errors on subsequent launches 
+
+For the full technical changelog, see [CHANGELOG.md](CHANGELOG.md).
 
 ## Contributing
 
