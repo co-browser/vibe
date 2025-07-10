@@ -489,6 +489,9 @@ class MCPManager {
       }
     });
 
+    // Log PID when process starts
+    logger.info(`[MCP-${config.name}] Started with PID: ${serverProcess.pid}`);
+
     serverProcess.on("error", error => {
       logger.error(`[MCP-${config.name}] Failed to start:`, error);
       logger.error(`[MCP-${config.name}] Spawn details:`, {
@@ -503,8 +506,10 @@ class MCPManager {
       this.notifyServerStatus(config.name, "error");
     });
 
-    serverProcess.on("exit", code => {
-      logger.info(`[MCP-${config.name}] Exited with code ${code}`);
+    serverProcess.on("exit", (code, signal) => {
+      logger.info(
+        `[MCP-${config.name}] Process ${serverProcess.pid} exited with code ${code}, signal ${signal}`,
+      );
       server.status = "stopped";
       this.servers.delete(config.name);
       this.notifyServerStatus(config.name, "stopped");
@@ -625,17 +630,31 @@ class MCPManager {
       const stopPromise = new Promise<void>(resolve => {
         const timeout = setTimeout(() => {
           logger.warn(`${name} server did not exit gracefully, force killing`);
-          server.process.kill("SIGKILL");
+          try {
+            // Try SIGKILL on the process
+            server.process.kill("SIGKILL");
+            // Also try to kill by PID directly in case the process reference is stale
+            if (server.process.pid) {
+              process.kill(server.process.pid, "SIGKILL");
+            }
+          } catch (e) {
+            logger.error(`Failed to force kill ${name} server:`, e);
+          }
           resolve();
-        }, 5000); // 5 second timeout for graceful shutdown
+        }, 2000); // Reduce timeout to 2 seconds for faster cleanup
 
-        server.process.once("exit", () => {
+        server.process.once("exit", (code, signal) => {
           clearTimeout(timeout);
-          logger.info(`${name} server exited`);
+          logger.info(
+            `${name} server PID ${server.process.pid} exited with code ${code}, signal ${signal}`,
+          );
           resolve();
         });
 
         // Send SIGTERM to initiate graceful shutdown
+        logger.info(
+          `Sending SIGTERM to ${name} server PID ${server.process.pid}`,
+        );
         server.process.kill("SIGTERM");
       });
 
