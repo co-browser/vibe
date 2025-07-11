@@ -1,0 +1,352 @@
+/**
+ * Settings Modal Styles
+ * Apple-inspired design with glassmorphism effects
+ */
+
+.settings-modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.settings-modal {
+  width: 900px;
+  height: 600px;
+  max-width: 95vw;
+  max-height: 90vh;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border-radius: 16px;
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.2),
+    0 8px 24px rgba(0, 0, 0, 0.1),
+    0 0 0 1px rgba(255, 255, 255, 0.2);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* Header */
+.settings-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 24px 32px 16px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.settings-modal-header h2 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 600;
+  color: #1a1a1a;
+  letter-spacing: -0.02em;
+}
+
+.settings-modal-close {
+  background: none;
+  border: none;
+  font-size: 20px;
+  color: #666;
+  cursor: pointer;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.settings-modal-close:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: #333;
+}
+
+/* Content */
+.settings-modal-content {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.settings-tabs {
+  width: 200px;
+  background: rgba(0, 0, 0, 0.02);
+  border-right: 1px solid rgba(0, 0, 0, 0.08);
+  padding: 16px 0;
+  flex-shrink: 0;
+}
+
+.settings-tab {
+  display: block;
+  width: 100%;
+  padding: 12px 24px;
+  background: none;
+  border: none;
+  text-align: left;
+  font-size: 14px;
+  font-weight: 500;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border-radius: 0;
+}
+
+.settings-tab:hover {
+  background: rgba(0, 0, 0, 0.04);
+  color: #333;
+}
+
+.settings-tab.active {
+  background: rgba(59, 130, 246, 0.1);
+  color: #2563eb;
+  font-weight: 600;
+}
+
+.settings-content {
+  flex: 1;
+  padding: 24px 32px;
+  overflow-y: auto;
+}
+
+.settings-section {
+  max-width: 500px;
+}
+
+.settings-section h3 {
+  margin: 0 0 24px 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: #1a1a1a;
+  letter-spacing: -0.01em;
+}
+
+.settings-group {
+  margin-bottom: 20px;
+}
+
+.settings-label {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: #333;
+  margin-bottom: 8px;
+}
+
+.settings-input,
+.settings-select {
+  width: 100%;
+  padding: 12px 16px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  font-size: 14px;
+  background: rgba(255, 255, 255, 0.8);
+  transition: all 0.15s ease;
+  margin-top: 8px;
+}
+
+.settings-input:focus,
+.settings-select:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  background: rgba(255, 255, 255, 0.95);
+}
+
+.settings-checkbox {
+  display: flex;
+  align-items: center;
+  font-size: 14px;
+  color: #333;
+  cursor: pointer;
+  user-select: none;
+}
+
+.settings-checkbox input[type="checkbox"] {
+  margin-right: 12px;
+  width: 18px;
+  height: 18px;
+  accent-color: #2563eb;
+}
+
+.settings-button {
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  transition: all 0.15s ease;
+}
+
+.settings-button.primary {
+  background: #2563eb;
+  color: white;
+}
+
+.settings-button.primary:hover {
+  background: #1d4ed8;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+}
+
+.settings-button.secondary {
+  background: rgba(0, 0, 0, 0.04);
+  color: #666;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.settings-button.secondary:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: #333;
+}
+
+/* Footer */
+.settings-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px 32px 24px;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .settings-modal {
+    background: rgba(40, 40, 40, 0.95);
+    color: #e5e5e5;
+  }
+
+  .settings-modal-header h2 {
+    color: #e5e5e5;
+  }
+
+  .settings-modal-close {
+    color: #a1a1a1;
+  }
+
+  .settings-modal-close:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #e5e5e5;
+  }
+
+  .settings-tabs {
+    background: rgba(255, 255, 255, 0.03);
+    border-right-color: rgba(255, 255, 255, 0.1);
+  }
+
+  .settings-tab {
+    color: #a1a1a1;
+  }
+
+  .settings-tab:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: #e5e5e5;
+  }
+
+  .settings-section h3 {
+    color: #e5e5e5;
+  }
+
+  .settings-label {
+    color: #d1d1d1;
+  }
+
+  .settings-input,
+  .settings-select {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.1);
+    color: #e5e5e5;
+  }
+
+  .settings-input:focus,
+  .settings-select:focus {
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .settings-checkbox {
+    color: #d1d1d1;
+  }
+
+  .settings-button.secondary {
+    background: rgba(255, 255, 255, 0.05);
+    color: #a1a1a1;
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+
+  .settings-button.secondary:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #e5e5e5;
+  }
+
+  .settings-modal-footer {
+    border-top-color: rgba(255, 255, 255, 0.1);
+  }
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .settings-modal {
+    width: 95vw;
+    height: 90vh;
+  }
+
+  .settings-modal-content {
+    flex-direction: column;
+  }
+
+  .settings-tabs {
+    width: 100%;
+    display: flex;
+    overflow-x: auto;
+    border-right: none;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+    padding: 8px 16px;
+  }
+
+  .settings-tab {
+    white-space: nowrap;
+    padding: 8px 16px;
+    margin-right: 8px;
+    border-radius: 8px;
+  }
+
+  .settings-content {
+    padding: 16px 24px;
+  }
+}
