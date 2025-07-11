@@ -13,6 +13,6 @@ export const t = initTRPC.context<typeof createContext>().create();
 
 /** Minimal error logger */
 export function onTrpcError({ error }: { error: TRPCError }) {
-  /* eslint-disable no-console */
+   
   console.error("[tRPC]", error.code, error.message);
 }

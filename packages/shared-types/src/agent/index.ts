@@ -53,6 +53,7 @@ export interface IAgentProvider {
   reset(): Promise<void>;
   saveTabMemory(extractedPage: ExtractedPage): Promise<void>;
   updateAuthToken(token: string | null): Promise<void>;
+  updateGmailTokens(tokens: any): Promise<void>;
 
   // Event handling
   on(event: "message-stream", listener: (data: any) => void): void;

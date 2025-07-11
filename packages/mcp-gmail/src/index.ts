@@ -6,6 +6,7 @@ import { hostname } from 'node:os';
 import { createServer } from 'node:http';
 import { Socket } from 'node:net';
 import { GmailTools } from './tools.js';
+import { validatePrivyToken } from './middleware/auth.js';
 
 // IPC message types
 interface IPCMessage {
@@ -59,6 +60,14 @@ const server = new StreamableHTTPServer(
 const app = express();
 app.use(express.json());
 
+// Apply auth middleware only in cloud mode
+if (process.env.USE_LOCAL_GMAIL_SERVER !== 'true') {
+  log.info('Running in cloud mode - applying Privy authentication');
+  app.use(validatePrivyToken);
+} else {
+  log.info('Running in local mode - authentication disabled');
+}
+
 const router = express.Router();
 const MCP_ENDPOINT = '/mcp';
 const PORT = process.env.PORT || 3001;
@@ -78,6 +87,15 @@ router.get('/health', (req: Request, res: Response) => {
     service: 'gmail-mcp',
     timestamp: new Date().toISOString(),
     port: PORT
+  });
+});
+
+// Health check endpoint
+app.get('/health', (_req, res) => {
+  res.json({ 
+    status: 'healthy',
+    service: 'gmail-mcp',
+    timestamp: new Date().toISOString()
   });
 });
 

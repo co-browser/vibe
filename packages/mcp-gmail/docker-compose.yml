@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  gmail-mcp:
+    build:
+      context: ../..  # Build from workspace root
+      dockerfile: packages/mcp-gmail/Dockerfile
+    container_name: gmail-mcp-server
+    restart: unless-stopped
+    ports:
+      - "3001:3000"  # Map to different port to avoid conflicts with RAG
+    environment:
+      # Required for cloud mode
+      - USE_LOCAL_GMAIL_SERVER=false
+      - NODE_ENV=production
+      - PORT=3000
+      
+      # Privy authentication (required for cloud mode)
+      - PRIVY_APP_ID=${PRIVY_APP_ID}
+      - PRIVY_APP_SECRET=${PRIVY_APP_SECRET}
+      
+      # Optional logging
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    
+    # Resource limits (adjust as needed)
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M

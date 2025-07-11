@@ -17,18 +17,27 @@ import {
   MCP_CLIENT_CONFIG,
   MCP_ENDPOINTS,
   IMCPConnectionManager,
+  GmailTokens,
 } from "@vibe/shared-types";
 
 const logger = createLogger("McpConnectionManager");
 
 export class MCPConnectionManager implements IMCPConnectionManager {
   private authToken: string | null = null;
+  private gmailTokens: GmailTokens | null = null;
 
   /**
    * Set the auth token for cloud connections
    */
   setAuthToken(token: string | null): void {
     this.authToken = token;
+  }
+
+  /**
+   * Set Gmail OAuth tokens for cloud Gmail MCP connections
+   */
+  setGmailTokens(tokens: GmailTokens | null): void {
+    this.gmailTokens = tokens;
   }
 
   /**
@@ -45,14 +54,49 @@ export class MCPConnectionManager implements IMCPConnectionManager {
     try {
       const transportOptions: any = {};
 
-      // Add auth header for RAG server (both cloud and local)
-      if (config.name === "rag" && this.authToken) {
-        transportOptions.requestInit = {
-          headers: {
+      // Add auth header for cloud servers
+      if (this.authToken) {
+        // RAG server always needs auth when token is present
+        if (config.name === "rag") {
+          transportOptions.requestInit = {
+            headers: {
+              Authorization: `Bearer ${this.authToken}`,
+            },
+          };
+          logger.debug(`Adding auth header for RAG server connection`);
+        }
+
+        // Gmail server needs auth when token is present (same as RAG)
+        if (config.name === "gmail") {
+          const headers: Record<string, string> = {
             Authorization: `Bearer ${this.authToken}`,
-          },
-        };
-        logger.debug(`Adding auth header for RAG server connection`);
+          };
+
+          // Add Gmail OAuth tokens if available
+          if (this.gmailTokens) {
+            headers["X-Gmail-Access-Token"] = this.gmailTokens.access_token;
+            if (this.gmailTokens.refresh_token) {
+              headers["X-Gmail-Refresh-Token"] = this.gmailTokens.refresh_token;
+            }
+            if (this.gmailTokens.expiry_date) {
+              headers["X-Gmail-Token-Expiry"] =
+                this.gmailTokens.expiry_date.toString();
+            }
+            if (this.gmailTokens.token_type) {
+              headers["X-Gmail-Token-Type"] = this.gmailTokens.token_type;
+            }
+            logger.debug(
+              `Adding Gmail OAuth tokens to headers for cloud Gmail server`,
+            );
+          } else {
+            logger.warn(
+              `No Gmail tokens available for cloud Gmail server connection`,
+            );
+          }
+
+          transportOptions.requestInit = { headers };
+          logger.debug(`Adding auth headers for Gmail server connection`);
+        }
       }
 
       transport = new StreamableHTTPClientTransport(

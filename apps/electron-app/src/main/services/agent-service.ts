@@ -883,4 +883,37 @@ export class AgentService extends EventEmitter implements IAgentService {
       throw error;
     }
   }
+
+  /**
+   * Update Gmail OAuth tokens for cloud Gmail MCP service
+   */
+  async updateGmailTokens(tokens: any): Promise<void> {
+    if (!this.worker) {
+      throw new Error("Agent service not initialized");
+    }
+
+    if (!["ready", "processing"].includes(this.status)) {
+      throw new Error(`Agent service not ready: ${this.status}`);
+    }
+
+    try {
+      logger.info("Updating Gmail tokens:", tokens ? "present" : "null");
+
+      // Send token update to worker process
+      await this.worker.sendMessage("update-gmail-tokens", { tokens });
+
+      this.lastActivityTime = Date.now();
+      logger.info("Gmail tokens updated successfully");
+
+      // Emit token update event
+      this.emit("gmail-tokens-updated", {
+        hasTokens: !!tokens,
+        timestamp: this.lastActivityTime,
+      });
+    } catch (error) {
+      logger.error("Failed to update Gmail tokens:", error);
+      this.lastActivityTime = Date.now();
+      throw error;
+    }
+  }
 }

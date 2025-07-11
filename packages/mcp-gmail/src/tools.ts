@@ -6,7 +6,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
-import { TokenProvider } from './token-provider.js';
+import { createTokenProvider, ITokenProvider } from './token-provider-factory.js';
 
 // Configuration paths
 const HOME_DIR = os.homedir();
@@ -48,6 +48,12 @@ async function saveTokens(tokens: any) {
 let gmailClient: gmail_v1.Gmail | null = null;
 let cachedTokenExpiry: number | null = null;
 
+// Create token provider once (singleton)
+const tokenProvider: ITokenProvider = createTokenProvider();
+
+// Export token provider for server to set request context
+export { tokenProvider };
+
 async function getGmailClient(): Promise<gmail_v1.Gmail> {
   // Check if we have a cached client and if the token is still valid
   if (gmailClient && cachedTokenExpiry) {
@@ -68,7 +74,6 @@ async function getGmailClient(): Promise<gmail_v1.Gmail> {
 
   try {
     // Try to get tokens from TokenProvider (supports both cloud and local)
-    const tokenProvider = new TokenProvider();
     const tokens = await tokenProvider.getTokens();
 
     if (!tokens) {
