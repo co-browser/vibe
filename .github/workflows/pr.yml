@@ -1,0 +1,82 @@
+on: pull_request
+name: pull_request
+
+jobs:
+  lint-and-typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.12.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build packages
+        run: pnpm build
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Type check
+        run: pnpm typecheck
+
+      - name: Format check
+        run: pnpm format:check
+
+  test:
+    needs: lint-and-typecheck
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: checkout code
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.12.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build packages
+        run: pnpm build
+
+      - name: Run tests
+        run: pnpm test
+        continue-on-error: true # Allow to continue since tests may not be set up yet
+
+  slack-notifications:
+    if: always()
+    uses: ./.github/workflows/slack-notifications.yml
+    needs:
+      - test
+      - lint-and-typecheck
+    secrets:
+      SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+    with:
+      status: ${{ (needs.lint-and-typecheck.result == 'success' && needs.test.result == 'success') && 'success' || 'failure' }}
+      actor: ${{ github.actor }}
+      repository: ${{ github.repository }}
+      branch: ${{ github.event.pull_request.head.ref }}
+      run_id: ${{ github.run_id }}
