@@ -13,15 +13,22 @@
   box-sizing: border-box;
   -webkit-app-region: no-drag;
   position: relative;
-  z-index: 3;
+  z-index: 100;
   flex-shrink: 0;
   width: 100%;
+  /* Create a new stacking context to ensure proper z-index behavior */
+  isolation: isolate;
 }
 
 /* Omnibox overlay behavior */
 .navigation-bar:focus-within {
-  z-index: 999;
-  /* Elevate to omnibox overlay level when focused */
+  z-index: 10000;
+  /* Elevate significantly above all browser content when focused */
+}
+
+/* When suggestions are shown, ensure navigation bar stays on top */
+.navigation-bar:has(.omnibar-suggestions) {
+  z-index: 2147483646; /* One less than suggestions dropdown */
 }
 
 .nav-controls {
@@ -85,11 +92,16 @@
   position: relative;
   box-sizing: border-box;
   -webkit-app-region: no-drag;
+  /* Force new stacking context with high z-index */
+  z-index: 10000;
+  isolation: isolate;
 }
 
 .omnibar-wrapper {
   position: relative;
   width: 100%;
+  /* Ensure wrapper is also in high stacking order */
+  z-index: 10001;
 }
 
 .omnibar-input {
@@ -123,7 +135,7 @@
   top: 100%;
   left: 0;
   right: 0;
-  background-color: var(--input-background);
+  background-color: var(--input-background, #ffffff);
   border: 1px solid var(--nav-border);
   border-radius: 12px;
   box-shadow:
@@ -132,13 +144,51 @@
   margin-top: 4px;
   max-height: 400px;
   overflow-y: auto;
-  z-index: 1001;
-  /* Above the elevated navigation bar */
+  z-index: 1000;
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   transform: translateY(-2px);
   opacity: 0;
   animation: omniboxSuggestionsAppear 0.15s ease-out forwards;
+  isolation: isolate;
+  pointer-events: auto;
+}
+
+/* Portal-based omnibox suggestions dropdown */
+.omnibar-suggestions-portal {
+  position: fixed;
+  /* Position will be set dynamically via JavaScript */
+  background: rgba(255, 255, 255, 0.85); /* Frosted glass background */
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 8px 8px 12px 12px; /* Smaller radius on top for smooth connection */
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.12),
+    0 2px 8px rgba(0, 0, 0, 0.08),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.6); /* Inner glow for glass effect */
+  max-height: 320px; /* Slightly smaller max height */
+  overflow-y: auto;
+  overflow-x: hidden;
+  z-index: 2147483647; /* Maximum z-index */
+
+  /* Enhanced frosted glass effect */
+  backdrop-filter: blur(20px) saturate(180%) brightness(1.05);
+  -webkit-backdrop-filter: blur(20px) saturate(180%) brightness(1.05);
+
+  /* Smooth appearance */
+  animation: omniboxDropdownAppear 0.15s ease-out;
+  isolation: isolate;
+  pointer-events: auto;
+}
+
+@keyframes omniboxDropdownAppear {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @keyframes omniboxSuggestionsAppear {
@@ -159,21 +209,22 @@
   padding: 12px 16px;
   cursor: pointer;
   transition: all 0.15s ease;
-  border-bottom: 1px solid var(--nav-border);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
   -webkit-app-region: no-drag;
+  background: transparent;
 }
 
 .suggestion-item:last-child {
   border-bottom: none;
 }
 
-.suggestion-item:hover,
-.suggestion-item.selected {
-  background-color: var(--button-hover);
+.suggestion-item:hover {
+  background-color: rgba(0, 0, 0, 0.05);
 }
 
 .suggestion-item.selected {
   background-color: rgba(59, 130, 246, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(59, 130, 246, 0.2);
 }
 
 .suggestion-icon {
@@ -244,24 +295,60 @@
   /* Purple for URLs */
 }
 
+.suggestion-item[data-type="perplexity"] .suggestion-icon {
+  color: #06b6d4;
+  /* Cyan for Perplexity suggestions */
+}
+
+.suggestion-item[data-type="agent"] .suggestion-icon {
+  color: #ec4899;
+  /* Pink for agent suggestions */
+}
+
+/* Loading indicator for async suggestions */
+.suggestion-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  border-top: 1px solid var(--nav-border);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
 /* Dark mode removed - using light theme exclusively */
 
-/* Scrollbar styling for suggestions */
-.omnibar-suggestions::-webkit-scrollbar {
-  width: 6px;
+/* Scrollbar styling for suggestions portal */
+.omnibar-suggestions-portal::-webkit-scrollbar {
+  width: 8px;
 }
 
-.omnibar-suggestions::-webkit-scrollbar-track {
-  background: transparent;
+.omnibar-suggestions-portal::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 4px;
+  margin: 8px 0;
 }
 
-.omnibar-suggestions::-webkit-scrollbar-thumb {
-  background-color: var(--button-disabled);
-  border-radius: 3px;
+.omnibar-suggestions-portal::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+  border: 2px solid transparent;
+  background-clip: content-box;
 }
 
-.omnibar-suggestions::-webkit-scrollbar-thumb:hover {
-  background-color: var(--button-hover);
+.omnibar-suggestions-portal::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(0, 0, 0, 0.3);
 }
 
 /* Responsive adjustments */
@@ -314,3 +401,44 @@
 }
 
 /* Additional dark mode removed - using light theme exclusively */
+
+/* Suggestion actions container */
+.suggestion-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.suggestion-delete {
+  background: none;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  color: #666;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.suggestion-item:hover .suggestion-delete {
+  opacity: 1;
+}
+
+.suggestion-delete:hover {
+  color: #ff4444;
+}
+
+/* Omnibox dropdown container */
+.omnibox-dropdown-container {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px) saturate(180%) brightness(1.05);
+  -webkit-backdrop-filter: blur(20px) saturate(180%) brightness(1.05);
+  border-radius: 8px;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.12),
+    0 2px 8px rgba(0, 0, 0, 0.08),
+    0 0 0 1px rgba(0, 0, 0, 0.05);
+  overflow: auto;
+  width: 100%;
+  height: 100%;
+  padding: 8px 0;
+}

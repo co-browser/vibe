@@ -10,6 +10,7 @@ import { EventEmitter } from "events";
 import type { CDPManager } from "../services/cdp-service";
 import { fetchFaviconAsDataUrl } from "@/utils/favicon";
 import { autoSaveTabToMemory } from "@/utils/tab-agent";
+import { useUserProfileStore } from "@/store/user-profile-store";
 
 const logger = createLogger("TabManager");
 
@@ -41,6 +42,15 @@ export class TabManager extends EventEmitter {
    * Creates a WebContentsView for a tab
    */
   private createWebContentsView(tabKey: string, url?: string): WebContentsView {
+    // Get active user profile to determine session partition
+    const userProfileStore = useUserProfileStore.getState();
+    const activeProfile = userProfileStore.getActiveProfile();
+
+    // Use profile ID as partition, fallback to default if no profile
+    const partition = activeProfile
+      ? `persist:${activeProfile.id}`
+      : "persist:default";
+
     const view = new WebContentsView({
       webPreferences: {
         contextIsolation: true,
@@ -48,6 +58,7 @@ export class TabManager extends EventEmitter {
         sandbox: true,
         webSecurity: true,
         allowRunningInsecureContent: false,
+        partition, // Use profile-specific partition for session isolation
       },
     });
 
@@ -392,6 +403,18 @@ export class TabManager extends EventEmitter {
     if (newUrl !== tab.url) {
       tab.url = newUrl;
       changes.push("url");
+
+      // Track navigation history for user profile
+      const userProfileStore = useUserProfileStore.getState();
+      const activeProfile = userProfileStore.getActiveProfile();
+      if (activeProfile && newUrl && !this.shouldSkipUrl(newUrl)) {
+        userProfileStore.addNavigationEntry(activeProfile.id, {
+          url: newUrl,
+          title: tab.title || newUrl,
+          timestamp: Date.now(),
+          favicon: tab.favicon,
+        });
+      }
     }
 
     const newIsLoading = webContents.isLoading();
