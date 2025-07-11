@@ -407,6 +407,26 @@ export class GmailOAuthService {
             // Initialize OAuth client with tokens
             await this.initializeOAuthClientWithTokens(tokens);
 
+            // Notify agent service about Gmail tokens update
+            try {
+              const { getAgentService } = await import(
+                "../ipc/chat/agent-status"
+              );
+              const agentService = getAgentService();
+              if (agentService) {
+                await agentService.updateGmailTokens(tokens);
+                logger.info(
+                  "[GmailAuth] Notified agent service about Gmail tokens",
+                );
+              }
+            } catch (error) {
+              logger.warn(
+                "[GmailAuth] Failed to notify agent about Gmail tokens:",
+                error,
+              );
+              // Non-critical error - don't fail the auth flow
+            }
+
             // Notify renderer and cleanup
             if (currentWindow && !currentWindow.isDestroyed()) {
               currentWindow.webContents.send(
@@ -920,6 +940,24 @@ export class GmailOAuthService {
         // Clear cloud tokens from storage
         const storageService = getStorageService();
         await storageService.delete("secure.oauth.gmail.tokens");
+
+        // Notify agent service about Gmail tokens removal
+        try {
+          const { getAgentService } = await import("../ipc/chat/agent-status");
+          const agentService = getAgentService();
+          if (agentService) {
+            await agentService.updateGmailTokens(null);
+            logger.info(
+              "[GmailAuth] Notified agent service about Gmail tokens removal",
+            );
+          }
+        } catch (error) {
+          logger.warn(
+            "[GmailAuth] Failed to notify agent about Gmail tokens removal:",
+            error,
+          );
+          // Non-critical error - don't fail the clear flow
+        }
       }
 
       // Check for local tokens

@@ -655,6 +655,31 @@ async function initializeServices(): Promise<void> {
       logger.info(
         "AgentService initialized successfully with utility process isolation",
       );
+
+      // Check for existing Gmail tokens and send them to the agent
+      // This follows the same pattern as Privy auth token initialization
+      try {
+        const storageService = getStorageService();
+        const gmailTokens = await storageService.get(
+          "secure.oauth.gmail.tokens",
+        );
+
+        if (
+          gmailTokens &&
+          typeof gmailTokens === "object" &&
+          "access_token" in gmailTokens &&
+          gmailTokens.access_token
+        ) {
+          logger.info("Found existing Gmail tokens on startup, updating agent");
+          await agentService.updateGmailTokens(gmailTokens);
+        }
+      } catch (gmailError) {
+        logger.warn(
+          "Failed to check/update Gmail tokens on startup:",
+          gmailError,
+        );
+        // Non-critical error - continue without Gmail tokens
+      }
     } catch (error) {
       logger.error(
         "AgentService initialization failed:",

@@ -163,6 +163,37 @@ export function createMCPServerConfig(
     }
   }
 
+  // Special handling for Gmail server (local and remote)
+  if (name === "gmail") {
+    const useLocalGmailServer = envVars?.USE_LOCAL_GMAIL_SERVER === "true";
+    const baseConfig = getMCPServerBaseConfig(name);
+    if (!baseConfig) return undefined;
+
+    if (useLocalGmailServer) {
+      // Use local Gmail server configuration
+      return {
+        ...baseConfig,
+        env: {
+          // Pass required environment variables to local Gmail server
+          PORT: baseConfig.port.toString(),
+          USE_LOCAL_GMAIL_SERVER: "true", // Ensure Gmail server knows it's in local mode
+          // Pass through OAuth config if present
+          USE_LOCAL_GMAIL_AUTH: envVars?.USE_LOCAL_GMAIL_AUTH || "false",
+        },
+      };
+    } else {
+      // Remote Gmail server configuration
+      const remoteUrl =
+        envVars?.GMAIL_SERVER_URL || "https://gmail.cobrowser.xyz";
+      return {
+        ...baseConfig,
+        url: remoteUrl,
+        port: 443, // HTTPS port
+        env: {}, // No env needed for remote connection
+      };
+    }
+  }
+
   const baseConfig = getMCPServerBaseConfig(name);
   if (!baseConfig) return undefined;
 
@@ -172,11 +203,6 @@ export function createMCPServerConfig(
   const port = baseConfig.port;
 
   switch (name) {
-    case "gmail":
-      // Gmail MCP server manages its own configuration
-      // No environment variables needed from agent
-      break;
-
     default:
       // Future servers can add their environment configuration here
       break;
@@ -195,15 +221,25 @@ export function createMCPServerConfig(
  *
  * @param envVars - Environment variables for server configuration
  * @returns Array of complete server configurations
+ *
+ * Note: Gmail and RAG servers connect dynamically based on authentication:
+ * - Gmail: Connects when OAuth tokens are available via updateGmailTokens()
+ * - RAG: Connects when Privy auth token is available via updateAuthToken()
+ * This function only returns servers that should be spawned locally at startup.
  */
 export function getAllMCPServerConfigs(
   envVars?: Record<string, string>,
 ): MCPServerConfig[] {
   const configs: MCPServerConfig[] = [];
 
-  // Always add Gmail server
-  const gmailConfig = createMCPServerConfig("gmail", envVars);
-  if (gmailConfig) configs.push(gmailConfig);
+  // Only add Gmail server if explicitly set to "true"
+  const useLocalGmailServer = envVars?.USE_LOCAL_GMAIL_SERVER;
+  const shouldUseLocalGmail = useLocalGmailServer === "true";
+
+  if (shouldUseLocalGmail) {
+    const gmailConfig = createMCPServerConfig("gmail", envVars);
+    if (gmailConfig) configs.push(gmailConfig);
+  }
 
   // Only add RAG server if explicitly set to "true"
   // Default to false for undefined, null, empty string, or any other value

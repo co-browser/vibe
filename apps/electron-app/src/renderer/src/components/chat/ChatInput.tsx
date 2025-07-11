@@ -1,10 +1,12 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { TextInput } from "@/components/ui/text-input";
 import { ActionButton } from "@/components/ui/action-button";
 import { StatusIndicator } from "@/components/ui/status-indicator";
 import { TabContextDisplay } from "@/components/ui/tab-context-display";
 import { GmailAuthButton } from "@/components/auth/GmailAuthButton";
 import { PrivyAuthButton } from "@/components/auth/PrivyAuthButton";
+import { PrivyAuthTooltip } from "@/components/auth/PrivyAuthTooltip";
+import { usePrivy } from "@privy-io/react-auth";
 import { OpenAIKeyButton } from "@/components/auth/OpenAIKeyButton";
 import { TabAliasSuggestions } from "./TabAliasSuggestions";
 import { TabContextBar } from "./TabContextBar";
@@ -36,6 +38,14 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   // Import useAgentStatus to get hasApiKey status
   const { hasApiKey } = useAgentStatus();
 
+  // Get Privy authentication state
+  const { authenticated: isPrivyAuthenticated } = usePrivy();
+
+  // Track whether using local Gmail server
+  const [useLocalGmailServer, setUseLocalGmailServer] = useState<
+    boolean | null
+  >(null);
+
   const {
     globalStatus,
     globalStatusTitle,
@@ -59,6 +69,15 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       favicon?: string;
     }>
   >([]);
+
+  // Check if using local Gmail server on mount
+  useEffect(() => {
+    window.vibe.app
+      .getEnvVar("USE_LOCAL_GMAIL_SERVER")
+      .then((value: string | undefined) => {
+        setUseLocalGmailServer(value === "true");
+      });
+  }, []);
 
   // Handle input changes and detect @ mentions
   const handleInputChange = useCallback(
@@ -208,10 +227,14 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             moreTabsCount={moreTabsCount}
           />
         </div>
-        <div style={{ display: "flex", gap: "6px" }}>
+        <div style={{ display: "flex", gap: "6px", position: "relative" }}>
           <OpenAIKeyButton />
-          <GmailAuthButton />
+          <GmailAuthButton isPrivyAuthenticated={isPrivyAuthenticated} />
           <PrivyAuthButton />
+          <PrivyAuthTooltip
+            isPrivyAuthenticated={isPrivyAuthenticated}
+            useLocalGmailServer={useLocalGmailServer ?? true}
+          />
         </div>
       </div>
       {selectedTabs.length > 0 && (

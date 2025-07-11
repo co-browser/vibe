@@ -1,0 +1,47 @@
+# Node modules
+node_modules/
+**/node_modules/
+
+# Build outputs
+dist/
+build/
+*.log
+
+# Development files
+.env
+.env.*
+!.env.example
+
+# Git
+.git/
+.gitignore
+
+# Editor
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Tests
+coverage/
+.nyc_output/
+*.test.ts
+*.spec.ts
+
+# Documentation
+README.md
+docs/
+
+# TypeScript
+*.ts
+!*.d.ts
+tsconfig.json
+
+# Development dependencies
+.eslintrc*
+.prettierrc*
+
+# Local Gmail credentials (should never be in container)
+~/.gmail-mcp/

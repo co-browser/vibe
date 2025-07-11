@@ -1,0 +1,38 @@
+{
+  "name": "@vibe/api",
+  "version": "0.1.0",
+  "description": "Vibe API for agent communication and browser automation",
+  "main": "index.ts",
+  "scripts": {
+    "dev": "ts-node-dev --inspect=4321 server/server.ts",
+    "start": "node --max-old-space-size=7168 -r ts-node/register server/server.ts",
+    "build": "esbuild --bundle server/server.ts --platform=node --outdir=dist",
+    "test": "tsc --noEmit && tape -r ts-node/register/transpile-only test/**/*.test.ts",
+    "lint": "npm run lint:deps && npm run lint:style",
+    "lint:deps": "npx depcheck --ignores @tsconfig/node20,@types/tape,ts-node",
+    "lint:style": "eslint . --max-warnings=0"
+  },
+  "keywords": [],
+  "author": "",
+  "packageManager": "pnpm@10.12.1",
+  "dependencies": {
+    "@trpc/client": "^11.4.3",
+    "@trpc/server": "^11.4.3",
+    "@tsconfig/node20": "^20.1.5",
+    "@types/cors": "^2.8.19",
+    "cors": "^2.8.5",
+    "dotenv": "^16.0.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/tape": "^5.6.0",
+    "depcheck": "^1.4.3",
+    "esbuild": "^0.24.0",
+    "eslint": "^8.56.0",
+    "tape": "^5.6.3",
+    "ts-node": "^10.9.2",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.5.2"
+  }
+}

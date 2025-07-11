@@ -235,6 +235,9 @@ export class AgentWorker extends EventEmitter {
       RAG_SERVER_URL: process.env.RAG_SERVER_URL || "https://rag.cobrowser.xyz",
       TURBOPUFFER_API_KEY: process.env.TURBOPUFFER_API_KEY,
       USE_LOCAL_RAG_SERVER: process.env.USE_LOCAL_RAG_SERVER || "false",
+      GMAIL_SERVER_URL:
+        process.env.GMAIL_SERVER_URL || "http://localhost:3005/",
+      USE_LOCAL_GMAIL_SERVER: process.env.USE_LOCAL_GMAIL_SERVER || "false",
     };
 
     // Only include defined environment variables

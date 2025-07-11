@@ -12,7 +12,8 @@ import type {
 } from '@modelcontextprotocol/sdk/types.js';
 import { type Request, type Response } from 'express';
 import { randomUUID } from 'node:crypto';
-import { GmailTools } from './tools.js';
+import { GmailTools, tokenProvider } from './tools.js';
+import { getCloudTokenProvider } from './token-provider-factory.js';
 
 // Simple console logger - MCP Gmail runs as child process
 const log = {
@@ -45,6 +46,13 @@ export class StreamableHTTPServer {
 
   async handlePostRequest(req: Request, res: Response) {
     log.info(`POST ${req.originalUrl} (${req.ip}) - payload:`, req.body);
+    
+    // Set request context for cloud token provider
+    const cloudProvider = getCloudTokenProvider(tokenProvider);
+    if (cloudProvider) {
+      cloudProvider.setRequest(req);
+    }
+    
     try {
       const transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: undefined,
