@@ -6,7 +6,6 @@ import { hostname } from 'node:os';
 import { createServer } from 'node:http';
 import { Socket } from 'node:net';
 import { GmailTools } from './tools.js';
-import { validatePrivyToken } from './middleware/auth.js';
 
 // IPC message types
 interface IPCMessage {
@@ -60,29 +59,19 @@ const server = new StreamableHTTPServer(
 const app = express();
 app.use(express.json());
 
-// Apply auth middleware only in cloud mode
+// Log authentication mode
 if (process.env.USE_LOCAL_GMAIL_SERVER !== 'true') {
-  log.info('Running in cloud mode - applying Privy authentication');
-  app.use(validatePrivyToken);
+  log.info('Running in cloud mode - Privy authentication required for protected routes');
 } else {
   log.info('Running in local mode - authentication disabled');
 }
 
-const router = express.Router();
 const MCP_ENDPOINT = '/mcp';
 const PORT = process.env.PORT || 3001;
 
-router.post(MCP_ENDPOINT, async (req: Request, res: Response) => {
-  await server.handlePostRequest(req, res);
-});
-
-router.get(MCP_ENDPOINT, async (req: Request, res: Response) => {
-  await server.handleGetRequest(req, res);
-});
-
-// Health check endpoint
-router.get('/health', (req: Request, res: Response) => {
-  res.json({
+// Health check endpoint - no auth required
+app.get('/health', (_req, res) => {
+  res.json({ 
     status: 'healthy',
     service: 'gmail-mcp',
     timestamp: new Date().toISOString(),
@@ -90,16 +79,14 @@ router.get('/health', (req: Request, res: Response) => {
   });
 });
 
-// Health check endpoint
-app.get('/health', (_req, res) => {
-  res.json({ 
-    status: 'healthy',
-    service: 'gmail-mcp',
-    timestamp: new Date().toISOString()
-  });
+// MCP endpoints - these handle their own authentication via Gmail OAuth tokens
+app.post(MCP_ENDPOINT, async (req: Request, res: Response) => {
+  await server.handlePostRequest(req, res);
 });
 
-app.use('/', router);
+app.get(MCP_ENDPOINT, async (req: Request, res: Response) => {
+  await server.handleGetRequest(req, res);
+});
 
 // Create HTTP server and track active connections for graceful shutdown
 const httpServer = createServer(app);

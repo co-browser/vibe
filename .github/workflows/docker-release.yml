@@ -22,11 +22,17 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GHCR_TOKEN || secrets.GITHUB_TOKEN }}
 
-      - name: Build and push Docker image
+      - name: Build and push RAG Docker image
         run: |
           docker build -t ghcr.io/co-browser/vibe-rag-server:latest -t ghcr.io/co-browser/vibe-rag-server:${{ github.ref_name }} -f packages/mcp-rag/Dockerfile .
           docker push ghcr.io/co-browser/vibe-rag-server:latest
           docker push ghcr.io/co-browser/vibe-rag-server:${{ github.ref_name }}
+
+      - name: Build and push Gmail Docker image
+        run: |
+          docker build -t ghcr.io/co-browser/vibe-gmail-server:latest -t ghcr.io/co-browser/vibe-gmail-server:${{ github.ref_name }} -f packages/mcp-gmail/Dockerfile .
+          docker push ghcr.io/co-browser/vibe-gmail-server:latest
+          docker push ghcr.io/co-browser/vibe-gmail-server:${{ github.ref_name }}
 
       - name: Deploy to Coolify
         env:

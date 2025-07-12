@@ -1,68 +1,51 @@
-# Multi-stage Dockerfile for Gmail MCP Server
-# Stage 1: Builder
 FROM node:20-alpine AS builder
 
 # Install build dependencies
-RUN apk add --no-cache python3 make g++ git
+RUN apk add --no-cache libc6-compat python3 make g++
 
 # Enable pnpm
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN corepack enable && corepack prepare pnpm@10.12.1 --activate
 
-# Set working directory
-WORKDIR /app
+WORKDIR /workspace
 
-# Copy workspace files
+# Copy only necessary workspace files
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json turbo.json ./
 COPY packages/shared-types ./packages/shared-types
 COPY packages/mcp-gmail ./packages/mcp-gmail
 
-# Install dependencies without running scripts (to avoid building Electron)
+# Install without running scripts (avoids building electron)
 RUN pnpm install --frozen-lockfile --ignore-scripts
 
-# Build only the packages we need
-RUN pnpm --filter @vibe/shared-types build
-RUN pnpm --filter @vibe/mcp-gmail build
+# Build only needed packages
+RUN pnpm --filter @vibe/shared-types run build && \
+    pnpm --filter @vibe/mcp-gmail run build
 
-# Deploy the app with production dependencies only
-RUN pnpm --filter @vibe/mcp-gmail deploy --prod --legacy /prod/mcp-gmail
+# Deploy mcp-gmail with all dependencies resolved
+RUN pnpm deploy --filter @vibe/mcp-gmail --prod --legacy /prod/mcp-gmail
 
-# Stage 2: Production
-FROM node:20-alpine AS production
+# Production stage
+FROM node:20-alpine
+
+# OCI annotations
+LABEL org.opencontainers.image.source="https://github.com/co-browser/vibe"
+LABEL org.opencontainers.image.description="Gmail MCP Server for Vibe"
 
 # Install runtime dependencies
-RUN apk add --no-cache dumb-init
+RUN apk add --no-cache libc6-compat
+
+# Copy the deployed app
+COPY --from=builder /prod/mcp-gmail /app
 
 # Create non-root user
-RUN addgroup -g 1001 -S appuser && adduser -S appuser -u 1001
+RUN addgroup -g 1001 -S nodejs && adduser -S nodejs -u 1001
 
-# Set working directory
 WORKDIR /app
+USER nodejs
 
-# Copy deployed app from builder
-COPY --from=builder --chown=appuser:appuser /prod/mcp-gmail ./
-
-# Switch to non-root user
-USER appuser
-
-# Expose port
-EXPOSE 3000
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:3000/health', (res) => process.exit(res.statusCode === 200 ? 0 : 1))"
-
-# Set production environment
+EXPOSE 3001
 ENV NODE_ENV=production
 
-# Add OCI labels
-LABEL org.opencontainers.image.title="Gmail MCP Server" \
-      org.opencontainers.image.description="Model Context Protocol server for Gmail integration" \
-      org.opencontainers.image.url="https://github.com/co-browser/vibe" \
-      org.opencontainers.image.source="https://github.com/co-browser/vibe" \
-      org.opencontainers.image.vendor="Vibe"
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:3001/health || exit 1
 
-# Use dumb-init to handle signals properly
-ENTRYPOINT ["dumb-init", "--"]
-
-# Start the server
 CMD ["node", "dist/index.js"]
