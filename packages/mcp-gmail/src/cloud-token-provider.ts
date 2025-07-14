@@ -33,14 +33,30 @@ export class CloudTokenProvider {
     const expiryDate = this.req.headers['x-gmail-token-expiry'] as string;
     const tokenType = this.req.headers['x-gmail-token-type'] as string;
     
-    if (!accessToken || !refreshToken || !expiryDate || !tokenType) {
-      throw new Error('Gmail OAuth tokens not provided in request headers');
+    // Validate required tokens
+    if (!accessToken?.trim()) {
+      throw new Error('Missing or invalid Gmail access token');
+    }
+    if (!refreshToken?.trim()) {
+      throw new Error('Missing or invalid Gmail refresh token');
+    }
+    if (!expiryDate?.trim()) {
+      throw new Error('Missing or invalid token expiry date');
+    }
+    if (!tokenType?.trim()) {
+      throw new Error('Missing or invalid token type');
+    }
+    
+    // Validate expiry date is a number
+    const parsedExpiry = parseInt(expiryDate, 10);
+    if (isNaN(parsedExpiry)) {
+      throw new Error('Invalid token expiry date format');
     }
     
     return {
       access_token: accessToken,
       refresh_token: refreshToken,
-      expiry_date: parseInt(expiryDate, 10),
+      expiry_date: parsedExpiry,
       token_type: tokenType,
     };
   }
