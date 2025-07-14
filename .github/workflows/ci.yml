@@ -25,13 +25,6 @@ jobs:
         with:
           node-version: 20
           cache: 'pnpm'
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build packages
-        run: pnpm build
-
       - name: Run linting
         run: pnpm lint
 
@@ -43,3 +36,43 @@ jobs:
 
       - name: Run tests
         run: pnpm test
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build macOS app
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          NODE_ENV: production
+          GH_TOKEN: ${{ secrets.RELEASE_PAT || secrets.GITHUB_TOKEN }}
+          PUBLISH_RELEASE: false
+        run: pnpm --filter vibe build:mac
+      - name: Mount DMG
+        run: hdiutil attach apps/electron-app/dist/vibe-*.dmg
+      - name: Install App
+        run: |
+          sudo cp -R "/Volumes/COBROWSER/vibe.app" /Applications/
+      - name: Run App and Check for Errors
+        run: |
+          set +e
+          /Applications/vibe.app/Contents/MacOS/vibe &> app_output.log &
+          APP_PID=$!
+          sleep 10
+          kill $APP_PID
+          if grep -i "error" app_output.log; then
+            echo "Error found in application output."
+            exit 1
+          fi
+          set -e
+
+      - name: Upload App Logs
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: app-logs
+          path: app_output.log
+
