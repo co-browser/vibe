@@ -16,6 +16,8 @@
   "author": "",
   "packageManager": "pnpm@10.12.1",
   "dependencies": {
+    "@vibe/agent-core": "workspace:*",
+    "@vibe/shared-types": "workspace:*",
     "@trpc/client": "^11.4.3",
     "@trpc/server": "^11.4.3",
     "@tsconfig/node20": "^20.1.5",

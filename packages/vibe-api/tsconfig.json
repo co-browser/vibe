@@ -5,6 +5,7 @@
       "resolveJsonModule": true,
       "sourceMap": true,
       "inlineSources": true,
-      "sourceRoot": "/"
+      "sourceRoot": "/",
+      "esModuleInterop": true
     }
   }
