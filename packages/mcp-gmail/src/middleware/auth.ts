@@ -52,7 +52,9 @@ export async function validatePrivyToken(
 
     // Verify token with Privy
     try {
-      console.log(`Verifying token: ${token.substring(0, 20)}...`);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`Verifying token: ${token.substring(0, 20)}...`);
+      }
       const claims = await privyClient.verifyAuthToken(token);
       
       // Attach user info to request
