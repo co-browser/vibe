@@ -40,14 +40,20 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-jobs:
-  build-macos:
+  test-macos:
     needs: quality           # optional
     runs-on: macos-latest
     steps:
       - name: Checkout repository
-      # …other macOS build steps go here…
         uses: actions/checkout@v3
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.12.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
 
       - name: Build mac DMG
         env:
@@ -78,11 +84,9 @@ jobs:
             exit 1
           fi
           set -e
-
       - name: Upload App Logs
         if: always()
         uses: actions/upload-artifact@v3
         with:
           name: app-logs
           path: app_output.log
-
