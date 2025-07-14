@@ -13,12 +13,12 @@ export const PrivyAuthTooltip: React.FC<PrivyAuthTooltipProps> = ({
 }) => {
   const [isDismissed, setIsDismissed] = useState(false);
 
-  // Reset dismissed state when authentication changes
+  // Reset dismissed state when transitioning to authenticated
   useEffect(() => {
-    if (isPrivyAuthenticated) {
+    if (isPrivyAuthenticated && isDismissed) {
       setIsDismissed(false);
     }
-  }, [isPrivyAuthenticated]);
+  }, [isPrivyAuthenticated, isDismissed]);
 
   // Show tooltip only when:
   // 1. Not authenticated with Privy
