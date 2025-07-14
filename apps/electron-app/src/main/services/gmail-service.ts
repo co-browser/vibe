@@ -71,16 +71,7 @@ export class GmailOAuthService {
       // First, check if we have cloud OAuth tokens
       const cloudTokens = await this.getCloudTokens();
       if (cloudTokens) {
-        // Initialize OAuth client with cloud tokens
-        await this.initializeOAuthClientWithTokens(cloudTokens);
-
-        // Test if credentials are valid
-        if (!this.oauth2Client) {
-          throw new Error("OAuth client not available");
-        }
-        const gmail = google.gmail({ version: "v1", auth: this.oauth2Client });
-        await gmail.users.getProfile({ userId: "me" });
-
+        // Skip API validation - MCP server handles token refresh
         return {
           authenticated: true,
           hasOAuthKeys: true,
