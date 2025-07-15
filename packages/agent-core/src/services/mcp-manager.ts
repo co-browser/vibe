@@ -529,7 +529,10 @@ export class MCPManager implements IMCPManager {
 
       // Also try to connect Gmail if tokens exist
       if (this.gmailTokens) {
-        await this.updateGmailTokens(this.gmailTokens);
+        const gmailConnection = this.orchestrator.getConnection("gmail");
+        if (!gmailConnection || !gmailConnection.isConnected) {
+          await this.updateGmailTokens(this.gmailTokens);
+        }
       }
     } else {
       // Disconnect RAG server if token is removed
