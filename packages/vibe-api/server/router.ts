@@ -1,9 +1,8 @@
 // src/router.ts
-import { initTRPC } from "@trpc/server";
 import { z } from "zod";
+import { t } from "./trpc";
 
 // Basic tRPC setup -----------------------------------------------------------
-const t = initTRPC.create();
 const publicProcedure = t.procedure;
 
 const startTimeS = Date.now() / 1000;
