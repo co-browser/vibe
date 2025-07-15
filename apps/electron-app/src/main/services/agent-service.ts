@@ -10,6 +10,7 @@ import type {
   AgentStatus,
   IAgentService,
   ExtractedPage,
+  GmailTokens,
 } from "@vibe/shared-types";
 import { createLogger } from "@vibe/shared-types";
 import { getProfileService } from "./profile-service";
@@ -887,7 +888,7 @@ export class AgentService extends EventEmitter implements IAgentService {
   /**
    * Update Gmail OAuth tokens for cloud Gmail MCP service
    */
-  async updateGmailTokens(tokens: any): Promise<void> {
+  async updateGmailTokens(tokens: GmailTokens | null): Promise<void> {
     if (!this.worker) {
       throw new Error("Agent service not initialized");
     }
