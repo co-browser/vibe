@@ -1,7 +1,7 @@
-import { getStatus } from './agent';
+import { getStatus } from "./agent";
 
-interface HealthStatus {
-  status: 'healthy' | 'unhealthy';
+export interface HealthStatus {
+  status: "healthy" | "unhealthy";
   uptime: number;
   agent: {
     initialized: boolean;
@@ -12,9 +12,9 @@ interface HealthStatus {
 
 export function getHealth(): HealthStatus {
   const agentStatus = getStatus();
-  
+
   return {
-    status: agentStatus.ready ? 'healthy' : 'unhealthy',
+    status: agentStatus.ready ? "healthy" : "unhealthy",
     uptime: process.uptime(),
     agent: {
       initialized: agentStatus.initialized,

@@ -1,13 +1,11 @@
 // src/router.ts
 import { initTRPC } from "@trpc/server";
 import { z } from "zod";
-import * as api from '../api';
+import * as api from "../api";
 
 // Basic tRPC setup -----------------------------------------------------------
 const t = initTRPC.create();
 const publicProcedure = t.procedure;
-
-const startTimeS = Date.now() / 1000;
 
 // Zod schemas for input validation -------------------------------------------
 const agentConfigSchema = z.object({
@@ -15,12 +13,14 @@ const agentConfigSchema = z.object({
   model: z.string(),
   temperature: z.number().optional(),
   maxTokens: z.number().optional(),
-  processorType: z.enum(['react', 'coact']).optional(),
+  processorType: z.enum(["react", "coact"]).optional(),
   keepAlive: z.string().optional(),
-  mcp: z.object({
-    enabled: z.boolean(),
-    url: z.string(),
-  }).optional(),
+  mcp: z
+    .object({
+      enabled: z.boolean(),
+      url: z.string(),
+    })
+    .optional(),
   tools: z.array(z.string()).optional(),
   systemPrompt: z.string().optional(),
   conversationHistory: z.array(z.tuple([z.string(), z.string()])).optional(),
@@ -34,7 +34,7 @@ const extractedPageSchema = z.object({
   excerpt: z.string(),
   content: z.string(),
   textContent: z.string(),
-  
+
   // Optional PageContent fields
   byline: z.string().optional(),
   siteName: z.string().optional(),
@@ -42,43 +42,53 @@ const extractedPageSchema = z.object({
   modifiedTime: z.string().optional(),
   lang: z.string().optional(),
   dir: z.string().optional(),
-  
+
   // Required ExtractedPage fields
   metadata: z.object({
-    openGraph: z.object({
-      title: z.string().optional(),
-      description: z.string().optional(),
-      image: z.string().optional(),
-      url: z.string().optional(),
-      type: z.string().optional(),
-      siteName: z.string().optional(),
-    }).optional(),
-    twitter: z.object({
-      card: z.string().optional(),
-      title: z.string().optional(),
-      description: z.string().optional(),
-      image: z.string().optional(),
-      creator: z.string().optional(),
-    }).optional(),
+    openGraph: z
+      .object({
+        title: z.string().optional(),
+        description: z.string().optional(),
+        image: z.string().optional(),
+        url: z.string().optional(),
+        type: z.string().optional(),
+        siteName: z.string().optional(),
+      })
+      .optional(),
+    twitter: z
+      .object({
+        card: z.string().optional(),
+        title: z.string().optional(),
+        description: z.string().optional(),
+        image: z.string().optional(),
+        creator: z.string().optional(),
+      })
+      .optional(),
     jsonLd: z.array(z.any()).optional(),
     microdata: z.array(z.any()).optional(),
   }),
-  images: z.array(z.object({
-    src: z.string(),
-    alt: z.string().optional(),
-    title: z.string().optional(),
-  })),
-  links: z.array(z.object({
-    href: z.string(),
-    text: z.string(),
-    rel: z.string().optional(),
-  })),
-  actions: z.array(z.object({
-    type: z.enum(['button', 'link', 'form']),
-    selector: z.string(),
-    text: z.string(),
-    attributes: z.record(z.string()),
-  })),
+  images: z.array(
+    z.object({
+      src: z.string(),
+      alt: z.string().optional(),
+      title: z.string().optional(),
+    }),
+  ),
+  links: z.array(
+    z.object({
+      href: z.string(),
+      text: z.string(),
+      rel: z.string().optional(),
+    }),
+  ),
+  actions: z.array(
+    z.object({
+      type: z.enum(["button", "link", "form"]),
+      selector: z.string(),
+      text: z.string(),
+      attributes: z.record(z.string()),
+    }),
+  ),
   extractionTime: z.number(),
   contentLength: z.number(),
 });
@@ -100,8 +110,7 @@ export const createRouter = () =>
         }),
 
       // Get agent status
-      status: publicProcedure
-        .query(() => api.getStatus()),
+      status: publicProcedure.query(() => api.getStatus()),
 
       // Save tab memory
       saveTabMemory: publicProcedure
@@ -120,11 +129,10 @@ export const createRouter = () =>
         }),
 
       // Reset agent
-      reset: publicProcedure
-        .mutation(async () => {
-          await api.reset();
-          return { success: true };
-        }),
+      reset: publicProcedure.mutation(async () => {
+        await api.reset();
+        return { success: true };
+      }),
     }),
 
     // Legacy endpoints (kept for compatibility)

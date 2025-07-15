@@ -1,16 +1,18 @@
 {
   "name": "@vibe/api",
   "version": "0.1.0",
+  "type": "module",
   "description": "Vibe API for agent communication and browser automation",
   "main": "index.ts",
   "scripts": {
-    "dev": "ts-node-dev --inspect=4321 server/server.ts",
-    "start": "node --max-old-space-size=7168 -r ts-node/register server/server.ts",
+    "dev": "tsx watch --inspect=4321 server/server.ts",
+    "start": "tsx server/server.ts",
     "build": "esbuild --bundle server/server.ts --platform=node --outdir=dist",
-    "test": "tsc --noEmit && tape -r ts-node/register/transpile-only test/**/*.test.ts",
-    "lint": "npm run lint:deps && npm run lint:style",
-    "lint:deps": "npx depcheck --ignores @tsconfig/node20,@types/tape,ts-node",
-    "lint:style": "eslint . --max-warnings=0"
+    "test": "vitest",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
   },
   "keywords": [],
   "author": "",
@@ -28,13 +30,10 @@
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
-    "@types/tape": "^5.6.0",
-    "depcheck": "^1.4.3",
     "esbuild": "^0.24.0",
-    "eslint": "^8.56.0",
-    "tape": "^5.6.3",
-    "ts-node": "^10.9.2",
-    "ts-node-dev": "^2.0.0",
+    "prettier": "^3.5.3",
+    "tsx": "^4.7.3",
+    "vitest": "^2.0.5",
     "typescript": "^5.5.2"
   }
 }
