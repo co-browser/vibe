@@ -19,6 +19,10 @@ services:
       - PRIVY_APP_ID=${PRIVY_APP_ID}
       - PRIVY_APP_SECRET=${PRIVY_APP_SECRET}
 
+      # Google OAuth credentials (required for token refresh in cloud mode)
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+
       # Optional logging
       - LOG_LEVEL=${LOG_LEVEL:-info}
 

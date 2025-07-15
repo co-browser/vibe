@@ -83,8 +83,15 @@ async function getGmailClient(): Promise<gmail_v1.Gmail> {
     // Store the token expiry for later checks
     cachedTokenExpiry = tokens.expiry_date;
 
-    // Set up OAuth2 client
-    const oauth2Client = new google.auth.OAuth2();
+    // Set up OAuth2 client with credentials for token refresh
+    if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+      console.warn('[mcp-gmail] Missing GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET. Token refresh may fail.');
+    }
+    const oauth2Client = new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
+      'postmessage' // Standard redirect URI for server-side apps
+    );
     oauth2Client.setCredentials({
       access_token: tokens.access_token,
       refresh_token: tokens.refresh_token,
