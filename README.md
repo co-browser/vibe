@@ -93,7 +93,6 @@ Create OAuth credentials for a Desktop application in the console (step 3 above)
 mkdir -p ~/.gmail-mcp
 mv gcp-oauth.keys.json ~/.gmail-mcp/
 ```
-Placing this file switches Vibe to self-hosted OAuth mode automatically.
 
 ---
 
@@ -105,9 +104,18 @@ Placing this file switches Vibe to self-hosted OAuth mode automatically.
 
 ## Release Notes
 
-See [CHANGELOG.md](CHANGELOG.md).
+> **Note**
+>
+> [v0.1.7](https://github.com/co-browser/vibe/releases/tag/v0.1.7) - July 10, 2025
+>
+> • **Gmail Fix:** Fixed an issue where Gmail integration would break after restarting the app  
+> • **Process Management:** Email server now properly shuts down when you quit the app  
+> • **Stability:** No more "port already in use" errors on subsequent launches
+
+For the full technical changelog, see [CHANGELOG.md](CHANGELOG.md).
 
 ## Contributing
 
-Please follow the guidelines in [CONTRIBUTING.md](CONTRIBUTING.md). The project’s code of conduct is available in [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
+Please follow the guidelines in [CONTRIBUTING.md](CONTRIBUTING.md).  
+The project’s code of conduct is available in [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
 
