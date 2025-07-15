@@ -10,6 +10,11 @@ jobs:
     permissions:
       contents: read
       packages: write
+    strategy:
+      matrix:
+        service:
+          - { name: rag, path: packages/mcp-rag }
+          - { name: gmail, path: packages/mcp-gmail }
 
     steps:
       - name: Checkout code
@@ -22,18 +27,20 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GHCR_TOKEN || secrets.GITHUB_TOKEN }}
 
-      - name: Build and push RAG Docker image
-        run: |
-          docker build -t ghcr.io/co-browser/vibe-rag-server:latest -t ghcr.io/co-browser/vibe-rag-server:${{ github.ref_name }} -f packages/mcp-rag/Dockerfile .
-          docker push ghcr.io/co-browser/vibe-rag-server:latest
-          docker push ghcr.io/co-browser/vibe-rag-server:${{ github.ref_name }}
+      - name: Build and push ${{ matrix.service.name }} Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ${{ matrix.service.path }}/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/co-browser/vibe-${{ matrix.service.name }}-server:latest
+            ghcr.io/co-browser/vibe-${{ matrix.service.name }}-server:${{ github.ref_name }}
 
-      - name: Build and push Gmail Docker image
-        run: |
-          docker build -t ghcr.io/co-browser/vibe-gmail-server:latest -t ghcr.io/co-browser/vibe-gmail-server:${{ github.ref_name }} -f packages/mcp-gmail/Dockerfile .
-          docker push ghcr.io/co-browser/vibe-gmail-server:latest
-          docker push ghcr.io/co-browser/vibe-gmail-server:${{ github.ref_name }}
-
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
       - name: Deploy to Coolify
         env:
           COOLIFY_API_TOKEN: ${{ secrets.COOLIFY_API_TOKEN }}

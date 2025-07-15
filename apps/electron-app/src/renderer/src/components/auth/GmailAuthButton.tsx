@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Loader2, Mail, Lock } from "lucide-react";
 import { IconWithStatus } from "@/components/ui/icon-with-status";
 import { GMAIL_CONFIG } from "@vibe/shared-types";
@@ -103,7 +103,7 @@ export const GmailAuthButton: React.FC<GmailAuthButtonProps> = ({
     };
   }, []);
 
-  const getTooltipText = (): string => {
+  const getTooltipText = useCallback((): string => {
     if (isLoading) return "Checking Gmail connection...";
     if (isAuthenticating) return "Authenticating...";
 
@@ -118,7 +118,13 @@ export const GmailAuthButton: React.FC<GmailAuthButtonProps> = ({
     if (authStatus?.authenticated)
       return "Gmail connected • Click to disconnect";
     return "Gmail not connected • Click to connect";
-  };
+  }, [
+    isLoading,
+    isAuthenticating,
+    useLocalGmailServer,
+    isPrivyAuthenticated,
+    authStatus,
+  ]);
 
   const handleClick = (): void => {
     if (isLoading || isAuthenticating) return;
