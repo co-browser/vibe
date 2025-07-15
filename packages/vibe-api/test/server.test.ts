@@ -1,7 +1,7 @@
 import assert from "node:assert";
 import test from "node:test";
 import { createTRPCClient, httpBatchLink } from '@trpc/client';
-import type { AppRouter } from '../server/router';
+import type { AppRouter } from '..';
 
 const client = createTRPCClient<AppRouter>({
   links: [

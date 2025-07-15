@@ -23,5 +23,3 @@ export const createRouter = () =>
       .mutation(({ input }) => ({ msg: input.msg })),
   });
 
-// Optionally export the type for your client
-export type AppRouter = ReturnType<typeof createRouter>;
