@@ -14,14 +14,14 @@ services:
       - USE_LOCAL_GMAIL_SERVER=false
       - NODE_ENV=production
       - PORT=3000
-      
+
       # Privy authentication (required for cloud mode)
       - PRIVY_APP_ID=${PRIVY_APP_ID}
       - PRIVY_APP_SECRET=${PRIVY_APP_SECRET}
-      
+
       # Optional logging
       - LOG_LEVEL=${LOG_LEVEL:-info}
-    
+
     # Health check
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/health"]
@@ -29,7 +29,7 @@ services:
       timeout: 3s
       retries: 3
       start_period: 10s
-    
+
     # Resource limits (adjust as needed)
     deploy:
       resources:
