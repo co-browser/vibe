@@ -12,6 +12,7 @@ import type {
   StreamResponse,
   ExtractedPage,
   IMCPManager,
+  GmailTokens,
 } from "@vibe/shared-types";
 import { createLogger } from "@vibe/shared-types";
 
@@ -121,7 +122,7 @@ export class Agent {
     }
   }
 
-  async updateGmailTokens(tokens: any): Promise<void> {
+  async updateGmailTokens(tokens: GmailTokens | null): Promise<void> {
     if (!this.mcpManager) {
       logger.warn("No MCP manager available for Gmail token updates");
       return;
