@@ -14,7 +14,7 @@ if (process.env.USE_LOCAL_GMAIL_SERVER !== 'true') {
     throw new Error('Privy configuration missing');
   }
 
-  console.log(`Initializing Privy client with App ID: ${appId}`);
+  console.log('Initializing Privy client');
   privyClient = new PrivyClient(appId, appSecret);
 }
 
