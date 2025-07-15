@@ -1,35 +1,74 @@
-import assert from "node:assert";
-import test from "node:test";
-import { createTRPCClient, httpBatchLink } from '@trpc/client';
-import type { AppRouter } from '..';
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
+import { createTRPCClient, httpBatchLink } from "@trpc/client";
+import type { AppRouter } from "../server/router";
+import { createHTTPServer } from "@trpc/server/adapters/standalone";
+import { createRouter } from "../server/router";
+import cors from "cors";
 
-const client = createTRPCClient<AppRouter>({
-  links: [
-    httpBatchLink({
-      url: 'http://localhost:3000/api',
-    }),
-  ],
-});
+// Mock the agent module to avoid initialization issues
+vi.mock("../api/agent", () => ({
+  getStatus: () => ({ initialized: true, ready: true }),
+  initializeAgent: vi.fn(),
+}));
 
-test("API basic functionality", async () => {
-  // Test 1: Health endpoint
-  await test("health endpoint", async () => {
+describe("API basic functionality", () => {
+  let server: any;
+  let client: ReturnType<typeof createTRPCClient<AppRouter>>;
+  const PORT = 3333; // Use different port to avoid conflicts
+
+  beforeAll(async () => {
+    // Create and start test server
+    const router = createRouter();
+    server = createHTTPServer({
+      router,
+      middleware: cors(),
+      createContext: () => ({}),
+    });
+
+    await new Promise<void>(resolve => {
+      server.listen(PORT, () => {
+        resolve();
+      });
+    });
+
+    // Create client
+    client = createTRPCClient<AppRouter>({
+      links: [
+        httpBatchLink({
+          url: `http://localhost:${PORT}`,
+        }),
+      ],
+    });
+  });
+
+  afterAll(async () => {
+    // Close server
+    if (server) {
+      await new Promise<void>(resolve => {
+        server.close(() => {
+          resolve();
+        });
+      });
+    }
+  });
+
+  it("should return health status", async () => {
     const health = await client.health.query();
-    assert.strictEqual(health.status, 'healthy');
-    assert.strictEqual(typeof health.uptimeS, 'number');
-    assert.ok(health.uptimeS >= 0);
+    expect(health.status).toBe("healthy");
+    expect(typeof health.uptime).toBe("number");
+    expect(health.uptime).toBeGreaterThanOrEqual(0);
+    expect(health.agent).toBeDefined();
+    expect(health.timestamp).toBeDefined();
   });
 
-  // Test 2: Echo endpoint
-  await test("echo endpoint", async () => {
-    const testMessage = 'Hello, tRPC!';
+  it("should echo messages", async () => {
+    const testMessage = "Hello, tRPC!";
     const echo = await client.echo.mutate({ msg: testMessage });
-    assert.strictEqual(echo.msg, testMessage);
+    expect(echo.msg).toBe(testMessage);
   });
 
-  // Test 3: Invalid endpoint (404 handling)
-  await test("404 handling", async () => {
-    const response = await fetch('http://localhost:3000/invalid-path');
-    assert.strictEqual(response.status, 404);
+  it("should handle 404 for invalid paths", async () => {
+    const response = await fetch(`http://localhost:${PORT}/invalid-path`);
+    expect(response.status).toBe(404);
   });
 });
