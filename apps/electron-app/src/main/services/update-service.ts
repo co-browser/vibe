@@ -152,6 +152,7 @@ export default class AppUpdater {
           logger.info("User clicked install, starting update installation...");
 
           // Close all windows first
+          // Note: Data persistence is handled by the app's gracefulShutdown mechanism
           BrowserWindow.getAllWindows().forEach(win => {
             try {
               win.close();
@@ -160,17 +161,10 @@ export default class AppUpdater {
             }
           });
 
-          // Add delay to avoid race condition
+          // Add delay to ensure windows are closed
           setTimeout(() => {
             logger.info("Calling quitAndInstall...");
             autoUpdater.quitAndInstall(false, true);
-
-            // Force quit if quitAndInstall doesn't work
-            setTimeout(() => {
-              logger.warn("Force quitting app after quitAndInstall timeout");
-              app.relaunch();
-              app.exit(0);
-            }, 1000);
           }, 100);
         } else {
           mainWindow.webContents.send("update-downloaded-cancelled");

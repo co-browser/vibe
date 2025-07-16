@@ -48,6 +48,7 @@ declare global {
 
     /**
      * Legacy API - DEPRECATED, use window.vibe instead
+     * Note: Event listeners remain here temporarily for compatibility
      */
     api: {
       /**
@@ -69,23 +70,7 @@ declare global {
       ) => Promise<{ success: boolean; response?: string; error?: string }>;
 
       /**
-       * App related methods (temporary bridge for update component)
-       */
-      app: {
-        checkForUpdate: () => Promise<{
-          currentVersion: string;
-          updateInfo: {
-            version: string;
-            releaseNotes?: string;
-            releaseName?: string;
-            releaseDate?: string;
-          } | null;
-        }>;
-        showUpdateDialog: () => Promise<void>;
-      };
-
-      /**
-       * Event listeners
+       * Event listeners (required for update notifications)
        */
       on: (channel: string, listener: (...args: any[]) => void) => void;
       removeAllListeners: (channel: string) => void;
