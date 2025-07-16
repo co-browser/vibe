@@ -23,15 +23,26 @@ export class CloudTokenProvider {
   }
   
   async getTokens(): Promise<TokenData> {
+    console.log('[CloudTokenProvider] getTokens called');
     if (!this.req) {
+      console.error('[CloudTokenProvider] No request context available');
       throw new Error('No request context available for cloud token provider');
     }
+    
+    console.log('[CloudTokenProvider] Request headers:', JSON.stringify(this.req.headers, null, 2));
     
     // Read tokens from custom headers
     const accessToken = this.req.headers['x-gmail-access-token'] as string;
     const refreshToken = this.req.headers['x-gmail-refresh-token'] as string;
     const expiryDate = this.req.headers['x-gmail-token-expiry'] as string;
     const tokenType = this.req.headers['x-gmail-token-type'] as string;
+    
+    console.log('[CloudTokenProvider] Extracted tokens:', {
+      accessToken: accessToken ? 'present' : 'missing',
+      refreshToken: refreshToken ? 'present' : 'missing',
+      expiryDate: expiryDate,
+      tokenType: tokenType
+    });
     
     // Validate required tokens
     if (!accessToken?.trim()) {

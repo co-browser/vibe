@@ -1,4 +1,3 @@
-import { TokenProvider } from './token-provider.js';
 import { CloudTokenProvider } from './cloud-token-provider.js';
 
 // Common interface for both providers
@@ -20,15 +19,9 @@ interface TokenData {
  * Factory to create the appropriate token provider based on environment
  */
 export function createTokenProvider(): ITokenProvider {
-  const useLocalServer = process.env.USE_LOCAL_GMAIL_SERVER === 'true';
-  
-  if (useLocalServer) {
-    console.log('[TokenProviderFactory] Creating local token provider (IPC-based)');
-    return new TokenProvider();
-  } else {
-    console.log('[TokenProviderFactory] Creating cloud token provider (header-based)');
-    return new CloudTokenProvider();
-  }
+  // Always use CloudTokenProvider to read from HTTP headers
+  console.log('[TokenProviderFactory] Creating cloud token provider (header-based)');
+  return new CloudTokenProvider();
 }
 
 /**

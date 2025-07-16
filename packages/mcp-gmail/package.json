@@ -5,6 +5,7 @@
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
+    "dev": "tsx watch src/index.ts",
     "dev:standalone": "tsx watch src/index.ts",
     "build": "tsc",
     "bundle": "esbuild src/index.ts --bundle --platform=node --target=node18 --format=cjs --outfile=dist/bundle.cjs --external:electron && echo 'import { createRequire } from \"module\"; const require = createRequire(import.meta.url); require(\"./bundle.cjs\");' > dist/bundle-wrapper.mjs",

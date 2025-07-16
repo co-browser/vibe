@@ -21,9 +21,6 @@ export const GmailAuthButton: React.FC<GmailAuthButtonProps> = ({
   const [authStatus, setAuthStatus] = useState<AuthStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
-  const [useLocalGmailServer, setUseLocalGmailServer] = useState<
-    boolean | null
-  >(null);
 
   const checkAuthStatus = async (): Promise<void> => {
     try {
@@ -75,13 +72,6 @@ export const GmailAuthButton: React.FC<GmailAuthButtonProps> = ({
   };
 
   useEffect(() => {
-    // Check if we're using local Gmail server
-    window.vibe.app
-      .getEnvVar("USE_LOCAL_GMAIL_SERVER")
-      .then((value: string | undefined) => {
-        setUseLocalGmailServer(value === "true");
-      });
-
     checkAuthStatus();
 
     // Listen for OAuth completion events from main process
@@ -107,8 +97,8 @@ export const GmailAuthButton: React.FC<GmailAuthButtonProps> = ({
     if (isLoading) return "Checking Gmail connection...";
     if (isAuthenticating) return "Authenticating...";
 
-    // Show lock message when using cloud mode without Privy
-    if (useLocalGmailServer === false && !isPrivyAuthenticated) {
+    // Show lock message when Privy is not authenticated (for both local and cloud modes)
+    if (!isPrivyAuthenticated) {
       return authStatus?.authenticated
         ? "Gmail connected • Sign in with CoBrowser to use"
         : "Sign in with CoBrowser first to use Gmail";
@@ -118,13 +108,7 @@ export const GmailAuthButton: React.FC<GmailAuthButtonProps> = ({
     if (authStatus?.authenticated)
       return "Gmail connected • Click to disconnect";
     return "Gmail not connected • Click to connect";
-  }, [
-    isLoading,
-    isAuthenticating,
-    useLocalGmailServer,
-    isPrivyAuthenticated,
-    authStatus,
-  ]);
+  }, [isLoading, isAuthenticating, isPrivyAuthenticated, authStatus]);
 
   const handleClick = (): void => {
     if (isLoading || isAuthenticating) return;
@@ -144,8 +128,8 @@ export const GmailAuthButton: React.FC<GmailAuthButtonProps> = ({
     return authStatus?.authenticated ? "connected" : "disconnected";
   };
 
-  // Check if we should show the lock
-  const shouldShowLock = useLocalGmailServer === false && !isPrivyAuthenticated;
+  // Check if we should show the lock (for both local and cloud modes)
+  const shouldShowLock = !isPrivyAuthenticated;
 
   return (
     <div className="gmail-button-container">
