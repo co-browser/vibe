@@ -50,7 +50,6 @@ export function UpdateNotification() {
     };
 
     const handleUpdateError = (_event: any, error: any) => {
-      console.error("Update error:", error);
       setDownloading(false);
       setUpdateAvailable(false);
       setError(error?.message || "Failed to check for updates");
@@ -78,7 +77,9 @@ export function UpdateNotification() {
     window.api.on("update-update-not-available", handleUpdateNotAvailable);
 
     // Check for updates on mount
-    window.api.app.checkForUpdate().catch(console.error);
+    window.api.app.checkForUpdate().catch(() => {
+      // Silently ignore errors on mount
+    });
 
     // Cleanup
     return () => {
@@ -94,8 +95,8 @@ export function UpdateNotification() {
   const handleInstallUpdate = async () => {
     try {
       await window.api.app.showUpdateDialog();
-    } catch (error) {
-      console.error("Failed to show update dialog:", error);
+    } catch {
+      // Silently handle errors
     }
   };
 
@@ -112,76 +113,70 @@ export function UpdateNotification() {
   }
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 max-w-sm">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 p-4">
-        <div className="flex items-start justify-between">
-          <div className="flex items-start space-x-3">
-            {error ? (
-              <AlertCircle className="w-5 h-5 text-red-500 mt-0.5" />
-            ) : showNoUpdate ? (
-              <CheckCircle2 className="w-5 h-5 text-green-500 mt-0.5" />
-            ) : checking ? (
-              <div className="w-5 h-5 mt-0.5">
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500" />
-              </div>
-            ) : (
-              <Download className="w-5 h-5 text-blue-500 mt-0.5" />
-            )}
-            <div>
-              <h4 className="font-medium text-gray-900 dark:text-gray-100">
-                {error
-                  ? "Update Error"
-                  : showNoUpdate
-                    ? "No Updates Available"
-                    : checking
-                      ? "Checking for Updates..."
-                      : updateReady
-                        ? "Update Ready!"
-                        : "Update Available"}
-              </h4>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                {error
-                  ? error
-                  : showNoUpdate
-                    ? "You're running the latest version"
-                    : checking
-                      ? "Looking for new updates..."
-                      : updateReady
-                        ? `Version ${updateInfo?.version} is ready to install`
-                        : `Version ${updateInfo?.version} is available`}
-              </p>
+    <div
+      className="fixed top-[8px] right-4 z-[9999]"
+      style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+    >
+      <div
+        className="bg-white dark:bg-gray-800 rounded-full shadow-md border border-gray-200 dark:border-gray-700 px-3 py-1.5 flex items-center gap-2 text-xs"
+        style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+      >
+        <div className="flex items-center gap-2">
+          {error ? (
+            <AlertCircle className="w-3 h-3 text-red-500 flex-shrink-0" />
+          ) : showNoUpdate ? (
+            <CheckCircle2 className="w-3 h-3 text-green-500 flex-shrink-0" />
+          ) : checking ? (
+            <div className="animate-spin rounded-full h-3 w-3 border-2 border-blue-500 border-t-transparent flex-shrink-0" />
+          ) : (
+            <Download className="w-3 h-3 text-blue-500 flex-shrink-0" />
+          )}
 
-              {downloading && downloadProgress && (
-                <div className="mt-2">
-                  <div className="w-full bg-gray-200 rounded-full h-2 dark:bg-gray-700">
-                    <div
-                      className="bg-blue-500 h-2 rounded-full transition-all duration-200"
-                      style={{ width: `${downloadProgress.percent}%` }}
-                    />
-                  </div>
-                  <p className="text-xs text-gray-500 mt-1">
-                    {Math.round(downloadProgress.percent)}% downloaded
-                  </p>
+          <div className="flex-1 min-w-0">
+            <p className="font-medium text-gray-900 dark:text-gray-100 truncate">
+              {error
+                ? "Update Error"
+                : showNoUpdate
+                  ? "Up to date"
+                  : checking
+                    ? "Checking..."
+                    : updateReady
+                      ? `v${updateInfo?.version} ready`
+                      : `v${updateInfo?.version} available`}
+            </p>
+
+            {downloading && downloadProgress && (
+              <div className="flex items-center gap-2 mt-0.5">
+                <div className="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-1 overflow-hidden">
+                  <div
+                    className="bg-blue-500 h-full rounded-full transition-all duration-300"
+                    style={{ width: `${downloadProgress.percent}%` }}
+                  />
                 </div>
-              )}
-
-              {updateReady && (
-                <button
-                  onClick={handleInstallUpdate}
-                  className="mt-2 px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
-                >
-                  Restart and Install
-                </button>
-              )}
-            </div>
+                <span className="text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                  {Math.round(downloadProgress.percent)}%
+                </span>
+              </div>
+            )}
           </div>
+        </div>
+
+        <div className="flex items-center gap-1 ml-auto">
+          {updateReady && (
+            <button
+              onClick={handleInstallUpdate}
+              className="px-2.5 py-0.5 font-medium bg-blue-500 hover:bg-blue-600 text-white rounded-full transition-colors text-[11px]"
+            >
+              Install
+            </button>
+          )}
 
           {!downloading && !checking && (
             <button
               onClick={handleDismiss}
-              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              className="p-0.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
             >
-              <X className="w-4 h-4" />
+              <X className="w-3 h-3" />
             </button>
           )}
         </div>
