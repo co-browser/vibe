@@ -15,6 +15,7 @@ export default class AppUpdater {
   autoUpdater: _AppUpdater = autoUpdater;
   private releaseInfo: UpdateInfo | undefined;
   private initialized = false;
+  private isChecking = false;
 
   constructor() {
     // Private constructor for singleton pattern
@@ -32,6 +33,7 @@ export default class AppUpdater {
 
   /**
    * Initialize the updater (should be called once when app is ready)
+   * Sets up event listeners and configuration for auto-updater
    */
   initialize(): void {
     if (this.initialized) {
@@ -73,12 +75,31 @@ export default class AppUpdater {
     this.initialized = true;
   }
 
+  /**
+   * Enable or disable automatic updates
+   * @param isActive Whether to enable auto-download and auto-install
+   */
   public setAutoUpdate(isActive: boolean) {
     autoUpdater.autoDownload = isActive;
     autoUpdater.autoInstallOnAppQuit = isActive;
   }
 
+  /**
+   * Check for application updates
+   * Prevents concurrent update checks to avoid race conditions
+   */
   public async checkForUpdates() {
+    // Prevent concurrent update checks
+    if (this.isChecking) {
+      logger.info("Update check already in progress, skipping");
+      return {
+        currentVersion: app.getVersion(),
+        updateInfo: null,
+      };
+    }
+
+    this.isChecking = true;
+
     try {
       const update = await this.autoUpdater.checkForUpdates();
       if (update?.isUpdateAvailable && !this.autoUpdater.autoDownload) {
@@ -95,9 +116,15 @@ export default class AppUpdater {
         currentVersion: app.getVersion(),
         updateInfo: null,
       };
+    } finally {
+      this.isChecking = false;
     }
   }
 
+  /**
+   * Show update dialog to the user
+   * @param mainWindow The window to show the dialog on
+   */
   public async showUpdateDialog(mainWindow: BrowserWindow) {
     if (!this.releaseInfo) {
       return;

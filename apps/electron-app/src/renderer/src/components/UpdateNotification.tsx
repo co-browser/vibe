@@ -26,6 +26,9 @@ export function UpdateNotification() {
   const [showNoUpdate, setShowNoUpdate] = useState(false);
 
   useEffect(() => {
+    // Store listener references for proper cleanup
+    const listeners: Array<() => void> = [];
+
     // Listen for update events
     const handleUpdateAvailable = (_event: any, info: UpdateInfo) => {
       setUpdateInfo(info);
@@ -52,7 +55,15 @@ export function UpdateNotification() {
     const handleUpdateError = (_event: any, error: any) => {
       setDownloading(false);
       setUpdateAvailable(false);
-      setError(error?.message || "Failed to check for updates");
+      setChecking(false);
+      // User-friendly error messages
+      const errorMessage =
+        error?.code === "ENOTFOUND"
+          ? "Unable to connect to update server"
+          : error?.code === "ETIMEDOUT"
+            ? "Update check timed out"
+            : "Unable to check for updates";
+      setError(errorMessage);
       setTimeout(() => setError(null), 5000);
     };
 
@@ -68,35 +79,45 @@ export function UpdateNotification() {
       setTimeout(() => setShowNoUpdate(false), 3000);
     };
 
-    // Add listeners
-    window.api.on("update-update-available", handleUpdateAvailable);
-    window.api.on("update-download-progress", handleDownloadProgress);
-    window.api.on("update-update-downloaded", handleUpdateDownloaded);
-    window.api.on("update-error", handleUpdateError);
-    window.api.on("update-checking-for-update", handleCheckingForUpdate);
-    window.api.on("update-update-not-available", handleUpdateNotAvailable);
+    // Add listeners and store cleanup functions
+    const addListener = (channel: string, handler: any) => {
+      window.api.on(channel, handler);
+      listeners.push(() => {
+        // Remove specific listener
+        const api = window.api as any;
+        if (api._events && api._events[channel]) {
+          const index = api._events[channel].indexOf(handler);
+          if (index > -1) {
+            api._events[channel].splice(index, 1);
+          }
+        }
+      });
+    };
 
-    // Check for updates on mount
-    window.api.app.checkForUpdate().catch(() => {
+    addListener("update-update-available", handleUpdateAvailable);
+    addListener("update-download-progress", handleDownloadProgress);
+    addListener("update-update-downloaded", handleUpdateDownloaded);
+    addListener("update-error", handleUpdateError);
+    addListener("update-checking-for-update", handleCheckingForUpdate);
+    addListener("update-update-not-available", handleUpdateNotAvailable);
+
+    // Check for updates on mount using modern API
+    window.vibe.update.checkForUpdate().catch(() => {
       // Silently ignore errors on mount
     });
 
-    // Cleanup
+    // Cleanup - remove specific listeners
     return () => {
-      window.api.removeAllListeners("update-update-available");
-      window.api.removeAllListeners("update-download-progress");
-      window.api.removeAllListeners("update-update-downloaded");
-      window.api.removeAllListeners("update-error");
-      window.api.removeAllListeners("update-checking-for-update");
-      window.api.removeAllListeners("update-update-not-available");
+      listeners.forEach(cleanup => cleanup());
     };
   }, []);
 
   const handleInstallUpdate = async () => {
     try {
-      await window.api.app.showUpdateDialog();
-    } catch {
-      // Silently handle errors
+      await window.vibe.update.showUpdateDialog();
+    } catch (error) {
+      // Log error but don't show to user
+      console.error("Failed to show update dialog:", error);
     }
   };
 

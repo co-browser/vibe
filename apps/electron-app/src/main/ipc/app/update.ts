@@ -54,6 +54,10 @@ export function registerUpdateHandlers(): void {
 /**
  * Forward update events to all windows
  */
+/**
+ * Forward update events from auto-updater to all renderer processes
+ * This ensures all windows receive update notifications
+ */
 export function setupUpdateEventForwarding(): void {
   const updater = getAppUpdater();
   if (!updater) {
@@ -76,9 +80,14 @@ export function setupUpdateEventForwarding(): void {
       logger.debug(`Update event: ${eventName}`, args);
 
       // Send to all windows
-      BrowserWindow.getAllWindows().forEach(window => {
+      const windows = BrowserWindow.getAllWindows();
+      windows.forEach(window => {
         if (!window.isDestroyed()) {
-          window.webContents.send(`update-${eventName}`, ...args);
+          try {
+            window.webContents.send(`update-${eventName}`, ...args);
+          } catch (error) {
+            logger.error(`Failed to send update event to window: ${error}`);
+          }
         }
       });
     });
