@@ -7,10 +7,11 @@ module.exports = {
     "!**/.vscode/*",
     "!src/*",
     "!electron.vite.config.{js,ts,mjs,cjs}",
-    "!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}",
+    "!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,CHANGELOG.md,README.md}",
     "!{.env,.env.*,.npmrc,pnpm-lock.yaml}",
     "!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}",
     "out/**/*",
+    "app-update.yml",
   ],
   afterSign: "scripts/notarize.js",
   afterAllArtifactBuild: "scripts/notarizedmg.js",
@@ -20,6 +21,10 @@ module.exports = {
     "**/out/main/processes/agent-process.js"
   ],
   extraResources: [
+    {
+      from: "app-update.yml",
+      to: "app-update.yml",
+    },
     {
       from: "../../packages/mcp-gmail",
       to: "mcp-servers/mcp-gmail",

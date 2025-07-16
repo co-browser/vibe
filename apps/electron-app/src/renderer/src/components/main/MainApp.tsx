@@ -10,24 +10,7 @@ import {
   type LayoutContextType,
 } from "@vibe/shared-types";
 
-// Ensure window interface extensions are available
-declare global {
-  interface Window {
-    electron?: {
-      ipcRenderer: {
-        on: (channel: string, listener: (...args: any[]) => void) => void;
-        removeListener: (
-          channel: string,
-          listener: (...args: any[]) => void,
-        ) => void;
-        send: (channel: string, ...args: any[]) => void;
-        invoke: (channel: string, ...args: any[]) => Promise<any>;
-      };
-      platform: string;
-      [key: string]: any;
-    };
-  }
-}
+// Window interface is already declared in src/renderer/src/env.d.ts
 
 // Type guard for chat panel state
 function isChatPanelState(value: unknown): value is { isVisible: boolean } {

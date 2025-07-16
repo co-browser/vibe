@@ -35,7 +35,7 @@ import {
   browserWindowSessionIntegration,
   childProcessIntegration,
 } from "@sentry/electron/main";
-import AppUpdater from "./services/update-service";
+import { getAppUpdater } from "./services";
 import log from "electron-log";
 
 // Configure electron-log to write to file
@@ -758,9 +758,12 @@ app.whenReady().then(async () => {
             mainWindow.webContents &&
             !mainWindow.webContents.isDestroyed()
           ) {
-            //TODO: move to ipc service
-            const appUpdater = new AppUpdater(mainWindow);
-            appUpdater.checkForUpdates();
+            // Initialize and check for updates
+            const appUpdater = getAppUpdater();
+            if (appUpdater) {
+              appUpdater.initialize();
+              appUpdater.checkForUpdates();
+            }
             mainWindow.webContents
               .executeJavaScript(
                 `

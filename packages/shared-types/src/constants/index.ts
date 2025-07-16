@@ -70,7 +70,6 @@ export const CHAT_PANEL = {
 } as const;
 
 export const UPDATER = {
-  FEED_URL: "https://storage.googleapis.com/vibe-update/",
   AUTOUPDATE: true,
 };
 /**

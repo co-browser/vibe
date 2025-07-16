@@ -1,23 +1,48 @@
-import { UPDATER } from "@vibe/shared-types";
+import { UPDATER, createLogger } from "@vibe/shared-types";
 import { app, BrowserWindow, dialog } from "electron";
-import logger from "electron-log";
 import { AppUpdater as _AppUpdater, autoUpdater } from "electron-updater";
-// import { UpdateInfo } from "builder-util-runtime";
+import type { UpdateInfo } from "builder-util-runtime";
 
 import icon from "../../../resources/icon.png?asset";
 
-export default class AppUpdater {
-  autoUpdater: _AppUpdater = autoUpdater;
-  private releaseInfo: any | undefined;
+const logger = createLogger("AppUpdater");
 
-  constructor(mainWindow: BrowserWindow) {
-    logger.transports.file.level = "info";
+/**
+ * Singleton AppUpdater service for managing application updates
+ */
+export default class AppUpdater {
+  private static instance: AppUpdater | null = null;
+  autoUpdater: _AppUpdater = autoUpdater;
+  private releaseInfo: UpdateInfo | undefined;
+  private initialized = false;
+
+  constructor() {
+    // Private constructor for singleton pattern
+  }
+
+  /**
+   * Get or create the singleton instance
+   */
+  static getInstance(): AppUpdater {
+    if (!AppUpdater.instance) {
+      AppUpdater.instance = new AppUpdater();
+    }
+    return AppUpdater.instance;
+  }
+
+  /**
+   * Initialize the updater (should be called once when app is ready)
+   */
+  initialize(): void {
+    if (this.initialized) {
+      logger.warn("AppUpdater already initialized");
+      return;
+    }
 
     autoUpdater.logger = logger;
     autoUpdater.forceDevUpdateConfig = !app.isPackaged;
     autoUpdater.autoDownload = UPDATER.AUTOUPDATE;
     autoUpdater.autoInstallOnAppQuit = UPDATER.AUTOUPDATE;
-    autoUpdater.setFeedURL(UPDATER.FEED_URL);
 
     autoUpdater.on("error", error => {
       logger.error("autoupdate", {
@@ -25,29 +50,27 @@ export default class AppUpdater {
         stack: error.stack,
         time: new Date().toISOString(),
       });
-      mainWindow.webContents.send("update-error", error);
     });
 
-    autoUpdater.on("update-available", (releaseInfo: any) => {
+    autoUpdater.on("update-available", (releaseInfo: UpdateInfo) => {
       logger.info("update ready:", releaseInfo);
-      mainWindow.webContents.send("update-available", releaseInfo);
     });
 
     autoUpdater.on("update-not-available", () => {
-      mainWindow.webContents.send("update-not-available");
+      logger.info("No updates available");
     });
 
     autoUpdater.on("download-progress", progress => {
-      mainWindow.webContents.send("download-progress", progress);
+      logger.debug("Download progress:", progress);
     });
 
-    autoUpdater.on("update-downloaded", (releaseInfo: any) => {
-      mainWindow.webContents.send("update-downloaded", releaseInfo);
+    autoUpdater.on("update-downloaded", (releaseInfo: UpdateInfo) => {
       this.releaseInfo = releaseInfo;
       logger.info("update downloaded:", releaseInfo);
     });
 
     this.autoUpdater = autoUpdater;
+    this.initialized = true;
   }
 
   public setAutoUpdate(isActive: boolean) {
@@ -99,7 +122,29 @@ export default class AppUpdater {
       .then(({ response }) => {
         if (response === 1) {
           app.isQuitting = true;
-          setImmediate(() => autoUpdater.quitAndInstall());
+          logger.info("User clicked install, starting update installation...");
+
+          // Close all windows first
+          BrowserWindow.getAllWindows().forEach(win => {
+            try {
+              win.close();
+            } catch (e) {
+              logger.error("Error closing window:", e);
+            }
+          });
+
+          // Add delay to avoid race condition
+          setTimeout(() => {
+            logger.info("Calling quitAndInstall...");
+            autoUpdater.quitAndInstall(false, true);
+
+            // Force quit if quitAndInstall doesn't work
+            setTimeout(() => {
+              logger.warn("Force quitting app after quitAndInstall timeout");
+              app.relaunch();
+              app.exit(0);
+            }, 1000);
+          }, 100);
         } else {
           mainWindow.webContents.send("update-downloaded-cancelled");
         }
@@ -113,11 +158,32 @@ export default class AppUpdater {
       return "";
     }
 
+    let notes = "";
     if (typeof releaseNotes === "string") {
-      return releaseNotes;
+      notes = releaseNotes;
+    } else {
+      notes = releaseNotes.map(note => note.note).join("\n");
     }
 
-    return releaseNotes.map(note => note.note).join("\n");
+    // Strip HTML tags and format for native dialog
+    return (
+      notes
+        // Remove HTML tags
+        .replace(/<[^>]*>/g, "")
+        // Convert HTML entities
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/&amp;/g, "&")
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+        .replace(/&nbsp;/g, " ")
+        // Format lists
+        .replace(/^[\s]*[-*•]\s*/gm, "• ")
+        // Remove excessive whitespace
+        .replace(/\s+/g, " ")
+        .replace(/\n\s*\n/g, "\n\n")
+        .trim()
+    );
   }
 }
 

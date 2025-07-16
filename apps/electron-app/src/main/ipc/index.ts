@@ -10,6 +10,10 @@ import "@/ipc/app/notifications";
 import "@/ipc/app/actions";
 import "@/ipc/app/gmail";
 import "@/ipc/app/onboarding";
+import {
+  registerUpdateHandlers,
+  setupUpdateEventForwarding,
+} from "@/ipc/app/update";
 
 // Chat APIs - direct imports (register themselves)
 import "@/ipc/chat/chat-messaging";
@@ -49,6 +53,10 @@ export function registerAllIpcHandlers(browser: Browser): () => void {
 
   // Setup browser event forwarding (needs browser instance)
   setupBrowserEventForwarding();
+
+  // Register update handlers
+  registerUpdateHandlers();
+  setupUpdateEventForwarding();
 
   // Setup session state sync (broadcasts to all windows)
   let sessionUnsubscribe: (() => void) | null = null;
