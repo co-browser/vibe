@@ -7,7 +7,7 @@ export interface ITokenProvider {
   clearCache(): void;
 }
 
-interface TokenData {
+export interface TokenData {
   access_token: string;
   refresh_token: string;
   expiry_date: number;
@@ -16,7 +16,7 @@ interface TokenData {
 }
 
 /**
- * Factory to create the appropriate token provider based on environment
+ * Factory to create the cloud token provider for header-based authentication
  */
 export function createTokenProvider(): ITokenProvider {
   // Always use CloudTokenProvider to read from HTTP headers
