@@ -56,6 +56,10 @@ export default class AppUpdater {
 
     autoUpdater.on("update-available", (releaseInfo: UpdateInfo) => {
       logger.info("update ready:", releaseInfo);
+      // Validate update info when received
+      if (!this.isValidUpdateInfo(releaseInfo)) {
+        logger.error("Received invalid update info");
+      }
     });
 
     autoUpdater.on("update-not-available", () => {
@@ -67,8 +71,13 @@ export default class AppUpdater {
     });
 
     autoUpdater.on("update-downloaded", (releaseInfo: UpdateInfo) => {
-      this.releaseInfo = releaseInfo;
-      logger.info("update downloaded:", releaseInfo);
+      // Validate before storing
+      if (this.isValidUpdateInfo(releaseInfo)) {
+        this.releaseInfo = releaseInfo;
+        logger.info("update downloaded:", releaseInfo);
+      } else {
+        logger.error("Downloaded update has invalid info, refusing to store");
+      }
     });
 
     this.autoUpdater = autoUpdater;
@@ -122,11 +131,44 @@ export default class AppUpdater {
   }
 
   /**
+   * Validates update info structure
+   * @param info The update info to validate
+   * @returns True if valid, false otherwise
+   */
+  private isValidUpdateInfo(info: UpdateInfo | undefined): boolean {
+    if (!info) return false;
+
+    // Check required fields
+    if (!info.version || typeof info.version !== "string") {
+      logger.error("Invalid update info: missing or invalid version");
+      return false;
+    }
+
+    // Validate version format (basic semver check)
+    const semverRegex = /^\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?(\+[a-zA-Z0-9.-]+)?$/;
+    if (!semverRegex.test(info.version)) {
+      logger.error(
+        `Invalid update info: invalid version format ${info.version}`,
+      );
+      return false;
+    }
+
+    return true;
+  }
+
+  /**
    * Show update dialog to the user
    * @param mainWindow The window to show the dialog on
    */
   public async showUpdateDialog(mainWindow: BrowserWindow) {
     if (!this.releaseInfo) {
+      logger.warn("No release info available for update dialog");
+      return;
+    }
+
+    // Validate update info before processing
+    if (!this.isValidUpdateInfo(this.releaseInfo)) {
+      logger.error("Invalid update info, refusing to show dialog");
       return;
     }
 
@@ -146,26 +188,32 @@ export default class AppUpdater {
         defaultId: 1,
         cancelId: 0,
       })
-      .then(({ response }) => {
+      .then(async ({ response }) => {
         if (response === 1) {
-          app.isQuitting = true;
           logger.info("User clicked install, starting update installation...");
 
-          // Close all windows first
-          // Note: Data persistence is handled by the app's gracefulShutdown mechanism
-          BrowserWindow.getAllWindows().forEach(win => {
-            try {
-              win.close();
-            } catch (e) {
-              logger.error("Error closing window:", e);
-            }
+          // Set flag to indicate we're installing an update
+          app.isQuitting = true;
+
+          // The app's before-quit handler will trigger gracefulShutdown
+          // which properly cleans up all resources. After that completes,
+          // we'll install the update.
+
+          // Store reference to quitAndInstall to be called after shutdown
+          const performUpdate = () => {
+            logger.info("Graceful shutdown complete, installing update...");
+            autoUpdater.quitAndInstall(false, true);
+          };
+
+          // Listen for app ready to quit after graceful shutdown
+          app.once("will-quit", event => {
+            event.preventDefault();
+            // Small delay to ensure all cleanup is complete
+            setTimeout(performUpdate, 100);
           });
 
-          // Add delay to ensure windows are closed
-          setTimeout(() => {
-            logger.info("Calling quitAndInstall...");
-            autoUpdater.quitAndInstall(false, true);
-          }, 100);
+          // Trigger the shutdown sequence
+          app.quit();
         } else {
           mainWindow.webContents.send("update-downloaded-cancelled");
         }

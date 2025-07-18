@@ -13,6 +13,14 @@ interface DownloadProgress {
   transferred: number;
 }
 
+/**
+ * Update notification component that displays update status and progress.
+ *
+ * IMPORTANT: This component should be used as a singleton in the app.
+ * Due to limitations in the legacy window.api interface, we use removeAllListeners
+ * which removes all listeners for a channel. Multiple instances would interfere
+ * with each other's event handling.
+ */
 export function UpdateNotification() {
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
@@ -26,8 +34,8 @@ export function UpdateNotification() {
   const [showNoUpdate, setShowNoUpdate] = useState(false);
 
   useEffect(() => {
-    // Store listener references for proper cleanup
-    const listeners: Array<() => void> = [];
+    // Store cleanup functions for proper listener removal
+    const cleanupFunctions: Array<() => void> = [];
 
     // Listen for update events
     const handleUpdateAvailable = (_event: any, info: UpdateInfo) => {
@@ -82,12 +90,20 @@ export function UpdateNotification() {
       setTimeout(() => setShowNoUpdate(false), 3000);
     };
 
-    // Add listeners and store cleanup functions
+    // Helper to add listeners with proper cleanup
     const addListener = (channel: string, handler: any) => {
-      window.api.on(channel, handler);
-      // Since we only have removeAllListeners available, we'll use that
-      // This is safe because this component is the only one listening to these update channels
-      listeners.push(() => {
+      // Create a wrapper that extracts event data
+      const listener = (event: any, ...args: any[]) => {
+        handler(event, ...args);
+      };
+
+      // Use the legacy API but store individual cleanup functions
+      window.api.on(channel, listener);
+
+      // Store cleanup function that removes only this specific listener
+      cleanupFunctions.push(() => {
+        // Note: Since window.api only exposes removeAllListeners, we need to be careful
+        // For now, we'll use it but document that this component should be singleton
         window.api.removeAllListeners(channel);
       });
     };
@@ -105,9 +121,9 @@ export function UpdateNotification() {
       console.error("Update check failed on mount:", error);
     });
 
-    // Cleanup - remove specific listeners
+    // Cleanup all listeners on unmount
     return () => {
-      listeners.forEach(cleanup => cleanup());
+      cleanupFunctions.forEach(cleanup => cleanup());
     };
   }, []);
 
@@ -115,8 +131,10 @@ export function UpdateNotification() {
     try {
       await window.vibe.update.showUpdateDialog();
     } catch (error) {
-      // Log error but don't show to user
       console.error("Failed to show update dialog:", error);
+      // Show error to user
+      setError("Failed to install update. Please try again.");
+      setTimeout(() => setError(null), 5000);
     }
   };
 
