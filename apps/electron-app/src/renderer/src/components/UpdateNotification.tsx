@@ -52,7 +52,10 @@ export function UpdateNotification() {
       setDownloading(false);
     };
 
-    const handleUpdateError = (_event: any, error: any) => {
+    const handleUpdateError = (
+      _event: any,
+      error: { code?: string; message?: string },
+    ) => {
       setDownloading(false);
       setUpdateAvailable(false);
       setChecking(false);
@@ -62,7 +65,7 @@ export function UpdateNotification() {
           ? "Unable to connect to update server"
           : error?.code === "ETIMEDOUT"
             ? "Update check timed out"
-            : "Unable to check for updates";
+            : error?.message || "Unable to check for updates";
       setError(errorMessage);
       setTimeout(() => setError(null), 5000);
     };
@@ -82,15 +85,10 @@ export function UpdateNotification() {
     // Add listeners and store cleanup functions
     const addListener = (channel: string, handler: any) => {
       window.api.on(channel, handler);
+      // Since we only have removeAllListeners available, we'll use that
+      // This is safe because this component is the only one listening to these update channels
       listeners.push(() => {
-        // Remove specific listener
-        const api = window.api as any;
-        if (api._events && api._events[channel]) {
-          const index = api._events[channel].indexOf(handler);
-          if (index > -1) {
-            api._events[channel].splice(index, 1);
-          }
-        }
+        window.api.removeAllListeners(channel);
       });
     };
 
@@ -102,8 +100,9 @@ export function UpdateNotification() {
     addListener("update-update-not-available", handleUpdateNotAvailable);
 
     // Check for updates on mount using modern API
-    window.vibe.update.checkForUpdate().catch(() => {
-      // Silently ignore errors on mount
+    window.vibe.update.checkForUpdate().catch(error => {
+      // Log error for debugging but don't show to user on mount
+      console.error("Update check failed on mount:", error);
     });
 
     // Cleanup - remove specific listeners
