@@ -183,7 +183,7 @@ export default class AppUpdater {
     if (typeof releaseNotes === "string") {
       notes = releaseNotes;
     } else {
-      notes = releaseNotes.map(note => note.note).join("\n");
+      notes = releaseNotes.map(note => note.note || "").join("\n");
     }
 
     // Strip HTML tags and format for native dialog
