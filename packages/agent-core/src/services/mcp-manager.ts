@@ -13,6 +13,7 @@ import {
   MCPToolError,
   IMCPManager,
   createMCPServerConfig,
+  GmailTokens,
 } from "@vibe/shared-types";
 
 import { MCPConnectionManager } from "./mcp-connection-manager.js";
@@ -32,6 +33,10 @@ class ConnectionOrchestrator {
   setAuthToken(token: string | null): void {
     this.authToken = token;
     this.connectionManager.setAuthToken(token);
+  }
+
+  setGmailTokens(tokens: GmailTokens | null): void {
+    this.connectionManager.setGmailTokens(tokens);
   }
 
   async initializeConnections(
@@ -207,6 +212,56 @@ class ConnectionOrchestrator {
     }
   }
 
+  async connectGmailServer(gmailConfig: MCPServerConfig): Promise<void> {
+    // Validate Gmail config
+    if (!gmailConfig?.url || !gmailConfig?.mcpEndpoint) {
+      throw new Error(
+        "Invalid Gmail configuration: missing url or mcpEndpoint",
+      );
+    }
+
+    logger.debug(`Connecting to Gmail server with config:`, gmailConfig);
+
+    try {
+      // Disconnect existing Gmail connection if any
+      const existingGmail = this.connections.get("gmail");
+      if (existingGmail) {
+        logger.debug("Closing existing Gmail connection");
+        try {
+          await this.connectionManager.closeConnection(existingGmail);
+        } catch (closeError) {
+          logger.warn("Failed to close existing Gmail connection:", closeError);
+        }
+        this.connections.delete("gmail");
+      }
+
+      // Create new Gmail connection
+      logger.debug("Creating new Gmail connection");
+      const connection =
+        await this.connectionManager.createConnection(gmailConfig);
+      logger.debug("Fetching Gmail tools");
+      await this.fetchTools(connection);
+      this.connections.set("gmail", connection);
+
+      logger.info(
+        "Gmail server connected successfully with tools:",
+        Object.keys(connection.tools || {}),
+      );
+    } catch (error) {
+      logger.error("Failed to connect Gmail server:", error);
+      throw error;
+    }
+  }
+
+  async disconnectGmailServer(): Promise<void> {
+    const gmailConnection = this.connections.get("gmail");
+    if (gmailConnection) {
+      await this.connectionManager.closeConnection(gmailConnection);
+      this.connections.delete("gmail");
+      logger.info("Gmail server disconnected");
+    }
+  }
+
   private async fetchTools(connection: MCPConnection): Promise<void> {
     const result = await connection.client.listTools();
     const toolRouter = new MCPToolRouter();
@@ -371,10 +426,58 @@ export class MCPManager implements IMCPManager {
     this.toolRouter,
   );
   private authToken: string | null = null;
+  private gmailTokens: GmailTokens | null = null;
 
   async initialize(configs: MCPServerConfig[]): Promise<void> {
     const connections = await this.orchestrator.initializeConnections(configs);
     this.toolRegistry.registerConnections(connections);
+  }
+
+  async updateGmailTokens(tokens: GmailTokens | null): Promise<void> {
+    logger.info(`Updating Gmail tokens: ${tokens ? "present" : "null"}`);
+    this.gmailTokens = tokens;
+    this.orchestrator.setGmailTokens(tokens);
+
+    // Handle Gmail connection - only connect if BOTH tokens exist
+    if (tokens && this.authToken) {
+      // Try to connect to Gmail server
+      const envVars: Record<string, string> = {
+        USE_LOCAL_GMAIL_SERVER: process.env.USE_LOCAL_GMAIL_SERVER || "",
+        GMAIL_SERVER_URL: process.env.GMAIL_SERVER_URL || "",
+      };
+      const gmailConfig = createMCPServerConfig("gmail", envVars);
+
+      if (gmailConfig?.url) {
+        try {
+          logger.info(`Connecting to Gmail server at: ${gmailConfig.url}`);
+          await this.orchestrator.connectGmailServer(gmailConfig);
+          // Re-register connections to include new Gmail connection
+          this.toolRegistry.registerConnections(
+            this.orchestrator.getConnections(),
+          );
+          logger.info("Gmail server connected successfully");
+
+          // Log available tools after connection
+          const allTools = await this.getAllTools();
+          const gmailTools = Object.keys(allTools).filter(name =>
+            name.startsWith("gmail:"),
+          );
+          logger.info(`Gmail tools available: ${gmailTools.join(", ")}`);
+        } catch (error) {
+          logger.error(
+            "Failed to connect Gmail server after token update:",
+            error,
+          );
+        }
+      }
+    } else if (!tokens) {
+      // Disconnect Gmail server if tokens are removed
+      logger.info("Disconnecting Gmail server due to token removal");
+      await this.orchestrator.disconnectGmailServer();
+      // Re-register connections without Gmail
+      this.toolRegistry.registerConnections(this.orchestrator.getConnections());
+    }
+    // If tokens exist but no Privy auth, do nothing (wait for Privy)
   }
 
   async updateAuthToken(token: string | null): Promise<void> {
@@ -422,14 +525,25 @@ export class MCPManager implements IMCPManager {
             error,
           );
         }
-      } else {
-        logger.warn("No RAG config available for cloud connection");
+      }
+
+      // Also try to connect Gmail if tokens exist
+      if (this.gmailTokens) {
+        const gmailConnection = this.orchestrator.getConnection("gmail");
+        if (!gmailConnection || !gmailConnection.isConnected) {
+          await this.updateGmailTokens(this.gmailTokens);
+        }
       }
     } else {
       // Disconnect RAG server if token is removed
       logger.info("Disconnecting RAG server due to token removal");
       await this.orchestrator.disconnectRAGServer();
-      // Re-register connections without RAG
+
+      // Also disconnect Gmail (no Privy auth = no cloud connection)
+      logger.info("Disconnecting Gmail server due to Privy token removal");
+      await this.orchestrator.disconnectGmailServer();
+
+      // Re-register connections without RAG and Gmail
       this.toolRegistry.registerConnections(this.orchestrator.getConnections());
     }
   }

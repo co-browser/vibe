@@ -12,6 +12,7 @@ import type {
   StreamResponse,
   ExtractedPage,
   IMCPManager,
+  GmailTokens,
 } from "@vibe/shared-types";
 import { createLogger } from "@vibe/shared-types";
 
@@ -117,6 +118,30 @@ export class Agent {
       logger.info("Processor recreated with updated MCP connections");
     } catch (error) {
       logger.error("Failed to update MCP connections:", error);
+      throw error;
+    }
+  }
+
+  async updateGmailTokens(tokens: GmailTokens | null): Promise<void> {
+    if (!this.mcpManager) {
+      logger.warn("No MCP manager available for Gmail token updates");
+      return;
+    }
+
+    try {
+      await this.mcpManager.updateGmailTokens(tokens);
+      logger.info("Gmail tokens updated in MCP manager");
+
+      // Clear tool cache and recreate processor to include new tools
+      // This follows the same pattern as updateMCPConnections for RAG
+      this.toolManager.clearToolCache();
+      this._processor = await ProcessorFactory.create(
+        this.config,
+        this.toolManager,
+      );
+      logger.info("Processor recreated with updated Gmail connections");
+    } catch (error) {
+      logger.error("Failed to update Gmail tokens:", error);
       throw error;
     }
   }

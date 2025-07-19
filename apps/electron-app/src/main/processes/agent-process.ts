@@ -47,6 +47,10 @@ interface UpdateOpenAIApiKeyData {
   apiKey: string;
 }
 
+interface UpdateGmailTokensData {
+  tokens: any; // GmailTokens type
+}
+
 // ============================================================================
 // PROCESS STATE
 // ============================================================================
@@ -376,6 +380,27 @@ class MessageHandlers {
       hasToken: !!authToken,
     });
   }
+
+  static async handleUpdateGmailTokens(message: BaseMessage): Promise<void> {
+    const data = message.data as UpdateGmailTokensData;
+    logger.info("Gmail tokens update received");
+
+    // If agent is initialized, update its Gmail tokens
+    if (agent) {
+      try {
+        await agent.updateGmailTokens(data.tokens);
+        logger.info("Gmail tokens updated in agent");
+      } catch (error) {
+        logger.error("Failed to update Gmail tokens:", error);
+        // Don't fail the token update, just log the error
+      }
+    }
+
+    IPCMessenger.sendResponse(message.id, {
+      success: true,
+    });
+  }
+
   //function that asks for the api key and watches for changes
   // RPM
   static async handleUpdateOpenAIApiKey(
@@ -582,6 +607,10 @@ async function handleMessageWithErrorHandling(
 
       case "update-auth-token":
         await MessageHandlers.handleUpdateAuthToken(message);
+        break;
+
+      case "update-gmail-tokens":
+        await MessageHandlers.handleUpdateGmailTokens(message);
         break;
 
       case "update-openai-api-key":

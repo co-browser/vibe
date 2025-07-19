@@ -46,6 +46,23 @@ ipcMain.handle("app:set-auth-token", async (_event, token: string | null) => {
   return { success: true };
 });
 
+// Handler for getting environment variables
+ipcMain.handle("app:get-env-var", async (_event, varName: string) => {
+  // Only allow specific environment variables to be accessed
+  const allowedVars = [
+    "USE_LOCAL_GMAIL_SERVER",
+    "USE_LOCAL_GMAIL_AUTH",
+    "USE_LOCAL_RAG_SERVER",
+    "NODE_ENV",
+  ];
+
+  if (!allowedVars.includes(varName)) {
+    return undefined;
+  }
+
+  return process.env[varName];
+});
+
 // Export getter for other modules
 export function getAuthToken(): string | null {
   return AuthTokenManager.getInstance().getToken();

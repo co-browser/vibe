@@ -15,7 +15,9 @@
         "OPENAI_API_KEY",
         "PORT",
         "LOG_LEVEL",
-        "MCP_SERVER_PORT"
+        "MCP_SERVER_PORT",
+        "USE_LOCAL_GMAIL_SERVER",
+        "USE_LOCAL_GMAIL_AUTH"
       ],
       "interruptible": true
     },

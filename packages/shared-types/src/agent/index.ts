@@ -3,6 +3,7 @@
  */
 
 import type { ExtractedPage } from "../browser/index.js";
+import type { GmailTokens } from "../gmail/index.js";
 
 export type ProcessorType = "react" | "coact";
 
@@ -53,6 +54,7 @@ export interface IAgentProvider {
   reset(): Promise<void>;
   saveTabMemory(extractedPage: ExtractedPage): Promise<void>;
   updateAuthToken(token: string | null): Promise<void>;
+  updateGmailTokens(tokens: GmailTokens | null): Promise<void>;
 
   // Event handling
   on(event: "message-stream", listener: (data: any) => void): void;

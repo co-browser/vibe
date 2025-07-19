@@ -12,7 +12,8 @@ import type {
 } from '@modelcontextprotocol/sdk/types.js';
 import { type Request, type Response } from 'express';
 import { randomUUID } from 'node:crypto';
-import { GmailTools } from './tools.js';
+import { GmailTools, tokenProvider } from './tools.js';
+import { getCloudTokenProvider } from './token-provider-factory.js';
 
 // Simple console logger - MCP Gmail runs as child process
 const log = {
@@ -26,6 +27,7 @@ const JSON_RPC_ERROR = -32603;
 
 export class StreamableHTTPServer {
   server: Server;
+  private currentRequest: Request | null = null;
 
   constructor(server: Server) {
     this.server = server;
@@ -45,6 +47,26 @@ export class StreamableHTTPServer {
 
   async handlePostRequest(req: Request, res: Response) {
     log.info(`POST ${req.originalUrl} (${req.ip}) - payload:`, req.body);
+    
+    // Debug: Log all headers received
+    log.info('[DEBUG] Headers received:', JSON.stringify(req.headers, null, 2));
+    log.info('[DEBUG] Specific Gmail headers:', {
+      'x-gmail-access-token': req.headers['x-gmail-access-token'] ? 'present' : 'missing',
+      'x-gmail-refresh-token': req.headers['x-gmail-refresh-token'] ? 'present' : 'missing',
+      'x-gmail-token-expiry': req.headers['x-gmail-token-expiry'],
+      'x-gmail-token-type': req.headers['x-gmail-token-type'],
+      'authorization': req.headers['authorization'] ? 'present' : 'missing'
+    });
+    
+    // Store current request for access during tool execution
+    this.currentRequest = req;
+    
+    // Set request context for cloud token provider
+    const cloudProvider = getCloudTokenProvider(tokenProvider);
+    if (cloudProvider && this.currentRequest) {
+      cloudProvider.setRequest(this.currentRequest);
+    }
+    
     try {
       const transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: undefined,
@@ -109,6 +131,12 @@ export class StreamableHTTPServer {
         }
 
         try {
+          // Set request context for cloud token provider before tool execution
+          const cloudProvider = getCloudTokenProvider(tokenProvider);
+          if (cloudProvider && this.currentRequest) {
+            cloudProvider.setRequest(this.currentRequest);
+          }
+          
           // Validate args against tool's Zod schema before execution
           const parseResult = tool.zodSchema.safeParse(args);
           if (!parseResult.success) {
