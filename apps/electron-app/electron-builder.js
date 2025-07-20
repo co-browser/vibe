@@ -7,19 +7,26 @@ module.exports = {
     "!**/.vscode/*",
     "!src/*",
     "!electron.vite.config.{js,ts,mjs,cjs}",
-    "!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}",
+    "!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,CHANGELOG.md,README.md}",
     "!{.env,.env.*,.npmrc,pnpm-lock.yaml}",
     "!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}",
     "out/**/*",
+    "app-update.yml",
   ],
-  afterSign: "scripts/notarize.js",
-  afterAllArtifactBuild: "scripts/notarizedmg.js",
+  afterSign:
+    process.env.NOTARIZE === "true" ? "scripts/notarize.js" : undefined,
+  afterAllArtifactBuild:
+    process.env.NOTARIZE === "true" ? "scripts/notarizedmg.js" : undefined,
   asarUnpack: [
     "dist/mac-arm64/vibe.app/Contents/Resources/app.asar.unpacked/node_modules/sqlite3/build/Release/node_sqlite3.node",
     "**/out/main/processes/mcp-manager-process.js",
-    "**/out/main/processes/agent-process.js"
+    "**/out/main/processes/agent-process.js",
   ],
   extraResources: [
+    {
+      from: "app-update.yml",
+      to: "app-update.yml",
+    },
     {
       from: "../../packages/mcp-gmail",
       to: "mcp-servers/mcp-gmail",
@@ -56,6 +63,7 @@ module.exports = {
     },
     category: "public.app-category.developer-tools",
     entitlements: "resources/entitlements.mac.plist",
+    entitlementsInherit: "resources/entitlements.mac.plist",
     darkModeSupport: true,
     electronLanguages: ["en"],
     hardenedRuntime: true,
@@ -74,7 +82,6 @@ module.exports = {
   },
   dmg: {
     icon: "resources/icon.icns",
-    background: "resources/DMG_Background.tiff",
     sign: true,
     format: "ULFO",
     internetEnabled: true,
@@ -108,20 +115,32 @@ module.exports = {
   },
   // Ensure NODE_ENV is set for packaged app
   asar: {
-    smartUnpack: true
+    smartUnpack: true,
   },
   npmRebuild: false,
   // Only include publish config when explicitly publishing (e.g., in CI)
-  ...(process.env.PUBLISH_RELEASE === "true" ? {
-    publish: {
-      provider: "github",
-      owner: "co-browser",
-      repo: "vibe",
-      releaseType: "draft",
-      publishAutoUpdate: true
-    }
-  } : {}),
+  ...(process.env.PUBLISH_RELEASE === "true"
+    ? {
+        publish: {
+          provider: "github",
+          owner: "co-browser",
+          repo: "vibe",
+          releaseType: "draft",
+          publishAutoUpdate: true,
+        },
+      }
+    : {}),
   electronDownload: {
     mirror: "https://npmmirror.com/mirrors/electron/",
+  },
+  electronFuses: {
+    runAsNode: false,
+    enableCookieEncryption: true,
+    enableNodeOptionsEnvironmentVariable: false,
+    enableNodeCliInspectArguments: false,
+    enableEmbeddedAsarIntegrityValidation: true,
+    onlyLoadAppFromAsar: true,
+    loadBrowserProcessSpecificV8Snapshot: false,
+    grantFileProtocolExtraPrivileges: false,
   },
 };

@@ -57,6 +57,7 @@ jobs:
           NODE_ENV: production
           GH_TOKEN: ${{ secrets.RELEASE_PAT || secrets.GITHUB_TOKEN }}
           PUBLISH_RELEASE: true
+          NOTARIZE: true
         run: pnpm --filter vibe build:mac
 
       - name: List artifacts

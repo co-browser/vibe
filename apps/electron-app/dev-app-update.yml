@@ -1,3 +1,0 @@
-provider: s3
-bucket: "vibe-update"
-endpoint: "https://storage.googleapis.com"

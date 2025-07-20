@@ -706,6 +706,18 @@ const additionalAPIs = {
       logger.warn("DEPRECATED: Use window.vibe.chat.sendMessage() instead");
       return ipcRenderer.invoke("process-agent-input", input);
     },
+    // Temporary bridge for update methods until UpdateNotification is updated
+    app: {
+      checkForUpdate: updateAPI.checkForUpdate,
+      showUpdateDialog: updateAPI.showUpdateDialog,
+    },
+    // Event listeners for updates
+    on: (channel: string, listener: (...args: any[]) => void) => {
+      ipcRenderer.on(channel, listener);
+    },
+    removeAllListeners: (channel: string) => {
+      ipcRenderer.removeAllListeners(channel);
+    },
   },
 };
 

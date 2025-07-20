@@ -117,7 +117,16 @@ export interface VibeSessionAPI {
 }
 
 export interface VibeUpdateAPI {
-  [key: string]: any;
+  checkForUpdate: () => Promise<{
+    currentVersion: string;
+    updateInfo: {
+      version: string;
+      releaseNotes?: string;
+      releaseName?: string;
+      releaseDate?: string;
+    } | null;
+  }>;
+  showUpdateDialog: () => Promise<void>;
 }
 
 // Global window interface

@@ -4,6 +4,7 @@
 
 import type { MenuItemConstructorOptions } from "electron";
 import { dialog, BrowserWindow } from "electron";
+import { getAppUpdater } from "@/services";
 
 export function createHelpMenu(): MenuItemConstructorOptions {
   const isMac = process.platform === "darwin";
@@ -44,6 +45,25 @@ F1: Show this help dialog`,
         label: "Keyboard Shortcuts",
         accelerator: "F1",
         click: showKeyboardShortcutsHelp,
+      },
+      { type: "separator" },
+      {
+        label: "Check for Updates...",
+        click: async () => {
+          const updater = getAppUpdater();
+          const focusedWindow = BrowserWindow.getFocusedWindow();
+
+          if (focusedWindow && updater) {
+            // Send event to renderer to show checking state
+            focusedWindow.webContents.send("update-checking-for-update");
+
+            try {
+              await updater.checkForUpdates();
+            } catch (error) {
+              console.error("Error checking for updates:", error);
+            }
+          }
+        },
       },
     ] as MenuItemConstructorOptions[],
   };

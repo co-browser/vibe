@@ -6,6 +6,7 @@
 import "./components/styles/index.css";
 import { RouterProvider } from "./router/provider";
 import { Route } from "./router/route";
+import { UpdateNotification } from "./components/UpdateNotification";
 
 // Browser Route
 import BrowserRoute from "./routes/browser/route";
@@ -24,7 +25,12 @@ function Routes() {
 }
 
 function App() {
-  return <Routes />;
+  return (
+    <>
+      <Routes />
+      <UpdateNotification />
+    </>
+  );
 }
 
 export default App;
