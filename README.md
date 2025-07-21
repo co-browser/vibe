@@ -57,6 +57,7 @@ The desktop application will reload automatically as you edit the source code.
 |------|---------|
 | `USE_LOCAL_RAG_SERVER=true` | Use a locally running RAG server. |
 | `USE_LOCAL_GMAIL_AUTH=true` | Use self-hosted Gmail OAuth (see below). |
+| `USE_LOCAL_GMAIL_SERVER=true` | Run Gmail MCP server locally (default: cloud). |
 
 ### Self-Hosted Gmail OAuth
 
@@ -106,11 +107,12 @@ mv gcp-oauth.keys.json ~/.gmail-mcp/
 
 > **Note**
 >
-> [v0.1.7](https://github.com/co-browser/vibe/releases/tag/v0.1.7) - July 10, 2025
+> [v0.1.8](https://github.com/co-browser/vibe/releases/tag/v0.1.8) - July 19, 2025
 >
-> • **Gmail Fix:** Fixed an issue where Gmail integration would break after restarting the app  
-> • **Process Management:** Email server now properly shuts down when you quit the app  
-> • **Stability:** No more "port already in use" errors on subsequent launches
+> • **Cloud Gmail Support:** Gmail MCP server can now run in the cloud, controlled by `USE_LOCAL_GMAIL_SERVER` environment variable  
+> • **Authentication UX:** Added lock icon and tooltip to Gmail button showing when CoBrowser sign-in is needed for cloud access  
+> • **Enhanced Security:** Improved token handling and added secure IPC channel for environment variable access
+> • **Flexible Deployment:** Gmail integration now works seamlessly in both local and cloud modes
 
 For the full technical changelog, see [CHANGELOG.md](CHANGELOG.md).
 

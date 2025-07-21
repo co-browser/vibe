@@ -6,7 +6,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
-import { TokenProvider } from './token-provider.js';
+import { createTokenProvider, ITokenProvider } from './token-provider-factory.js';
 
 // Configuration paths
 const HOME_DIR = os.homedir();
@@ -48,6 +48,12 @@ async function saveTokens(tokens: any) {
 let gmailClient: gmail_v1.Gmail | null = null;
 let cachedTokenExpiry: number | null = null;
 
+// Create token provider once (singleton)
+const tokenProvider: ITokenProvider = createTokenProvider();
+
+// Export token provider for server to set request context
+export { tokenProvider };
+
 async function getGmailClient(): Promise<gmail_v1.Gmail> {
   // Check if we have a cached client and if the token is still valid
   if (gmailClient && cachedTokenExpiry) {
@@ -68,7 +74,6 @@ async function getGmailClient(): Promise<gmail_v1.Gmail> {
 
   try {
     // Try to get tokens from TokenProvider (supports both cloud and local)
-    const tokenProvider = new TokenProvider();
     const tokens = await tokenProvider.getTokens();
 
     if (!tokens) {
@@ -78,8 +83,15 @@ async function getGmailClient(): Promise<gmail_v1.Gmail> {
     // Store the token expiry for later checks
     cachedTokenExpiry = tokens.expiry_date;
 
-    // Set up OAuth2 client
-    const oauth2Client = new google.auth.OAuth2();
+    // Set up OAuth2 client with credentials for token refresh
+    if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+      console.warn('[mcp-gmail] Missing GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET. Token refresh may fail.');
+    }
+    const oauth2Client = new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
+      'postmessage' // Standard redirect URI for server-side apps
+    );
     oauth2Client.setCredentials({
       access_token: tokens.access_token,
       refresh_token: tokens.refresh_token,

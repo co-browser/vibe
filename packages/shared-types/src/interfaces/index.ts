@@ -44,6 +44,7 @@ export interface VibeAppAPI {
     success: boolean;
     error?: string;
   }>;
+  getEnvVar: (varName: string) => Promise<string | undefined>;
 }
 
 // Actions API - User actions and interactions

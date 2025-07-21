@@ -186,6 +186,20 @@ ipcMain.handle("chat:create-agent-service", async () => {
     setChatMessagingInstance(agentService);
     setTabAgentInstance(agentService);
 
+    // Send Gmail tokens if available
+    try {
+      const { getStorageService } = await import("../../store/storage-service");
+      const storageService = getStorageService();
+      const gmailTokens = await storageService.get("secure.oauth.gmail.tokens");
+      if (gmailTokens) {
+        await agentService.updateGmailTokens(gmailTokens);
+        logger.info("Gmail tokens sent to agent service during initialization");
+      }
+    } catch (error) {
+      logger.warn("Failed to send Gmail tokens during initialization:", error);
+      // Non-critical error
+    }
+
     logger.info("Agent service created and initialized successfully");
     return { success: true };
   } catch (error) {

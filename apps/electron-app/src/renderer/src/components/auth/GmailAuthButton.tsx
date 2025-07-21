@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { Loader2, Mail } from "lucide-react";
+import React, { useState, useEffect, useCallback } from "react";
+import { Loader2, Mail, Lock } from "lucide-react";
 import { IconWithStatus } from "@/components/ui/icon-with-status";
 import { GMAIL_CONFIG } from "@vibe/shared-types";
 
@@ -10,8 +10,14 @@ interface AuthStatus {
   error?: string;
 }
 
+interface GmailAuthButtonProps {
+  isPrivyAuthenticated?: boolean;
+}
+
 /** Gmail OAuth authentication button component */
-export const GmailAuthButton: React.FC = () => {
+export const GmailAuthButton: React.FC<GmailAuthButtonProps> = ({
+  isPrivyAuthenticated = false,
+}) => {
   const [authStatus, setAuthStatus] = useState<AuthStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
@@ -87,17 +93,26 @@ export const GmailAuthButton: React.FC = () => {
     };
   }, []);
 
-  const getTooltipText = (): string => {
+  const getTooltipText = useCallback((): string => {
     if (isLoading) return "Checking Gmail connection...";
     if (isAuthenticating) return "Authenticating...";
+
+    // Show lock message when Privy is not authenticated (for both local and cloud modes)
+    if (!isPrivyAuthenticated) {
+      return authStatus?.authenticated
+        ? "Gmail connected • Sign in with CoBrowser to use"
+        : "Sign in with CoBrowser first to use Gmail";
+    }
+
     if (!authStatus?.hasOAuthKeys && authStatus?.error) return authStatus.error;
     if (authStatus?.authenticated)
       return "Gmail connected • Click to disconnect";
     return "Gmail not connected • Click to connect";
-  };
+  }, [isLoading, isAuthenticating, isPrivyAuthenticated, authStatus]);
 
   const handleClick = (): void => {
     if (isLoading || isAuthenticating) return;
+
     if (authStatus?.authenticated) {
       handleClearAuth();
     } else {
@@ -113,21 +128,31 @@ export const GmailAuthButton: React.FC = () => {
     return authStatus?.authenticated ? "connected" : "disconnected";
   };
 
+  // Check if we should show the lock (for both local and cloud modes)
+  const shouldShowLock = !isPrivyAuthenticated;
+
   return (
-    <IconWithStatus
-      status={getStatusIndicatorStatus()}
-      statusTitle={getTooltipText()}
-      title={getTooltipText()}
-      onClick={handleClick}
-      variant="gmail"
-      label="Gmail"
-      className={authStatus?.authenticated ? "" : "disconnected"}
-    >
-      {isLoading || isAuthenticating ? (
-        <Loader2 className="gmail-icon animate-spin" />
-      ) : (
-        <Mail className="gmail-icon" />
+    <div className="gmail-button-container">
+      <IconWithStatus
+        status={getStatusIndicatorStatus()}
+        statusTitle={getTooltipText()}
+        title={getTooltipText()}
+        onClick={handleClick}
+        variant="gmail"
+        label="Gmail"
+        className={authStatus?.authenticated ? "" : "disconnected"}
+      >
+        {isLoading || isAuthenticating ? (
+          <Loader2 className="gmail-icon animate-spin" />
+        ) : (
+          <Mail className="gmail-icon" />
+        )}
+      </IconWithStatus>
+      {shouldShowLock && (
+        <div className="gmail-pill-lock-overlay">
+          <Lock size={14} />
+        </div>
       )}
-    </IconWithStatus>
+    </div>
   );
 };

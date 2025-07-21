@@ -5,6 +5,7 @@
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
+    "dev": "tsx watch src/index.ts",
     "dev:standalone": "tsx watch src/index.ts",
     "build": "tsc",
     "bundle": "esbuild src/index.ts --bundle --platform=node --target=node18 --format=cjs --outfile=dist/bundle.cjs --external:electron && echo 'import { createRequire } from \"module\"; const require = createRequire(import.meta.url); require(\"./bundle.cjs\");' > dist/bundle-wrapper.mjs",
@@ -19,6 +20,7 @@
   "author": "",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.13.0",
+    "@privy-io/server-auth": "^1.27.1",
     "@vibe/shared-types": "workspace:*",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",

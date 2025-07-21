@@ -59,21 +59,19 @@ const server = new StreamableHTTPServer(
 const app = express();
 app.use(express.json());
 
-const router = express.Router();
+// Log authentication mode
+if (process.env.USE_LOCAL_GMAIL_SERVER !== 'true') {
+  log.info('Running in cloud mode - Privy authentication required for protected routes');
+} else {
+  log.info('Running in local mode - authentication disabled');
+}
+
 const MCP_ENDPOINT = '/mcp';
 const PORT = process.env.PORT || 3001;
 
-router.post(MCP_ENDPOINT, async (req: Request, res: Response) => {
-  await server.handlePostRequest(req, res);
-});
-
-router.get(MCP_ENDPOINT, async (req: Request, res: Response) => {
-  await server.handleGetRequest(req, res);
-});
-
-// Health check endpoint
-router.get('/health', (req: Request, res: Response) => {
-  res.json({
+// Health check endpoint - no auth required
+app.get('/health', (_req, res) => {
+  res.json({ 
     status: 'healthy',
     service: 'gmail-mcp',
     timestamp: new Date().toISOString(),
@@ -81,7 +79,14 @@ router.get('/health', (req: Request, res: Response) => {
   });
 });
 
-app.use('/', router);
+// MCP endpoints - these handle their own authentication via Gmail OAuth tokens
+app.post(MCP_ENDPOINT, async (req: Request, res: Response) => {
+  await server.handlePostRequest(req, res);
+});
+
+app.get(MCP_ENDPOINT, async (req: Request, res: Response) => {
+  await server.handleGetRequest(req, res);
+});
 
 // Create HTTP server and track active connections for graceful shutdown
 const httpServer = createServer(app);

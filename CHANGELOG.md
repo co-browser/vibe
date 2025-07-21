@@ -1,6 +1,49 @@
 
+<a name="v0.1.8"></a>
+## [v0.1.8] - 2025-07-19
+### Chore
+- update lockfile for [@privy](https://github.com/privy)-io/server-auth dependency
+- **mcp-gmail:** update [@privy](https://github.com/privy)-io/server-auth to latest version
+
+### Docs
+- cleanup & fixes
+
+### Feat
+- add multiplatform build support and OAuth server to Docker release
+- improve cloud authentication UX with visual indicators
+
+### Fix
+- clean up Docker Compose YAML formatting
+- skip API validation for cloud OAuth tokens in Gmail auth check
+- improve type safety and remove token logging
+- enable Gmail OAuth token refresh in cloud mode
+- prevent duplicate Gmail connection attempts
+- remove sensitive App ID from log output
+- remove unused validatePrivyToken import in Gmail MCP server
+- replace any type with GmailTokens for type safety
+- enable Gmail MCP server in local development mode
+- **mcp-gmail:** make token logging conditional on environment
+- **mcp-gmail:** add input validation to CloudTokenProvider
+- **mcp-gmail:** address CodeRabbit review feedback
+- **vibe-api:** remove duplicate AppRouter type export
+- **vibe-api:** use context-aware tRPC instance from trpc.ts
+
+### Perf
+- memoize getTooltipText function in GmailAuthButton
+- **ui:** optimize PrivyAuthTooltip to prevent unnecessary re-renders
+
+### Refactor
+- **vibe-api:** remove Vibe API package
+
+### Pull Requests
+- Merge pull request [#79](https://github.com/co-browser/vibe/issues/79) from co-browser/feat/cloud-auth-ux
+
+
 <a name="v0.1.7"></a>
 ## [v0.1.7] - 2025-07-10
+### Chore
+- **release:** v0.1.7
+
 ### Fix
 - prevent Gmail MCP server orphaned processes on app quit
 
@@ -303,6 +346,7 @@ Gmail authentication now uses cloud OAuth by default. Users can opt-in to local 
 <a name="v0.0.0"></a>
 ## v0.0.0 - 2025-06-13
 
+[v0.1.8]: https://github.com/co-browser/vibe/compare/v0.1.7...v0.1.8
 [v0.1.7]: https://github.com/co-browser/vibe/compare/v0.1.6...v0.1.7
 [v0.1.6]: https://github.com/co-browser/vibe/compare/v0.1.5...v0.1.6
 [v0.1.5]: https://github.com/co-browser/vibe/compare/v0.1.4...v0.1.5

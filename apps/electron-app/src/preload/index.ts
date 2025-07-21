@@ -115,6 +115,9 @@ const appAPI: VibeAppAPI = {
   completeOnboardingFirstStep: async () => {
     return ipcRenderer.invoke("onboarding:complete-first-step");
   },
+  getEnvVar: async (varName: string) => {
+    return ipcRenderer.invoke("app:get-env-var", varName);
+  },
 };
 
 // ACTIONS API IMPLEMENTATION

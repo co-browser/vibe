@@ -7,13 +7,13 @@ ENV PORT=3000
 WORKDIR /app
 
 # Copy package files
-COPY package*.json ./
+COPY infrastructure/oauth-proxy-server/package*.json ./
 
 # Install dependencies
 RUN npm ci --only=production
 
 # Copy application files
-COPY . .
+COPY infrastructure/oauth-proxy-server/ ./
 
 # Expose port using environment variable
 EXPOSE ${PORT}
